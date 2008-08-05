@@ -1,0 +1,14 @@
+setupRequired(daf_base)
+setupRequired(pex_logging)
+setupRequired(pex_exceptions)
+setupRequired(pex_policy)
+setupRequired(daf_persistence)
+setupRequired(afw)
+setupRequired(detection)
+
+setupOptional(pex_harness)
+setupOptional(afwdata)
+
+envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)

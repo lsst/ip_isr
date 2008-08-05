@@ -1,0 +1,6 @@
+examples/dataFormatConversion.py
+
+  File "examples/dataFormatConversion.py", line 28
+    import lsst.pex.policy pexPolicy
+                                   ^
+SyntaxError: invalid syntax

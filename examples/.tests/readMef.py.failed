@@ -1,0 +1,6 @@
+examples/readMef.py
+
+Traceback (most recent call last):
+  File "examples/readMef.py", line 6, in <module>
+    import pyfits
+ImportError: No module named pyfits

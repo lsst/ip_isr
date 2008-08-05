@@ -1,0 +1,9 @@
+>merge: daf_base
+>merge: pex_logging
+>merge: pex_exceptions
+>merge: daf_data
+>merge: daf_persistence
+>merge: afw
+>merge: detection
+>merge: pex_harness
+>self

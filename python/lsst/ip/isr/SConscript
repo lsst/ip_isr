@@ -1,0 +1,8 @@
+# -*- python -*-
+Import("env")
+import lsst.SConsUtils as scons
+
+# includedProducts lists packages with included .i files
+env.CheckSwig("python", ilang="c++", includedProducts="utils afw detection")
+
+env.LoadableModuleIncomplete("_isrLib", "isrLib.i", LIBS=env.getlibs("ip_isr"))

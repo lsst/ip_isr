@@ -1,0 +1,424 @@
+<?xml version="1.0"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  
+
+  <channel>
+    <title>LSST Trac</title>
+    <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/timeline</link>
+    <description>Trac Timeline</description>
+    <language>en-US</language>
+    <generator>Trac 0.11dev-r6683</generator>
+    <image>
+      <title>LSST Trac</title>
+      <url>http://lsstdev.ncsa.uiuc.edu:8100/trac/chrome/site/LSSTlogo.png</url>
+      <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/timeline</link>
+    </image>
+    <item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 18:49:08 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=50</link>
+      <guid isPermaLink="false">/1217357348</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=50"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 18:37:32 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=49</link>
+      <guid isPermaLink="false">/1217356652</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=49"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 18:34:24 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=48</link>
+      <guid isPermaLink="false">/1217356464</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=48"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 18:33:30 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=47</link>
+      <guid isPermaLink="false">/1217356410</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=47"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 18:24:24 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=46</link>
+      <guid isPermaLink="false">/1217355864</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=46"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 18:23:56 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=45</link>
+      <guid isPermaLink="false">/1217355836</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=45"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:24:32 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=15</link>
+      <guid isPermaLink="false">/1217352272</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=15"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:24:21 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=14</link>
+      <guid isPermaLink="false">/1217352261</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=14"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:21:37 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=13</link>
+      <guid isPermaLink="false">/1217352097</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=13"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:20:14 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=12</link>
+      <guid isPermaLink="false">/1217352014</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=12"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:18:06 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=11</link>
+      <guid isPermaLink="false">/1217351886</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=11"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:17:28 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=10</link>
+      <guid isPermaLink="false">/1217351848</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=10"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:16:54 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=9</link>
+      <guid isPermaLink="false">/1217351814</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=9"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:12:28 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=8</link>
+      <guid isPermaLink="false">/1217351548</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=8"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>LSST-DC3-v1.9-updated-07.29.08-currentTasks.pdf attached to DC3Schedule</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:10:13 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/attachment/wiki/DC3Schedule/LSST-DC3-v1.9-updated-07.29.08-currentTasks.pdf</link>
+      <guid isPermaLink="false">/1217351413</guid>
+      <description></description>
+      <category>attachment</category>
+    </item><item>
+      <title>LSST-DC3-v1.9-updated-07.29.08-allTasks-throughDec08only.pdf attached to DC3Schedule</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:10:05 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/attachment/wiki/DC3Schedule/LSST-DC3-v1.9-updated-07.29.08-allTasks-throughDec08only.pdf</link>
+      <guid isPermaLink="false">/1217351405</guid>
+      <description></description>
+      <category>attachment</category>
+    </item><item>
+      <title>LSST-DC3-v1.9-updated-07.29.08-allTasks.pdf attached to DC3Schedule</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:09:47 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/attachment/wiki/DC3Schedule/LSST-DC3-v1.9-updated-07.29.08-allTasks.pdf</link>
+      <guid isPermaLink="false">/1217351387</guid>
+      <description></description>
+      <category>attachment</category>
+    </item><item>
+      <title>LSST-DC3-v1.9-updated-07.29.08.mpp attached to DC3Schedule</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:09:36 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/attachment/wiki/DC3Schedule/LSST-DC3-v1.9-updated-07.29.08.mpp</link>
+      <guid isPermaLink="false">/1217351376</guid>
+      <description></description>
+      <category>attachment</category>
+    </item><item>
+      <title>DC3Schedule edited</title>
+          <dc:creator>cbeldica</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 17:09:06 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?version=7</link>
+      <guid isPermaLink="false">/1217351346</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Schedule?action=diff&amp;amp;version=7"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>DC3Platforms edited</title>
+          <dc:creator>dgehrig</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 16:32:33 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Platforms?version=3</link>
+      <guid isPermaLink="false">/1217349153</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/DC3Platforms?action=diff&amp;amp;version=3"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 16:20:22 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=44</link>
+      <guid isPermaLink="false">/1217348422</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=44"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 16:18:18 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=43</link>
+      <guid isPermaLink="false">/1217348298</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=43"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 16:07:35 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=42</link>
+      <guid isPermaLink="false">/1217347655</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=42"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 16:06:34 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=41</link>
+      <guid isPermaLink="false">/1217347594</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=41"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 16:05:44 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=40</link>
+      <guid isPermaLink="false">/1217347544</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=40"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 16:00:51 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=39</link>
+      <guid isPermaLink="false">/1217347251</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=39"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 04:02:48 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=38</link>
+      <guid isPermaLink="false">/1217304168</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=38"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:54:11 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=37</link>
+      <guid isPermaLink="false">/1217303651</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=37"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:52:47 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=36</link>
+      <guid isPermaLink="false">/1217303567</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=36"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:47:19 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=35</link>
+      <guid isPermaLink="false">/1217303239</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=35"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:30:51 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=34</link>
+      <guid isPermaLink="false">/1217302251</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=34"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:24:36 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=33</link>
+      <guid isPermaLink="false">/1217301876</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=33"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:22:15 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=32</link>
+      <guid isPermaLink="false">/1217301735</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=32"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:14:10 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=31</link>
+      <guid isPermaLink="false">/1217301250</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=31"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:10:53 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=30</link>
+      <guid isPermaLink="false">/1217301053</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=30"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:02:29 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=29</link>
+      <guid isPermaLink="false">/1217300549</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=29"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Tue, 29 Jul 2008 03:02:08 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=28</link>
+      <guid isPermaLink="false">/1217300528</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=28"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultToleranceImpacts created</title>
+          <dc:creator>ktl</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:35:04 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultToleranceImpacts?version=1</link>
+      <guid isPermaLink="false">/1217288104</guid>
+      <description>Copied outline from other document.</description>
+      <category>wiki</category>
+    </item><item>
+      <title>SwDesign edited</title>
+          <dc:creator>ktl</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:33:25 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/SwDesign?version=19</link>
+      <guid isPermaLink="false">/1217288005</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/SwDesign?action=diff&amp;amp;version=19"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultToleranceGoals created</title>
+          <dc:creator>ktl</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:33:01 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultToleranceGoals?version=1</link>
+      <guid isPermaLink="false">/1217287981</guid>
+      <description>Copied outline from other document.</description>
+      <category>wiki</category>
+    </item><item>
+      <title>SwDesign edited</title>
+          <dc:creator>ktl</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:30:35 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/SwDesign?version=18</link>
+      <guid isPermaLink="false">/1217287835</guid>
+      <description>Reorganized fault tolerance section. &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/SwDesign?action=diff&amp;amp;version=18"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:26:03 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=27</link>
+      <guid isPermaLink="false">/1217287563</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=27"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:25:25 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=26</link>
+      <guid isPermaLink="false">/1217287525</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=26"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:23:50 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=25</link>
+      <guid isPermaLink="false">/1217287430</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=25"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:07:18 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=24</link>
+      <guid isPermaLink="false">/1217286438</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=24"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 23:06:13 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=23</link>
+      <guid isPermaLink="false">/1217286373</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=23"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>Changeset [5809]: Merged revisions 5808 via svnmerge from  ...</title>
+          <dc:creator>rplante</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 21:32:06 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/changeset/5809</link>
+      <guid isPermaLink="false">/1217280726</guid>
+      <description>&lt;p&gt;
+Merged revisions 5808 via svnmerge from  ...
+&lt;/p&gt;
+</description>
+      <category>changeset</category>
+    </item><item>
+      <title>Changeset [5808]: eupsTable.py: bug fix in expression parsing</title>
+          <dc:creator>rplante</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 21:29:59 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/changeset/5808</link>
+      <guid isPermaLink="false">/1217280599</guid>
+      <description>&lt;p&gt;
+eupsTable.py: bug fix in expression parsing
+&lt;/p&gt;
+</description>
+      <category>changeset</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 21:19:49 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=22</link>
+      <guid isPermaLink="false">/1217279989</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=22"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item><item>
+      <title>FaultDetection edited</title>
+          <dc:creator>daues</dc:creator>
+        <pubDate>Mon, 28 Jul 2008 21:18:18 GMT</pubDate>
+        <link>http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?version=21</link>
+      <guid isPermaLink="false">/1217279898</guid>
+      <description> &lt;a href="http://lsstdev.ncsa.uiuc.edu:8100/trac/wiki/FaultDetection?action=diff&amp;amp;version=21"&gt;(diff)&lt;/a&gt;</description>
+      <category>wiki</category>
+    </item>
+   </channel>
+</rss>
