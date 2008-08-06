@@ -134,18 +134,24 @@ def main():
                 # the header while we are at it
                 
                 datasec = header['DATASEC']
-                trimsec = header['TRIMSEC']
+                trimsec = header['FILTER']
                 biassec = header['BIASSEC']
                 exptime = header['EXPTIME']
+                taiMjd = header['TAI']
+                binning = header['BIN']
+                exptype = header['EXPTYPE']
 
                 # Remove all of the above member variables (gain,
                 # rdNoise, datasec, trimsec, biassec, exptime) from
                 # the header to avoid future duplication issues
 
                 del header['DATASEC']
-                del header['TRIMSEC']
+                del header['FILTER']
                 del header['BIASSEC']
                 del header['EXPTIME']
+                del header['TAI']
+                del header['BIN']
+                del header['EXPTYPE']
                 del header[gainKeyword]
                 del header[rdNoiseKeyword]
                 
@@ -167,11 +173,24 @@ def main():
                 inputWCS = afwImage.Wcs(inputImage.getMetaData())
 
                 # Remove the WCS information from the header to avoid
-                # future duplication issues
+                # future duplication issues.  Persistence needs to fix
+                # this issue with WCS later.
 
-
+                del header['PIXSCAL1']
+                del header['PIXSCAL2']
+                del header['CRPIX1']
+                del header['CRPIX2']
+                del header['CD1_1']
+                del header['CD1_2']
+                del header['CD2_1']
+                del header['CD2_2']
+                del header['RADECSYS']
+                del header['CRVAL1']
+                del header['CRVAL2']
+                del header['CTYPE1']
+                del header['CTYPE2']
+                del header['EQUINOX']
                 
-
                 # For now, create the MaskedImage
                 newInputMaskedImage = afwImage.MaskedImageF(inputImage, inputVaraince, inputMask)
 
