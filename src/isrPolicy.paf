@@ -1,0 +1,130 @@
+#<?cfg paf policy ?>
+# Main ISR Pipeline Policy File
+
+# GENERAL ISR PIPELINE INFORMATION
+######################################
+
+# Debugging/testing? (boolean)
+debugIO: true
+
+# Does a Bad Pixel Mask exist? (boolean)
+bpm: true
+
+# Size of Chunk (FPA, RAFT, CCD, AMP, OTHER)
+chunk: 
+
+# ISR STAGE-SPECIFIC INFORMATION
+######################################
+
+# Saturation Correction For Chunk Exposure		
+saturationPolicy: {
+
+ # Does a Saturation Lookup Table exist? (boolean)
+ satTable: false
+ 
+ # Use the default saturation limit in the dataset file? (boolean)
+ useDefSat: true
+
+ # Number of pixels to grow
+ grow: 1
+
+ # Threshold for saturation limit
+ threshold: 0
+
+}
+
+# Overscan Correct and Trim Chunk Exposure
+overscanPolicy: {
+
+ # Fit a constant value or function?
+ method: function
+
+ # Functional form (polynomial, spline, etc)
+ # will run Chi^2 minimization, get these parameters too
+ funcForm: polynomial
+ funcOrder: 3
+ stepSize: 1.0 # some reasonable guess at a step size for the minimization
+ numParams: 0.0 number of parameters to start with for the minimization
+
+ # Method for determining the constant value to use
+ constantMeth: mean
+
+ # Do you want to smooth the image?
+ smooth: false
+ # boxcar or gaussian (if gaussian, # gaussian sigma)
+ smoothOpt: boxcar
+ smoothOrder: 3
+ smoothSigma: 4
+
+ # Do you want to sigma-clip the image?
+ sigClip: false
+ sigClipVal: 3
+
+}
+
+# Bias Correct Chunk Exposure
+biasPolicy: {
+ sigClip: false
+ sigClipVal: 3
+ biasScale: 1.0
+ chunkType: amp
+ biasScale: 1.0
+
+}
+
+# Dark Current Correct Chunk Exposure
+darkPolicy: {
+ darkScale: 1.0
+ sigClip: false
+ sigClipValue: 3
+ chunkType: amp
+ darkScale: 1.0
+ 
+}
+
+# Linearize Chunk Exposure
+linearizePolicy: {
+
+ # Does a Linearization Lookup Table exist? (boolean)
+ linTable: false
+ # Functional form of the linearization fit
+ funcForm: polynomial
+ funcOrder: 3
+ stepSize: 1.0 # some reasonable guess at a step size for the minimization
+ numParams: 0.0 number of parameters to start with for the minimization
+
+}
+
+# Flat Field Correct Chunk Exposure
+flatPolicy: {
+ stretchFactor: 1.0
+ sigClip: false
+ sigClipVal: 3
+ chunkType: amp 
+ flatScale: 1.0
+
+}
+
+# Ilumination Correction
+illuminationPolicy: {
+
+}
+
+# Pupil Image Correction
+pupilPolicy: {
+
+}
+
+# Defringe Chunk Exposure
+fringePolicy: {
+ stretchFactor: 1.0
+ sigClip: false
+ sigClipVal: 3
+ chunkType: amp 
+ fringeScale: 1.0
+}
+
+# Interpolate Over Masked Pixels
+interpolatePolicy: {
+
+}
