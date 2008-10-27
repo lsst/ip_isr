@@ -2,28 +2,25 @@
 Import('env')
 	
 prodName = env['eups_product']
-	
-env.SharedLibraryIncomplete(
-	prodName,
 	["../src/" + s for s in (
 		"instrumentSignatureRemovalController.cc",
-		"assembleChunkExposure.cc",
                 "interpolateOverMaskedPixels.cc",
 		"saturationCorrectionForChunkExposure.cc",
-                "overscanCorrectChunkExposure.cc",
-                "trimChunkExposure.cc",	
+                "overscanCorrectAndTrimChunkExposure.cc",
 		"biasCorrectChunkExposure.cc",
 		"darkCurrentCorrectChunkExposure.cc",
 		"linearizeChunkExposure.cc",
-                "flatCorrectChunkExposure.cc",
-                "pupilImageCorrection.cc",
-                "geometricDistortionCorrection.cc",
-                "scatteredLightCorrection.cc",
+                "flatFieldCorrectChunkExposure.cc",
+        #        "pupilImageCorrection.cc",
+        #        "geometricDistortionCorrection.cc",
                 "illuminationCorrection.cc",
-                "maskAdditionalArtifacts.cc",
-                "defringeChunkExposure.cc",
+        #        "maskAndCorrectAdditionalArtifacts.cc",
+                "defringeChunkExposure.cc"
 	#        "crosstalkCorrectChunkExposure.cc", not implemented for nightly
 	#        "additionalFlatCorrection.cc" not implemented for nightly
 	)],
+	
+env.SharedLibraryIncomplete(
+	prodName,
 	LIBS=[x for x in env.getlibs(prodName) if x != prodName]
 )

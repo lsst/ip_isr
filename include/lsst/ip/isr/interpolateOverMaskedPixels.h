@@ -19,15 +19,7 @@
 #ifndef LSST_IP_ISR_INTERPOLATEOVERMASKEDPIXELS_H
 #define LSST_IP_ISR_INTERPOLATEOVERMASKEDPIXELS_H
 
-#include <string>
-
-#include <boost/shared_ptr.hpp>
-
 #include <lsst/afw/image/Exposure.h>
-#include <lsst/afw/image/Image.h>
-#include <lsst/afw/image/Mask.h>
-#include <lsst/afw/math/Function.h>
-#include <lsst/daf/base/DataProperty.h>
 #include <lsst/pex/policy/Policy.h>
 
 /** \brief Interpolate over all masked pixels in a Chunk Exposure's image using
@@ -41,10 +33,10 @@ namespace isr {
     typedef boost::uint16_t maskPixelType;
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::MaskedImage<ImageT, MaskT> interpolateOverMaskedPixels(
-        lsst::afw::image::MaskedImage<ImageT, MaskT> &chunkMaskedImage,
-        lsst::daf::base::DataProperty::PtrType &chunkMetaData,
-        std::string const interpMethod
+    lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedPixels(
+        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
+	lsst::pex::policy::Policy &isrPolicy,
+	lsst::pex::policy::Policy &interpolationPolicy
         );
 
 }}} // namespace lsst::ip::isr

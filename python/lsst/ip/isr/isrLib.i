@@ -6,11 +6,18 @@ Python bindings for lsst::ip::isr code
 %enddef
 
 %feature("autodoc", "1");
-%module(docstring=isrLib_DOCSTRING) isrLib
+%module(package="lsst.ip.isr",docstring=isrLib_DOCSTRING) isrLib
+
+// Suppress swig complaints; see afw/image/imageLib.i for more 
+#pragma SWIG nowarn=362                 // operator=  ignored 
+
 
 // Everything we will need in the _wrap.cc file
 %{
 #include <lsst/ip/isr/isr.h>
+#include "boost/cstdint.hpp" 
+#include "lsst/afw/image.h" 
+#include "lsst/afw/math.h" 
 %}
 
 %init %{
@@ -21,6 +28,8 @@ namespace boost {
 }
 
 // Everything whose bindings we will have to know about
+%import "lsst/daf/data/LsstBase.h"  // avoid warning: Nothing known about base class 'lsst::daf::data::LsstBase' 
+%import "lsst/afw/image/Mask.h" // needed so SWIG knows lsst::afw::image::maskPixelType = boost::uint16_t 
 %include "lsst/p_lsstSwig.i"    // this needs to go first otherwise i do not know about e.g. boost
 %include "lsst/afw/image/lsstImageTypes.i"  // vw and Image/Mask types and typedefs
 
@@ -30,7 +39,8 @@ namespace boost {
 %apply double& OUTPUT { double& };
 
 %pythoncode %{
-def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/ip/isr/python/lsst/ip/isr/isrLib.i $"):
+def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/python/lsst/ip/isr/isrLib.i $"):
+
     """Return a version given a HeadURL string; default: ip_isr's version"""
     return guessSvnVersion(HeadURL)
 
