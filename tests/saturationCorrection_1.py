@@ -14,10 +14,11 @@ import eups
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.utils.tests as utilsTests
+import afw.image.testUtils as imUtilsTests
 import lsst.pex.logging as pexLog
 import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as isrTrunk
+#import lsst.ip.ip_isr as isrTrunk
 
 Verbosity = 0 # increase to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
@@ -70,7 +71,7 @@ class isrTestCases(unittest.TestCase):
 
     def testSaturationCorrection(self):
         
-        satCor = isrTrunk.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy)
+        satCor = lsst.ip.isr.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy)
 
         chunkExposure.writeFits(outSatPath)
         
