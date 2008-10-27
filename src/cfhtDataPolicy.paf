@@ -1,0 +1,35 @@
+#<?cfg paf policy ?>
+# Policy File for CFHTLS D4 raw data
+
+# Gain and Read Noise fixed values (float) or FITS header keywords (string)
+gain: GAIN
+gaina: GAINA
+gainb: GAINB
+rdNoise: RDNOISE
+rdNoisea: RDNOISEA
+rdNoiseb: RDNOISEB
+
+# Number of Amplifiers per CCD image for CFHT data (col & row)
+numRowAmps: 1
+numColAmps: 2
+
+# Bad Pixel Mask Name
+bpmName: '2003A.mask.0.36.01.fits' 
+
+# Name of the fields holding the CCD IDs
+ccdField: EXTVER
+ccdName: EXTNAME
+
+# Name of the fields holding the amplifier IDs
+ampName: AMPNAME
+ampList: AMPLIST
+
+# Default saturation limit for all CFHT CCDs (in DN)
+# if no limit is defined in the header and no lookup table is provided.
+satLimit: 65000 
+
+# Saturation Lookup Table name
+satTableName: 'saturationLookupTable.tab' 
+
+# Linearization Lookup Table Name
+linTableName: 'linearizationLookupTable.tab'

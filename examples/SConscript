@@ -5,7 +5,7 @@ import sys
 import lsst.tests
 	
 import lsst.SConsUtils as scons         # scons 1.17 supports "env.ProductDir", but for now use scons.ProductDir
-dataDir = scons.ProductDir("fwData")
+dataDir = scons.ProductDir("afwData")
 args = {
 }
 #
