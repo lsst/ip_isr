@@ -14,16 +14,16 @@ import eups
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.utils.tests as utilsTests
-import afw.image.testUtils as imUtilsTests
+import lsst.afw.image.testUtils as imUtilsTests
 import lsst.pex.logging as pexLog
 import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
-#import lsst.ip.ip_isr as isrTrunk
+import lsst.ip.isr as ipIsr
 
 Verbosity = 0 # increase to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
 
-dataDir = eups.productDir("afwdata/trunk/CFHT/D4/")
+dataDir = eups.productDir("afwdata")
 if not dataDir:
     raise RuntimeError("Must set up afwdata to run these tests!")
 
@@ -36,8 +36,8 @@ InputIsrPolicy =  "isrPolicy.paf"           # Contains information directing ISR
 SatLookupTable = "satLookUpTable"           # Use Lookup Table in lieu of a function
 
 currDir = os.path.abspath(os.path.dirname(__file__))
-isrDir = "~/code/isrtrunk/src/"
-inFilePath = os.path.join(dataDir, InputChunkExposure)
+isrDir = "../src/"
+inFilePath = os.path.join(dataDir, "CFHT", "D4", InputChunkExposure)
 
 datasetPolicyPath = os.path.join(isrDir, InputDatasetPolicy)
 isrPolicyPath = os.path.join(isrDir, InputIsrPolicy)
@@ -59,6 +59,8 @@ class isrTestCases(unittest.TestCase):
        
         chunkExposure = afwImage.ExposureF()
         chunkExposure.readFits(inFilePath)
+##         isrPolicy = pexPolicy.Policy(isrPolicyPath)
+##         datasetPolicy = pexPolicy.Policy(datasetPolicyPath)
 
         isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
         datasetPolicy = pexPolicy.Policy.createPolicy(datasetPolicyPath)
@@ -71,11 +73,11 @@ class isrTestCases(unittest.TestCase):
 
     def testSaturationCorrection(self):
         
-        satCor = lsst.ip.isr.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy)
+        satCor = ipIsr.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy)
 
         chunkExposure.writeFits(outSatPath)
         
-        #satCor = isrTrunk.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy, satLookupTablePath)
+        #satCor = ipIsr.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy, satLookupTablePath)
         
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 

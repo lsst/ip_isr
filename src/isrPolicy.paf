@@ -5,13 +5,13 @@
 ######################################
 
 # Debugging/testing? (boolean)
-debugIO: true
+debugIO: false
 
 # Does a Bad Pixel Mask exist? (boolean)
 bpm: true
 
 # Size of Chunk (FPA, RAFT, CCD, AMP, OTHER)
-chunk: 
+chunk: ccd
 
 # ISR STAGE-SPECIFIC INFORMATION
 ######################################
@@ -44,7 +44,7 @@ overscanPolicy: {
  funcForm: polynomial
  funcOrder: 3
  stepSize: 1.0 # some reasonable guess at a step size for the minimization
- numParams: 0.0 number of parameters to start with for the minimization
+ numParams: 0.0 # number of parameters to start with for the minimization
 
  # Method for determining the constant value to use
  constantMeth: mean
@@ -91,7 +91,7 @@ linearizePolicy: {
  funcForm: polynomial
  funcOrder: 3
  stepSize: 1.0 # some reasonable guess at a step size for the minimization
- numParams: 0.0 number of parameters to start with for the minimization
+ numParams: 0.0 #number of parameters to start with for the minimization
 
 }
 

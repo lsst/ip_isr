@@ -7,14 +7,14 @@ import lsst.SConsUtils as scons
 
 env = scons.makeEnv(
     "ip_isr",
-    r"$HeadURL$",
+    r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/ip/isr/trunk/SConstruct $",
     [
         ["boost", "boost/version.hpp", "boost_filesystem:C++"],
         ["vw", "vw/Math.h", "vwMath:C++"],
         ["python", "Python.h"],
         ["m", "math.h", "m", "sqrt"], # why is this optional?
-        ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"], # needed to link _isrLib.so; remove m once SConsUtils bug fixed
-        ["wcslib", "wcslib/wcs.h", "m wcs"], # needed by afw; remove m once SConsUtils bug fixed
+        ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"], # needed to link _isrLib.so
+        ["wcslib", "wcslib/wcs.h", "m wcs"], # needed by afw
         ["minuit", "Minuit/FCNBase.h", "lcg_Minuit:C++"], # needed by afw
         ["lapack", None, "lapack", "dgesdd_"],
         ["utils", "lsst/utils/Utils.h", "utils:C++"],

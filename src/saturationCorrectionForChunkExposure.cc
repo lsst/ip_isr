@@ -192,20 +192,20 @@ lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
 /************************************************************************/
 /* Explicit instantiations */
 
-// template
-// lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
-//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,    
-//     lsst::pex::policy::Policy &isrPolicy, 
-//     lsst::pex::policy::Policy &datasetPolicy
-//     //std::vector<float> &saturationLookUpTable
-//     );
+template
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,    
+    lsst::pex::policy::Policy &isrPolicy, 
+    lsst::pex::policy::Policy &datasetPolicy
+    //std::vector<float> &saturationLookUpTable
+    );
 
-// template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,    
-//     lsst::pex::policy::Policy &isrPolicy, 
-//     lsst::pex::policy::Policy &datasetPolicy
-//     //std::vector<float> &saturationLookUpTable
-//     );
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,    
+    lsst::pex::policy::Policy &isrPolicy, 
+    lsst::pex::policy::Policy &datasetPolicy
+    //std::vector<float> &saturationLookUpTable
+    );
 
 /************************************************************************/
