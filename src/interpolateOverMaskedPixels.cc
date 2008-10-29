@@ -15,9 +15,9 @@
 #include <vector>
 #include <cmath>
 
-#include <boost/shared_ptr.hpp>
-#include <boost/cstdint.hpp>
-#include <boost/format.hpp>
+#include "boost/shared_ptr.hpp"
+#include "boost/cstdint.hpp"
+#include "boost/format.hpp"
 
 #include <lsst/afw/image/Exposure.h>
 #include <lsst/afw/math/Function.h>
@@ -25,7 +25,7 @@
 #include <lsst/afw/image/MaskedImage.h>
 #include <lsst/daf/base/DataProperty.h>
 #include <lsst/pex/exceptions/Exception.h>
-// #include <lsst/utils/Trace.h>
+#include <lsst/pex/logging/Trace.h>
 #include <lsst/pex/policy/Policy.h>
 
 #include "lsst/ip/isr/isr.h"
@@ -37,9 +37,8 @@
 
 template<typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedpixels(
-    lsst::afw::image::Exposure<ImageT, MaskT> &chunkMaskedImage,    
-    lsst::daf::base::DataProperty::PtrType &chunkMetaData, 
-    std::string interpMethod 
+    lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,    
+    lsst::pex::policy::Policy &isrPolicy
     ) { 
 
     
@@ -49,3 +48,17 @@ lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedpixels(
 
 /************************************************************************/
 /* Explicit instantiations */
+
+template
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> interpolateOverMaskedpixels(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,    
+    lsst::pex::policy::Policy &isrPolicy
+    );
+
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> interpolateOverMaskedpixels(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,    
+    lsst::pex::policy::Policy &isrPolicy
+    );
+/************************************************************************/
+

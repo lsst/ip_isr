@@ -31,6 +31,8 @@ saturationPolicy: {
  # Threshold for saturation limit
  threshold: 0
 
+# Minimum number of saturated pixels to be detected in a footprint
+ nSatPixMin: 1
 }
 
 # Overscan Correct and Trim Chunk Exposure

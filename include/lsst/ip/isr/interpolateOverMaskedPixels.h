@@ -30,13 +30,10 @@ namespace lsst {
 namespace ip {
 namespace isr {
 
-    typedef boost::uint16_t maskPixelType;
-
     template<typename ImageT, typename MaskT>
     lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedPixels(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &interpolationPolicy
+        lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,
+	lsst::pex::policy::Policy &isrPolicy
         );
 
 }}} // namespace lsst::ip::isr
