@@ -71,35 +71,32 @@ lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
     // Get the Chunk MaskedImage and Chunk Metadata from the Chunk Exposure
 
     lsst::afw::image::MaskedImage<ImageT, MaskT> chunkMaskedImage = chunkExposure.getMaskedImage();    
-    typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT chunkMaskedImagePtr; 
+    //typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT chunkMaskedImagePtr; 
     lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetadata();
+    std::string subStage = "Saturation Correction for Chunk Exposure";
 
     // Make sure we haven't run this sub-stage previously
-     lsst::daf::base::DataProperty::PtrType isrSaturation = chunkMetadata->findUnique("ISR_SATCOR");  // saturation stage processing flag
-    int isrSat;
-    if (isrSaturation) {
-        isrSat = boost::any_cast<const int>(isrSaturation->getValue());
-    } else {
-    throw lsst::pex::exceptions::Runtime(std::string("In ") + __func__ + std::string(": Could not get sub-stage processing flag from the image metadata."));
-    }
-    
-    if (isrSat != 0) {
-        throw lsst::pex::exceptions::Runtime(std::string("Saturation Correction has already been applied to this Chunk Exposure"));
-    }
 
+     lsst::daf::base::DataProperty::PtrType isrSaturation = chunkMetadata->findUnique("ISR_SATCOR");  // saturation stage processing flag
+    if (isrSaturation) {
+        throw lsst::pex::exceptions::Runtime(std::string("Saturation Correction has already been applied to this Chunk Exposure."));
+    } 
+    
     // Parse the ISR policy file for the saturation sub-stage information
     // First get the Saturation Sub-Stage Policy from the ISR Policy
+
     lsst::pex::policy::Policy::Ptr saturationPolicy = isrPolicy.getPolicy("saturationPolicy");
     bool satTable = saturationPolicy->getBool("satTable");
     bool useDefSat = saturationPolicy->getBool("useDefSat");
     std::vector<double> satTableName = saturationPolicy->getDoubleArray("satTableName");
-    //std::string satTableName = saturationPolicy->getString("satTableName"); 
+    // std::string satTableName = saturationPolicy->getString("satTableName"); 
     const int ccdNum = datasetPolicy.getInt("ccdName");
     const int satGrow = saturationPolicy->getInt("grow");
-    const int threshold = saturationPolicy->getInt("threshold");
-    const int nSatPixMin = saturationPolicy->getInt("nSatPixMin");
+    double threshold = saturationPolicy->getDouble("threshold");
+    // const int nSatPixMin = saturationPolicy->getInt("nSatPixMin");
 
     // Get the saturation limit for the Chunk Exposure
+
     double satLimit;   
     lsst::daf::base::DataProperty::PtrType saturationField = chunkMetadata->findUnique("SATURATE");
     if (saturationField) {
@@ -113,6 +110,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
         satLimit = satTableName[ccdNum];
                   
     } else if (useDefSat = true){
+
         // use a generic saturation limit from the policy file
         satLimit = datasetPolicy.getDouble("satLimit");       
     } else {
@@ -120,33 +118,35 @@ lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
         throw lsst::pex::exceptions::NotFound(std::string("Can not get Saturation limit for Chunk Exposure."));
     }  
 
-    // Setup the bad pixel mask plane
+    // Get the bad pixel mask and setup the "SAT" mask plane
+    typename lsst::afw::image::Mask<MaskT>::MaskPtrT chunkMaskPtr;
+    chunkMaskPtr = chunkMaskedImage.getMask();
     MaskT const satMaskBit = chunkMaskedImage.getMask()->getPlaneBitMask("SAT");
-   
-//     const int numCols = static_cast<int>(chunkMaskedImage.getCols());
-//     const int numRows = static_cast<int>(chunkMaskedImage.getRows()); 
-   
     
     typedef std::vector<lsst::detection::Footprint::PtrType> FootprintList;
     typedef typename FootprintList::iterator FootprintIter;
 
-    FootprintList newSatFps;  // newly detected saturated pixel footprints
-    FootprintIter satFpIter; // if need to iterate
-    FootprintList grownSatFps;  // final list of grown saturated pixel footprints
+    FootprintList newSatFps;   // newly detected saturated pixel footprints
+    FootprintIter satFpIter;   // if need to iterate
+    FootprintList grownSatFps; // final list of grown saturated pixel footprints
 
-    // Save the saturated pixels as a vector of footprints.  QQQ: Is there
-    // anyway of returning the number of pixels in each footprint?
-    newSatFps = lsst::detection::DetectionSet<ImageT, MaskT>::DetectionSet( 
-        chunkMaskedImage, 
-        threshold,      
-        satMaskBit,    
-        nSatPixMin);       
+    // Save the saturated pixels as a vector of footprints.  
+
+    // QQQ: Is there anyway of returning the number of pixels in each footprint?
+
+    lsst::detection::DetectionSet<ImageT, MaskT> detectionSet(chunkMaskedImage, lsst::detection::Threshold(threshold, lsst::detection::Threshold::VALUE)
+        );       
+
+    newSatFps = detectionSet.getFootprints();
   
-    // Grow around all of the saturated pixel footprints.  QQQ: Can we
-    // distinguish between pixels saturated in the A/D converter and those just
-    // saurated on chip?  If so, we don't want to grow around the A/D saturated
-    // pixels (in unbinned data).
+    // Grow around all of the saturated pixel footprints.  
+
+    // QQQ: Can we distinguish between pixels saturated in the A/D converter and
+    // those just saurated on chip?  If so, we don't want to grow around the A/D
+    // saturated pixels (in unbinned data).
+
     int numSatFootprints = 0;
+    int numSatPix = 0;
     for (FootprintIter satFpIter = newSatFps.begin(); satFpIter < newSatFps.end(); satFpIter++) { 
 
         // Need to create a bounding box to turn the saturated footprints into
@@ -157,40 +157,51 @@ lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
         vw::Vector2i const maxVec(bbox.max().x() + satGrow, bbox.max().y() + satGrow); 
         vw::BBox2i const fpBBox(minVec, maxVec); 
               
-//         // lets turn each into a sub image 
-//         try { 
-//             chunkMaskedImagePtr = chunkMaskedImage.getSubImage(fpBBox);                  
-//         } catch (lsst::pex::exceptions::ExceptionStack &e) { 
-//             continue; 
-//         } 
-             
+        // lets turn each into a subImage and get the cols/rows and number of
+        // pixels in each footprint so we can sum them
+        typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT fpChunkMaskedImagePtr;
+        fpChunkMaskedImagePtr = chunkMaskedImage.getSubImage(fpBBox); 
+        const int numCols = static_cast<int>(fpChunkMaskedImagePtr->getCols());
+        const int numRows = static_cast<int>(fpChunkMaskedImagePtr->getRows());
+        numSatPix += (numCols * numRows);
+               
         // Create a new footprint with the grown bbox and save the new
         // footprints in another vector.
+
         lsst::detection::Footprint::PtrType fpGrow(new lsst::detection::Footprint(fpBBox)); 
         grownSatFps.push_back(fpGrow);
         numSatFootprints += 1;
     } 
 
-    // Mask all of those saturated pixel footprints.  QQQ: DetectionSet has
-    // already masked the original footprint so want to only mask the grown
-    // pixels. How do we do that? Using "SAT" bitmask for all pixels in the
-    // footprint.  QQQ: Do we want to distinguish between grown pixels and those
-    // that were actually saturated?  What bitmask would that be ("GROW")?
-    lsst::afw::image::Mask<MaskT> chunkMask = chunkMaskedImage->getMask();
-    lsst::detection::setMaskFromFootprintList<MaskT>(chunkMask, grownSatFps, satMaskBit);
+    // Mask all of those saturated pixel footprints.  Using "SAT" bitmask for
+    // all pixels in the footprint.  
+
+    // QQQ: Do we want to distinguish between grown pixels and those that were
+    // actually saturated?  What bitmask would that be ("GROW")? Detection set
+    // will mask pixels but its not yet implemented.
+   
+    lsst::detection::setMaskFromFootprintList<MaskT>(chunkMaskPtr, grownSatFps, satMaskBit);
     
     // Interpolate over all of the masked saturated pixels. 
     lsst::ip::isr::interpolateOverMaskedPixels<ImageT, MaskT>(chunkExposure, isrPolicy);
 
     // Record the sub-stage provenance to the Image Metadata
-    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_SATCOR", "Complete"));
+    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_SATCOR")); 
+    lsst::daf::base::DataProperty::PtrType satCorProp = chunkMetadata->findUnique("ISR_SATCOR");
+    std::string exTrue = "Completed Successfully"; 
+    satCorProp->setValue(boost::any_cast<std::string>(exTrue));
+    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_SATCOR_END"));
     chunkMaskedImage.setMetadata(chunkMetadata);
 
     // Calculate additional SDQA Metrics??
+       //return the following fro SDQA:
+       // numSatFootprints
+       // numSatPix
 
     // Issue a logging message if the sub-stage executes without issue to this
     // point! Yay!!
-    lsst::pex::logging::TTrace<7>(std::string("ISR sub-stage ") +__func__ + std::string(" completed successfully."));
+
+    lsst::pex::logging::TTrace<7>("ISR sub-stage, %s, completed successfully.", subStage);
          
 }
 
@@ -205,12 +216,12 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> saturationCor
     //std::vector<float> &saturationLookUpTable
     );
 
-// template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,    
-//     lsst::pex::policy::Policy &isrPolicy, 
-//     lsst::pex::policy::Policy &datasetPolicy
-//     //std::vector<double> &saturationLookUpTable
-//     );
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,    
+    lsst::pex::policy::Policy &isrPolicy, 
+    lsst::pex::policy::Policy &datasetPolicy
+    //std::vector<double> &saturationLookUpTable
+    );
 
 /************************************************************************/

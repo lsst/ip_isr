@@ -4,9 +4,9 @@
   *
   * \ingroup isr
   *
-  * \brief Implementation of the templated subStage, Mask Additional 
-  *  Artifacts, of the Instrument Signature Removal stage forthe nightly LSST
-  *  Image Processing Pipeline.
+  * \brief Implementation of the templated subStage, Mask and Correct Additional
+  * Artifacts, of the Instrument Signature Removal stage for the nightly LSST
+  * Image Processing Pipeline.
   *
   * \author Nicole M. Silvestri, University of Washington
   *
@@ -39,3 +39,32 @@
 
 /** \brief 
   */
+
+
+ template<typename ImageT, typename MaskT>
+ lsst::afw::image::Exposure<ImageT, MaskT> maskAndCorrectAdditionalArtifacts(
+     lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,
+     lsst::pex::policy::Policy &isrPolicy,
+     lsst::pex::policy::Policy &datasetPolicy
+     ){
+
+}
+
+/************************************************************************/
+/* Explicit instantiations */
+
+ template
+ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> maskAndCorrectAdditionalArtifacts(
+     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
+     lsst::pex::policy::Policy &isrPolicy,
+     lsst::pex::policy::Policy &datasetPolicy
+     );
+
+ template
+ lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> maskAndCorrectAdditionalArtifacts(
+     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
+     lsst::pex::policy::Policy &isrPolicy,
+     lsst::pex::policy::Policy &datasetPolicy
+     );
+
+/************************************************************************/

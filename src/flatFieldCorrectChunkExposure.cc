@@ -71,37 +71,39 @@
 
 template <typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
-	lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,
-	lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-        lsst::pex::policy::Policy &datasetPolicy
- 	) {
+    lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,
+    lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    ) {
 
     // Get the Chunk MaskedImage and Image Metadata from the Chunk Exposure 
     lsst::afw::image::MaskedImage<ImageT, MaskT> chunkMaskedImage = chunkExposure.getMaskedImage();   
-    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage->getMetadata();
+    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetadata();
 
     // Get the Master Flat Field Chunk MaskedImage and Image Metadata from the
     // Master Flat Field Chunk Exposure
     lsst::afw::image::MaskedImage<ImageT, MaskT> masterChunkMaskedImage = masterChunkExposure.getMaskedImage();
-    lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage->getMetadata();
+    lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage()->getMetadata();
+
+    std::string subStage = "Flat Field Correct Chunk Exposure";
 
     // Check that this ISR sub-stage has not been run previously on this Chunk
     // Exposure.  If it has, terminate the stage.
     lsst::daf::base::DataProperty::PtrType isrFlatField = chunkMetadata->findUnique("ISR_FLATCOR");
     if (isrFlatField) {
-        lsst::pex::logging::TTrace<3>(std::string("In ") + __func__ + std::string(": Exposure has already been Flat Field Corrected.  Terminating ISR sub-stage for this Chunk Exposure."));
+        lsst::pex::logging::TTrace<3>("In %s: Exposure has already been corrected.  Terminating ISR sub-stage for this Chunk Exposure.", subStage);
         throw lsst::pex::exceptions::Runtime(std::string("Flat Field correction previously performed."));
     }
 
     // Check that the Master Flat Field Chunk Exposure and Chunk Exposure are
     // the same size.
 
-    const int numCols = static_cast<int>(chunkExposure.getCols());
-    const int numRows = static_cast<int>(chunkExposure.getRows()); 
+    const int numCols = static_cast<int>(chunkMaskedImage.getCols());
+    const int numRows = static_cast<int>(chunkMaskedImage.getRows()); 
 
-    const int mnumCols = static_cast<int>(masterChunkExposure.getCols());
-    const int mnumRows = static_cast<int>(masterChunkExposure.getRows()); 
+    const int mnumCols = static_cast<int>(masterChunkMaskedImage.getCols());
+    const int mnumRows = static_cast<int>(masterChunkMaskedImage.getRows()); 
 
     if (numCols != mnumCols || numRows != mnumRows) {
         throw lsst::pex::exceptions::LengthError(std::string("In ") + __func__ + std::string(": Chunk Exposure and Master Flat Field Chunk Exposure are not the same size."));
@@ -110,14 +112,13 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
     // Check that the Master Flat Field Chunk Exposure and Chunk Exposure are
     // derived from the same pixels.
 
-    lsst::pex::policy::Policy flatPolicy = isrPolicy.getPolicy("flatPolicy");
-    std::string chunkType = flatPolicy.getString("chunkType");
-    if (chunkType = "amp") {
+    lsst::pex::policy::Policy::Ptr flatPolicy = isrPolicy.getPolicy("flatPolicy");
+    std::string chunkType = flatPolicy->getString("chunkType");
+    if (chunkType == "amp") {
         lsst::daf::base::DataProperty::PtrType ampidField = chunkMetadata->findUnique("AMPID");
         unsigned int ampid;
         if (ampidField) {
             ampid = boost::any_cast<const int>(ampidField->getValue());
-            return ampid;
         } else {
             throw lsst::pex::exceptions::NotFound(std::string("In ") + __func__ + std::string(": Could not get AMPID from the Chunk Metadata."));
         }
@@ -126,7 +127,6 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         unsigned int mampid;
         if (mampidField) {
             mampid = boost::any_cast<const int>(mampidField->getValue());
-            return mampid;
         } else {
             throw lsst::pex::exceptions::NotFound(std::string("In ") + __func__ + std::string(": Could not get AMPID from the Master Flat Field Chunk Metadata."));
         }
@@ -135,12 +135,11 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
             throw lsst::pex::exceptions::RangeError(std::string("In ") + __func__ + std::string(": Chunk Exposure and Master Flat Field Chunk Exposure are not derived from the same pixels."));
         }
     // CHECK IT IF ITS A CCD
-    } else if (chunkType = "ccd") {
+    } else if (chunkType == "ccd") {
         lsst::daf::base::DataProperty::PtrType ccdidField = chunkMetadata->findUnique("CCDID");
         unsigned int ccdid;
         if (ccdidField) {
             ccdid = boost::any_cast<const int>(ccdidField->getValue());
-            return ccdid;
         } else {
             throw lsst::pex::exceptions::NotFound(std::string("In ") + __func__ + std::string(": Could not get CCDID from the Chunk Metadata."));
         }
@@ -149,7 +148,6 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         unsigned int mccdid;
         if (mccdidField) {
             mccdid = boost::any_cast<const int>(mccdidField->getValue());
-            return mccdid;
         } else {
             throw lsst::pex::exceptions::NotFound(std::string("In ") + __func__ + std::string(": Could not get CCDID from the Master Flat Field Chunk Metadata."));
         }
@@ -174,7 +172,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         throw lsst::pex::exceptions::NotFound(std::string("In ") + __func__ + std::string(": Could not get FILTER from the Chunk Metadata."));
     }    
     if (isalpha(filter)) 
-       lsst::pex::logging::TTrace<3>(std::string("In ") + __func__ + std::string(": Filter Name: %s", filter)); 
+       lsst::pex::logging::TTrace<3>("In %s: Filter Name: %s", subStage, filter); 
 //    } else if {
 //        filter equal to LSST numerical designations for filters ...do something else
 
@@ -187,7 +185,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         throw lsst::pex::exceptions::NotFound(std::string("In ") + __func__ + std::string(": Could not get FILTER from the Master Flat Field Chunk Metadata."));
     }    
     if (isalpha(mfilter)) 
-        lsst::pex::logging::TTrace<3>(std::string("In ") + __func__ + std::string(": Filter Name: %s", mfilter)); 
+        lsst::pex::logging::TTrace<3>("In %s: Filter Name: %s", subStage, mfilter); 
             
     if (mfilterField) {
     
@@ -216,7 +214,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
     std::string normalizeKey = datasetPolicy.getDouble("normalizeKey");
     lsst::daf::base::DataProperty::PtrType isrNormalize = chunkMetadata->findUnique(normalizeKey);
     if (isrNormalize) {
-        lsst::pex::logging::TTrace<3>(std::string("In ") + __func__ + std::string(": Master Flat Field Chunk Exposure has been normalized."));
+        lsst::pex::logging::TTrace<3>("In %s: Master Flat Field Chunk Exposure has been normalized.", subStage);
     } else {
 
         // Normalize the Master Flat Field Chunk Exposure by dividing the Master
@@ -227,8 +225,8 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         // Compute the number of elements (n), mean (mu) and standard deviation
         // (sigma)
 
-        const int mnumCols = static_cast<int>(masterChunkExposure.getCols());
-        const int mnumRows = static_cast<int>(masterChunkExposure.getRows()); 
+        const int mnumCols = static_cast<int>(masterChunkMaskedImage.getCols());
+        const int mnumRows = static_cast<int>(masterChunkMaskedImage.getRows()); 
 
         lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> masterChunkRowAcc(masterChunkMaskedImage);
         long int n = 0;
@@ -258,58 +256,61 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         double sigma = std::sqrt(sumSq/static_cast<double>(n));
 
 	// the normalized Master Flat Field Exposure
-        masterChunkExposure /= mu;           
+        masterChunkMaskedImage /= mu;           
     }
         
 
     // Parse the main ISR Policy file for Flat Field sub-stage parameters.
-    double flatFieldScale = flatPolicy.getDouble("flatFieldScale");
+    double flatFieldScale = flatPolicy->getDouble("flatFieldScale");
     // do we need to preserve dynamic range by stretching 65K ADU by some factor??
-    double stretchFactor = flatPolicy.getDouble("stretchFactor");
-    masterChunkExposure *= stretchFactor;
-    bool sigClip = flatPolicy.getBool("sigClip");
-    double sigClipVal = flatPolicy.getDouble("sigClipVal");
+    double stretchFactor = flatPolicy->getDouble("stretchFactor");
+    masterChunkMaskedImage *= stretchFactor;
+    bool sigClip = flatPolicy->getBool("sigClip");
+    double sigClipVal = flatPolicy->getDouble("sigClipVal");
 
     // Divide the Chunk Exposure by the normalized Master Flat Field Chunk
     // Exposure.  Hopefully RHL has fixed the Image class so that it properly
     // computes the varaince...
 
     if (flatFieldScale) {
-        masterChunkExposure *= flatFieldScale;
-        chunkExposure /= masterChunkExposure;
+        masterChunkMaskedImage *= flatFieldScale;
+        chunkMaskedImage /= masterChunkMaskedImage;
     } else {
-        chunkExposure /= masterChunkExposure;
+        chunkMaskedImage /= masterChunkMaskedImage;
     }
 
     // Record the final sub-stage provenance to the Image Metadata
-    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_FLATCOR", "Complete"));
+    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_FLATCOR"));
+    lsst::daf::base::DataProperty::PtrType flatCorProp = chunkMetadata->findUnique("ISR_FLATCOR");
+    std::string exitTrue = "Completed Successfully";
+    flatCorProp->setValue(boost::any_cast<std::string>(exitTrue));
     chunkMaskedImage.setMetadata(chunkMetadata);
 
     // Calculate additional SDQA metrics. 
 
 
     // Issue a logging message indicating that the sub-stage executed without issue
-    lsst::pex::logging::TTrace<7>(std::string("ISR sub-stage") + __func__ + std::string("completed successfully."));
+    lsst::pex::logging::TTrace<7>("ISR sub-stage, %s, completed successfully.", subStage);
 	
 }
 
 /************************************************************************/
 /* Explicit instantiations */
 
-// template
-// lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
-//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
-//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
-//     lsst::pex::policy::Policy &isrPolicy,
-//     lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
 
-// template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
-//     lsst::pex::policy::Policy &isrPolicy,
-//     lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
 
 /************************************************************************/

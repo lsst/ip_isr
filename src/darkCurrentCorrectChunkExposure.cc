@@ -65,31 +65,33 @@ lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
     // Get the Chunk MaskedImage and Image Metadata from the Chunk Exposure 
 
     lsst::afw::image::MaskedImage<ImageT, MaskT> chunkMaskedImage = chunkExposure.getMaskedImage();
-    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage->getMetadata();
+    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetadata();
+
+    std::string subStage = "Dark Current Correct Chunk Exposure";
 
    // Get the Master Dark Current Chunk MaskedImage and Image Metadata from the
    // Master Dark Current  Chunk Exposure
 
     lsst::afw::image::MaskedImage<ImageT, MaskT> masterChunkMaskedImage = masterChunkExposure.getMaskedImage();
-    lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage->getMetadata();
+    lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage()->getMetadata();
 
     // Check that this ISR sub-stage has not been run previously on this Chunk
     // Exposure.  If it has, terminate the stage.
 
-    lsst::daf::base::DataProperty::PtrType isrDarkField = chunkMetadata->findUnique("DARK");
+    lsst::daf::base::DataProperty::PtrType isrDarkField = chunkMetadata->findUnique("ISR_DARKCOR");
     if (isrDarkField) {
-        lsst::pex::logging::TTrace<3>(std::string("In ") + __func__ + std::string(": Exposure has already been Dark Current Corrected.  Terminating ISR sub-stage for this Chunk Exposure."));
+        lsst::pex::logging::TTrace<3>("In %s: Exposure has already been corrected.  Terminating ISR sub-stage for this Chunk Exposure.", subStage);
         throw lsst::pex::exceptions::Runtime(std::string("Dark Current Subtraction previously performed."));
     }
 
     // Check that the Master Dark Current Chunk Exposure and Chunk Exposure are
     // the same size.
 
-    const int numCols = static_cast<int>(chunkExposure.getCols());
-    const int numRows = static_cast<int>(chunkExposure.getRows()); 
+    const int numCols = static_cast<int>(chunkMaskedImage.getCols());
+    const int numRows = static_cast<int>(chunkMaskedImage.getRows()); 
 
-    const int mnumCols = static_cast<int>(masterChunkExposure.getCols());
-    const int mnumRows = static_cast<int>(masterChunkExposure.getRows()); 
+    const int mnumCols = static_cast<int>(masterChunkMaskedImage.getCols());
+    const int mnumRows = static_cast<int>(masterChunkMaskedImage.getRows()); 
 
      if (numCols != mnumCols || numRows != mnumRows) {
         throw lsst::pex::exceptions::LengthError(std::string("In ") + __func__ + std::string(": Chunk Exposure and Master Bias Chunk Exposure are not the same size."));
@@ -98,10 +100,10 @@ lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
     // Check that the Master Dark Current Chunk Exposure and Chunk Exposure are
     // derived from the same pixels.
 
-     lsst::pex::policy::Policy darkPolicy = isrPolicy.getPolicy("darkPolicy");
-     std::string chunkType = darkPolicy.getString("chunkType");
+     lsst::pex::policy::Policy::Ptr darkPolicy = isrPolicy.getPolicy("darkPolicy");
+     std::string chunkType = darkPolicy->getString("chunkType");
 
-     if (chunkType = "amp") {
+     if (chunkType == "amp") {
          lsst::daf::base::DataProperty::PtrType ampidField = chunkMetadata->findUnique("AMPID");
          int ampid;
          if (ampidField) {
@@ -121,7 +123,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
          if (ampid != mampid) {
              throw lsst::pex::exceptions::RangeError(std::string("In ") + __func__ + std::string(": Chunk Exposure and Master Dark Current Chunk Exposure are not derived from the same pixels."));
          }
-     } else if (chunkType = "ccd") {
+     } else if (chunkType == "ccd") {
          lsst::daf::base::DataProperty::PtrType ccdidField = chunkMetadata->findUnique("CCDID");
          int ccdid;
          if (ccdidField) {
@@ -166,13 +168,13 @@ lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
 
     // Parse the ISR policy file for dark current correction information
    
-    double darkScale = darkPolicy.getDouble("darkScale");
+    double darkScale = darkPolicy->getDouble("darkScale");
 
     // Scale the master dark current exposure by the Chunk Exposure's exposure
     // time if the exposure time for the Master Chunk Exposure is different
     if (exptime != mexptime) {
         double scale = exptime/mexptime; 
-        masterChunkExposure *= scale;
+        masterChunkMaskedImage *= scale;
     }
 
     // Subtract the Master Dark Chunk Chunk Exposure from the Chunk Exposure.
@@ -181,38 +183,44 @@ lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
 
     // additional scaling?
     if (darkScale) {
-        chunkExposure -= (masterChunkExposure * darkScale);
+        masterChunkMaskedImage *= darkScale;
+        chunkMaskedImage -= masterChunkMaskedImage;
     } else {
-        chunkExposure -= masterChunkExposure;
+        chunkMaskedImage -= masterChunkMaskedImage;
     }
 
      // Record the final sub-stage provenance to the Image Metadata
-     chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_DARKCOR", "Complete"));
+     chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_DARKCOR"));
+     lsst::daf::base::DataProperty::PtrType darkCorProp = chunkMetadata->findUnique("ISR_DARKCOR");
+    std::string exitTrue = "Completed Successfully";
+    darkCorProp->setValue(boost::any_cast<std::string>(exitTrue));
+
      chunkMaskedImage.setMetadata(chunkMetadata);
 
      // Calculate additional SDQA metrics here. 
 
      // Issue a logging message indicating that the sub-stage executed without issue
-     lsst::pex::logging::TTrace<7>(std::string("ISR sub-stage") + __func__ + std::string("completed successfully."));
+     lsst::pex::logging::TTrace<7>("ISR sub-stage, %s, completed successfully.", subStage);
 	
 }
 
 /************************************************************************/
 /* Explicit instantiations */
 
-// template
-// lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
-//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
-//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
-//     lsst::pex::policy::Policy &isrPolicy,
-//     lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
 
-// template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
-//     lsst::pex::policy::Policy &isrPolicy,
-//     lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
+
 /************************************************************************/

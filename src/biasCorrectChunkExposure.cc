@@ -63,31 +63,31 @@ lsst::afw::image::Exposure<ImageT, MaskT> biasCorrectChunkExposure(
 
     // Get the Chunk MaskedImage and Image Metadata from the Chunk Exposure 
     lsst::afw::image::MaskedImage<ImageT, MaskT> chunkMaskedImage = chunkExposure.getMaskedImage();
-    lsst::afw::image::Image<ImageT> chunkScienceImage = chunkMaskedImage.getImage();
-    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage->getMetadata();
+    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetadata();
+
+    std::string subStage = "Bias Correct Chunk Exposure";
 
     // Get the Master Bias Chunk MaskedImage and Image Metadata from the Master
     // Bias Chunk Exposure
     lsst::afw::image::MaskedImage<ImageT, MaskT> masterChunkMaskedImage = masterChunkExposure.getMaskedImage();
-    lsst::afw::image::Image<ImageT> masterChunkScienceImage = masterChunkMaskedImage.getImage();
-    lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage->getMetadata();
+    lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage()->getMetadata();
 
     // Check that this ISR sub-stage has not been run previously on this Chunk
     // Exposure.  If it has, terminate the stage.
     lsst::daf::base::DataProperty::PtrType isrBiasField = chunkMetadata->findUnique("ISR_BIASCOR");
     if (isrBiasField) {
-        lsst::pex::logging::TTrace<3>(std::string("In ") + __func__ + std::string(": Exposure has already been Bias Corrected.  Terminating ISR sub-stage for this Chunk Exposure."));
+        lsst::pex::logging::TTrace<3>("In %s: Exposure has already been corrected.  Terminating ISR sub-stage for this Chunk Exposure.", subStage);
         throw lsst::pex::exceptions::Runtime(std::string("Bias Subtraction previously performed."));
     }
 
     // Check that the Master Bias Chunk Exposure and Chunk Exposure are the same
     // size.
 
-    const int numCols = static_cast<int>(chunkExposure.getCols());
-    const int numRows = static_cast<int>(chunkExposure.getRows()); 
+    const int numCols = static_cast<int>(chunkMaskedImage.getCols());
+    const int numRows = static_cast<int>(chunkMaskedImage.getRows()); 
 
-    const int mnumCols = static_cast<int>(masterChunkExposure.getCols());
-    const int mnumRows = static_cast<int>(masterChunkExposure.getRows()); 
+    const int mnumCols = static_cast<int>(masterChunkMaskedImage.getCols());
+    const int mnumRows = static_cast<int>(masterChunkMaskedImage.getRows()); 
 
     if (numCols != mnumCols || numRows != mnumRows) {
         throw lsst::pex::exceptions::LengthError(std::string("In ") + __func__ + std::string(": Chunk Exposure and Master Bias Chunk Exposure are not the same size."));
@@ -97,9 +97,9 @@ lsst::afw::image::Exposure<ImageT, MaskT> biasCorrectChunkExposure(
     // Check that the Master Bias Chunk Exposure and Chunk Exposure are derived
     // from the same pixels (eg. both are from the same amp, CCD, or raft).
   
-    lsst::pex::policy::Policy biasPolicy = isrPolicy.getPolicy("biasPolicy"); 
-    std::string chunkType = biasPolicy.getString("chunkType");
-    if (chunkType = "amp") {
+    lsst::pex::policy::Policy::Ptr biasPolicy = isrPolicy.getPolicy("biasPolicy"); 
+    std::string chunkType = biasPolicy->getString("chunkType");
+    if (chunkType == "amp") {
         
         lsst::daf::base::DataProperty::PtrType ampidField = chunkMetadata->findUnique("AMPID");
         int ampid;
@@ -121,7 +121,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> biasCorrectChunkExposure(
             throw lsst::pex::exceptions::RangeError(std::string("In ") + __func__ + std::string(": Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels."));
         }
     // CHECK IT IF ITS A CCD
-    } else if (chunkType = "ccd") {
+    } else if (chunkType == "ccd") {
         lsst::daf::base::DataProperty::PtrType ccdidField = chunkMetadata->findUnique("CCDID");
         int ccdid;
         if (ccdidField) {
@@ -147,52 +147,54 @@ lsst::afw::image::Exposure<ImageT, MaskT> biasCorrectChunkExposure(
         // not yet implemented
     }
 
-    // Get the rest of the necessary information from the Image Metadata
-
-
     // Parse the ISR Policy file for bias sub-stage information
    
-    double biasScale = biasPolicy.getDouble("biasScale");
-    bool sigClip = biasPolicy.getBool("sigClip");
+    double biasScale = biasPolicy->getDouble("biasScale");
+    bool sigClip = biasPolicy->getBool("sigClip");
     if (sigClip = true) {
-        double sigClipVal = biasPolicy.getDouble("sigClipVal");
+        double sigClipVal = biasPolicy->getDouble("sigClipVal");
+        // add sigClipping here - not yet implemented
     }
+
     // Subtract the Master Bias Chunk Exposure from the Chunk Exposure.
-    // Hopefully RHL has fixed the Image class so that it properly computes the
-    // varaince...
 
     if (biasScale) {
-        chunkExposure -= (masterChunkExposure * biasScale);
+        masterChunkMaskedImage *= biasScale;
+        chunkMaskedImage -= masterChunkMaskedImage;
     } else {
-        chunkExposure -= masterChunkExposure;
+        chunkMaskedImage -= masterChunkMaskedImage;
     }
 
     // Record the sub-stage provenance to the Image Metadata
-    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_BIASCOR", "Complete"));
+    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_BIASCOR"));
+    lsst::daf::base::DataProperty::PtrType biasCorProp = chunkMetadata->findUnique("ISR_BIASCOR");
+    std::string exitTrue = "Completed Successfully";
+    biasCorProp->setValue(boost::any_cast<std::string>(exitTrue));
     chunkMaskedImage.setMetadata(chunkMetadata);
 
     // Calculate additional the SDQA metrics here ?
 
     // Issue a logging message indicating that the sub-stage executed without issue
-    lsst::pex::logging::TTrace<7>(std::string("ISR sub-stage") + __func__ + std::string("completed successfully."));
+    lsst::pex::logging::TTrace<7>("ISR sub-stage, %s, completed successfully.", subStage);
 	
 }
 
 /************************************************************************/
 /* Explicit instantiations */
 
-// template
-// lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> biasCorrectChunkExposure(
-// 	lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
-// 	lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
-// 	lsst::pex::policy::Policy &isrPolicy,
-// 	lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> biasCorrectChunkExposure(
+	lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
+	lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+	lsst::pex::policy::Policy &isrPolicy,
+	lsst::pex::policy::Policy &datasetPolicy
+    );
 
-// template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> biasCorrectChunkExposure(
-// 	lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
-// 	lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
-// 	lsst::pex::policy::Policy &isrPolicy,
-// 	lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> biasCorrectChunkExposure(
+	lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
+	lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+	lsst::pex::policy::Policy &isrPolicy,
+	lsst::pex::policy::Policy &datasetPolicy
+    );
+/************************************************************************/
