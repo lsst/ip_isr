@@ -4,9 +4,9 @@
   *
   * \ingroup isr
   *
-  * \brief Implementation of the templated subStage, Crosstalk Correct Chunk
-  * Exposure, of the Instrument Signature Removal stage forthe nightly LSST
-  * Image Processing Pipeline.
+  * \brief Implementation of the templated subStage, Cosmic Ray Detection, of
+  * the Instrument Signature Removal stage forthe nightly LSST Image Processing
+  * Pipeline.
   *
   * \author Nicole M. Silvestri, University of Washington
   *
@@ -39,11 +39,12 @@
 #include "lsst/ip/isr/isr.h"
 
 typedef double vectorType;
+typedef double funcType;
 
-/** \brief Correct the Chunk Exposure for crosstalk contributions from other
-  * Chunks.
+/** \brief Correct the Chunk Exposure for cosmic ray hits.  This is a simple
+  * first pass using a crude PSF.
   *
-  * \return chunkExposure with crosstalk correction
+  * \return chunkExposure with cosmic rays removed.
   *
   * \throw Runtime if this sub-stage has been run previously on the image
   * \throw NotFound if any metadata parameter can not be obtained
@@ -53,11 +54,10 @@ typedef double vectorType;
   */
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> crosstalkCorrectChunkExposure(
+lsst::afw::image::Exposure<ImageT, MaskT> cosmicRayDetection(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
-    lsst::pex::policy::Policy &datasetPolicy,
-    std::vector<vectorType> &crosstalkLookUpTable
+    lsst::pex::policy::Policy &datasetPolicy
     ) { 
 
 
@@ -67,19 +67,18 @@ lsst::afw::image::Exposure<ImageT, MaskT> crosstalkCorrectChunkExposure(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> crosstalkCorrectChunkExposure(
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> cosmicRayDetection(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
-    lsst::pex::policy::Policy &datasetPolicy,
-    std::vector<vectorType> &crosstalkLookUpTable
+    lsst::pex::policy::Policy &datasetPolicy
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> crosstalkCorrectChunkExposure(
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> cosmicRayDetection(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
-    lsst::pex::policy::Policy &datasetPolicy,
-    std::vector<vectorType> &crosstalkLookUpTable
+    lsst::pex::policy::Policy &datasetPolicy
     );
 
 /************************************************************************/
+

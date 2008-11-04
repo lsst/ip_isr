@@ -17,14 +17,13 @@
   * LSST Legalese here...
   */
 #include <string>
-#include <iostream>
 #include <sstream>
 #include <vector>
 #include <cmath>
 
-#include <boost/cstdint.hpp>
-#include <boost/format.hpp>
-#include <boost/shared_ptr.hpp>
+#include "boost/cstdint.hpp"
+#include "boost/format.hpp"
+#include "boost/shared_ptr.hpp"
 
 #include <lsst/afw/image/Exposure.h>
 #include <lsst/afw/image/Mask.h>
@@ -56,7 +55,7 @@
 
 template <typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
-	lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,
+	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy
@@ -209,7 +208,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
 
 template
 lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
@@ -217,7 +216,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> darkCurrentCo
 
 template
 lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
-    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy

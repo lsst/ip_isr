@@ -17,14 +17,13 @@
   * LSST Legalese here...
   */
 #include <string>
-#include <iostream>
 #include <sstream>
 #include <vector>
 #include <cmath>
 
-#include <boost/shared_ptr.hpp>
-#include <boost/cstdint.hpp>
-#include <boost/format.hpp>
+#include "boost/shared_ptr.hpp"
+#include "boost/cstdint.hpp"
+#include "boost/format.hpp"
 
 #include <lsst/afw/image/Exposure.h>
 #include <lsst/afw/math/Function.h>
@@ -39,3 +38,35 @@
 
 /** \brief 
   */
+
+template<typename ImageT, typename MaskT>
+lsst::afw::image::Exposure<ImageT, MaskT> pupilImageCorrection(
+    lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
+    lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy        
+    ) {
+
+
+}
+
+/************************************************************************/
+/* Explicit instantiations */
+
+template
+lsst::afw::image::Exposure<float,lsst::afw::image::maskPixelType> pupilImageCorrection(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy        
+    );
+
+template
+lsst::afw::image::Exposure<double,lsst::afw::image::maskPixelType> pupilImageCorrection(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy        
+    );
+
+/************************************************************************/

@@ -17,14 +17,13 @@
   * LSST Legalese here...
   */
 #include <string>
-#include <iostream>
 #include <sstream>
 #include <vector>
 #include <cmath>
 
-#include <boost/shared_ptr.hpp>
-#include <boost/cstdint.hpp>
-#include <boost/format.hpp>
+#include "boost/shared_ptr.hpp"
+#include "boost/cstdint.hpp"
+#include "boost/format.hpp"
 
 #include <lsst/afw/image/Exposure.h>
 #include <lsst/afw/math/Function.h>
@@ -37,5 +36,46 @@
 
 #include "lsst/ip/isr/isr.h"
 
+typedef double vectorType;
+typedef double funcType;
+
 /** \brief 
-  */
+ *
+ * \return chunkExposure corrected for geometric distortions.
+ *
+ * \throw Runtime if this sub-stage has been run previously
+ * \throw NotFound if any Policy or metadata value can not be obtained
+ * \throw InvalidParameter if functional form for the lineaization fit is invalid
+ */
+
+template<typename ImageT, typename MaskT>
+lsst::afw::image::Exposure<ImageT, MaskT> geometricDistortionCorrection(
+    lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    ) {
+
+}
+
+/************************************************************************/
+/* Explicit instantiations */
+
+template
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> geometricDistortionCorrection(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
+
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> geometricDistortionCorrection(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
+
+/************************************************************************/
+
+
+  
+

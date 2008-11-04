@@ -18,14 +18,13 @@
   */
 #include <cctype>
 #include <string>
-#include <iostream>
 #include <sstream>
 #include <vector>
 #include <cmath>
 
-#include <boost/cstdint.hpp>
-#include <boost/format.hpp>
-#include <boost/shared_ptr.hpp>
+#include "boost/cstdint.hpp"
+#include "boost/format.hpp"
+#include "boost/shared_ptr.hpp"
 
 #include <lsst/afw/image/Exposure.h>
 #include <lsst/afw/image/Mask.h>
@@ -67,12 +66,15 @@
   * TODO (as of Wed 10/22/08):
   * - perform raft-level check for chunk and master Exposures
   * - once we have twilight, or night sky flats, implement different correction steps
+  * - handle stretch and scale factors better
+  * - do we need to sig-clip?
   */
 
 template <typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
-    lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,
-    lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
+    lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
+    lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // Master Flat Field Chunk Exposure
+    lsst::afw::image::Exposure<ImageT, MaskT> const &masterIcChunkExposure, // Master Ilumination Correction Chunk Exposure
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     ) {
@@ -164,7 +166,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
    // the same filter
 
     lsst::daf::base::DataProperty::PtrType filterField = chunkMetadata->findUnique("FILTER");
-    unsigned int filter;
+    int filter;
     if (filterField) {
         //  Determine if the filter field value is a number (1-6?)or a string (ugrizY?) 
         filter = boost::any_cast<const int>(filterField->getValue());
@@ -176,8 +178,8 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
 //    } else if {
 //        filter equal to LSST numerical designations for filters ...do something else
 
-     lsst::daf::base::DataProperty::PtrType mfilterField = masterChunkMetadata->findUnique("FILTER");
-     unsigned int mfilter;
+    lsst::daf::base::DataProperty::PtrType mfilterField = masterChunkMetadata->findUnique("FILTER");
+    int mfilter;
     if (mfilterField) {
         //  Determine if the filter field value is a number (1-6?)or a string (ugrizY?) 
         mfilter = boost::any_cast<const int>(mfilterField->getValue());
@@ -193,8 +195,6 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         // (ugrizY)??
 
         mfilter = boost::any_cast<const int>(mfilterField->getValue());
-        std::string mfilter = boost::any_cast<const std::string>(mfilterField->getValue());
-        return mfilter;
     } else {
         throw lsst::pex::exceptions::NotFound(std::string("In ") + __func__ + std::string(": Could not get AMPID from the Master Flat Field Chunk Metadata."));
     }
@@ -204,6 +204,18 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
     }
 
 
+    // Has an Illumination Correction been applied 
+    
+     lsst::daf::base::DataProperty::PtrType isrIllumination = chunkMetadata->findUnique("ISR_ILLUMCOR");
+    if (isrIllumination) {
+        lsst::pex::logging::TTrace<3>("In %s: Master Flat Field Chunk Exposure has been corrected for scattered light.", subStage);
+    } else {
+
+        // Correct the Master Flat Field Chunk Exposure for scattered light
+        
+        lsst::ip::isr::illuminationCorrection<ImageT, MaskT>(masterChunkExposure, masterIcChunkExposure, isrPolicy, datasetPolicy);
+    }
+
     // Has the Master Flat Field Chunk Exposure been normalized?
 
     // CFHT data lists all image processing flags as 'IMRED_processingStep'
@@ -211,8 +223,9 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
     // ask for processing flags in the policy for all datasets (the
     // datasetSpecificPolicy).
 
-    std::string normalizeKey = datasetPolicy.getDouble("normalizeKey");
-    lsst::daf::base::DataProperty::PtrType isrNormalize = chunkMetadata->findUnique(normalizeKey);
+    //std::string normalizeKey = datasetPolicy.getString("normalizeKey");
+    //lsst::daf::base::DataProperty::PtrType isrNormalize = chunkMetadata->findUnique(normalizeKey);
+    lsst::daf::base::DataProperty::PtrType isrNormalize = chunkMetadata->findUnique("ISR_NORMCOR");
     if (isrNormalize) {
         lsst::pex::logging::TTrace<3>("In %s: Master Flat Field Chunk Exposure has been normalized.", subStage);
     } else {
@@ -257,6 +270,18 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
 
 	// the normalized Master Flat Field Exposure
         masterChunkMaskedImage /= mu;           
+
+        masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_NORMCOR"));
+        lsst::daf::base::DataProperty::PtrType normCorProp = masterChunkMetadata->findUnique("ISR_NORMCOR");
+        std::string exitTrue = "Completed Successfully";
+        normCorProp->setValue(boost::any_cast<std::string>(exitTrue));
+        masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_NORMCOR_MEAN"));
+        lsst::daf::base::DataProperty::PtrType normMeanProp = masterChunkMetadata->findUnique("ISR_NORMCOR_MEAN");
+        normMeanProp->setValue(boost::any_cast<double>(mu));
+        masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_NORMCOR_STDEV"));
+        lsst::daf::base::DataProperty::PtrType normSigmaProp = masterChunkMetadata->findUnique("ISR_NORMCOR_STDEV");
+        normSigmaProp->setValue(boost::any_cast<double>(sigma));
+        masterChunkMaskedImage.setMetadata(masterChunkMetadata);
     }
         
 
@@ -299,16 +324,18 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
 
 template
 lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterIcChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );
 
 template
 lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
-    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
-    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterIcChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );

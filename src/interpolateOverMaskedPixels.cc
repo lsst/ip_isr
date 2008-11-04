@@ -8,9 +8,10 @@
   * Over Masked Pixels.
   *
   * \author Nicole M. Silvestri, University of Washington
+  *
+  * contact: nms@astro.washington.edu
   */
 #include <string>
-#include <iostream>
 #include <sstream>
 #include <vector>
 #include <cmath>
@@ -37,7 +38,7 @@
 
 template<typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedpixels(
-    lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,    
+    lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy
     ) { 
 
@@ -51,13 +52,13 @@ lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedpixels(
 
 template
 lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> interpolateOverMaskedpixels(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &chunkExposure,    
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy
     );
 
 template
 lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> interpolateOverMaskedpixels(
-    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,    
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy
     );
 /************************************************************************/
