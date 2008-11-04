@@ -69,7 +69,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> geometricDist
 
 template
 lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> geometricDistortionCorrection(
-    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &chunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );

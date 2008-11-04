@@ -35466,12 +35466,12 @@ SWIGINTERN PyObject *_wrap_saturationCorrectionForChunkExposure__SWIG_1(PyObject
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:saturationCorrectionForChunkExposure",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -35492,7 +35492,7 @@ SWIGINTERN PyObject *_wrap_saturationCorrectionForChunkExposure__SWIG_1(PyObject
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR saturationCorrectionForChunkExposure< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR saturationCorrectionForChunkExposure< float,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -35528,12 +35528,12 @@ SWIGINTERN PyObject *_wrap_saturationCorrectionForChunkExposure__SWIG_2(PyObject
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:saturationCorrectionForChunkExposure",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "saturationCorrectionForChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -35554,7 +35554,7 @@ SWIGINTERN PyObject *_wrap_saturationCorrectionForChunkExposure__SWIG_2(PyObject
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR saturationCorrectionForChunkExposure< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR saturationCorrectionForChunkExposure< double,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -35585,7 +35585,8 @@ SWIGINTERN PyObject *_wrap_saturationCorrectionForChunkExposure(PyObject *self, 
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -35603,7 +35604,8 @@ SWIGINTERN PyObject *_wrap_saturationCorrectionForChunkExposure(PyObject *self, 
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -35623,8 +35625,8 @@ SWIGINTERN PyObject *_wrap_saturationCorrectionForChunkExposure(PyObject *self, 
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'saturationCorrectionForChunkExposure'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::saturationCorrectionForChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::saturationCorrectionForChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::saturationCorrectionForChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::saturationCorrectionForChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -35646,12 +35648,12 @@ SWIGINTERN PyObject *_wrap_overscanCorrectAndTrimChunkExposure__SWIG_1(PyObject 
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:overscanCorrectAndTrimChunkExposure",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -35672,7 +35674,7 @@ SWIGINTERN PyObject *_wrap_overscanCorrectAndTrimChunkExposure__SWIG_1(PyObject 
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR overscanCorrectAndTrimChunkExposure< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR overscanCorrectAndTrimChunkExposure< float,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -35708,12 +35710,12 @@ SWIGINTERN PyObject *_wrap_overscanCorrectAndTrimChunkExposure__SWIG_2(PyObject 
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:overscanCorrectAndTrimChunkExposure",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "overscanCorrectAndTrimChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -35734,7 +35736,7 @@ SWIGINTERN PyObject *_wrap_overscanCorrectAndTrimChunkExposure__SWIG_2(PyObject 
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR overscanCorrectAndTrimChunkExposure< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR overscanCorrectAndTrimChunkExposure< double,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -35765,7 +35767,8 @@ SWIGINTERN PyObject *_wrap_overscanCorrectAndTrimChunkExposure(PyObject *self, P
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -35783,7 +35786,8 @@ SWIGINTERN PyObject *_wrap_overscanCorrectAndTrimChunkExposure(PyObject *self, P
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -35803,8 +35807,8 @@ SWIGINTERN PyObject *_wrap_overscanCorrectAndTrimChunkExposure(PyObject *self, P
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'overscanCorrectAndTrimChunkExposure'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::overscanCorrectAndTrimChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::overscanCorrectAndTrimChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::overscanCorrectAndTrimChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::overscanCorrectAndTrimChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -35830,12 +35834,12 @@ SWIGINTERN PyObject *_wrap_biasCorrectChunkExposure__SWIG_1(PyObject *SWIGUNUSED
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:biasCorrectChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
@@ -35864,7 +35868,7 @@ SWIGINTERN PyObject *_wrap_biasCorrectChunkExposure__SWIG_1(PyObject *SWIGUNUSED
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR biasCorrectChunkExposure< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR biasCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -35904,12 +35908,12 @@ SWIGINTERN PyObject *_wrap_biasCorrectChunkExposure__SWIG_2(PyObject *SWIGUNUSED
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:biasCorrectChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "biasCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
@@ -35938,7 +35942,7 @@ SWIGINTERN PyObject *_wrap_biasCorrectChunkExposure__SWIG_2(PyObject *SWIGUNUSED
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR biasCorrectChunkExposure< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR biasCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -35969,7 +35973,8 @@ SWIGINTERN PyObject *_wrap_biasCorrectChunkExposure(PyObject *self, PyObject *ar
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
@@ -35991,7 +35996,8 @@ SWIGINTERN PyObject *_wrap_biasCorrectChunkExposure(PyObject *self, PyObject *ar
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
@@ -36015,8 +36021,8 @@ SWIGINTERN PyObject *_wrap_biasCorrectChunkExposure(PyObject *self, PyObject *ar
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'biasCorrectChunkExposure'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::biasCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::biasCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::biasCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::biasCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -36042,12 +36048,12 @@ SWIGINTERN PyObject *_wrap_darkCurrentCorrectChunkExposure(PyObject *SWIGUNUSEDP
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:darkCurrentCorrectChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "darkCurrentCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "darkCurrentCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "darkCurrentCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "darkCurrentCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
@@ -36076,7 +36082,7 @@ SWIGINTERN PyObject *_wrap_darkCurrentCorrectChunkExposure(PyObject *SWIGUNUSEDP
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR darkCurrentCorrectChunkExposure< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR darkCurrentCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -36116,12 +36122,12 @@ SWIGINTERN PyObject *_wrap_darkCurrentChunkExposure(PyObject *SWIGUNUSEDPARM(sel
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:darkCurrentChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "darkCurrentChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "darkCurrentChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "darkCurrentChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "darkCurrentChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
@@ -36150,7 +36156,7 @@ SWIGINTERN PyObject *_wrap_darkCurrentChunkExposure(PyObject *SWIGUNUSEDPARM(sel
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR darkCurrentCorrectChunkExposure< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR darkCurrentCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -36410,20 +36416,20 @@ SWIGINTERN PyObject *_wrap_flatFieldCorrectChunkExposure__SWIG_1(PyObject *SWIGU
   PyObject * obj4 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOOO:flatFieldCorrectChunkExposure",&obj0,&obj1,&obj2,&obj3,&obj4)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
-  res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res2)) {
-    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp2) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg2 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp2);
   res3 = SWIG_ConvertPtr(obj2, &argp3, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
@@ -36452,7 +36458,7 @@ SWIGINTERN PyObject *_wrap_flatFieldCorrectChunkExposure__SWIG_1(PyObject *SWIGU
   arg5 = reinterpret_cast< lsst::pex::policy::Policy * >(argp5);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR flatFieldCorrectChunkExposure< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg3,*arg4,*arg5);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR flatFieldCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(*arg1,*arg2,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg3,*arg4,*arg5);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -36496,20 +36502,20 @@ SWIGINTERN PyObject *_wrap_flatFieldCorrectChunkExposure__SWIG_2(PyObject *SWIGU
   PyObject * obj4 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOOO:flatFieldCorrectChunkExposure",&obj0,&obj1,&obj2,&obj3,&obj4)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
-  res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res2)) {
-    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp2) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "flatFieldCorrectChunkExposure" "', argument " "2"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg2 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp2);
   res3 = SWIG_ConvertPtr(obj2, &argp3, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
@@ -36538,7 +36544,7 @@ SWIGINTERN PyObject *_wrap_flatFieldCorrectChunkExposure__SWIG_2(PyObject *SWIGU
   arg5 = reinterpret_cast< lsst::pex::policy::Policy * >(argp5);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR flatFieldCorrectChunkExposure< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg3,*arg4,*arg5);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR flatFieldCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(*arg1,*arg2,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg3,*arg4,*arg5);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -36569,10 +36575,12 @@ SWIGINTERN PyObject *_wrap_flatFieldCorrectChunkExposure(PyObject *self, PyObjec
   }
   if (argc == 5) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
-      int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+      void *vptr = 0;
+      int res = SWIG_ConvertPtr(argv[1], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
       _v = SWIG_CheckState(res);
       if (_v) {
         int res = SWIG_ConvertPtr(argv[2], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
@@ -36595,10 +36603,12 @@ SWIGINTERN PyObject *_wrap_flatFieldCorrectChunkExposure(PyObject *self, PyObjec
   }
   if (argc == 5) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
-      int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+      void *vptr = 0;
+      int res = SWIG_ConvertPtr(argv[1], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
       _v = SWIG_CheckState(res);
       if (_v) {
         int res = SWIG_ConvertPtr(argv[2], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
@@ -36623,8 +36633,8 @@ SWIGINTERN PyObject *_wrap_flatFieldCorrectChunkExposure(PyObject *self, PyObjec
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'flatFieldCorrectChunkExposure'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::flatFieldCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::flatFieldCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::flatFieldCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::flatFieldCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -36650,12 +36660,12 @@ SWIGINTERN PyObject *_wrap_illuminationCorrection__SWIG_1(PyObject *SWIGUNUSEDPA
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:illuminationCorrection",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
@@ -36684,7 +36694,7 @@ SWIGINTERN PyObject *_wrap_illuminationCorrection__SWIG_1(PyObject *SWIGUNUSEDPA
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR illuminationCorrection< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR illuminationCorrection< float,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -36724,12 +36734,12 @@ SWIGINTERN PyObject *_wrap_illuminationCorrection__SWIG_2(PyObject *SWIGUNUSEDPA
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:illuminationCorrection",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "illuminationCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
@@ -36758,7 +36768,7 @@ SWIGINTERN PyObject *_wrap_illuminationCorrection__SWIG_2(PyObject *SWIGUNUSEDPA
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR illuminationCorrection< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR illuminationCorrection< double,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -36789,7 +36799,8 @@ SWIGINTERN PyObject *_wrap_illuminationCorrection(PyObject *self, PyObject *args
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
@@ -36811,7 +36822,8 @@ SWIGINTERN PyObject *_wrap_illuminationCorrection(PyObject *self, PyObject *args
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
@@ -36835,8 +36847,8 @@ SWIGINTERN PyObject *_wrap_illuminationCorrection(PyObject *self, PyObject *args
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'illuminationCorrection'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::illuminationCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::illuminationCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::illuminationCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::illuminationCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -36862,12 +36874,12 @@ SWIGINTERN PyObject *_wrap_pupilImageCorrection__SWIG_1(PyObject *SWIGUNUSEDPARM
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:pupilImageCorrection",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
@@ -36896,7 +36908,7 @@ SWIGINTERN PyObject *_wrap_pupilImageCorrection__SWIG_1(PyObject *SWIGUNUSEDPARM
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR pupilImageCorrection< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR pupilImageCorrection< float,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -36936,12 +36948,12 @@ SWIGINTERN PyObject *_wrap_pupilImageCorrection__SWIG_2(PyObject *SWIGUNUSEDPARM
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:pupilImageCorrection",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "pupilImageCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
@@ -36970,7 +36982,7 @@ SWIGINTERN PyObject *_wrap_pupilImageCorrection__SWIG_2(PyObject *SWIGUNUSEDPARM
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR pupilImageCorrection< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR pupilImageCorrection< double,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37001,7 +37013,8 @@ SWIGINTERN PyObject *_wrap_pupilImageCorrection(PyObject *self, PyObject *args) 
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
@@ -37023,7 +37036,8 @@ SWIGINTERN PyObject *_wrap_pupilImageCorrection(PyObject *self, PyObject *args) 
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
@@ -37047,8 +37061,8 @@ SWIGINTERN PyObject *_wrap_pupilImageCorrection(PyObject *self, PyObject *args) 
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'pupilImageCorrection'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::pupilImageCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::pupilImageCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::pupilImageCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::pupilImageCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -37074,12 +37088,12 @@ SWIGINTERN PyObject *_wrap_crosstalkCorrectChunkExposure__SWIG_1(PyObject *SWIGU
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:crosstalkCorrectChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -37108,7 +37122,7 @@ SWIGINTERN PyObject *_wrap_crosstalkCorrectChunkExposure__SWIG_1(PyObject *SWIGU
   arg4 = reinterpret_cast< std::vector< lsst::ip::isr::vectorType,std::allocator< lsst::ip::isr::vectorType > > * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR crosstalkCorrectChunkExposure< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR crosstalkCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37148,12 +37162,12 @@ SWIGINTERN PyObject *_wrap_crosstalkCorrectChunkExposure__SWIG_2(PyObject *SWIGU
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:crosstalkCorrectChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "crosstalkCorrectChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -37182,7 +37196,7 @@ SWIGINTERN PyObject *_wrap_crosstalkCorrectChunkExposure__SWIG_2(PyObject *SWIGU
   arg4 = reinterpret_cast< std::vector< lsst::ip::isr::vectorType,std::allocator< lsst::ip::isr::vectorType > > * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR crosstalkCorrectChunkExposure< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR crosstalkCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37213,7 +37227,8 @@ SWIGINTERN PyObject *_wrap_crosstalkCorrectChunkExposure(PyObject *self, PyObjec
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -37236,7 +37251,8 @@ SWIGINTERN PyObject *_wrap_crosstalkCorrectChunkExposure(PyObject *self, PyObjec
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -37261,8 +37277,8 @@ SWIGINTERN PyObject *_wrap_crosstalkCorrectChunkExposure(PyObject *self, PyObjec
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'crosstalkCorrectChunkExposure'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::crosstalkCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &,std::vector< lsst::ip::isr::vectorType,std::allocator< lsst::ip::isr::vectorType > > &)\n"
-    "    lsst::ip::isr::crosstalkCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &,std::vector< lsst::ip::isr::vectorType,std::allocator< lsst::ip::isr::vectorType > > &)\n");
+    "    lsst::ip::isr::crosstalkCorrectChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &,std::vector< lsst::ip::isr::vectorType,std::allocator< lsst::ip::isr::vectorType > > &)\n"
+    "    lsst::ip::isr::crosstalkCorrectChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &,std::vector< lsst::ip::isr::vectorType,std::allocator< lsst::ip::isr::vectorType > > &)\n");
   return NULL;
 }
 
@@ -37288,12 +37304,12 @@ SWIGINTERN PyObject *_wrap_defringeChunkExposure__SWIG_1(PyObject *SWIGUNUSEDPAR
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:defringeChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
@@ -37322,7 +37338,7 @@ SWIGINTERN PyObject *_wrap_defringeChunkExposure__SWIG_1(PyObject *SWIGUNUSEDPAR
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR defringeChunkExposure< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR defringeChunkExposure< float,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37362,12 +37378,12 @@ SWIGINTERN PyObject *_wrap_defringeChunkExposure__SWIG_2(PyObject *SWIGUNUSEDPAR
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:defringeChunkExposure",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "defringeChunkExposure" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
@@ -37396,7 +37412,7 @@ SWIGINTERN PyObject *_wrap_defringeChunkExposure__SWIG_2(PyObject *SWIGUNUSEDPAR
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR defringeChunkExposure< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR defringeChunkExposure< double,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37427,7 +37443,8 @@ SWIGINTERN PyObject *_wrap_defringeChunkExposure(PyObject *self, PyObject *args)
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
@@ -37449,7 +37466,8 @@ SWIGINTERN PyObject *_wrap_defringeChunkExposure(PyObject *self, PyObject *args)
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
@@ -37473,8 +37491,8 @@ SWIGINTERN PyObject *_wrap_defringeChunkExposure(PyObject *self, PyObject *args)
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'defringeChunkExposure'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::defringeChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::defringeChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::defringeChunkExposure< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::defringeChunkExposure< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -37496,12 +37514,12 @@ SWIGINTERN PyObject *_wrap_geometricDistortionCorrection__SWIG_1(PyObject *SWIGU
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:geometricDistortionCorrection",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -37522,7 +37540,7 @@ SWIGINTERN PyObject *_wrap_geometricDistortionCorrection__SWIG_1(PyObject *SWIGU
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR geometricDistortionCorrection< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR geometricDistortionCorrection< float,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37558,12 +37576,12 @@ SWIGINTERN PyObject *_wrap_geometricDistortionCorrection__SWIG_2(PyObject *SWIGU
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:geometricDistortionCorrection",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "geometricDistortionCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -37584,7 +37602,7 @@ SWIGINTERN PyObject *_wrap_geometricDistortionCorrection__SWIG_2(PyObject *SWIGU
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR geometricDistortionCorrection< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR geometricDistortionCorrection< double,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37615,7 +37633,8 @@ SWIGINTERN PyObject *_wrap_geometricDistortionCorrection(PyObject *self, PyObjec
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -37633,7 +37652,8 @@ SWIGINTERN PyObject *_wrap_geometricDistortionCorrection(PyObject *self, PyObjec
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -37653,8 +37673,8 @@ SWIGINTERN PyObject *_wrap_geometricDistortionCorrection(PyObject *self, PyObjec
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'geometricDistortionCorrection'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::geometricDistortionCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::geometricDistortionCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::geometricDistortionCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::geometricDistortionCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -37676,12 +37696,12 @@ SWIGINTERN PyObject *_wrap_maskAndCorrectAdditionalArtifacts__SWIG_1(PyObject *S
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:maskAndCorrectAdditionalArtifacts",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -37702,7 +37722,7 @@ SWIGINTERN PyObject *_wrap_maskAndCorrectAdditionalArtifacts__SWIG_1(PyObject *S
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR maskAndCorrectAdditionalArtifacts< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR maskAndCorrectAdditionalArtifacts< float,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37738,12 +37758,12 @@ SWIGINTERN PyObject *_wrap_maskAndCorrectAdditionalArtifacts__SWIG_2(PyObject *S
   PyObject * obj2 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOO:maskAndCorrectAdditionalArtifacts",&obj0,&obj1,&obj2)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "maskAndCorrectAdditionalArtifacts" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -37764,7 +37784,7 @@ SWIGINTERN PyObject *_wrap_maskAndCorrectAdditionalArtifacts__SWIG_2(PyObject *S
   arg3 = reinterpret_cast< lsst::pex::policy::Policy * >(argp3);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR maskAndCorrectAdditionalArtifacts< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,*arg2,*arg3);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR maskAndCorrectAdditionalArtifacts< double,lsst::afw::image::maskPixelType >(*arg1,*arg2,*arg3);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37795,7 +37815,8 @@ SWIGINTERN PyObject *_wrap_maskAndCorrectAdditionalArtifacts(PyObject *self, PyO
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -37813,7 +37834,8 @@ SWIGINTERN PyObject *_wrap_maskAndCorrectAdditionalArtifacts(PyObject *self, PyO
   }
   if (argc == 3) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -37833,8 +37855,8 @@ SWIGINTERN PyObject *_wrap_maskAndCorrectAdditionalArtifacts(PyObject *self, PyO
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'maskAndCorrectAdditionalArtifacts'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::maskAndCorrectAdditionalArtifacts< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::maskAndCorrectAdditionalArtifacts< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::maskAndCorrectAdditionalArtifacts< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::maskAndCorrectAdditionalArtifacts< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -37860,12 +37882,12 @@ SWIGINTERN PyObject *_wrap_additionalFlatFieldCorrection__SWIG_1(PyObject *SWIGU
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:additionalFlatFieldCorrection",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
@@ -37894,7 +37916,7 @@ SWIGINTERN PyObject *_wrap_additionalFlatFieldCorrection__SWIG_1(PyObject *SWIGU
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR additionalFlatFieldCorrection< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR additionalFlatFieldCorrection< float,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37934,12 +37956,12 @@ SWIGINTERN PyObject *_wrap_additionalFlatFieldCorrection__SWIG_2(PyObject *SWIGU
   PyObject * obj3 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OOOO:additionalFlatFieldCorrection",&obj0,&obj1,&obj2,&obj3)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "additionalFlatFieldCorrection" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
@@ -37968,7 +37990,7 @@ SWIGINTERN PyObject *_wrap_additionalFlatFieldCorrection__SWIG_2(PyObject *SWIGU
   arg4 = reinterpret_cast< lsst::pex::policy::Policy * >(argp4);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR additionalFlatFieldCorrection< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR additionalFlatFieldCorrection< double,lsst::afw::image::maskPixelType >(*arg1,(lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg2,*arg3,*arg4);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -37999,7 +38021,8 @@ SWIGINTERN PyObject *_wrap_additionalFlatFieldCorrection(PyObject *self, PyObjec
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
@@ -38021,7 +38044,8 @@ SWIGINTERN PyObject *_wrap_additionalFlatFieldCorrection(PyObject *self, PyObjec
   }
   if (argc == 4) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       int res = SWIG_ConvertPtr(argv[1], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
@@ -38045,8 +38069,8 @@ SWIGINTERN PyObject *_wrap_additionalFlatFieldCorrection(PyObject *self, PyObjec
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'additionalFlatFieldCorrection'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::additionalFlatFieldCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::additionalFlatFieldCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::additionalFlatFieldCorrection< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::additionalFlatFieldCorrection< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 
@@ -38064,12 +38088,12 @@ SWIGINTERN PyObject *_wrap_interpolateOverMaskedPixels__SWIG_1(PyObject *SWIGUNU
   PyObject * obj1 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OO:interpolateOverMaskedPixels",&obj0,&obj1)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< float,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< float,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -38082,7 +38106,7 @@ SWIGINTERN PyObject *_wrap_interpolateOverMaskedPixels__SWIG_1(PyObject *SWIGUNU
   arg2 = reinterpret_cast< lsst::pex::policy::Policy * >(argp2);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR interpolateOverMaskedPixels< float,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< float,boost::uint16_t > const &)*arg1,*arg2);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR interpolateOverMaskedPixels< float,lsst::afw::image::maskPixelType >(*arg1,*arg2);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -38114,12 +38138,12 @@ SWIGINTERN PyObject *_wrap_interpolateOverMaskedPixels__SWIG_2(PyObject *SWIGUNU
   PyObject * obj1 = 0 ;
   
   if (!PyArg_ParseTuple(args,(char *)"OO:interpolateOverMaskedPixels",&obj0,&obj1)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0  | 0);
+  res1 = SWIG_ConvertPtr(obj0, &argp1, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t,  0 );
   if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   if (!argp1) {
-    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > const &""'"); 
+    SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "interpolateOverMaskedPixels" "', argument " "1"" of type '" "lsst::afw::image::Exposure< double,boost::uint16_t > &""'"); 
   }
   arg1 = reinterpret_cast< lsst::afw::image::Exposure< double,boost::uint16_t > * >(argp1);
   res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_lsst__pex__policy__Policy,  0 );
@@ -38132,7 +38156,7 @@ SWIGINTERN PyObject *_wrap_interpolateOverMaskedPixels__SWIG_2(PyObject *SWIGUNU
   arg2 = reinterpret_cast< lsst::pex::policy::Policy * >(argp2);
   {
     try {
-      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR interpolateOverMaskedPixels< double,lsst::afw::image::maskPixelType >((lsst::afw::image::Exposure< double,boost::uint16_t > const &)*arg1,*arg2);
+      result = lsst::ip::isr::SWIGTEMPLATEDISAMBIGUATOR interpolateOverMaskedPixels< double,lsst::afw::image::maskPixelType >(*arg1,*arg2);
     } catch (lsst::pex::exceptions::ExceptionStack &e) {
       raiseLsstExceptionStack(e);
       SWIG_fail;
@@ -38163,7 +38187,8 @@ SWIGINTERN PyObject *_wrap_interpolateOverMaskedPixels(PyObject *self, PyObject 
   }
   if (argc == 2) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_float_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -38176,7 +38201,8 @@ SWIGINTERN PyObject *_wrap_interpolateOverMaskedPixels(PyObject *self, PyObject 
   }
   if (argc == 2) {
     int _v;
-    int res = SWIG_ConvertPtr(argv[0], 0, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
+    void *vptr = 0;
+    int res = SWIG_ConvertPtr(argv[0], &vptr, SWIGTYPE_p_lsst__afw__image__ExposureT_double_boost__uint16_t_t, 0);
     _v = SWIG_CheckState(res);
     if (_v) {
       void *vptr = 0;
@@ -38191,8 +38217,8 @@ SWIGINTERN PyObject *_wrap_interpolateOverMaskedPixels(PyObject *self, PyObject 
 fail:
   SWIG_SetErrorMsg(PyExc_NotImplementedError,"Wrong number of arguments for overloaded function 'interpolateOverMaskedPixels'.\n"
     "  Possible C/C++ prototypes are:\n"
-    "    lsst::ip::isr::interpolateOverMaskedPixels< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > const &,lsst::pex::policy::Policy &)\n"
-    "    lsst::ip::isr::interpolateOverMaskedPixels< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > const &,lsst::pex::policy::Policy &)\n");
+    "    lsst::ip::isr::interpolateOverMaskedPixels< float,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< float,boost::uint16_t > &,lsst::pex::policy::Policy &)\n"
+    "    lsst::ip::isr::interpolateOverMaskedPixels< double,lsst::afw::image::maskPixelType >(lsst::afw::image::Exposure< double,boost::uint16_t > &,lsst::pex::policy::Policy &)\n");
   return NULL;
 }
 

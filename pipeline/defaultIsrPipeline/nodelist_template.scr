@@ -1,0 +1,6 @@
+# Format for node list is hostname followed by number of 
+# processes to run on that node 
+#
+# Single node single slice (2 = one for pre/postprocess, one for process)
+%(ipaddress)s:2
+
