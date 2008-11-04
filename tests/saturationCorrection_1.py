@@ -1,5 +1,9 @@
 """
-Test ISR sub-stage, 'Saturation Correction for Chunk Exposure'.
+Purpose: A simple test for the ISR sub-stage,
+         'Saturation Correction for Chunk Exposure'.
+
+Author: Nicole M. Silvestri,
+        University of Washington
 """
 
 import os
@@ -37,11 +41,12 @@ SatLookupTable = "satLookUpTable"           # Use Lookup Table in lieu of a func
 
 currDir = os.path.abspath(os.path.dirname(__file__))
 isrDir = "../src/"
+pafDir = "../pipeline/"
 inFilePath = os.path.join(dataDir, "CFHT", "D4", InputChunkExposure)
 
-datasetPolicyPath = os.path.join(isrDir, InputDatasetPolicy)
-isrPolicyPath = os.path.join(isrDir, InputIsrPolicy)
-satLookUpTablePath = (isrDir, SatLookupTable)
+datasetPolicyPath = os.path.join(pafDir, InputDatasetPolicy)
+isrPolicyPath = os.path.join(pafDir, InputIsrPolicy)
+satLookUpTablePath = (pafDir, SatLookupTable)
 
 ## OUTPUT IMAGE AND PATH NAMES
 
