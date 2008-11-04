@@ -639,10 +639,2117 @@ def doubleArray_frompointer(*args):
 HAVE_SMART_POINTER = _isrLib.HAVE_SMART_POINTER
 import lsst.pex.exceptions
 
-def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/ip/isr/python/lsst/ip/isr/isrLib.i $"):
+def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/python/lsst/afw/detection/detectionLib.i $"):
+    """Return a version given a HeadURL string; default: afw's version"""
+    return guessSvnVersion(HeadURL)
+
+
+class Peak(_object):
+    """Proxy of C++ Peak class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, Peak, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Peak, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, int ix, int iy) -> Peak
+        __init__(self, float fx=NAN, float fy=NAN) -> Peak
+        __init__(self, float fx=NAN) -> Peak
+        __init__(self) -> Peak
+        """
+        this = _isrLib.new_Peak(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_Peak
+    __del__ = lambda self : None;
+    def getId(*args):
+        """getId(self) -> int"""
+        return _isrLib.Peak_getId(*args)
+
+    def getIx(*args):
+        """getIx(self) -> int"""
+        return _isrLib.Peak_getIx(*args)
+
+    def getIy(*args):
+        """getIy(self) -> int"""
+        return _isrLib.Peak_getIy(*args)
+
+    def getFx(*args):
+        """getFx(self) -> float"""
+        return _isrLib.Peak_getFx(*args)
+
+    def getFy(*args):
+        """getFy(self) -> float"""
+        return _isrLib.Peak_getFy(*args)
+
+    def toString(*args):
+        """toString(self) -> string"""
+        return _isrLib.Peak_toString(*args)
+
+Peak_swigregister = _isrLib.Peak_swigregister
+Peak_swigregister(Peak)
+
+class Span(_object):
+    """Proxy of C++ Span class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, Span, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Span, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """__init__(self, int y, int x0, int x1) -> Span"""
+        this = _isrLib.new_Span(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_Span
+    __del__ = lambda self : None;
+    def getX0(*args):
+        """getX0(self) -> int"""
+        return _isrLib.Span_getX0(*args)
+
+    def getX1(*args):
+        """getX1(self) -> int"""
+        return _isrLib.Span_getX1(*args)
+
+    def getY(*args):
+        """getY(self) -> int"""
+        return _isrLib.Span_getY(*args)
+
+    def toString(*args):
+        """toString(self) -> string"""
+        return _isrLib.Span_toString(*args)
+
+    def compareByYX(*args):
+        """compareByYX(self, void a, void b) -> int"""
+        return _isrLib.Span_compareByYX(*args)
+
+Span_swigregister = _isrLib.Span_swigregister
+Span_swigregister(Span)
+
+class Threshold(_object):
+    """Proxy of C++ Threshold class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, Threshold, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Threshold, name)
+    __repr__ = _swig_repr
+    VALUE = _isrLib.Threshold_VALUE
+    STDEV = _isrLib.Threshold_STDEV
+    VARIANCE = _isrLib.Threshold_VARIANCE
+    def __init__(self, *args): 
+        """
+        __init__(self, float value, ThresholdType type=VALUE, bool polarity=True) -> Threshold
+        __init__(self, float value, ThresholdType type=VALUE) -> Threshold
+        __init__(self, float value) -> Threshold
+        """
+        this = _isrLib.new_Threshold(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def getType(*args):
+        """getType(self) -> ThresholdType"""
+        return _isrLib.Threshold_getType(*args)
+
+    def getValue(*args):
+        """
+        getValue(self, float param=-1) -> float
+        getValue(self) -> float
+        """
+        return _isrLib.Threshold_getValue(*args)
+
+    def getPolarity(*args):
+        """getPolarity(self) -> bool"""
+        return _isrLib.Threshold_getPolarity(*args)
+
+    __swig_destroy__ = _isrLib.delete_Threshold
+    __del__ = lambda self : None;
+Threshold_swigregister = _isrLib.Threshold_swigregister
+Threshold_swigregister(Threshold)
+
+class Footprint(_object):
+    """Proxy of C++ Footprint class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, Footprint, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Footprint, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, int nspan=0, BBox2i region=vw::BBox2i(0, 0, 0, 0)) -> Footprint
+        __init__(self, int nspan=0) -> Footprint
+        __init__(self) -> Footprint
+        __init__(self, BBox2i bbox, BBox2i region=vw::BBox2i(0, 0, 0, 0)) -> Footprint
+        __init__(self, BBox2i bbox) -> Footprint
+        __init__(self, BCircle2i circle, BBox2i region=vw::BBox2i(0, 0, 0, 0)) -> Footprint
+        __init__(self, BCircle2i circle) -> Footprint
+        """
+        this = _isrLib.new_Footprint(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_Footprint
+    __del__ = lambda self : None;
+    def getId(*args):
+        """getId(self) -> int"""
+        return _isrLib.Footprint_getId(*args)
+
+    def getSpans(*args):
+        """
+        getSpans(self) -> SpanListT
+        getSpans(self) -> SpanListT
+        """
+        return _isrLib.Footprint_getSpans(*args)
+
+    def getPeaks(*args):
+        """getPeaks(self) -> PeakContainerT"""
+        return _isrLib.Footprint_getPeaks(*args)
+
+    def getNpix(*args):
+        """getNpix(self) -> int"""
+        return _isrLib.Footprint_getNpix(*args)
+
+    def addSpan(*args):
+        """
+        addSpan(self, int y, int x0, int x1) -> Span
+        addSpan(self, Span span) -> Span
+        """
+        return _isrLib.Footprint_addSpan(*args)
+
+    def offset(*args):
+        """offset(self, int dx, int dy)"""
+        return _isrLib.Footprint_offset(*args)
+
+    def getBBox(*args):
+        """getBBox(self) -> BBox2i"""
+        return _isrLib.Footprint_getBBox(*args)
+
+    def getRegion(*args):
+        """getRegion(self) -> BBox2i"""
+        return _isrLib.Footprint_getRegion(*args)
+
+    def normalize(*args):
+        """normalize(self)"""
+        return _isrLib.Footprint_normalize(*args)
+
+    def setNpix(*args):
+        """setNpix(self) -> int"""
+        return _isrLib.Footprint_setNpix(*args)
+
+    def setBBox(*args):
+        """setBBox(self)"""
+        return _isrLib.Footprint_setBBox(*args)
+
+    def rectangle(*args):
+        """rectangle(self, BBox2i bbox)"""
+        return _isrLib.Footprint_rectangle(*args)
+
+    def insertIntoImage(*args):
+        """
+        insertIntoImage(self, lsst::afw::image::Image<(boost::uint16_t)> idImage, 
+            int id)
+        """
+        return _isrLib.Footprint_insertIntoImage(*args)
+
+Footprint_swigregister = _isrLib.Footprint_swigregister
+Footprint_swigregister(Footprint)
+
+
+def growFootprint(*args):
+  """growFootprint(PtrType foot, int ngrow) -> PtrType"""
+  return _isrLib.growFootprint(*args)
+class BCircle2i(_object):
+    """Proxy of C++ BCircle2i class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, BCircle2i, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, BCircle2i, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, Vector2i center, float r) -> BCircle2i
+        __init__(self, boost::int32_t x, boost::int32_t y, float r) -> BCircle2i
+        """
+        this = _isrLib.new_BCircle2i(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def center(*args):
+        """center(self) -> Vector2i"""
+        return _isrLib.BCircle2i_center(*args)
+
+    def radius(*args):
+        """radius(self) -> float"""
+        return _isrLib.BCircle2i_radius(*args)
+
+    __swig_destroy__ = _isrLib.delete_BCircle2i
+    __del__ = lambda self : None;
+BCircle2i_swigregister = _isrLib.BCircle2i_swigregister
+BCircle2i_swigregister(BCircle2i)
+
+class Vector2i(_object):
+    """Proxy of C++ Vector2i class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, Vector2i, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Vector2i, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self) -> Vector2i
+        __init__(self, boost::int32_t e1, boost::int32_t e2) -> Vector2i
+        """
+        this = _isrLib.new_Vector2i(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def x(*args):
+        """x(self) -> boost::int32_t"""
+        return _isrLib.Vector2i_x(*args)
+
+    def y(*args):
+        """y(self) -> boost::int32_t"""
+        return _isrLib.Vector2i_y(*args)
+
+    __swig_destroy__ = _isrLib.delete_Vector2i
+    __del__ = lambda self : None;
+Vector2i_swigregister = _isrLib.Vector2i_swigregister
+Vector2i_swigregister(Vector2i)
+
+class PeakPtrT(_object):
+    """Proxy of C++ PeakPtrT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, PeakPtrT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PeakPtrT, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, PeakPtrT ?) -> PeakPtrT
+        __init__(self, Peak DISOWN) -> PeakPtrT
+        """
+        this = _isrLib.new_PeakPtrT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_PeakPtrT
+    __del__ = lambda self : None;
+    def __deref__(*args):
+        """__deref__(self) -> Peak"""
+        return _isrLib.PeakPtrT___deref__(*args)
+
+    def use_count(*args):
+        """use_count(self) -> int"""
+        return _isrLib.PeakPtrT_use_count(*args)
+
+    def get(*args):
+        """get(self) -> Peak"""
+        return _isrLib.PeakPtrT_get(*args)
+
+    def getId(*args):
+        """getId(self) -> int"""
+        return _isrLib.PeakPtrT_getId(*args)
+
+    def getIx(*args):
+        """getIx(self) -> int"""
+        return _isrLib.PeakPtrT_getIx(*args)
+
+    def getIy(*args):
+        """getIy(self) -> int"""
+        return _isrLib.PeakPtrT_getIy(*args)
+
+    def getFx(*args):
+        """getFx(self) -> float"""
+        return _isrLib.PeakPtrT_getFx(*args)
+
+    def getFy(*args):
+        """getFy(self) -> float"""
+        return _isrLib.PeakPtrT_getFy(*args)
+
+    def toString(*args):
+        """toString(self) -> string"""
+        return _isrLib.PeakPtrT_toString(*args)
+
+    def repr(*args):
+        """repr(self) -> string"""
+        return _isrLib.PeakPtrT_repr(*args)
+
+    def markPersistent(*args):
+        """markPersistent(self)"""
+        return _isrLib.PeakPtrT_markPersistent(*args)
+
+    def census(*args):
+        """
+        census(self, int ?, memId startingMemId=0) -> int
+        census(self, int ?) -> int
+        census(self, ostream stream, memId startingMemId=0)
+        census(self, ostream stream)
+        census(self) -> std::vector<(p.q(const).lsst::daf::base::Citizen,std::allocator<(p.q(const).lsst::daf::base::Citizen)>)>
+        """
+        return _isrLib.PeakPtrT_census(*args)
+
+    def checkCorruption(*args):
+        """checkCorruption(self) -> bool"""
+        return _isrLib.PeakPtrT_checkCorruption(*args)
+
+    def getNextMemId(*args):
+        """getNextMemId(self) -> memId"""
+        return _isrLib.PeakPtrT_getNextMemId(*args)
+
+    def setNewCallbackId(*args):
+        """setNewCallbackId(self, memId id) -> memId"""
+        return _isrLib.PeakPtrT_setNewCallbackId(*args)
+
+    def setDeleteCallbackId(*args):
+        """setDeleteCallbackId(self, memId id) -> memId"""
+        return _isrLib.PeakPtrT_setDeleteCallbackId(*args)
+
+    def setNewCallback(*args):
+        """setNewCallback(self, memCallback func) -> memCallback"""
+        return _isrLib.PeakPtrT_setNewCallback(*args)
+
+    def setDeleteCallback(*args):
+        """setDeleteCallback(self, memCallback func) -> memCallback"""
+        return _isrLib.PeakPtrT_setDeleteCallback(*args)
+
+    def setCorruptionCallback(*args):
+        """setCorruptionCallback(self, memCallback func) -> memCallback"""
+        return _isrLib.PeakPtrT_setCorruptionCallback(*args)
+
+    def init(*args):
+        """init(self) -> int"""
+        return _isrLib.PeakPtrT_init(*args)
+
+PeakPtrT_swigregister = _isrLib.PeakPtrT_swigregister
+PeakPtrT_swigregister(PeakPtrT)
+
+class PeakContainerT(_object):
+    """Proxy of C++ PeakContainerT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, PeakContainerT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PeakContainerT, name)
+    __repr__ = _swig_repr
+    def iterator(*args):
+        """iterator(self, PyObject PYTHON_SELF) -> PySwigIterator"""
+        return _isrLib.PeakContainerT_iterator(*args)
+
+    def __iter__(self): return self.iterator()
+    def __nonzero__(*args):
+        """__nonzero__(self) -> bool"""
+        return _isrLib.PeakContainerT___nonzero__(*args)
+
+    def __len__(*args):
+        """__len__(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type"""
+        return _isrLib.PeakContainerT___len__(*args)
+
+    def pop(*args):
+        """pop(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type"""
+        return _isrLib.PeakContainerT_pop(*args)
+
+    def __getslice__(*args):
+        """
+        __getslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type j) -> PeakContainerT
+        """
+        return _isrLib.PeakContainerT___getslice__(*args)
+
+    def __setslice__(*args):
+        """
+        __setslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type j, 
+            PeakContainerT v)
+        """
+        return _isrLib.PeakContainerT___setslice__(*args)
+
+    def __delslice__(*args):
+        """
+        __delslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type j)
+        """
+        return _isrLib.PeakContainerT___delslice__(*args)
+
+    def __delitem__(*args):
+        """__delitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type i)"""
+        return _isrLib.PeakContainerT___delitem__(*args)
+
+    def __getitem__(*args):
+        """__getitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type i) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type"""
+        return _isrLib.PeakContainerT___getitem__(*args)
+
+    def __setitem__(*args):
+        """
+        __setitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type x)
+        """
+        return _isrLib.PeakContainerT___setitem__(*args)
+
+    def append(*args):
+        """append(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type x)"""
+        return _isrLib.PeakContainerT_append(*args)
+
+    def empty(*args):
+        """empty(self) -> bool"""
+        return _isrLib.PeakContainerT_empty(*args)
+
+    def size(*args):
+        """size(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type"""
+        return _isrLib.PeakContainerT_size(*args)
+
+    def clear(*args):
+        """clear(self)"""
+        return _isrLib.PeakContainerT_clear(*args)
+
+    def swap(*args):
+        """swap(self, PeakContainerT v)"""
+        return _isrLib.PeakContainerT_swap(*args)
+
+    def get_allocator(*args):
+        """get_allocator(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::allocator_type"""
+        return _isrLib.PeakContainerT_get_allocator(*args)
+
+    def begin(*args):
+        """
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::const_iterator
+        """
+        return _isrLib.PeakContainerT_begin(*args)
+
+    def end(*args):
+        """
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::const_iterator
+        """
+        return _isrLib.PeakContainerT_end(*args)
+
+    def rbegin(*args):
+        """
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::reverse_iterator
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::const_reverse_iterator
+        """
+        return _isrLib.PeakContainerT_rbegin(*args)
+
+    def rend(*args):
+        """
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::reverse_iterator
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::const_reverse_iterator
+        """
+        return _isrLib.PeakContainerT_rend(*args)
+
+    def pop_back(*args):
+        """pop_back(self)"""
+        return _isrLib.PeakContainerT_pop_back(*args)
+
+    def erase(*args):
+        """
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator pos) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator first, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator last) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator
+        """
+        return _isrLib.PeakContainerT_erase(*args)
+
+    def __init__(self, *args): 
+        """
+        __init__(self) -> PeakContainerT
+        __init__(self, PeakContainerT ?) -> PeakContainerT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type size) -> PeakContainerT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type value) -> PeakContainerT
+        """
+        this = _isrLib.new_PeakContainerT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def push_back(*args):
+        """push_back(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type x)"""
+        return _isrLib.PeakContainerT_push_back(*args)
+
+    def front(*args):
+        """front(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type"""
+        return _isrLib.PeakContainerT_front(*args)
+
+    def back(*args):
+        """back(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type"""
+        return _isrLib.PeakContainerT_back(*args)
+
+    def assign(*args):
+        """
+        assign(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type x)
+        """
+        return _isrLib.PeakContainerT_assign(*args)
+
+    def resize(*args):
+        """
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type new_size)
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type new_size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type x)
+        """
+        return _isrLib.PeakContainerT_resize(*args)
+
+    def insert(*args):
+        """
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type x) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::value_type x)
+        """
+        return _isrLib.PeakContainerT_insert(*args)
+
+    def reserve(*args):
+        """reserve(self, std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type n)"""
+        return _isrLib.PeakContainerT_reserve(*args)
+
+    def capacity(*args):
+        """capacity(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Peak)>)>::size_type"""
+        return _isrLib.PeakContainerT_capacity(*args)
+
+    __swig_destroy__ = _isrLib.delete_PeakContainerT
+    __del__ = lambda self : None;
+PeakContainerT_swigregister = _isrLib.PeakContainerT_swigregister
+PeakContainerT_swigregister(PeakContainerT)
+
+class SpanPtrT(_object):
+    """Proxy of C++ SpanPtrT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, SpanPtrT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, SpanPtrT, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, SpanPtrT ?) -> SpanPtrT
+        __init__(self, Span DISOWN) -> SpanPtrT
+        """
+        this = _isrLib.new_SpanPtrT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_SpanPtrT
+    __del__ = lambda self : None;
+    def __deref__(*args):
+        """__deref__(self) -> Span"""
+        return _isrLib.SpanPtrT___deref__(*args)
+
+    def use_count(*args):
+        """use_count(self) -> int"""
+        return _isrLib.SpanPtrT_use_count(*args)
+
+    def get(*args):
+        """get(self) -> Span"""
+        return _isrLib.SpanPtrT_get(*args)
+
+    def getX0(*args):
+        """getX0(self) -> int"""
+        return _isrLib.SpanPtrT_getX0(*args)
+
+    def getX1(*args):
+        """getX1(self) -> int"""
+        return _isrLib.SpanPtrT_getX1(*args)
+
+    def getY(*args):
+        """getY(self) -> int"""
+        return _isrLib.SpanPtrT_getY(*args)
+
+    def toString(*args):
+        """toString(self) -> string"""
+        return _isrLib.SpanPtrT_toString(*args)
+
+    def compareByYX(*args):
+        """compareByYX(self, void a, void b) -> int"""
+        return _isrLib.SpanPtrT_compareByYX(*args)
+
+SpanPtrT_swigregister = _isrLib.SpanPtrT_swigregister
+SpanPtrT_swigregister(SpanPtrT)
+
+class SpanContainerT(_object):
+    """Proxy of C++ SpanContainerT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, SpanContainerT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, SpanContainerT, name)
+    __repr__ = _swig_repr
+    def iterator(*args):
+        """iterator(self, PyObject PYTHON_SELF) -> PySwigIterator"""
+        return _isrLib.SpanContainerT_iterator(*args)
+
+    def __iter__(self): return self.iterator()
+    def __nonzero__(*args):
+        """__nonzero__(self) -> bool"""
+        return _isrLib.SpanContainerT___nonzero__(*args)
+
+    def __len__(*args):
+        """__len__(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type"""
+        return _isrLib.SpanContainerT___len__(*args)
+
+    def pop(*args):
+        """pop(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type"""
+        return _isrLib.SpanContainerT_pop(*args)
+
+    def __getslice__(*args):
+        """
+        __getslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type j) -> SpanContainerT
+        """
+        return _isrLib.SpanContainerT___getslice__(*args)
+
+    def __setslice__(*args):
+        """
+        __setslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type j, 
+            SpanContainerT v)
+        """
+        return _isrLib.SpanContainerT___setslice__(*args)
+
+    def __delslice__(*args):
+        """
+        __delslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type j)
+        """
+        return _isrLib.SpanContainerT___delslice__(*args)
+
+    def __delitem__(*args):
+        """__delitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type i)"""
+        return _isrLib.SpanContainerT___delitem__(*args)
+
+    def __getitem__(*args):
+        """__getitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type i) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type"""
+        return _isrLib.SpanContainerT___getitem__(*args)
+
+    def __setitem__(*args):
+        """
+        __setitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type x)
+        """
+        return _isrLib.SpanContainerT___setitem__(*args)
+
+    def append(*args):
+        """append(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type x)"""
+        return _isrLib.SpanContainerT_append(*args)
+
+    def empty(*args):
+        """empty(self) -> bool"""
+        return _isrLib.SpanContainerT_empty(*args)
+
+    def size(*args):
+        """size(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type"""
+        return _isrLib.SpanContainerT_size(*args)
+
+    def clear(*args):
+        """clear(self)"""
+        return _isrLib.SpanContainerT_clear(*args)
+
+    def swap(*args):
+        """swap(self, SpanContainerT v)"""
+        return _isrLib.SpanContainerT_swap(*args)
+
+    def get_allocator(*args):
+        """get_allocator(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::allocator_type"""
+        return _isrLib.SpanContainerT_get_allocator(*args)
+
+    def begin(*args):
+        """
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::const_iterator
+        """
+        return _isrLib.SpanContainerT_begin(*args)
+
+    def end(*args):
+        """
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::const_iterator
+        """
+        return _isrLib.SpanContainerT_end(*args)
+
+    def rbegin(*args):
+        """
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::reverse_iterator
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::const_reverse_iterator
+        """
+        return _isrLib.SpanContainerT_rbegin(*args)
+
+    def rend(*args):
+        """
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::reverse_iterator
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::const_reverse_iterator
+        """
+        return _isrLib.SpanContainerT_rend(*args)
+
+    def pop_back(*args):
+        """pop_back(self)"""
+        return _isrLib.SpanContainerT_pop_back(*args)
+
+    def erase(*args):
+        """
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator pos) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator first, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator last) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator
+        """
+        return _isrLib.SpanContainerT_erase(*args)
+
+    def __init__(self, *args): 
+        """
+        __init__(self) -> SpanContainerT
+        __init__(self, SpanContainerT ?) -> SpanContainerT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type size) -> SpanContainerT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type value) -> SpanContainerT
+        """
+        this = _isrLib.new_SpanContainerT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def push_back(*args):
+        """push_back(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type x)"""
+        return _isrLib.SpanContainerT_push_back(*args)
+
+    def front(*args):
+        """front(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type"""
+        return _isrLib.SpanContainerT_front(*args)
+
+    def back(*args):
+        """back(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type"""
+        return _isrLib.SpanContainerT_back(*args)
+
+    def assign(*args):
+        """
+        assign(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type x)
+        """
+        return _isrLib.SpanContainerT_assign(*args)
+
+    def resize(*args):
+        """
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type new_size)
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type new_size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type x)
+        """
+        return _isrLib.SpanContainerT_resize(*args)
+
+    def insert(*args):
+        """
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type x) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::value_type x)
+        """
+        return _isrLib.SpanContainerT_insert(*args)
+
+    def reserve(*args):
+        """reserve(self, std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type n)"""
+        return _isrLib.SpanContainerT_reserve(*args)
+
+    def capacity(*args):
+        """capacity(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Span)>)>::size_type"""
+        return _isrLib.SpanContainerT_capacity(*args)
+
+    __swig_destroy__ = _isrLib.delete_SpanContainerT
+    __del__ = lambda self : None;
+SpanContainerT_swigregister = _isrLib.SpanContainerT_swigregister
+SpanContainerT_swigregister(SpanContainerT)
+
+class FootprintPtrT(_object):
+    """Proxy of C++ FootprintPtrT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, FootprintPtrT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, FootprintPtrT, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, FootprintPtrT ?) -> FootprintPtrT
+        __init__(self, Footprint DISOWN) -> FootprintPtrT
+        """
+        this = _isrLib.new_FootprintPtrT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_FootprintPtrT
+    __del__ = lambda self : None;
+    def __deref__(*args):
+        """__deref__(self) -> Footprint"""
+        return _isrLib.FootprintPtrT___deref__(*args)
+
+    def use_count(*args):
+        """use_count(self) -> int"""
+        return _isrLib.FootprintPtrT_use_count(*args)
+
+    def get(*args):
+        """get(self) -> Footprint"""
+        return _isrLib.FootprintPtrT_get(*args)
+
+    def getId(*args):
+        """getId(self) -> int"""
+        return _isrLib.FootprintPtrT_getId(*args)
+
+    def getSpans(*args):
+        """
+        getSpans(self) -> SpanListT
+        getSpans(self) -> SpanListT
+        """
+        return _isrLib.FootprintPtrT_getSpans(*args)
+
+    def getPeaks(*args):
+        """getPeaks(self) -> PeakContainerT"""
+        return _isrLib.FootprintPtrT_getPeaks(*args)
+
+    def getNpix(*args):
+        """getNpix(self) -> int"""
+        return _isrLib.FootprintPtrT_getNpix(*args)
+
+    def addSpan(*args):
+        """
+        addSpan(self, int y, int x0, int x1) -> Span
+        addSpan(self, Span span) -> Span
+        """
+        return _isrLib.FootprintPtrT_addSpan(*args)
+
+    def offset(*args):
+        """offset(self, int dx, int dy)"""
+        return _isrLib.FootprintPtrT_offset(*args)
+
+    def getBBox(*args):
+        """getBBox(self) -> BBox2i"""
+        return _isrLib.FootprintPtrT_getBBox(*args)
+
+    def getRegion(*args):
+        """getRegion(self) -> BBox2i"""
+        return _isrLib.FootprintPtrT_getRegion(*args)
+
+    def normalize(*args):
+        """normalize(self)"""
+        return _isrLib.FootprintPtrT_normalize(*args)
+
+    def setNpix(*args):
+        """setNpix(self) -> int"""
+        return _isrLib.FootprintPtrT_setNpix(*args)
+
+    def setBBox(*args):
+        """setBBox(self)"""
+        return _isrLib.FootprintPtrT_setBBox(*args)
+
+    def rectangle(*args):
+        """rectangle(self, BBox2i bbox)"""
+        return _isrLib.FootprintPtrT_rectangle(*args)
+
+    def insertIntoImage(*args):
+        """
+        insertIntoImage(self, lsst::afw::image::Image<(boost::uint16_t)> idImage, 
+            int id)
+        """
+        return _isrLib.FootprintPtrT_insertIntoImage(*args)
+
+    def getChildren(*args):
+        """
+        getChildren(self, unsigned int depth=1) -> IteratorRangeType
+        getChildren(self) -> IteratorRangeType
+        """
+        return _isrLib.FootprintPtrT_getChildren(*args)
+
+    def getMetadata(*args):
+        """getMetadata(self) -> lsst::daf::base::DataProperty::PtrType"""
+        return _isrLib.FootprintPtrT_getMetadata(*args)
+
+    def getPersistence(*args):
+        """getPersistence(self) -> lsst::daf::persistence::Persistence::Ptr"""
+        return _isrLib.FootprintPtrT_getPersistence(*args)
+
+    def getPolicy(*args):
+        """getPolicy(self) -> Ptr"""
+        return _isrLib.FootprintPtrT_getPolicy(*args)
+
+    def getProvenance(*args):
+        """getProvenance(self) -> PtrType"""
+        return _isrLib.FootprintPtrT_getProvenance(*args)
+
+    def getReleaseProcess(*args):
+        """getReleaseProcess(self) -> ReleaseProcess::PtrType"""
+        return _isrLib.FootprintPtrT_getReleaseProcess(*args)
+
+    def getSecurity(*args):
+        """getSecurity(self) -> lsst::security::Security::PtrType"""
+        return _isrLib.FootprintPtrT_getSecurity(*args)
+
+    def setMetadata(*args):
+        """setMetadata(self, lsst::daf::base::DataProperty::PtrType metadata)"""
+        return _isrLib.FootprintPtrT_setMetadata(*args)
+
+    def setPersistence(*args):
+        """setPersistence(self, lsst::daf::persistence::Persistence::Ptr persistence)"""
+        return _isrLib.FootprintPtrT_setPersistence(*args)
+
+    def setPolicy(*args):
+        """setPolicy(self, Ptr policy)"""
+        return _isrLib.FootprintPtrT_setPolicy(*args)
+
+    def setProvenance(*args):
+        """setProvenance(self, PtrType provenance)"""
+        return _isrLib.FootprintPtrT_setProvenance(*args)
+
+    def setReleaseProcess(*args):
+        """setReleaseProcess(self, ReleaseProcess::PtrType release)"""
+        return _isrLib.FootprintPtrT_setReleaseProcess(*args)
+
+    def setSecurity(*args):
+        """setSecurity(self, lsst::security::Security::PtrType security)"""
+        return _isrLib.FootprintPtrT_setSecurity(*args)
+
+    def toString(*args):
+        """toString(self) -> string"""
+        return _isrLib.FootprintPtrT_toString(*args)
+
+    def repr(*args):
+        """repr(self) -> string"""
+        return _isrLib.FootprintPtrT_repr(*args)
+
+    def markPersistent(*args):
+        """markPersistent(self)"""
+        return _isrLib.FootprintPtrT_markPersistent(*args)
+
+    def census(*args):
+        """
+        census(self, int ?, memId startingMemId=0) -> int
+        census(self, int ?) -> int
+        census(self, ostream stream, memId startingMemId=0)
+        census(self, ostream stream)
+        census(self) -> std::vector<(p.q(const).lsst::daf::base::Citizen,std::allocator<(p.q(const).lsst::daf::base::Citizen)>)>
+        """
+        return _isrLib.FootprintPtrT_census(*args)
+
+    def checkCorruption(*args):
+        """checkCorruption(self) -> bool"""
+        return _isrLib.FootprintPtrT_checkCorruption(*args)
+
+    def getNextMemId(*args):
+        """getNextMemId(self) -> memId"""
+        return _isrLib.FootprintPtrT_getNextMemId(*args)
+
+    def setNewCallbackId(*args):
+        """setNewCallbackId(self, memId id) -> memId"""
+        return _isrLib.FootprintPtrT_setNewCallbackId(*args)
+
+    def setDeleteCallbackId(*args):
+        """setDeleteCallbackId(self, memId id) -> memId"""
+        return _isrLib.FootprintPtrT_setDeleteCallbackId(*args)
+
+    def setNewCallback(*args):
+        """setNewCallback(self, memCallback func) -> memCallback"""
+        return _isrLib.FootprintPtrT_setNewCallback(*args)
+
+    def setDeleteCallback(*args):
+        """setDeleteCallback(self, memCallback func) -> memCallback"""
+        return _isrLib.FootprintPtrT_setDeleteCallback(*args)
+
+    def setCorruptionCallback(*args):
+        """setCorruptionCallback(self, memCallback func) -> memCallback"""
+        return _isrLib.FootprintPtrT_setCorruptionCallback(*args)
+
+    def init(*args):
+        """init(self) -> int"""
+        return _isrLib.FootprintPtrT_init(*args)
+
+FootprintPtrT_swigregister = _isrLib.FootprintPtrT_swigregister
+FootprintPtrT_swigregister(FootprintPtrT)
+
+class FootprintContainerT(_object):
+    """Proxy of C++ FootprintContainerT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, FootprintContainerT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, FootprintContainerT, name)
+    __repr__ = _swig_repr
+    def iterator(*args):
+        """iterator(self, PyObject PYTHON_SELF) -> PySwigIterator"""
+        return _isrLib.FootprintContainerT_iterator(*args)
+
+    def __iter__(self): return self.iterator()
+    def __nonzero__(*args):
+        """__nonzero__(self) -> bool"""
+        return _isrLib.FootprintContainerT___nonzero__(*args)
+
+    def __len__(*args):
+        """__len__(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type"""
+        return _isrLib.FootprintContainerT___len__(*args)
+
+    def pop(*args):
+        """pop(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type"""
+        return _isrLib.FootprintContainerT_pop(*args)
+
+    def __getslice__(*args):
+        """
+        __getslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type j) -> FootprintContainerT
+        """
+        return _isrLib.FootprintContainerT___getslice__(*args)
+
+    def __setslice__(*args):
+        """
+        __setslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type j, 
+            FootprintContainerT v)
+        """
+        return _isrLib.FootprintContainerT___setslice__(*args)
+
+    def __delslice__(*args):
+        """
+        __delslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type j)
+        """
+        return _isrLib.FootprintContainerT___delslice__(*args)
+
+    def __delitem__(*args):
+        """__delitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type i)"""
+        return _isrLib.FootprintContainerT___delitem__(*args)
+
+    def __getitem__(*args):
+        """__getitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type i) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type"""
+        return _isrLib.FootprintContainerT___getitem__(*args)
+
+    def __setitem__(*args):
+        """
+        __setitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type x)
+        """
+        return _isrLib.FootprintContainerT___setitem__(*args)
+
+    def append(*args):
+        """append(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type x)"""
+        return _isrLib.FootprintContainerT_append(*args)
+
+    def empty(*args):
+        """empty(self) -> bool"""
+        return _isrLib.FootprintContainerT_empty(*args)
+
+    def size(*args):
+        """size(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type"""
+        return _isrLib.FootprintContainerT_size(*args)
+
+    def clear(*args):
+        """clear(self)"""
+        return _isrLib.FootprintContainerT_clear(*args)
+
+    def swap(*args):
+        """swap(self, FootprintContainerT v)"""
+        return _isrLib.FootprintContainerT_swap(*args)
+
+    def get_allocator(*args):
+        """get_allocator(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::allocator_type"""
+        return _isrLib.FootprintContainerT_get_allocator(*args)
+
+    def begin(*args):
+        """
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::const_iterator
+        """
+        return _isrLib.FootprintContainerT_begin(*args)
+
+    def end(*args):
+        """
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::const_iterator
+        """
+        return _isrLib.FootprintContainerT_end(*args)
+
+    def rbegin(*args):
+        """
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::reverse_iterator
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::const_reverse_iterator
+        """
+        return _isrLib.FootprintContainerT_rbegin(*args)
+
+    def rend(*args):
+        """
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::reverse_iterator
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::const_reverse_iterator
+        """
+        return _isrLib.FootprintContainerT_rend(*args)
+
+    def pop_back(*args):
+        """pop_back(self)"""
+        return _isrLib.FootprintContainerT_pop_back(*args)
+
+    def erase(*args):
+        """
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator pos) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator first, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator last) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator
+        """
+        return _isrLib.FootprintContainerT_erase(*args)
+
+    def __init__(self, *args): 
+        """
+        __init__(self) -> FootprintContainerT
+        __init__(self, FootprintContainerT ?) -> FootprintContainerT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type size) -> FootprintContainerT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type value) -> FootprintContainerT
+        """
+        this = _isrLib.new_FootprintContainerT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def push_back(*args):
+        """push_back(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type x)"""
+        return _isrLib.FootprintContainerT_push_back(*args)
+
+    def front(*args):
+        """front(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type"""
+        return _isrLib.FootprintContainerT_front(*args)
+
+    def back(*args):
+        """back(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type"""
+        return _isrLib.FootprintContainerT_back(*args)
+
+    def assign(*args):
+        """
+        assign(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type x)
+        """
+        return _isrLib.FootprintContainerT_assign(*args)
+
+    def resize(*args):
+        """
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type new_size)
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type new_size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type x)
+        """
+        return _isrLib.FootprintContainerT_resize(*args)
+
+    def insert(*args):
+        """
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type x) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::value_type x)
+        """
+        return _isrLib.FootprintContainerT_insert(*args)
+
+    def reserve(*args):
+        """reserve(self, std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type n)"""
+        return _isrLib.FootprintContainerT_reserve(*args)
+
+    def capacity(*args):
+        """capacity(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Footprint)>)>::size_type"""
+        return _isrLib.FootprintContainerT_capacity(*args)
+
+    __swig_destroy__ = _isrLib.delete_FootprintContainerT
+    __del__ = lambda self : None;
+FootprintContainerT_swigregister = _isrLib.FootprintContainerT_swigregister
+FootprintContainerT_swigregister(FootprintContainerT)
+
+class DetectionSetF(_object):
+    """Proxy of C++ DetectionSetF class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, DetectionSetF, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, DetectionSetF, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, lsst::afw::image::MaskedImage<(float,boost::uint16_t)> img, 
+            Threshold threshold, string planeName="", 
+            int npixMin=1) -> DetectionSetF
+        __init__(self, lsst::afw::image::MaskedImage<(float,boost::uint16_t)> img, 
+            Threshold threshold, string planeName="") -> DetectionSetF
+        __init__(self, lsst::afw::image::MaskedImage<(float,boost::uint16_t)> img, 
+            Threshold threshold) -> DetectionSetF
+        __init__(self, lsst::afw::image::MaskedImage<(float,boost::uint16_t)> img, 
+            Threshold threshold, int x, int y, std::vector<(lsst::detection::Peak,std::allocator<(lsst::detection::Peak)>)> peaks=None) -> DetectionSetF
+        __init__(self, lsst::afw::image::MaskedImage<(float,boost::uint16_t)> img, 
+            Threshold threshold, int x, int y) -> DetectionSetF
+        __init__(self, DetectionSetF set, int r=0) -> DetectionSetF
+        __init__(self, DetectionSetF set) -> DetectionSetF
+        __init__(self, DetectionSetF footprints1, DetectionSetF footprints2, 
+            int includePeaks) -> DetectionSetF
+        """
+        this = _isrLib.new_DetectionSetF(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_DetectionSetF
+    __del__ = lambda self : None;
+    def getFootprints(*args):
+        """getFootprints(self) -> FootprintContainerT"""
+        return _isrLib.DetectionSetF_getFootprints(*args)
+
+    def getRegion(*args):
+        """getRegion(self) -> BBox2i"""
+        return _isrLib.DetectionSetF_getRegion(*args)
+
+    def insertIntoImage(*args):
+        """insertIntoImage(self, bool relativeIDs) -> boost::shared_ptr<(lsst::afw::image::Image<(boost::uint16_t)>)>"""
+        return _isrLib.DetectionSetF_insertIntoImage(*args)
+
+DetectionSetF_swigregister = _isrLib.DetectionSetF_swigregister
+DetectionSetF_swigregister(DetectionSetF)
+
+class DetectionSetD(_object):
+    """Proxy of C++ DetectionSetD class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, DetectionSetD, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, DetectionSetD, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, lsst::afw::image::MaskedImage<(double,boost::uint16_t)> img, 
+            Threshold threshold, string planeName="", 
+            int npixMin=1) -> DetectionSetD
+        __init__(self, lsst::afw::image::MaskedImage<(double,boost::uint16_t)> img, 
+            Threshold threshold, string planeName="") -> DetectionSetD
+        __init__(self, lsst::afw::image::MaskedImage<(double,boost::uint16_t)> img, 
+            Threshold threshold) -> DetectionSetD
+        __init__(self, lsst::afw::image::MaskedImage<(double,boost::uint16_t)> img, 
+            Threshold threshold, int x, int y, 
+            std::vector<(lsst::detection::Peak,std::allocator<(lsst::detection::Peak)>)> peaks=None) -> DetectionSetD
+        __init__(self, lsst::afw::image::MaskedImage<(double,boost::uint16_t)> img, 
+            Threshold threshold, int x, int y) -> DetectionSetD
+        __init__(self, DetectionSetD set, int r=0) -> DetectionSetD
+        __init__(self, DetectionSetD set) -> DetectionSetD
+        __init__(self, DetectionSetD footprints1, DetectionSetD footprints2, 
+            int includePeaks) -> DetectionSetD
+        """
+        this = _isrLib.new_DetectionSetD(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_DetectionSetD
+    __del__ = lambda self : None;
+    def getFootprints(*args):
+        """getFootprints(self) -> FootprintContainerT"""
+        return _isrLib.DetectionSetD_getFootprints(*args)
+
+    def getRegion(*args):
+        """getRegion(self) -> BBox2i"""
+        return _isrLib.DetectionSetD_getRegion(*args)
+
+    def insertIntoImage(*args):
+        """insertIntoImage(self, bool relativeIDs) -> boost::shared_ptr<(lsst::afw::image::Image<(boost::uint16_t)>)>"""
+        return _isrLib.DetectionSetD_insertIntoImage(*args)
+
+DetectionSetD_swigregister = _isrLib.DetectionSetD_swigregister
+DetectionSetD_swigregister(DetectionSetD)
+
+class MeasureF(_object):
+    """Proxy of C++ MeasureF class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, MeasureF, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, MeasureF, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, lsst::afw::image::MaskedImage<(float,boost::uint16_t)> img, 
+            string footPrintPlaneName) -> MeasureF
+        __init__(self, lsst::afw::image::MaskedImage<(float,boost::uint16_t)> img, 
+            string footPrintPlaneName, lsst::afw::image::MaskPixelBooleanFunc<(boost::uint16_t)> selector) -> MeasureF
+        """
+        this = _isrLib.new_MeasureF(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def measureSource(*args):
+        """
+        measureSource(self, Ptr ?, Footprint fp, float background=0)
+        measureSource(self, Ptr ?, Footprint fp)
+        measureSource(self, Ptr ?, PtrType fpPtr, float background=0)
+        measureSource(self, Ptr ?, PtrType fpPtr)
+        """
+        return _isrLib.MeasureF_measureSource(*args)
+
+    __swig_destroy__ = _isrLib.delete_MeasureF
+    __del__ = lambda self : None;
+MeasureF_swigregister = _isrLib.MeasureF_swigregister
+MeasureF_swigregister(MeasureF)
+
+class MeasureD(_object):
+    """Proxy of C++ MeasureD class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, MeasureD, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, MeasureD, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, lsst::afw::image::MaskedImage<(double,boost::uint16_t)> img, 
+            string footPrintPlaneName) -> MeasureD
+        __init__(self, lsst::afw::image::MaskedImage<(double,boost::uint16_t)> img, 
+            string footPrintPlaneName, lsst::afw::image::MaskPixelBooleanFunc<(boost::uint16_t)> selector) -> MeasureD
+        """
+        this = _isrLib.new_MeasureD(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def measureSource(*args):
+        """
+        measureSource(self, Ptr ?, Footprint fp, float background=0)
+        measureSource(self, Ptr ?, Footprint fp)
+        measureSource(self, Ptr ?, PtrType fpPtr, float background=0)
+        measureSource(self, Ptr ?, PtrType fpPtr)
+        """
+        return _isrLib.MeasureD_measureSource(*args)
+
+    __swig_destroy__ = _isrLib.delete_MeasureD
+    __del__ = lambda self : None;
+MeasureD_swigregister = _isrLib.MeasureD_swigregister
+MeasureD_swigregister(MeasureD)
+
+class MaskU(_object):
+    """Proxy of C++ MaskU class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, MaskU, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, MaskU, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, lsst::afw::image::Mask<(boost::uint16_t)>::MaskPlaneDict planeDefs=lsst::afw::image::Mask< lsst::afw::image::maskPixelType >::MaskPlaneDict()) -> MaskU
+        __init__(self) -> MaskU
+        __init__(self, lsst::afw::image::Mask<(boost::uint16_t)>::MaskIVwPtrT vwImagePtr, 
+            lsst::afw::image::Mask<(boost::uint16_t)>::MaskPlaneDict planeDefs=lsst::afw::image::Mask< lsst::afw::image::maskPixelType >::MaskPlaneDict()) -> MaskU
+        __init__(self, lsst::afw::image::Mask<(boost::uint16_t)>::MaskIVwPtrT vwImagePtr) -> MaskU
+        __init__(self, int nCols, int nRows, lsst::afw::image::Mask<(boost::uint16_t)>::MaskPlaneDict planeDefs=lsst::afw::image::Mask< lsst::afw::image::maskPixelType >::MaskPlaneDict()) -> MaskU
+        __init__(self, int nCols, int nRows) -> MaskU
+        """
+        this = _isrLib.new_MaskU(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def __ior__(*args):
+        """
+        __ior__(self, MaskU inputMask) -> MaskU
+        __ior__(self, boost::uint16_t inputMask) -> MaskU
+        """
+        return _isrLib.MaskU___ior__(*args)
+
+    def __iand__(*args):
+        """__iand__(self, boost::uint16_t opMask) -> MaskU"""
+        return _isrLib.MaskU___iand__(*args)
+
+    def __call__(*args):
+        """
+        __call__(self, int x, int y) -> lsst::afw::image::Mask<(boost::uint16_t)>::MaskChannelT
+        __call__(self, int x, int y, int plane) -> bool
+        """
+        return _isrLib.MaskU___call__(*args)
+
+    def readFits(*args):
+        """
+        readFits(self, string fileName, bool conformMasks=False, int hdu=0)
+        readFits(self, string fileName, bool conformMasks=False)
+        readFits(self, string fileName)
+        """
+        return _isrLib.MaskU_readFits(*args)
+
+    def writeFits(*args):
+        """writeFits(self, string fileName)"""
+        return _isrLib.MaskU_writeFits(*args)
+
+    def getMetaData(*args):
+        """getMetaData(self) -> lsst::daf::base::DataProperty::PtrType"""
+        return _isrLib.MaskU_getMetaData(*args)
+
+    def addMaskPlane(*args):
+        """addMaskPlane(self, string name) -> int"""
+        return _isrLib.MaskU_addMaskPlane(*args)
+
+    def removeMaskPlane(*args):
+        """removeMaskPlane(self, string name)"""
+        return _isrLib.MaskU_removeMaskPlane(*args)
+
+    def getMaskPlane(*args):
+        """getMaskPlane(self, string name) -> int"""
+        return _isrLib.MaskU_getMaskPlane(*args)
+
+    def getPlaneBitMask(*args):
+        """
+        getPlaneBitMask(self, string name, lsst::afw::image::Mask<(boost::uint16_t)>::MaskChannelT bitMask) -> bool
+        getPlaneBitMask(self, string name) -> lsst::afw::image::Mask<(boost::uint16_t)>::MaskChannelT
+        """
+        return _isrLib.MaskU_getPlaneBitMask(*args)
+
+    def clearMaskPlaneDict(*args):
+        """clearMaskPlaneDict(self)"""
+        return _isrLib.MaskU_clearMaskPlaneDict(*args)
+
+    def clearAllMaskPlanes(*args):
+        """clearAllMaskPlanes(self)"""
+        return _isrLib.MaskU_clearAllMaskPlanes(*args)
+
+    def clearMaskPlane(*args):
+        """clearMaskPlane(self, int plane)"""
+        return _isrLib.MaskU_clearMaskPlane(*args)
+
+    def setMaskPlaneValues(*args):
+        """
+        setMaskPlaneValues(self, int plane, std::list<(lsst::afw::image::PixelCoord,std::allocator<(lsst::afw::image::PixelCoord)>)> pixelList)
+        setMaskPlaneValues(self, int plane, int x0, int x1, int y)
+        setMaskPlaneValues(self, int plane, lsst::afw::image::MaskPixelBooleanFunc<(boost::uint16_t)> selectionFunc)
+        """
+        return _isrLib.MaskU_setMaskPlaneValues(*args)
+
+    def parseMaskPlaneMetaData(*args):
+        """parseMaskPlaneMetaData(self, lsst::daf::base::DataProperty::PtrType ?) -> lsst::afw::image::Mask<(boost::uint16_t)>::MaskPlaneDict"""
+        return _isrLib.MaskU_parseMaskPlaneMetaData(*args)
+
+    def addMaskPlaneMetaData(*args):
+        """addMaskPlaneMetaData(self, lsst::daf::base::DataProperty::PtrType ?)"""
+        return _isrLib.MaskU_addMaskPlaneMetaData(*args)
+
+    def countMask(*args):
+        """
+        countMask(self, lsst::afw::image::MaskPixelBooleanFunc<(boost::uint16_t)> testFunc, 
+            BBox2i maskRegion) -> int
+        """
+        return _isrLib.MaskU_countMask(*args)
+
+    def getNumPlanesMax(*args):
+        """getNumPlanesMax(self) -> int"""
+        return _isrLib.MaskU_getNumPlanesMax(*args)
+
+    def getNumPlanesUsed(*args):
+        """getNumPlanesUsed(self) -> int"""
+        return _isrLib.MaskU_getNumPlanesUsed(*args)
+
+    def getMaskPlaneDict(*args):
+        """getMaskPlaneDict(self) -> lsst::afw::image::Mask<(boost::uint16_t)>::MaskPlaneDict"""
+        return _isrLib.MaskU_getMaskPlaneDict(*args)
+
+    def printMaskPlanes(*args):
+        """printMaskPlanes(self)"""
+        return _isrLib.MaskU_printMaskPlanes(*args)
+
+    def conformMaskPlanes(*args):
+        """conformMaskPlanes(self, lsst::afw::image::Mask<(boost::uint16_t)>::MaskPlaneDict masterPlaneDict)"""
+        return _isrLib.MaskU_conformMaskPlanes(*args)
+
+    def getSubMask(*args):
+        """getSubMask(self, BBox2i region) -> lsst::afw::image::Mask<(boost::uint16_t)>::MaskPtrT"""
+        return _isrLib.MaskU_getSubMask(*args)
+
+    def replaceSubMask(*args):
+        """
+        replaceSubMask(self, BBox2i region, MaskU insertMask)
+        replaceSubMask(self, BBox2i region, lsst::afw::image::Mask<(boost::uint16_t)>::MaskPtrT insertMask)
+        """
+        return _isrLib.MaskU_replaceSubMask(*args)
+
+    def origin(*args):
+        """origin(self) -> lsst::afw::image::Mask<(boost::uint16_t)>::pixel_accessor"""
+        return _isrLib.MaskU_origin(*args)
+
+    def getCols(*args):
+        """getCols(self) -> unsigned int"""
+        return _isrLib.MaskU_getCols(*args)
+
+    def getRows(*args):
+        """getRows(self) -> unsigned int"""
+        return _isrLib.MaskU_getRows(*args)
+
+    def getOffsetCols(*args):
+        """getOffsetCols(self) -> unsigned int"""
+        return _isrLib.MaskU_getOffsetCols(*args)
+
+    def getOffsetRows(*args):
+        """getOffsetRows(self) -> unsigned int"""
+        return _isrLib.MaskU_getOffsetRows(*args)
+
+    def getIVwPtr(*args):
+        """getIVwPtr(self) -> lsst::afw::image::Mask<(boost::uint16_t)>::MaskIVwPtrT"""
+        return _isrLib.MaskU_getIVwPtr(*args)
+
+    def getIVw(*args):
+        """getIVw(self) -> lsst::afw::image::Mask<(boost::uint16_t)>::MaskIVwT"""
+        return _isrLib.MaskU_getIVw(*args)
+
+    __swig_destroy__ = _isrLib.delete_MaskU
+    __del__ = lambda self : None;
+MaskU_swigregister = _isrLib.MaskU_swigregister
+MaskU_swigregister(MaskU)
+
+
+def setMaskFromFootprint(*args):
+  """
+    setMaskFromFootprint(lsst::afw::image::Mask<(boost::uint16_t)>::MaskPtrT mask, 
+        PtrType footprint, boost::uint16_t bitmask) -> boost::uint16_t
+    """
+  return _isrLib.setMaskFromFootprint(*args)
+
+def setMaskFromFootprintList(*args):
+  """
+    setMaskFromFootprintList(lsst::afw::image::Mask<(boost::uint16_t)>::MaskPtrT mask, 
+        FootprintContainerT footprints, boost::uint16_t bitmask) -> boost::uint16_t
+    """
+  return _isrLib.setMaskFromFootprintList(*args)
+class PSF(_object):
+    """Proxy of C++ PSF class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, PSF, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PSF, name)
+    def __init__(self): raise AttributeError, "No constructor defined"
+    __repr__ = _swig_repr
+    __swig_destroy__ = _isrLib.delete_PSF
+    __del__ = lambda self : None;
+    def toString(*args):
+        """toString(self) -> string"""
+        return _isrLib.PSF_toString(*args)
+
+    def setA(*args):
+        """setA(self, double A)"""
+        return _isrLib.PSF_setA(*args)
+
+    def getA(*args):
+        """getA(self) -> double"""
+        return _isrLib.PSF_getA(*args)
+
+    def getValue(*args):
+        """
+        getValue(self, double col=0, double row=0) -> double
+        getValue(self, double col=0) -> double
+        getValue(self) -> double
+        """
+        return _isrLib.PSF_getValue(*args)
+
+PSF_swigregister = _isrLib.PSF_swigregister
+PSF_swigregister(PSF)
+
+class dgPSF(PSF):
+    """Proxy of C++ dgPSF class"""
+    __swig_setmethods__ = {}
+    for _s in [PSF]: __swig_setmethods__.update(getattr(_s,'__swig_setmethods__',{}))
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, dgPSF, name, value)
+    __swig_getmethods__ = {}
+    for _s in [PSF]: __swig_getmethods__.update(getattr(_s,'__swig_getmethods__',{}))
+    __getattr__ = lambda self, name: _swig_getattr(self, dgPSF, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self) -> dgPSF
+        __init__(self, double sigma1, double sigma2=0, double b=0) -> dgPSF
+        __init__(self, double sigma1, double sigma2=0) -> dgPSF
+        __init__(self, double sigma1) -> dgPSF
+        """
+        this = _isrLib.new_dgPSF(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def toString(*args):
+        """toString(self) -> string"""
+        return _isrLib.dgPSF_toString(*args)
+
+    def getValue(*args):
+        """
+        getValue(self, double col=0, double row=0) -> double
+        getValue(self, double col=0) -> double
+        getValue(self) -> double
+        """
+        return _isrLib.dgPSF_getValue(*args)
+
+    __swig_destroy__ = _isrLib.delete_dgPSF
+    __del__ = lambda self : None;
+dgPSF_swigregister = _isrLib.dgPSF_swigregister
+dgPSF_swigregister(dgPSF)
+
+class Defect(_object):
+    """Proxy of C++ Defect class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, Defect, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Defect, name)
+    __repr__ = _swig_repr
+    LEFT = _isrLib.Defect_LEFT
+    NEAR_LEFT = _isrLib.Defect_NEAR_LEFT
+    WIDE_LEFT = _isrLib.Defect_WIDE_LEFT
+    MIDDLE = _isrLib.Defect_MIDDLE
+    WIDE_NEAR_LEFT = _isrLib.Defect_WIDE_NEAR_LEFT
+    WIDE = _isrLib.Defect_WIDE
+    WIDE_NEAR_RIGHT = _isrLib.Defect_WIDE_NEAR_RIGHT
+    NEAR_RIGHT = _isrLib.Defect_NEAR_RIGHT
+    WIDE_RIGHT = _isrLib.Defect_WIDE_RIGHT
+    RIGHT = _isrLib.Defect_RIGHT
+    WIDE_DEFECT = _isrLib.Defect_WIDE_DEFECT
+    def __init__(self, *args): 
+        """
+        __init__(self, BBox2i bbox=vw::BBox2i(0, 0, 0, 0)) -> Defect
+        __init__(self) -> Defect
+        """
+        this = _isrLib.new_Defect(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_Defect
+    __del__ = lambda self : None;
+    def classify(*args):
+        """classify(self, DefectPosition pos, unsigned int type)"""
+        return _isrLib.Defect_classify(*args)
+
+    def getType(*args):
+        """getType(self) -> unsigned int"""
+        return _isrLib.Defect_getType(*args)
+
+    def getPos(*args):
+        """getPos(self) -> DefectPosition"""
+        return _isrLib.Defect_getPos(*args)
+
+    def getBBox(*args):
+        """getBBox(self) -> BBox2i"""
+        return _isrLib.Defect_getBBox(*args)
+
+    def getX0(*args):
+        """getX0(self) -> int"""
+        return _isrLib.Defect_getX0(*args)
+
+    def getX1(*args):
+        """getX1(self) -> int"""
+        return _isrLib.Defect_getX1(*args)
+
+    def getY0(*args):
+        """getY0(self) -> int"""
+        return _isrLib.Defect_getY0(*args)
+
+    def getY1(*args):
+        """getY1(self) -> int"""
+        return _isrLib.Defect_getY1(*args)
+
+Defect_swigregister = _isrLib.Defect_swigregister
+Defect_swigregister(Defect)
+
+def findCosmicRays(*args):
+  """
+    findCosmicRays(lsst::afw::image::MaskedImage<(float,boost::uint16_t)> image, 
+        PSF psf, float bkgd, Policy policy, 
+        bool keep=False) -> FootprintContainerT
+    findCosmicRays(lsst::afw::image::MaskedImage<(float,boost::uint16_t)> image, 
+        PSF psf, float bkgd, Policy policy) -> FootprintContainerT
+    findCosmicRays(lsst::afw::image::MaskedImage<(double,boost::uint16_t)> image, 
+        PSF psf, float bkgd, Policy policy, 
+        bool keep=False) -> FootprintContainerT
+    findCosmicRays(lsst::afw::image::MaskedImage<(double,boost::uint16_t)> image, 
+        PSF psf, float bkgd, Policy policy) -> FootprintContainerT
+    """
+  return _isrLib.findCosmicRays(*args)
+lpc_1_c1 = cvar.lpc_1_c1
+lpc_1_c2 = cvar.lpc_1_c2
+lpc_1s2_c1 = cvar.lpc_1s2_c1
+lpc_1s2_c2 = cvar.lpc_1s2_c2
+min_2Gaussian_bias = cvar.min_2Gaussian_bias
+
+class DefectPtrT(_object):
+    """Proxy of C++ DefectPtrT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, DefectPtrT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, DefectPtrT, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        """
+        __init__(self, DefectPtrT ?) -> DefectPtrT
+        __init__(self, Defect DISOWN) -> DefectPtrT
+        """
+        this = _isrLib.new_DefectPtrT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _isrLib.delete_DefectPtrT
+    __del__ = lambda self : None;
+    def __deref__(*args):
+        """__deref__(self) -> Defect"""
+        return _isrLib.DefectPtrT___deref__(*args)
+
+    def use_count(*args):
+        """use_count(self) -> int"""
+        return _isrLib.DefectPtrT_use_count(*args)
+
+    def get(*args):
+        """get(self) -> Defect"""
+        return _isrLib.DefectPtrT_get(*args)
+
+    def classify(*args):
+        """classify(self, DefectPosition pos, unsigned int type)"""
+        return _isrLib.DefectPtrT_classify(*args)
+
+    def getType(*args):
+        """getType(self) -> unsigned int"""
+        return _isrLib.DefectPtrT_getType(*args)
+
+    def getPos(*args):
+        """getPos(self) -> DefectPosition"""
+        return _isrLib.DefectPtrT_getPos(*args)
+
+    def getBBox(*args):
+        """getBBox(self) -> BBox2i"""
+        return _isrLib.DefectPtrT_getBBox(*args)
+
+    def getX0(*args):
+        """getX0(self) -> int"""
+        return _isrLib.DefectPtrT_getX0(*args)
+
+    def getX1(*args):
+        """getX1(self) -> int"""
+        return _isrLib.DefectPtrT_getX1(*args)
+
+    def getY0(*args):
+        """getY0(self) -> int"""
+        return _isrLib.DefectPtrT_getY0(*args)
+
+    def getY1(*args):
+        """getY1(self) -> int"""
+        return _isrLib.DefectPtrT_getY1(*args)
+
+DefectPtrT_swigregister = _isrLib.DefectPtrT_swigregister
+DefectPtrT_swigregister(DefectPtrT)
+
+class DefectListT(_object):
+    """Proxy of C++ DefectListT class"""
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr_nondynamic(self, DefectListT, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, DefectListT, name)
+    __repr__ = _swig_repr
+    def iterator(*args):
+        """iterator(self, PyObject PYTHON_SELF) -> PySwigIterator"""
+        return _isrLib.DefectListT_iterator(*args)
+
+    def __iter__(self): return self.iterator()
+    def __nonzero__(*args):
+        """__nonzero__(self) -> bool"""
+        return _isrLib.DefectListT___nonzero__(*args)
+
+    def __len__(*args):
+        """__len__(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type"""
+        return _isrLib.DefectListT___len__(*args)
+
+    def pop(*args):
+        """pop(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type"""
+        return _isrLib.DefectListT_pop(*args)
+
+    def __getslice__(*args):
+        """
+        __getslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type j) -> DefectListT
+        """
+        return _isrLib.DefectListT___getslice__(*args)
+
+    def __setslice__(*args):
+        """
+        __setslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type j, 
+            DefectListT v)
+        """
+        return _isrLib.DefectListT___setslice__(*args)
+
+    def __delslice__(*args):
+        """
+        __delslice__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type j)
+        """
+        return _isrLib.DefectListT___delslice__(*args)
+
+    def __delitem__(*args):
+        """__delitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type i)"""
+        return _isrLib.DefectListT___delitem__(*args)
+
+    def __getitem__(*args):
+        """__getitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type i) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type"""
+        return _isrLib.DefectListT___getitem__(*args)
+
+    def __setitem__(*args):
+        """
+        __setitem__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::difference_type i, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type x)
+        """
+        return _isrLib.DefectListT___setitem__(*args)
+
+    def append(*args):
+        """append(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type x)"""
+        return _isrLib.DefectListT_append(*args)
+
+    def empty(*args):
+        """empty(self) -> bool"""
+        return _isrLib.DefectListT_empty(*args)
+
+    def size(*args):
+        """size(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type"""
+        return _isrLib.DefectListT_size(*args)
+
+    def clear(*args):
+        """clear(self)"""
+        return _isrLib.DefectListT_clear(*args)
+
+    def swap(*args):
+        """swap(self, DefectListT v)"""
+        return _isrLib.DefectListT_swap(*args)
+
+    def get_allocator(*args):
+        """get_allocator(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::allocator_type"""
+        return _isrLib.DefectListT_get_allocator(*args)
+
+    def begin(*args):
+        """
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator
+        begin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::const_iterator
+        """
+        return _isrLib.DefectListT_begin(*args)
+
+    def end(*args):
+        """
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator
+        end(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::const_iterator
+        """
+        return _isrLib.DefectListT_end(*args)
+
+    def rbegin(*args):
+        """
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::reverse_iterator
+        rbegin(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::const_reverse_iterator
+        """
+        return _isrLib.DefectListT_rbegin(*args)
+
+    def rend(*args):
+        """
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::reverse_iterator
+        rend(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::const_reverse_iterator
+        """
+        return _isrLib.DefectListT_rend(*args)
+
+    def pop_back(*args):
+        """pop_back(self)"""
+        return _isrLib.DefectListT_pop_back(*args)
+
+    def erase(*args):
+        """
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator pos) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator
+        erase(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator first, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator last) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator
+        """
+        return _isrLib.DefectListT_erase(*args)
+
+    def __init__(self, *args): 
+        """
+        __init__(self) -> DefectListT
+        __init__(self, DefectListT ?) -> DefectListT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type size) -> DefectListT
+        __init__(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type value) -> DefectListT
+        """
+        this = _isrLib.new_DefectListT(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def push_back(*args):
+        """push_back(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type x)"""
+        return _isrLib.DefectListT_push_back(*args)
+
+    def front(*args):
+        """front(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type"""
+        return _isrLib.DefectListT_front(*args)
+
+    def back(*args):
+        """back(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type"""
+        return _isrLib.DefectListT_back(*args)
+
+    def assign(*args):
+        """
+        assign(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type x)
+        """
+        return _isrLib.DefectListT_assign(*args)
+
+    def resize(*args):
+        """
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type new_size)
+        resize(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type new_size, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type x)
+        """
+        return _isrLib.DefectListT_resize(*args)
+
+    def insert(*args):
+        """
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type x) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator
+        insert(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::iterator pos, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type n, 
+            std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::value_type x)
+        """
+        return _isrLib.DefectListT_insert(*args)
+
+    def reserve(*args):
+        """reserve(self, std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type n)"""
+        return _isrLib.DefectListT_reserve(*args)
+
+    def capacity(*args):
+        """capacity(self) -> std::vector<(boost::shared_ptr<(lsst::detection::Defect)>)>::size_type"""
+        return _isrLib.DefectListT_capacity(*args)
+
+    __swig_destroy__ = _isrLib.delete_DefectListT
+    __del__ = lambda self : None;
+DefectListT_swigregister = _isrLib.DefectListT_swigregister
+DefectListT_swigregister(DefectListT)
+
+def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/python/lsst/ip/isr/isrLib.i $"):
+
     """Return a version given a HeadURL string; default: ip_isr's version"""
     return guessSvnVersion(HeadURL)
 
 
 
+def darkCurrentCorrectChunkExposure(*args):
+  """
+    darkCurrentCorrectChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    """
+  return _isrLib.darkCurrentCorrectChunkExposure(*args)
+
+def darkCurrentChunkExposure(*args):
+  """
+    darkCurrentChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.darkCurrentChunkExposure(*args)
+
+
+def interpolateOverDefects(*args):
+  """
+    interpolateOverDefects(lsst::afw::image::MaskedImage<(float,boost::uint16_t)> image, 
+        PSF psf, DefectListT badList)
+    interpolateOverDefects(lsst::afw::image::MaskedImage<(double,boost::uint16_t)> image, 
+        PSF psf, DefectListT badList)
+    """
+  return _isrLib.interpolateOverDefects(*args)
+
+def saturationCorrectionForChunkExposure(*args):
+  """
+    saturationCorrectionForChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    saturationCorrectionForChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.saturationCorrectionForChunkExposure(*args)
+
+def overscanCorrectAndTrimChunkExposure(*args):
+  """
+    overscanCorrectAndTrimChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    overscanCorrectAndTrimChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.overscanCorrectAndTrimChunkExposure(*args)
+
+def biasCorrectChunkExposure(*args):
+  """
+    biasCorrectChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    biasCorrectChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.biasCorrectChunkExposure(*args)
+
+def linearizeChunkExposure(*args):
+  """
+    linearizeChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy, 
+        std::vector<(lsst::ip::isr::vectorType,std::allocator<(lsst::ip::isr::vectorType)>)> linearizeLookupTable) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    linearizeChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy, 
+        std::vector<(lsst::ip::isr::vectorType,std::allocator<(lsst::ip::isr::vectorType)>)> linearizeLookupTable) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.linearizeChunkExposure(*args)
+
+def flatFieldCorrectChunkExposure(*args):
+  """
+    flatFieldCorrectChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterChunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterIcChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    flatFieldCorrectChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterChunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterIcChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.flatFieldCorrectChunkExposure(*args)
+
+def illuminationCorrection(*args):
+  """
+    illuminationCorrection(lsst::afw::image::Exposure<(float,boost::uint16_t)> masterChunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterIcChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    illuminationCorrection(lsst::afw::image::Exposure<(double,boost::uint16_t)> masterChunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterIcChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.illuminationCorrection(*args)
+
+def pupilImageCorrection(*args):
+  """
+    pupilImageCorrection(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    pupilImageCorrection(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.pupilImageCorrection(*args)
+
+def crosstalkCorrectChunkExposure(*args):
+  """
+    crosstalkCorrectChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy, 
+        std::vector<(lsst::ip::isr::vectorType,std::allocator<(lsst::ip::isr::vectorType)>)> crosstalkLookupTable) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    crosstalkCorrectChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy, 
+        std::vector<(lsst::ip::isr::vectorType,std::allocator<(lsst::ip::isr::vectorType)>)> crosstalkLookupTable) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.crosstalkCorrectChunkExposure(*args)
+
+def defringeChunkExposure(*args):
+  """
+    defringeChunkExposure(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    defringeChunkExposure(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.defringeChunkExposure(*args)
+
+def geometricDistortionCorrection(*args):
+  """
+    geometricDistortionCorrection(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    geometricDistortionCorrection(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.geometricDistortionCorrection(*args)
+
+def maskAndCorrectAdditionalArtifacts(*args):
+  """
+    maskAndCorrectAdditionalArtifacts(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    maskAndCorrectAdditionalArtifacts(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy, Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.maskAndCorrectAdditionalArtifacts(*args)
+
+def additionalFlatFieldCorrection(*args):
+  """
+    additionalFlatFieldCorrection(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(float,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    additionalFlatFieldCorrection(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        lsst::afw::image::Exposure<(double,boost::uint16_t)> masterChunkExposure, 
+        Policy isrPolicy, 
+        Policy datasetPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.additionalFlatFieldCorrection(*args)
+
+def interpolateOverMaskedPixels(*args):
+  """
+    interpolateOverMaskedPixels(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+    interpolateOverMaskedPixels(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
+        Policy isrPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+    """
+  return _isrLib.interpolateOverMaskedPixels(*args)
 

@@ -32,7 +32,7 @@ namespace isr {
 
     template<typename ImageT, typename MaskT>
     lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedPixels(
-        lsst::afw::image::Exposure<ImageT, MaskT> const &chunkExposure,
+        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::pex::policy::Policy &isrPolicy
         );
 
