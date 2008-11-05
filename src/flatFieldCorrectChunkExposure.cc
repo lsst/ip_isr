@@ -37,11 +37,14 @@
 
 #include "lsst/ip/isr/isr.h"
 
-/** \brief Divide the Chunk Exposure by the (normalized?) Master Flat Field Chunk
+/** \brief Divide the Chunk Exposure by the (normalized) Master Flat Field Chunk
   * Exposure(s) to correct for pixel-to-pixel variations (eg. optics, vignetting,
   * thickness variations, gain, etc.). The Master Flat Field Chunk Exposure can
   * be one of potentially three different types of flats (dome, twilight, night
   * sky) with further sub-divisions into LSST filters (ugrizy) or bandpasses.
+  *
+  * Calls "Illumination Correction" sub-stage (DR or nightly) to perform an
+  * illumination correction.
   *
   * Dome Flats: correct for the pixel-to-pixel variations in the response og the
   * CCD.  These will be the 'Stubb's' tunable laser flats.
@@ -73,8 +76,7 @@
 template <typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-    lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // Master Flat Field Chunk Exposure
-    lsst::afw::image::Exposure<ImageT, MaskT> const &masterIcChunkExposure, // Master Ilumination Correction Chunk Exposure
+    lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // Master Dome (or Twilight) Flat Field Chunk Exposure
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     ) {
@@ -203,19 +205,6 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         throw lsst::pex::exceptions::DomainError(std::string("In ") + __func__ + std::string(": Chunk Exposure and Master Flat Field Chunk Exposure are not from the same FILTER."));
     }
 
-
-    // Has an Illumination Correction been applied 
-    
-     lsst::daf::base::DataProperty::PtrType isrIllumination = chunkMetadata->findUnique("ISR_ILLUMCOR");
-    if (isrIllumination) {
-        lsst::pex::logging::TTrace<3>("In %s: Master Flat Field Chunk Exposure has been corrected for scattered light.", subStage);
-    } else {
-
-        // Correct the Master Flat Field Chunk Exposure for scattered light
-        
-        lsst::ip::isr::illuminationCorrection<ImageT, MaskT>(masterChunkExposure, masterIcChunkExposure, isrPolicy, datasetPolicy);
-    }
-
     // Has the Master Flat Field Chunk Exposure been normalized?
 
     // CFHT data lists all image processing flags as 'IMRED_processingStep'
@@ -284,6 +273,37 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         masterChunkMaskedImage.setMetadata(masterChunkMetadata);
     }
         
+
+    // Has an Illumination Correction been previously applied to the Chunk Exposure?    
+    lsst::daf::base::DataProperty::PtrType isrIllumination = chunkMetadata->findUnique("ISR_ILLUMCOR");
+    if (isrIllumination) {
+        lsst::pex::logging::TTrace<3>("In %s: Master Flat Field Chunk Exposure has been corrected for scattered light.", subStage);
+    } else {
+
+        // If not, lets correct the Master Dome (or Twilight) Flat Field Chunk
+        // Exposure for scattered light.
+
+        // This correction is different depending on which processing pipeline
+        // the ISR stage is being run in.  So first, determine if the current
+        // ISR pipeline being run for Data Release or Nightly Processing?
+
+        std::string run = isrPolicy.getString("run");
+        if (run == "DR"){
+            lsst::afw::image::Exposure<ImageT, MaskT> masterSfChunkExposure(); // Master Night Sky Flat Field Chunk Exposure
+            std::string sfCurrent illumPolicy->getString("sfCurrent");
+            masterSfChunkExposure.readFits(sfCurrent);
+            lsst::ip::isr::illuminationCorrectionDR<ImageT, MaskT>(masterChunkExposure, masterSfChunkExposure, isrPolicy, datasetPolicy);
+        } 
+        if (run == "nightly"){
+            lsst::afw::image::Exposure<ImageT, MaskT> masterSfpChunkExposure(); // Master Night Sky Flat Field Chunk Exposure from a previous night
+            std::string sfPrevious illumPolicy->getString("sfPrevious");
+            masterSfChunkExposure.readFits(sfPrevious);
+            lsst::afw::image::Exposure<ImageT, MaskT> masterDfpChunkExposure(); // Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
+            std::string dfPrevious illumPolicy->getString("dfPrevious");
+            masterSfChunkExposure.readFits(dfPrevious);
+            lsst::ip::isr::illuminationCorrection<ImageT, MaskT>(masterChunkExposure, masterDfpChunkExposure, masterSfpChunkExposure, isrPolicy, datasetPolicy);
+        } 
+    }
 
     // Parse the main ISR Policy file for Flat Field sub-stage parameters.
     double flatFieldScale = flatPolicy->getDouble("flatFieldScale");

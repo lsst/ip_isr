@@ -22,8 +22,6 @@ Python bindings for lsst::ip::isr code
 #include <lsst/afw/image.h> 
 #include <lsst/afw/image/MaskedImage.h>
 #include <lsst/afw/math.h> 
-#include <lsst/afw/math/Function.h>
-#include <lsst/afw/math/FunctionLibrary.h>
 #include <lsst/daf/base/DataProperty.h>
 #include <lsst/pex/exceptions/Exception.h>
 #include <lsst/pex/logging/Trace.h>
@@ -97,6 +95,11 @@ def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/pytho
     lsst::ip::isr::illuminationCorrection<float, lsst::afw::image::maskPixelType>;
 %template(illuminationCorrection)
     lsst::ip::isr::illuminationCorrection<double, lsst::afw::image::maskPixelType>;
+
+%template(illuminationCorrection)
+    lsst::ip::isr::illuminationCorrectionDR<float, lsst::afw::image::maskPixelType>;
+%template(illuminationCorrection)
+    lsst::ip::isr::illuminationCorrectionDR<double, lsst::afw::image::maskPixelType>;
 
 %template(pupilImageCorrection)
     lsst::ip::isr::pupilImageCorrection<float, lsst::afw::image::maskPixelType>;

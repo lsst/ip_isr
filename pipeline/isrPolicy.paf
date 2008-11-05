@@ -11,7 +11,11 @@ debugIO: false
 bpm: true
 
 # Size of Chunk (FPA, RAFT, CCD, AMP, OTHER)
-chunk: ccd
+chunk: amp
+
+# Current ISR run for Nightly or for Data Release Processing ('DR' or 'nightly')
+run: DR
+
 
 # ISR STAGE-SPECIFIC INFORMATION
 ######################################
@@ -110,6 +114,14 @@ flatPolicy: {
 # Ilumination Correction
 illuminationPolicy: {
 
+ # effective smoothing kernel size = binSize * kernelSize
+ binSize: 4 # in pixels
+ kernel: gaussian
+ kernelSize: 30
+ chunkType: amp
+ dfPrevious:  # file name (incl. path) of the previous night's Master Dome Flat (if running for nightly)
+ sfCurrent:   # file name (incl. path) of the current night's Night Sky Flat (if running for DR)
+ sfPrevious:  # file name (incl. path) of the previous night's Night Sky Flat (if running for nightly)
 }
 
 # Pupil Image Correction

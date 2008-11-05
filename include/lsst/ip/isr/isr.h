@@ -104,7 +104,6 @@ namespace isr {
     lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> const &masterIcChunkExposure,
         lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy
         );
@@ -112,7 +111,16 @@ namespace isr {
     template<typename ImageT, typename MaskT>
     lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
 	lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
-	lsst::afw::image::Exposure<ImageT, MaskT> const &masterIcChunkExposure,
+        lsst::afw::image::Exposure<ImageT, MaskT> const &masterDfpChunkExposure,
+        lsst::afw::image::Exposure<ImageT, MaskT> const &masterSfpChunkExposure,
+	lsst::pex::policy::Policy &isrPolicy,
+	lsst::pex::policy::Policy &datasetPolicy
+        );
+
+    template<typename ImageT, typename MaskT>
+    lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
+	lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
+        lsst::afw::image::Exposure<ImageT, MaskT> const &masterSfChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy
         );
