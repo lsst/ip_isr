@@ -23,7 +23,7 @@
 
 #include <lsst/daf/base.h>
 #include <lsst/daf/data/LsstBase.h>	
-#include <lsst/afw/image/Exposure.h>
+#include <lsst/afw/image.h>
 #include <lsst/pex/policy/Policy.h>
 
 /** \brief Remove all non-astronomical source counts from the Chunk Exposure's

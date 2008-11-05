@@ -29,6 +29,7 @@ Python bindings for lsst::ip::isr code
 #include <lsst/pex/logging/Trace.h>
 #include <lsst/pex/policy/Policy.h>
 #include "lsst/ip/isr/isr.h"
+#include "lsst/ip/isr/interpolateOverMaskedPixels.h"
 %}
 
 %init %{
@@ -61,11 +62,6 @@ def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/pytho
 // Here you give the names of the functions you want to Swig
 
 %include "lsst/ip/isr/isr.h"
-
-// %template(instrumentSignatureRemovalController)
-//     lsst::ip::isr::instrumentSignatureRemovalController<float, lsst::afw::image::maskPixelType>;
-// %template(instrumentSignatureRemovalController)
-//     lsst::ip::isr::instrumentSignatureRemovalController<double, lsst::afw::image::maskPixelType>;
 
 %template(saturationCorrectionForChunkExposure)
     lsst::ip::isr::saturationCorrectionForChunkExposure<float, lsst::afw::image::maskPixelType>;

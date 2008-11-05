@@ -29,7 +29,7 @@
 #include <lsst/pex/logging/Trace.h>
 #include <lsst/pex/policy/Policy.h>
 
-#include "lsst/ip/isr/isr.h"
+//#include "lsst/ip/isr/isr.h"
 
 /** \brief Utility function for interpolation .  Eventually will accept several
   * interpolation methods - implementing the process of linear prediction
@@ -38,12 +38,9 @@
 
 template<typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedpixels(
-    lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,    
-    lsst::pex::policy::Policy &isrPolicy
+    lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure, 
+    lsst::pex::policy::Policy &stagePolicy
     ) { 
-
-    
-
    
 }
 
@@ -53,13 +50,13 @@ lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedpixels(
 template
 lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> interpolateOverMaskedpixels(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,    
-    lsst::pex::policy::Policy &isrPolicy
+    lsst::pex::policy::Policy &stagePolicy
     );
 
 template
 lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> interpolateOverMaskedpixels(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,    
-    lsst::pex::policy::Policy &isrPolicy
+    lsst::pex::policy::Policy &stagePolicy
     );
 /************************************************************************/
 

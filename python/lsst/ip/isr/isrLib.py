@@ -2747,9 +2747,9 @@ def additionalFlatFieldCorrection(*args):
 def interpolateOverMaskedPixels(*args):
   """
     interpolateOverMaskedPixels(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, 
-        Policy isrPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
+        Policy stagePolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>
     interpolateOverMaskedPixels(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, 
-        Policy isrPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
+        Policy stagePolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>
     """
   return _isrLib.interpolateOverMaskedPixels(*args)
 

@@ -2771,6 +2771,7 @@ namespace swig {
 #include <lsst/pex/logging/Trace.h>
 #include <lsst/pex/policy/Policy.h>
 #include "lsst/ip/isr/isr.h"
+#include "lsst/ip/isr/interpolateOverMaskedPixels.h"
 
 
 #include <iostream>
@@ -39270,9 +39271,9 @@ static PyMethodDef SwigMethods[] = {
 		""},
 	 { (char *)"interpolateOverMaskedPixels", _wrap_interpolateOverMaskedPixels, METH_VARARGS, (char *)"\n"
 		"interpolateOverMaskedPixels(lsst::afw::image::Exposure<(float,boost::uint16_t)> chunkExposure, \n"
-		"    Policy isrPolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>\n"
+		"    Policy stagePolicy) -> lsst::afw::image::Exposure<(float,boost::uint16_t)>\n"
 		"interpolateOverMaskedPixels(lsst::afw::image::Exposure<(double,boost::uint16_t)> chunkExposure, \n"
-		"    Policy isrPolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>\n"
+		"    Policy stagePolicy) -> lsst::afw::image::Exposure<(double,boost::uint16_t)>\n"
 		""},
 	 { NULL, NULL, 0, NULL }
 };
