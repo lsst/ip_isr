@@ -68,9 +68,9 @@
   * 
   * TODO (as of Wed 10/22/08):
   * - perform raft-level check for chunk and master Exposures
-  * - once we have twilight, or night sky flats, implement different correction steps
-  * - handle stretch and scale factors better
-  * - do we need to sig-clip?
+  * - handle stretch and scale factors better, if needed
+  *
+  * QQQ: do we need to sig-clip here?
   */
 
 template <typename ImageT, typename MaskT>
@@ -274,7 +274,8 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
     }
         
 
-    // Has an Illumination Correction been previously applied to the Chunk Exposure?    
+    // Has an Illumination Correction been previously applied to the Chunk Exposure?  
+  
     lsst::daf::base::DataProperty::PtrType isrIllumination = chunkMetadata->findUnique("ISR_ILLUMCOR");
     if (isrIllumination) {
         lsst::pex::logging::TTrace<3>("In %s: Master Flat Field Chunk Exposure has been corrected for scattered light.", subStage);
@@ -295,13 +296,13 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
             lsst::ip::isr::illuminationCorrectionDR<ImageT, MaskT>(masterChunkExposure, masterSfChunkExposure, isrPolicy, datasetPolicy);
         } 
         if (run == "nightly"){
-            lsst::afw::image::Exposure<ImageT, MaskT> masterSfpChunkExposure(); // Master Night Sky Flat Field Chunk Exposure from a previous night
-            std::string sfPrevious illumPolicy->getString("sfPrevious");
-            masterSfChunkExposure.readFits(sfPrevious);
+            lsst::afw::image::MaskedImage<ImageT, MaskT> masterIcpChunkMaskedImage(); // Master Night Sky Flat Field Chunk Exposure from a previous night
+            std::string sfPrevious illumPolicy->getString("icPrevious");
+            masterIcpChunkMaskedImage.readFits(icPrevious);
             lsst::afw::image::Exposure<ImageT, MaskT> masterDfpChunkExposure(); // Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
             std::string dfPrevious illumPolicy->getString("dfPrevious");
             masterSfChunkExposure.readFits(dfPrevious);
-            lsst::ip::isr::illuminationCorrection<ImageT, MaskT>(masterChunkExposure, masterDfpChunkExposure, masterSfpChunkExposure, isrPolicy, datasetPolicy);
+            lsst::ip::isr::illuminationCorrection<ImageT, MaskT>(masterChunkExposure, masterDfpChunkExposure, masterIcpChunkMaskedImage, isrPolicy, datasetPolicy);
         } 
     }
 
@@ -346,7 +347,6 @@ template
 lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterIcChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );
@@ -355,7 +355,6 @@ template
 lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
-    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterIcChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );

@@ -38,9 +38,16 @@
 
 /** \brief Correct Master Flat Field Chunk Exposures for the differences in dome
   * vs. sky illumination.  This corrects for large scale structure in the system
-  * response for large-scale surveys.  This method is for Data Release only
-  * because it requires the median night sky flat produced from the science
-  * images whcih obviously can not be done during nightly processing.
+  * * response for large-scale surveys.  This method is for the nightly IPP only
+  * * because it derives an estimate of the illumination correction (assuming
+  * that * the global changes in illumination are negligible (or very small)
+  * from the * Master Dome Flat Field Chunk Exposure from the current night
+  * (Df(t2), the * Master Dome Flat Field Chunk Exposure from the provious night
+  * (or one close * in time; Df(t1)) and the illumination correction from the
+  * previous night (or * one close in time.  I(t2)) as follows:
+  *
+  * I(t2) = smoothK(Df(t1)/Df(t2))*I(t2) 
+  * where smoothK is the smoothing kernel
   *
   * \return masterChunkExposure corrected for scattered light
   *
@@ -50,7 +57,11 @@
   * 
   * QQQ: filter dependence of ilumination corrections.
   * 
-  * TO DO (as of  11//2008): 
+  * TO DO (as of  11/05/2008):
+  * - add code!
+  * - need to add the smoothing kernel code
+  * - need to add this version of the code to the ISR's EA model
+  * - needs to be cleaned of bugs after Scons and instantiation
   */
 
 typedef double vectorType;
@@ -58,19 +69,15 @@ typedef double funcType;
 
 template<typename ImageT, typename MaskT>
 lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
-    lsst::afw::image::Exposure<ImageT, MaskT> &masterDfChunkExposure, // the Master Dome Flat Field Chunk Exposure
-    lsst::afw::image::Exposure<ImageT, MaskT> &masterSfChunkExposure, // the Master Sky Flat Field Chunk Exposure
+    lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // the Master Dome (or Twilight) Flat Field Chunk Exposure
+    lsst::afw::image::Exposure<ImageT, MaskT> const &masterDfpChunkExposure,// the Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
+    lsst::afw::image::MaskedImage<ImageT, MaskT> const &masterIcpChunkMaskedImage, // the Master illumination correction Chunk MaskedImage from a previous night  
     lsst::pex::policy::Policy &isrPolicy,  // the main ISR Policy File containing the Illumination Policy info.
     lsst::pex::policy::Policy &datasetPolicy // policy file with info. specific to the dataset being processed
     ) {
 
 
- // estimate the illumination correction (assuming that theglobal changes in illumination are 
- // negligible (or very small).  Use the Master Dome Flat Field Chunk Exposure from the current 
- // night (Df(t2), the Master Dome Flat Field Chunk Exposure from the provious night (or one close 
- // in time; Df(t1)) and the illumination correction from the previous night (or one close in 
- // time; I(t2)) as follows:
- // I(t2) = smoothK(Df(t1)/Df(t2))*I(t2) where smooth K is the smoothing kernel  
+
 
 }
 
@@ -80,6 +87,8 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
 template
 lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationCorrection(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterDfpChunkExposure,
+    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> const &masterIcpChunkMaskedImage,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );
@@ -87,6 +96,8 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationC
 // template
 // lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> illuminationCorrection(
 //     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
+//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterDfpChunkExposure,
+//     lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> const &masterIcpChunkMaskedImage,
 //     lsst::pex::policy::Policy &isrPolicy,
 //     lsst::pex::policy::Policy &datasetPolicy
 //     );

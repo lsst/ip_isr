@@ -112,7 +112,7 @@ namespace isr {
     lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
 	lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
         lsst::afw::image::Exposure<ImageT, MaskT> const &masterDfpChunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> const &masterSfpChunkExposure,
+        lsst::afw::image::Exposure<ImageT, MaskT> const &masterIcpChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy
         );

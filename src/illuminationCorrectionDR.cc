@@ -4,9 +4,9 @@
   *
   * \ingroup isr
   *
-  * \brief Implementation of the templated subStage, Illumination
-  *  Correction, of the Instrument Signature Removal stage for the nightly 
-  *  LSST Image Processing Pipeline.
+  * \brief Implementation of the templated subStage, Illumination Correction, of
+  * the Instrument Signature Removal stage for the Data Release LSST Image
+  * Processing Pipeline.
   *
   * \author Nicole M. Silvestri, University of Washington
   *
@@ -75,21 +75,24 @@
   *
   * QQQ: filter dependence of ilumination corrections??
   * 
-  * TO DO (as of  11//2008): 
+  * TO DO (as of  11/05/2008): 
+  * - need to add code for a smoothing kernel
+  * - needs to be cleaned of bugs after scons & instantiation
+  * - need to add this use case version to the ISR's EA model
   */
 
 typedef double vectorType;
 typedef double funcType;
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
+lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
     lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // the Master Dome (or Twilight) Flat Field Chunk Exposure
     lsst::afw::image::Exposure<ImageT, MaskT> &masterSfChunkExposure, // the Master Night Sky FF Chunk Exposure
     lsst::pex::policy::Policy &isrPolicy,  // the main ISR Policy File containing the Illumination Policy info.
     lsst::pex::policy::Policy &datasetPolicy // policy file with info. specific to the dataset being processed
     ) {
 
-    std::string subStage = "Illumination Correction for the Data Release Pipeline";
+    std::string subStage = "Illumination Correction Data Release";
 
     // Get the Master Chunk MaskedImage and Image Metadata from the Master Dome FF Chunk Exposure
     lsst::afw::image::MaskedImage<ImageT, MaskT> masterDfChunkMaskedImage = masterDfChunkExposure.getMaskedImage();
@@ -230,6 +233,10 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
 
     masterChunkMaskedImage *= masterIcChunkMaskedImage;
 
+    // Write the Illumination Correction to Fits Storage
+    std::string illumMiName = illumPolicy->getString("illumMiName");
+    masterIcChunkMaskedImage.writeFits(illumMiName);
+
     // Record the final sub-stage provenance to the Image Metadata
     masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_ILLUMCOR_BIN_SIZE"));
     lsst::daf::base::DataProperty::PtrType binSizeProp = chunkMetadata->findUnique("ISR_ILLUMCOR_BIN_SIZE");
@@ -255,24 +262,23 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
     // Issue a logging message indicating that the sub-stage executed without issue
     lsst::pex::logging::TTrace<7>("ISR sub-stage, %s, completed successfully.", subStage);
 
-
 }
 
 /************************************************************************/
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationCorrection(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterDfChunkExposure,
-    lsst::afw::image::Exposure<ImageT, MaskT> &masterSfChunkExposure,
+lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );
 
 // template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> illuminationCorrection(
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterDfChunkExposure,
-//     lsst::afw::image::Exposure<ImageT, MaskT> &masterSfChunkExposure,
+// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
+//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
+//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
 //     lsst::pex::policy::Policy &isrPolicy,
 //     lsst::pex::policy::Policy &datasetPolicy
 //     );
