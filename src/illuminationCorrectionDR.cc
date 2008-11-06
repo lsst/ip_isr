@@ -95,8 +95,8 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
     std::string subStage = "Illumination Correction Data Release";
 
     // Get the Master Chunk MaskedImage and Image Metadata from the Master Dome FF Chunk Exposure
-    lsst::afw::image::MaskedImage<ImageT, MaskT> masterDfChunkMaskedImage = masterDfChunkExposure.getMaskedImage();
-    lsst::daf::base::DataProperty::PtrType masterDfChunkMetadata = masterDfChunkMaskedImage.getImage()->getMetadata();
+    lsst::afw::image::MaskedImage<ImageT, MaskT> masterChunkMaskedImage = masterChunkExposure.getMaskedImage();
+    lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage()->getMetadata();
 
      // Get the Master Chunk MaskedImage and Image Metadata from the Master Night Sky FF Chunk Exposure
     lsst::afw::image::MaskedImage<ImageT, MaskT> masterSfChunkMaskedImage = masterSfChunkExposure.getMaskedImage();
@@ -220,7 +220,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
     // multiplicative inverse...
     lsst::afw::image::MaskedImage<ImageT, MaskT> masterTempChunkMaskedImage;
     masterSfChunkMaskedImage /= masterChunkMaskedImage;
-    masterTempChunkMaskedImage = pow(masterSfChunkMaskedImage, -1);
+    //masterTempChunkMaskedImage = 1/masterSfChunkMaskedImage;
     
     // Smooth the temporary MaskedImage with a kernel
     // NEED TO WRITE/FINISH THIS!
@@ -239,20 +239,19 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
 
     // Record the final sub-stage provenance to the Image Metadata
     masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_ILLUMCOR_BIN_SIZE"));
-    lsst::daf::base::DataProperty::PtrType binSizeProp = chunkMetadata->findUnique("ISR_ILLUMCOR_BIN_SIZE");
+    lsst::daf::base::DataProperty::PtrType binSizeProp = masterChunkMetadata->findUnique("ISR_ILLUMCOR_BIN_SIZE");
     binSizeProp->setValue(boost::any_cast<const int>(binSize));
 
     masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_ILLUMCOR_KERNEL_SIZE"));
-    lsst::daf::base::DataProperty::PtrType kernelSizeProp = chunkMetadata->findUnique("ISR_ILLUMCOR_KERNEL_SIZE");
+    lsst::daf::base::DataProperty::PtrType kernelSizeProp = masterChunkMetadata->findUnique("ISR_ILLUMCOR_KERNEL_SIZE");
     kernelSizeProp->setValue(boost::any_cast<const int>(kernelSize));
     
     masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_ILLUMCOR_KERNEL_TYPE"));
-    lsst::daf::base::DataProperty::PtrType kernelTypeProp = chunkMetadata->findUnique("ISR_ILLUMCOR_KERNEL_TYPE");
+    lsst::daf::base::DataProperty::PtrType kernelTypeProp = masterChunkMetadata->findUnique("ISR_ILLUMCOR_KERNEL_TYPE");
     kernelTypeProp->setValue(boost::any_cast<std::string>(kernel));
 
     masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_ILLUMCOR"));
-    lsst::daf::base::DataProperty::PtrType illumCorProp = chunkMetadata->findUnique("ISR_ILLUMCOR");
-    std::string exitTrue = "Completed Successfully";
+    lsst::daf::base::DataProperty::PtrType illumCorProp = masterChunkMetadata->findUnique("ISR_ILLUMCOR");
     illumCorProp->setValue(boost::any_cast<std::string>(exitTrue));
     masterChunkMaskedImage.setMetadata(masterChunkMetadata);
 
@@ -267,20 +266,20 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
 /************************************************************************/
 /* Explicit instantiations */
 
-template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
-    lsst::pex::policy::Policy &isrPolicy,
-    lsst::pex::policy::Policy &datasetPolicy
-    );
-
 // template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
+// lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
+//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
+//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
 //     lsst::pex::policy::Policy &isrPolicy,
 //     lsst::pex::policy::Policy &datasetPolicy
 //     );
+
+template
+lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
 
 /************************************************************************/

@@ -288,20 +288,21 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
         // the ISR stage is being run in.  So first, determine if the current
         // ISR pipeline being run for Data Release or Nightly Processing?
 
+        lsst::pex::policy::Policy::Ptr illumPolicy = isrPolicy.getPolicy("illumPolicy");
         std::string run = isrPolicy.getString("run");
         if (run == "DR"){
-            lsst::afw::image::Exposure<ImageT, MaskT> masterSfChunkExposure(); // Master Night Sky Flat Field Chunk Exposure
-            std::string sfCurrent illumPolicy->getString("sfCurrent");
+            lsst::afw::image::Exposure<ImageT, MaskT> masterSfChunkExposure; // Master Night Sky Flat Field Chunk Exposure
+            std::string sfCurrent = illumPolicy->getString("sfCurrent");
             masterSfChunkExposure.readFits(sfCurrent);
             lsst::ip::isr::illuminationCorrectionDR<ImageT, MaskT>(masterChunkExposure, masterSfChunkExposure, isrPolicy, datasetPolicy);
         } 
         if (run == "nightly"){
-            lsst::afw::image::MaskedImage<ImageT, MaskT> masterIcpChunkMaskedImage(); // Master Night Sky Flat Field Chunk Exposure from a previous night
-            std::string sfPrevious illumPolicy->getString("icPrevious");
+            lsst::afw::image::MaskedImage<ImageT, MaskT> masterIcpChunkMaskedImage; // Master Night Sky Flat Field Chunk Exposure from a previous night
+            std::string icPrevious = illumPolicy->getString("icPrevious");
             masterIcpChunkMaskedImage.readFits(icPrevious);
-            lsst::afw::image::Exposure<ImageT, MaskT> masterDfpChunkExposure(); // Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
-            std::string dfPrevious illumPolicy->getString("dfPrevious");
-            masterSfChunkExposure.readFits(dfPrevious);
+            lsst::afw::image::Exposure<ImageT, MaskT> masterDfpChunkExposure; // Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
+            std::string dfPrevious = illumPolicy->getString("dfPrevious");
+            masterDfpChunkExposure.readFits(dfPrevious);
             lsst::ip::isr::illuminationCorrection<ImageT, MaskT>(masterChunkExposure, masterDfpChunkExposure, masterIcpChunkMaskedImage, isrPolicy, datasetPolicy);
         } 
     }
