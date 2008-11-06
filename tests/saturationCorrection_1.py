@@ -4,6 +4,7 @@ Purpose: A simple test for the ISR sub-stage,
 
 Author: Nicole M. Silvestri,
         University of Washington
+        nms@astro.washington.edu
 """
 
 import os

@@ -39,7 +39,7 @@ namespace boost {
 
 // Everything whose bindings we will have to know about
 %import "lsst/daf/data/LsstBase.h"  // avoid warning: Nothing known about base class 'lsst::daf::data::LsstBase' 
-%import "lsst/afw/image/Mask.h" // needed so SWIG knows lsst::afw::image::maskPixelType = boost::uint16_t 
+//%import "lsst/afw/image/Mask.h" // needed so SWIG knows lsst::afw::image::maskPixelType = boost::uint16_t 
 %include "lsst/p_lsstSwig.i"    // this needs to go first otherwise, do not know about e.g. boost
 %include "lsst/afw/image/lsstImageTypes.i"  // vw and Image/Mask types and typedefs
 %include "lsst/detection/detectionLib.i"    // needed for Footprints
