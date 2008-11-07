@@ -68,7 +68,7 @@ typedef double vectorType;
 typedef double funcType;
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
+void lsst::ip::isr::illuminationCorrection(
     lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // the Master Dome (or Twilight) Flat Field Chunk Exposure
     lsst::afw::image::Exposure<ImageT, MaskT> const &masterDfpChunkExposure,// the Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
     lsst::afw::image::MaskedImage<ImageT, MaskT> const &masterIcpChunkMaskedImage, // the Master illumination correction Chunk MaskedImage from a previous night  
@@ -85,7 +85,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationCorrection(
+void lsst::ip::isr::illuminationCorrection(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterDfpChunkExposure,
     lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> const &masterIcpChunkMaskedImage,
@@ -93,13 +93,13 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationC
     lsst::pex::policy::Policy &datasetPolicy
     );
 
-// template
-// lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> illuminationCorrection(
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
-//     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterDfpChunkExposure,
-//     lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> const &masterIcpChunkMaskedImage,
-//     lsst::pex::policy::Policy &isrPolicy,
-//     lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+void lsst::ip::isr::illuminationCorrection(
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
+    lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterDfpChunkExposure,
+    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> const &masterIcpChunkMaskedImage,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
 
 /************************************************************************/

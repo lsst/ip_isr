@@ -74,7 +74,7 @@
   */
 
 template <typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
+void lsst::ip::isr::flatFieldCorrectChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
     lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // Master Dome (or Twilight) Flat Field Chunk Exposure
     lsst::pex::policy::Policy &isrPolicy,
@@ -345,7 +345,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
+void lsst::ip::isr::flatFieldCorrectChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
@@ -353,7 +353,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> flatFieldCorr
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> flatFieldCorrectChunkExposure(
+void lsst::ip::isr::flatFieldCorrectChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,

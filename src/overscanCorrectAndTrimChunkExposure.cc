@@ -89,7 +89,7 @@ std::string between(const std::string& s, char ldelim, char rdelim)
   */
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> overscanCorrectAndTrimChunkExposure(
+void lsst::ip::isr::overscanCorrectAndTrimChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
@@ -382,14 +382,14 @@ lsst::afw::image::Exposure<ImageT, MaskT> overscanCorrectAndTrimChunkExposure(
 // /* Explicit instantiations */
 
 template 
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> overscanCorrectAndTrimChunkExposure(
+void lsst::ip::isr::overscanCorrectAndTrimChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );
 
 template 
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> overscanCorrectAndTrimChunkExposure(
+void lsst::ip::isr::overscanCorrectAndTrimChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy

@@ -53,7 +53,7 @@ typedef double vectorType;
   */
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> crosstalkCorrectChunkExposure(
+void lsst::ip::isr::crosstalkCorrectChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy,
@@ -67,7 +67,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> crosstalkCorrectChunkExposure(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> crosstalkCorrectChunkExposure(
+void lsst::ip::isr::crosstalkCorrectChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy,
@@ -75,7 +75,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> crosstalkCorr
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> crosstalkCorrectChunkExposure(
+void lsst::ip::isr::crosstalkCorrectChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy,

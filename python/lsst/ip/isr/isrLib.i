@@ -96,9 +96,9 @@ def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/pytho
 %template(illuminationCorrection)
     lsst::ip::isr::illuminationCorrection<double, lsst::afw::image::maskPixelType>;
 
-%template(illuminationCorrection)
+%template(illuminationCorrectionDR)
     lsst::ip::isr::illuminationCorrectionDR<float, lsst::afw::image::maskPixelType>;
-%template(illuminationCorrection)
+%template(illuminationCorrectionDR)
     lsst::ip::isr::illuminationCorrectionDR<double, lsst::afw::image::maskPixelType>;
 
 %template(pupilImageCorrection)

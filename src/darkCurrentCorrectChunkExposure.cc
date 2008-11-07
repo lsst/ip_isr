@@ -54,12 +54,12 @@
   */
 
 template <typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
-	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
- 	) {
+void lsst::ip::isr::darkCurrentCorrectChunkExposure(
+    lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
+    lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    ) {
 
     // Get the Chunk MaskedImage and Image Metadata from the Chunk Exposure 
 
@@ -207,7 +207,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
+void lsst::ip::isr::darkCurrentCorrectChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
@@ -215,7 +215,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> darkCurrentCo
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> darkCurrentCorrectChunkExposure(
+void lsst::ip::isr::darkCurrentCorrectChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,

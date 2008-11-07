@@ -61,7 +61,7 @@ namespace isr {
     typedef double vectorType;
     
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
+    void saturationCorrectionForChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy
@@ -69,7 +69,7 @@ namespace isr {
         );
     
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> overscanCorrectAndTrimChunkExposure(
+    void overscanCorrectAndTrimChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy & datasetPolicy
@@ -77,7 +77,7 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> biasCorrectChunkExposure(
+    void biasCorrectChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
@@ -85,7 +85,7 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> darkCurrentCorrectChunkExposure(
+    void darkCurrentCorrectChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
@@ -93,7 +93,7 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> linearizeChunkExposure(
+    void linearizeChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy,
@@ -101,7 +101,7 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> flatFieldCorrectChunkExposure(
+    void flatFieldCorrectChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
         lsst::pex::policy::Policy &isrPolicy,
@@ -109,7 +109,7 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrection(
+    void illuminationCorrection(
 	lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
         lsst::afw::image::Exposure<ImageT, MaskT> const &masterDfpChunkExposure,
         lsst::afw::image::MaskedImage<ImageT, MaskT> const &masterIcpChunkMaskedImage,
@@ -118,32 +118,38 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
+    void illuminationCorrectionDR(
 	lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> const &masterSfChunkExposure,
+        lsst::afw::image::Exposure<ImageT, MaskT> &masterSfChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> defringeChunkExposure(
+    void defringeChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
         lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
         lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy  
         );
 
+//     template<typename ImageT, typename MaskT>
+//     void interpolateOverMaskedPixels(
+//         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure, 
+//         lsst::pex::policy::Policy &stagePolicy
+//         );
+
 // DC3 STRETCH GOALS
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> geometricDistortionCorrection(
+    void geometricDistortionCorrection(
 	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
         lsst::pex::policy::Policy &datasetPolicy
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> pupilImageCorrection(
+    void pupilImageCorrection(
 	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
@@ -151,14 +157,14 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> maskAndCorrectAdditionalArtifacts(
+    void maskAndCorrectAdditionalArtifacts(
 	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
         lsst::pex::policy::Policy &datasetPolicy
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> crosstalkCorrectChunkExposure(
+    void crosstalkCorrectChunkExposure(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
  	lsst::pex::policy::Policy &datasetPolicy,
@@ -166,7 +172,7 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> cosmicRayDetection(
+    void cosmicRayDetection(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,
 	lsst::pex::policy::Policy &datasetPolicy
@@ -174,7 +180,7 @@ namespace isr {
 
 // LSST GOAL - not for DC3.  Requires tunable laser dome flats
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> additionalFlatFieldCorrection(
+    void additionalFlatFieldCorrection(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
 	lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
 	lsst::pex::policy::Policy &isrPolicy,

@@ -40,7 +40,7 @@
   */
 
 template <typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> additionalFlatFieldCorrection(
+void lsst::ip::isr::additionalFlatFieldCorrection(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
     lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
@@ -55,7 +55,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> additionalFlatFieldCorrection(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> additionalFlatFieldCorrection(
+void lsst::ip::isr::additionalFlatFieldCorrection(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
@@ -63,7 +63,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> additionalFla
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> additionalFlatFieldCorrection(
+void lsst::ip::isr::additionalFlatFieldCorrection(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> const &masterChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,

@@ -33,7 +33,7 @@ namespace ip {
 namespace isr {
 
     template<typename ImageT, typename MaskT>
-    lsst::afw::image::Exposure<ImageT, MaskT> interpolateOverMaskedPixels(
+    void interpolateOverMaskedPixels(
         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure, // the chunk exposure with pixels to be interpolated over
 	lsst::pex::policy::Policy &stagePolicy // the main policy file for the stage being executed
         );

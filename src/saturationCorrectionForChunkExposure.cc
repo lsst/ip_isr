@@ -59,7 +59,7 @@
   */
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
+void lsst::ip::isr::saturationCorrectionForChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy
@@ -182,7 +182,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
     lsst::detection::setMaskFromFootprintList<MaskT>(chunkMaskPtr, grownSatFps, satMaskBit);
     
     // Interpolate over all of the masked saturated pixels. 
-    lsst::ip::isr::interpolateOverMaskedPixels<ImageT, MaskT>(chunkExposure, isrPolicy);
+    lsst::ip::isr::interpolateOverMaskedPixels(chunkExposure, isrPolicy);
 
     // Record the sub-stage provenance to the Image Metadata
     chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_SATCOR")); 
@@ -208,7 +208,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> saturationCorrectionForChunkExposure(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
+void lsst::ip::isr::saturationCorrectionForChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy
@@ -216,7 +216,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> saturationCor
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> saturationCorrectionForChunkExposure(
+void lsst::ip::isr::saturationCorrectionForChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy

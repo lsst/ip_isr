@@ -49,7 +49,7 @@ typedef double funcType;
  */
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> geometricDistortionCorrection(
+void lsst::ip::isr::geometricDistortionCorrection(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
@@ -61,14 +61,14 @@ lsst::afw::image::Exposure<ImageT, MaskT> geometricDistortionCorrection(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> geometricDistortionCorrection(
+void lsst::ip::isr::geometricDistortionCorrection(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> geometricDistortionCorrection(
+void lsst::ip::isr::geometricDistortionCorrection(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
     lsst::pex::policy::Policy &datasetPolicy

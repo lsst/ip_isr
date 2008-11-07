@@ -55,7 +55,7 @@ typedef double funcType;
  * \throw InvalidParameter if functional form for the lineaization fit is invalid 
  */
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> linearizeChunkExposure(
+void lsst::ip::isr::linearizeChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy,
@@ -156,7 +156,7 @@ lsst::afw::image::Exposure<ImageT, MaskT> linearizeChunkExposure(
 /* Explicit instantiations */
 
 template
-lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> linearizeChunkExposure(
+void lsst::ip::isr::linearizeChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy,
@@ -164,7 +164,7 @@ lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> linearizeChun
     );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> linearizeChunkExposure(
+void lsst::ip::isr::linearizeChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy,

@@ -85,7 +85,7 @@ typedef double vectorType;
 typedef double funcType;
 
 template<typename ImageT, typename MaskT>
-lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
+void lsst::ip::isr::illuminationCorrectionDR(
     lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure, // the Master Dome (or Twilight) Flat Field Chunk Exposure
     lsst::afw::image::Exposure<ImageT, MaskT> &masterSfChunkExposure, // the Master Night Sky FF Chunk Exposure
     lsst::pex::policy::Policy &isrPolicy,  // the main ISR Policy File containing the Illumination Policy info.
@@ -233,9 +233,10 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
 
     masterChunkMaskedImage *= masterIcChunkMaskedImage;
 
+    //RETURN THIS TOO...DON'T WRITE IT OUT
     // Write the Illumination Correction to Fits Storage
-    std::string illumMiName = illumPolicy->getString("illumMiName");
-    masterIcChunkMaskedImage.writeFits(illumMiName);
+   //  std::string illumMiName = illumPolicy->getString("illumMiName");
+//     masterIcChunkMaskedImage.writeFits(illumMiName);
 
     // Record the final sub-stage provenance to the Image Metadata
     masterChunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_ILLUMCOR_BIN_SIZE"));
@@ -266,16 +267,16 @@ lsst::afw::image::Exposure<ImageT, MaskT> illuminationCorrectionDR(
 /************************************************************************/
 /* Explicit instantiations */
 
-// template
-// lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
-//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
-//     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
-//     lsst::pex::policy::Policy &isrPolicy,
-//     lsst::pex::policy::Policy &datasetPolicy
-//     );
+template
+void lsst::ip::isr::illuminationCorrectionDR(
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterChunkExposure,
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
+    lsst::pex::policy::Policy &isrPolicy,
+    lsst::pex::policy::Policy &datasetPolicy
+    );
 
 template
-lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> illuminationCorrectionDR(
+void lsst::ip::isr::illuminationCorrectionDR(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterChunkExposure,
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &masterSfChunkExposure,
     lsst::pex::policy::Policy &isrPolicy,
