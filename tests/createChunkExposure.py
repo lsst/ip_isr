@@ -32,19 +32,18 @@ import lsst.pex.policy as pexPolicy
 
 import createCfhtMask as createMask
 
-## dataDir = eups.productDir("afwdata")
-## if not dataDir:
-##     raise RuntimeError("You must set up afwdata to run these tests")
+dataDir = eups.productDir("afwdata")
+if not dataDir:
+    raise RuntimeError("You must set up afwdata to run these tests")
 
 def main():
 
-    # Created a generic Policy file named
-    # 'pipeline/dataFormatConversionStageDictionary.paf'.  Each dataset will
-    # need a Policy File like this with information specific to the
-    # input images.
+    # Created a policy file named 'pipeline/datasetPolicy.paf'.  Each
+    # dataset will need a Policy File like this with information
+    # specific to the input images.
     
     if len(sys.argv) != 3:
-        print 'Usage : dataFormatConversion.py inFile.fits policyFile.paf'
+        print 'Usage : createChunkExposure.py inFile.fits datasetPolicy.paf'
         sys.exit(1)
        
     inImage = sys.argv[1]

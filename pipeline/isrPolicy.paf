@@ -29,11 +29,14 @@ saturationPolicy: {
  # Use the default saturation limit in the dataset file? (boolean)
  useDefSat: true
 
+ # Saturation Lookup Table Name
+ satTableName: satTable 
+
  # Number of pixels to grow
  grow: 1
 
  # Threshold for saturation limit
- threshold: 0
+ threshold: 1.0
 
 # Minimum number of saturated pixels to be detected in a footprint
  nSatPixMin: 1

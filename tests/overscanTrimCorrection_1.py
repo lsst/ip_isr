@@ -1,6 +1,6 @@
 """
-Purpose: A simple test for the ISR stage,
-         'Saturation Correction for Chunk Exposure'.
+Purpose: A simple test for the ISR sub-stage,
+         'Overscan Correct and Trim Chunk Exposure'.
 
 Author: Nicole M. Silvestri,
         University of Washington
@@ -38,18 +38,16 @@ InputChunkExposure = "raw-53535-i-797722_1" # The Chunk Exposure to be calibrate
 
 InputDatasetPolicy = "cfhtDataPolicy.paf"   # Contains information specific to the data set being processed
 InputIsrPolicy =  "isrPolicy.paf"           # Contains information directing ISR pipeline behavior
-SatLookupTable = "satLookUpTable"           # Lookup table containing the saturation correction for each pixel of the Chunk
 
 currDir = os.path.abspath(os.path.dirname(__file__))
 inFilePath = os.path.join(dataDir, "CFHT", "D4", InputChunkExposure)
 
 datasetPolicyPath = os.path.join(currDir, "../pipeline", InputDatasetPolicy)
 isrPolicyPath = os.path.join(currDir, "../pipeline", InputIsrPolicy)
-satLookupTablePath = (currDir, "../pipeline", SatLookupTable)
 
 ## OUTPUT IMAGE AND PATH NAMES
 
-OutputName = "testSatCorExposure"
+OutputName = "testOverCorExposure"
 
 outputPath = os.path.join(dataDir, OutputName)
 
@@ -57,7 +55,7 @@ outputPath = os.path.join(dataDir, OutputName)
 
 class isrTestCases(unittest.TestCase):
     """
-    Tests for the ISR stage, 'Saturation Correction for Chunk Exposure'.
+    Tests for the ISR stage, 'Overscan Correct and Trim Chunk Exposure'.
     """
     def setUp(self):
         self.chunkExposure = afwImage.ExposureF()
@@ -70,13 +68,13 @@ class isrTestCases(unittest.TestCase):
         del self.isrPolicy
         del self.datasetPolicy
 
-    def testSaturationCorrection(self):
+    def testOverscanTrimCorrection(self):
         
-        ipIsr.saturationCorrectionForChunkExposure(self.chunkExposure, self.isrPolicy, self.datasetPolicy)
+        ipIsr.overscanCorrectAndTrimChunkExposure(self.chunkExposure, self.isrPolicy, self.datasetPolicy)
 
         self.chunkExposure.writeFits(outputPath)
         
-        #satCor = ipIsr.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy, satLookupTablePath)
+       
         
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 

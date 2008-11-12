@@ -16,13 +16,16 @@
   *
   * LSST Legalese here...
   */
+#include <iostream>
 #include <string>
+#include <fstream>
 #include <sstream>
 #include <vector>
 #include <cmath>
 
 #include "boost/cstdint.hpp"
 #include "boost/format.hpp"
+#include "boost/shared_ptr.hpp"
 #include "vw/Math/Functions.h" 
 #include "vw/Math/Vector.h" 
 
@@ -53,71 +56,113 @@
   * \throw Runtime if this sub-stage has been run previously on the image
   * \throw NotFound if any metadata parameter can not be obtained
   * 
-  * TO DO (as of Wed 10/29/08):
+  * TO DO (as of Tue 11/11/08):
   * - delineate between A/D saturated pixels and other?
-  * - Calculate SDQA metrics as requested by SDQA team
+  * - Calculate additional SDQA metrics as requested by SDQA team
+  * - use threshold or satLimit (from LookupTable?)??
+  * 
   */
+
+typedef double vectorType;
+std::string stage = "lsst.ip.isr.saturationCorrectionForChunkExposure";
 
 template<typename ImageT, typename MaskT>
 void lsst::ip::isr::saturationCorrectionForChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy
-    //std::vector<float> &saturationLookUpTable
+    //std::vector<vectorType> &saturationLookUpTable
     ) { 
 
     // Start with some setup and information gathering...
     // Get the Chunk MaskedImage and Chunk Metadata from the Chunk Exposure
 
+    lsst::pex::logging::TTrace<3>("Entering ISR stage: %s", stage);
+
     lsst::afw::image::MaskedImage<ImageT, MaskT> chunkMaskedImage = chunkExposure.getMaskedImage();    
-    //typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT chunkMaskedImagePtr; 
-    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetadata();
-    std::string subStage = "Saturation Correction for Chunk Exposure";
+
+    typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT chunkMaskedImagePtr; 
+
+    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetaData();
 
     // Make sure we haven't run this sub-stage previously
 
-     lsst::daf::base::DataProperty::PtrType isrSaturation = chunkMetadata->findUnique("ISR_SATCOR");  // saturation stage processing flag
-    if (isrSaturation) {
-        throw lsst::pex::exceptions::Runtime(std::string("Saturation Correction has already been applied to this Chunk Exposure."));
+     lsst::daf::base::DataProperty::PtrType isrSatFlag = chunkMetadata->findUnique("SAT_END");  // ISR saturation stage processing flag
+    if (isrSatFlag) {
+        throw lsst::pex::exceptions::Runtime(std::string("Saturation Correction has already been applied to this Chunk Exposure - terminating stage."));
     } 
     
     // Parse the ISR policy file for the saturation sub-stage information
-    // First get the Saturation Sub-Stage Policy from the ISR Policy
+    // First get the Saturation Stage Policy from the ISR Policy
+ 
+    lsst::pex::policy::Policy::Ptr saturationPolicy; //QQQ: shouldn't this be 'PtrType' in Policy.h??
+    bool satTable;
+    bool useDefSat;
+    std::string satTableName;
+    int satGrow;
+    double threshold;
+    // const int nSatPixMin;
+    try {
+        std::cout << "Attempting to parse the Policy File." << std::endl;
+        saturationPolicy = isrPolicy.getPolicy("saturationPolicy");
+        satTable = saturationPolicy->getBool("satTable");
+        useDefSat = saturationPolicy->getBool("useDefSat");
+        satTableName = saturationPolicy->getString("satTableName");
+        std::string satTableName = saturationPolicy->getString("satTableName"); 
+        satGrow = saturationPolicy->getInt("grow");
+        threshold = saturationPolicy->getDouble("threshold");
+        // nSatPixMin = saturationPolicy->getInt("nSatPixMin");
+    } catch (std::exception e) {
+        throw lsst::pex::exceptions::Runtime(std::string("Can not parse the main ISR policy file."));
+    }
 
-    lsst::pex::policy::Policy::Ptr saturationPolicy = isrPolicy.getPolicy("saturationPolicy");
-    bool satTable = saturationPolicy->getBool("satTable");
-    bool useDefSat = saturationPolicy->getBool("useDefSat");
-    std::vector<double> satTableName = saturationPolicy->getDoubleArray("satTableName");
-    // std::string satTableName = saturationPolicy->getString("satTableName"); 
-    const int ccdNum = datasetPolicy.getInt("ccdName");
-    const int satGrow = saturationPolicy->getInt("grow");
-    double threshold = saturationPolicy->getDouble("threshold");
-    // const int nSatPixMin = saturationPolicy->getInt("nSatPixMin");
+    std::string ccdName;
+    try {
+        ccdName = datasetPolicy.getString("ccdName");
+    } catch (std::exception e) {
+         throw lsst::pex::exceptions::Runtime(std::string("Can not parse the dataset policy file."));
+    }
 
-    // Get the saturation limit for the Chunk Exposure
+    // Get the saturation limit for the Chunk Exposure...QQQ: may not need
+    // this if we use a threshold??
 
-    double satLimit;   
+    int satLimit;  
+    std::vector<vectorType> satTableList;
+     // First, try to get the saturation limit for the chunk from the
+     // chunkMetadata
     lsst::daf::base::DataProperty::PtrType saturationField = chunkMetadata->findUnique("SATURATE");
     if (saturationField) {
-        // First, try to get the saturation limit for the chunk form the metadata
-        satLimit = boost::any_cast<const double>(saturationField->getValue());
+       
+        satLimit = boost::any_cast<const int>(saturationField->getValue());
 
     } else if (satTable = true){
        
-        // next, try to get the saturation limit for the chunk from a lookup table
+        // Next, try to get the saturation limit for the chunk from a lookup
+        // table.  
+
+        // QQQ: what is the form of this lookup table (chunk#
+        // satLimit)??
        
-        satLimit = satTableName[ccdNum];
+//         std::ifstream in(satTableName);
+//    const int numMiCols = static_cast<int>(chunkMaskedImage.getCols());
+//    const int numMiRows = static_cast<int>(chunkMaskedImage.getRows());  
+//         int num = numMiCols * numMiRows;
+//         double ccdnum;
+//         while(in >> ccdnum)
+//            satTableList.push_back(ccdnum);
+//         satLimit = satTableName[ccdNum];
                   
     } else if (useDefSat = true){
 
         // use a generic saturation limit from the policy file
-        satLimit = datasetPolicy.getDouble("satLimit");       
+        satLimit = datasetPolicy.getInt("satLimit");       
     } else {
         // can't find the saturation limit for the chunk anywhere, I give up!
         throw lsst::pex::exceptions::NotFound(std::string("Can not get Saturation limit for Chunk Exposure."));
     }  
 
     // Get the bad pixel mask and setup the "SAT" mask plane
+
     typename lsst::afw::image::Mask<MaskT>::MaskPtrT chunkMaskPtr;
     chunkMaskPtr = chunkMaskedImage.getMask();
     MaskT const satMaskBit = chunkMaskedImage.getMask()->getPlaneBitMask("SAT");
@@ -130,8 +175,6 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     FootprintList grownSatFps; // final list of grown saturated pixel footprints
 
     // Save the saturated pixels as a vector of footprints.  
-
-    // QQQ: Is there anyway of returning the number of pixels in each footprint?
 
     lsst::detection::DetectionSet<ImageT, MaskT> detectionSet(chunkMaskedImage, lsst::detection::Threshold(threshold, lsst::detection::Threshold::VALUE)
         );       
@@ -159,11 +202,24 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
         // lets turn each into a subImage and get the cols/rows and number of
         // pixels in each footprint so we can sum them
         typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT fpChunkMaskedImagePtr;
+        
+        // 'getSubImage will throw an exception if the requested subImage is
+        // outside of the image.  This happens when we grow a footprint that is
+        // close to the edge of the chunk.  QQQ: Need to get the EDGE bit and do
+        // something here to deal with this case better.  Catch these for now,
+        // log them and continue.
+
+        try {
         fpChunkMaskedImagePtr = chunkMaskedImage.getSubImage(fpBBox); 
         const int numCols = static_cast<int>(fpChunkMaskedImagePtr->getCols());
         const int numRows = static_cast<int>(fpChunkMaskedImagePtr->getRows());
+        // QQQ: Is there an easier way of returning the number of pixels in each
+        // footprint?
         numSatPix += (numCols * numRows);
-               
+        } catch (lsst::pex::exceptions::ExceptionStack &e) {
+            lsst::pex::logging::TTrace<3>("In ISR stage %s, Requested footprint BBox, %d, is not contained within the original Image.",stage, numSatFootprints + 1);
+            continue;
+        }
         // Create a new footprint with the grown bbox and save the new
         // footprints in another vector.
 
@@ -185,22 +241,27 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     lsst::ip::isr::interpolateOverMaskedPixels(chunkExposure, isrPolicy);
 
     // Record the sub-stage provenance to the Image Metadata
-    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_SATCOR")); 
-    lsst::daf::base::DataProperty::PtrType satCorProp = chunkMetadata->findUnique("ISR_SATCOR");
-    std::string exTrue = "Completed Successfully"; 
-    satCorProp->setValue(boost::any_cast<std::string>(exTrue));
-    chunkMetadata->addProperty(lsst::daf::base::DataProperty("ISR_SATCOR_END"));
+
+    lsst::daf::base::DataProperty::PtrType isrThresholdFlag(new lsst::daf::base::DataProperty("SAT_TH", threshold));
+    chunkMetadata->addProperty(isrThresholdFlag);
+    lsst::daf::base::DataProperty::PtrType isrPixelFlag(new lsst::daf::base::DataProperty("SAT_PIX", numSatPix));
+    chunkMetadata->addProperty(isrPixelFlag);
+    lsst::daf::base::DataProperty::PtrType isrFootprintFlag(new lsst::daf::base::DataProperty("SAT_FP", numSatFootprints));
+    chunkMetadata->addProperty(isrFootprintFlag);
+    lsst::daf::base::DataProperty::PtrType isrEndFlag(new lsst::daf::base::DataProperty("SAT_END", std::string("Completed Successfully"))); 
+    chunkMetadata->addProperty(isrEndFlag); 
     chunkMaskedImage.setMetadata(chunkMetadata);
 
     // Calculate additional SDQA Metrics??
-       //return the following fro SDQA:
+       //return the following for SDQA:
        // numSatFootprints
        // numSatPix
 
     // Issue a logging message if the sub-stage executes without issue to this
     // point! Yay!!
 
-    lsst::pex::logging::TTrace<7>("ISR sub-stage, %s, completed successfully.", subStage);
+    lsst::pex::logging::TTrace<3>("ISR stage: %s completed successfully.", stage);
+    lsst::pex::logging::TTrace<3>("Exiting ISR stage: %s", stage);
          
 }
 
@@ -212,7 +273,7 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy
-    //std::vector<float> &saturationLookUpTable
+    //std::vector<vectorType> &saturationLookUpTable
     );
 
 template
@@ -220,7 +281,7 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     lsst::afw::image::Exposure<double, lsst::afw::image::maskPixelType> &chunkExposure,    
     lsst::pex::policy::Policy &isrPolicy, 
     lsst::pex::policy::Policy &datasetPolicy
-    //std::vector<double> &saturationLookUpTable
+    //std::vector<vectorType> &saturationLookUpTable
     );
 
 /************************************************************************/
