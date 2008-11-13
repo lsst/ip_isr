@@ -33,3 +33,9 @@ satTableName: 'saturationLookupTable.tab'
 
 # Linearization Lookup Table Name
 linTableName: 'linearizationLookupTable.tab'
+
+# BIASSEC, DATASEC, TRIMSEC names for the chunk
+# lets work with Amp A for now
+datasec: DSECA
+biassec: BSECA
+trimsec: TSECA

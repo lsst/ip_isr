@@ -64,7 +64,7 @@
   */
 
 typedef double vectorType;
-std::string stage = "lsst.ip.isr.saturationCorrectionForChunkExposure";
+std::string satStage = "lsst.ip.isr.saturationCorrectionForChunkExposure";
 
 template<typename ImageT, typename MaskT>
 void lsst::ip::isr::saturationCorrectionForChunkExposure(
@@ -77,7 +77,7 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     // Start with some setup and information gathering...
     // Get the Chunk MaskedImage and Chunk Metadata from the Chunk Exposure
 
-    lsst::pex::logging::TTrace<3>("Entering ISR stage: %s", stage);
+    lsst::pex::logging::TTrace<3>("Entering ISR stage: %s", satStage);
 
     lsst::afw::image::MaskedImage<ImageT, MaskT> chunkMaskedImage = chunkExposure.getMaskedImage();    
 
@@ -217,7 +217,7 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
         // footprint?
         numSatPix += (numCols * numRows);
         } catch (lsst::pex::exceptions::ExceptionStack &e) {
-            lsst::pex::logging::TTrace<3>("In ISR stage %s, Requested footprint BBox, %d, is not contained within the original Image.",stage, numSatFootprints + 1);
+            lsst::pex::logging::TTrace<3>("In ISR stage %s, Requested footprint BBox, %d, is not contained within the original Image.", satStage, numSatFootprints + 1);
             continue;
         }
         // Create a new footprint with the grown bbox and save the new
@@ -260,8 +260,8 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     // Issue a logging message if the sub-stage executes without issue to this
     // point! Yay!!
 
-    lsst::pex::logging::TTrace<3>("ISR stage: %s completed successfully.", stage);
-    lsst::pex::logging::TTrace<3>("Exiting ISR stage: %s", stage);
+    lsst::pex::logging::TTrace<3>("ISR stage: %s completed successfully.", satStage);
+    lsst::pex::logging::TTrace<3>("Leaving ISR stage: %s", satStage);
          
 }
 
