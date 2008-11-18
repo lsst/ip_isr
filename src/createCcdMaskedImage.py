@@ -5,7 +5,6 @@
 # contact nms@astro.washington.edu
 #
 #
-
 # This code is designed to be a pre-stage to the nightly IPP.  It will
 # read (currently with PyFits) a list of multi-extension FITS [MEF]
 # files from any telescope/camera configuration and break it into its

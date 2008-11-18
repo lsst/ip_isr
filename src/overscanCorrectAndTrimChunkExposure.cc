@@ -247,6 +247,8 @@ void lsst::ip::isr::overscanCorrectAndTrimChunkExposure(
     std::cout << "OverscanRowsStart: " << overscanRowsStart << std::endl;
     const int overscanRowsEnd = atoi(temp1.substr(position1 + 1).c_str());
     std::cout << "OverscanRowsEnd: " << overscanRowsEnd << std::endl;
+    const int overscanColSpan = overscanColsEnd - overscanColsStart;
+    const int overscanRowSpan = overscanRowsEnd - overscanRowsStart;
 
     std::string temp2(between(trimsec, delim2, end));   
     std::size_t position2 = temp2.find(":");
@@ -259,7 +261,8 @@ void lsst::ip::isr::overscanCorrectAndTrimChunkExposure(
     std::cout << "TrimRowsStart: " << trimRowsStart << std::endl;
     const int trimRowsEnd = atoi(temp2.substr(position2 + 1).c_str()); 
     std::cout << "TrimRowsEnd: " << trimRowsEnd << std::endl;
-
+    const int trimColSpan = trimColsEnd - trimColsStart;
+    const int trimRowSpan = trimRowsEnd - trimRowsStart;
 
     
     // create a MaskedImage holding the overscan region to be subtracted and trimmed
@@ -267,8 +270,8 @@ void lsst::ip::isr::overscanCorrectAndTrimChunkExposure(
     // determine appropriate ramp to trim?
     const vw::BBox2i overscanBbox = vw::BBox2i(overscanColsStart, 
                                                overscanRowsStart, 
-                                               overscanColsEnd, 
-                                               overscanRowsEnd);
+                                               overscanColSpan, 
+                                               overscanRowSpan);
 
     lsst::afw::image::Exposure<ImageT, MaskT> overscanExposure = chunkExposure.getSubExposure(overscanBbox);
     std::string overscanOut = "overscanStripExposure";
@@ -276,183 +279,196 @@ void lsst::ip::isr::overscanCorrectAndTrimChunkExposure(
     lsst::afw::image::MaskedImage<ImageT, MaskT> overscanMaskedImage = overscanExposure.getMaskedImage();
     const int overscanCols = static_cast<int>(overscanMaskedImage.getCols());
     const int overscanRows = static_cast<int>(overscanMaskedImage.getRows());
-    //const int numCols = static_cast<int>(chunkMaskedImage.getCols());
-    //const int numRows = static_cast<int>(chunkMaskedImage.getRows());
-
-//     // trim the Chunk Exposure so we can now fit or apply the overscan
-//     // correction to only the pixels associated with the Chunk Exposures pixels
-
-//     const vw::BBox2i trimmedBBox = vw::BBox2i(trimColsStart,
-//                                               trimRowsStart,
-//                                               trimColsEnd,
-//                                               trimRowsEnd);
-
-//     lsst::afw::image::Exposure<ImageT, MaskT> trimmedChunkExposure = chunkExposure.getSubExposure(trimmedBBox);
+    const int chunkCols = static_cast<int>(chunkMaskedImage.getCols());
+    const int chunkRows = static_cast<int>(chunkMaskedImage.getRows());
    
-//     //get the new Chunk MaskedImage  
-//     lsst::afw::image::MaskedImage<ImageT, MaskT> trimmedChunkMaskedImage = trimmedChunkExposure.getMaskedImage();
-//     lsst::daf::base::DataProperty::PtrType trimmedChunkMetadata = trimmedChunkMaskedImage.getImage()->getMetaData();
+    // trim the Chunk Exposure so we can now fit or apply the overscan
+    // correction to only the pixels associated with the Chunk Exposures pixels
+
+    const vw::BBox2i trimmedBBox = vw::BBox2i(trimColsStart,
+                                              trimRowsStart,
+                                              trimColSpan,
+                                              trimRowSpan);
+
+    lsst::afw::image::Exposure<ImageT, MaskT> trimmedChunkExposure = chunkExposure.getSubExposure(trimmedBBox);
+    
+    //get the new Chunk MaskedImage  
+    lsst::afw::image::MaskedImage<ImageT, MaskT> trimmedChunkMaskedImage = trimmedChunkExposure.getMaskedImage();
+    lsst::daf::base::DataProperty::PtrType trimmedChunkMetadata = trimmedChunkMaskedImage.getImage()->getMetaData();
+
+    const int trimmedChunkCols = static_cast<int>(trimmedChunkMaskedImage.getCols());
+    const int trimmedChunkRows = static_cast<int>(trimmedChunkMaskedImage.getRows());
+    std::cout << "OrigCols: " << chunkCols<< std::endl;
+    std::cout << "OrigRows: " << chunkRows<< std::endl;
+    std::cout << "TrimmedCols_AmpA: " << trimmedChunkCols<< std::endl;
+    std::cout << "TrimmedRows_AmpA: " << trimmedChunkRows<< std::endl;
+    std::cout << "OverscanCols_AmpA: " << overscanCols<< std::endl;
+    std::cout << "OverscanRows_AmpA: " << overscanRows<< std::endl;
  
-//     // replace the old datasec with the new one which is actually the trimsec
-//     trimmedChunkMetadata->deleteAll("DATASEC", false);
-//     lsst::daf::base::DataProperty::PtrType isrDatasecFlag(new lsst::daf::base::DataProperty("DATASEC", trimsec));
-//     trimmedChunkMetadata->addProperty(isrDatasecFlag);
-//     trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);
+    // Remove the datasec and biassec from the trimmed Chunk Exposure's
+    // metadata...which currently lives in both the image and the variance
+    // image.
 
-//     const int trimmedChunkCols = trimmedChunkMaskedImage.getCols();
-//     const int trimmedChunkRows = trimmedChunkMaskedImage.getRows();
+    trimmedChunkMetadata->deleteAll(datasecKey);
+    trimmedChunkMetadata->deleteAll(biassecKey);
+    lsst::daf::base::DataProperty::PtrType trimmedVarianceMetadata = trimmedChunkMaskedImage.getVariance()->getMetaData();
+    trimmedVarianceMetadata->deleteAll(datasecKey);
+    trimmedVarianceMetadata->deleteAll(biassecKey);
+    
+    trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);
+    trimmedChunkMaskedImage.setMetadata(trimmedVarianceMetadata);
 
-//     if (method == "function"){
+    if (method == "function"){
 
-//         // Find the best fit function to the overscan region and apply this
-//         // function to the Chunk Exposure.  Best fit determined via Chi^2 minimization.
+        // Find the best fit function to the overscan region and apply this
+        // function to the Chunk Exposure.  Best fit determined via Chi^2 minimization.
 
-//         std::vector<vectorType> parameterList;
-//         std::vector<vectorType> stepSizeList; 
-//         std::fill(parameterList.begin(), parameterList.end(), numParams);
-//         std::fill(stepSizeList.begin(), stepSizeList.end(), stepSize); 
+        std::vector<vectorType> parameterList;
+        std::vector<vectorType> stepSizeList; 
+        std::fill(parameterList.begin(), parameterList.end(), numParams);
+        std::fill(stepSizeList.begin(), stepSizeList.end(), stepSize); 
         
-//         // collapse the overscan region down to a vector.  Get vectors of
-//         // measurements, variances, and x,y positions
+        // collapse the overscan region down to a vector.  Get vectors of
+        // measurements, variances, and x,y positions
  
-//         std::vector<vectorType> overscanMeasurementList;
-//         std::vector<vectorType> overscanVarianceList;
-//         std::vector<vectorType> colPositionList;
-//         std::vector<vectorType> rowPositionList;
-//         double sigma = 1.0; // initial guess
+        std::vector<vectorType> overscanMeasurementList;
+        std::vector<vectorType> overscanVarianceList;
+        std::vector<vectorType> colPositionList;
+        std::vector<vectorType> rowPositionList;
+        double sigma = 1.0; // initial guess
 
-//         lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanRowAcc(overscanMaskedImage);
+        lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanRowAcc(overscanMaskedImage);
        
-//         for (int chunkRow = 0; chunkRow < overscanRows; chunkRow++, overscanRowAcc.nextRow()) {
-//             lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanColAcc = overscanRowAcc;
-//             for (int chunkCol = 0; chunkCol < overscanCols; chunkCol++, overscanColAcc.nextCol()) {
-//                 overscanMeasurementList.push_back(*overscanColAcc.image);
-//                 overscanVarianceList.push_back(*overscanColAcc.variance);
-//                 colPositionList.push_back(chunkCol);
-//                 rowPositionList.push_back(chunkRow);
-//             } // for column loop
-//         } // for row loop     
+        for (int chunkRow = 0; chunkRow < overscanRows; chunkRow++, overscanRowAcc.nextRow()) {
+            lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanColAcc = overscanRowAcc;
+            for (int chunkCol = 0; chunkCol < overscanCols; chunkCol++, overscanColAcc.nextCol()) {
+                overscanMeasurementList.push_back(*overscanColAcc.image);
+                overscanVarianceList.push_back(*overscanColAcc.variance);
+                colPositionList.push_back(chunkCol);
+                rowPositionList.push_back(chunkRow);
+            } // for column loop
+        } // for row loop     
+    
+        // ideally we need a function factory to which we feed different
+        // functional forms and get out a Function1 or Function2...but for now,
+        // pick a few typical choices and code them here (poly for now
+        // 10/22/08...ADD THE OTHERS LATER)
 
-//         // ideally we need a function factory to which we feed different
-//         // functional forms and get out a Function1 or Function2...but for now,
-//         // pick a few typical choices and code them here (poly for now
-//         // 10/22/08...ADD THE OTHERS LATER)
+        if (funcForm == "polynomial") {
 
-//         if (funcForm == "polynomial") {
+            lsst::afw::math::PolynomialFunction1<funcType> polyFunc1(funcOrder);
+            //lsst::afw::math::Function1<funcType> function1(funcOrder);
 
-//             lsst::afw::math::PolynomialFunction1<funcType> polyFunc1(funcOrder);
-//             //lsst::afw::math::Function1<funcType> function1(funcOrder);
+            // find the best fit function
+            lsst::afw::math::FitResults overscanFit  = lsst::afw::math::minimize( 
+                polyFunc1, 
+                parameterList, 
+                stepSizeList, 
+                overscanMeasurementList, ///< overscan values 
+                overscanVarianceList,    ///< variance for each value 
+                colPositionList,   ///< x position  
+                //rowPositionList,   ///< y position (if Function2 function)
+                sigma 
+                );  
 
-//             // find the best fit function
-//             lsst::afw::math::FitResults overscanFit  = lsst::afw::math::minimize( 
-//                 polyFunc1, 
-//                 parameterList, 
-//                 stepSizeList, 
-//                 overscanMeasurementList, ///< overscan values 
-//                 overscanVarianceList,    ///< variance for each value 
-//                 colPositionList,   ///< x position  
-//                 //rowPositionList,   ///< y position (if Function2 function)
-//                 sigma 
-//                 );  
+            std::vector<vectorType> parameters;
+            for (unsigned int i = 0; i < overscanFit.parameterList.size(); ++i){
+                parameters[i] = overscanFit.parameterList[i];      
+            }
+            unsigned int order = overscanFit.parameterList.size() - 1;
+            lsst::afw::math::PolynomialFunction1<funcType> polyFunction(order);
+            polyFunction.setParameters(parameters);
 
-//             std::vector<vectorType> parameters;
-//             for (unsigned int i = 0; i < overscanFit.parameterList.size(); ++i){
-//                 parameters[i] = overscanFit.parameterList[i];      
-//             }
-//             unsigned int order = overscanFit.parameterList.size() - 1;
-//             lsst::afw::math::PolynomialFunction1<funcType> polyFunction(order);
-//             polyFunction.setParameters(parameters);
-
-//             lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> chunkRowAcc(trimmedChunkMaskedImage);
+            lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> chunkRowAcc(trimmedChunkMaskedImage);
                 
-//             for (int chunkRow = 0; chunkRow < trimmedChunkRows; chunkRow++, chunkRowAcc.nextRow()) {
-//                 lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> chunkColAcc = chunkRowAcc;
-//                 for (int chunkCol = 0; chunkCol < trimmedChunkCols; chunkCol++, chunkColAcc.nextCol()) {
-//                     *chunkColAcc.image = static_cast<ImageT>(polyFunction(*chunkColAcc.image));
-//                     *chunkColAcc.variance = static_cast<ImageT>(polyFunction(*chunkColAcc.image) * polyFunction(*chunkColAcc.image));
-//                 }
-//             }
-//             // Record the provenance
-//             // QQQ: is there a way of getting the goodness-of-fit for the polynomial??
+            for (int chunkRow = 0; chunkRow < trimmedChunkRows; chunkRow++, chunkRowAcc.nextRow()) {
+                lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> chunkColAcc = chunkRowAcc;
+                for (int chunkCol = 0; chunkCol < trimmedChunkCols; chunkCol++, chunkColAcc.nextCol()) {
+                    *chunkColAcc.image = static_cast<ImageT>(polyFunction(*chunkColAcc.image));
+                    *chunkColAcc.variance = static_cast<ImageT>(polyFunction(*chunkColAcc.image) * polyFunction(*chunkColAcc.image));
+                }
+            }
+            // Record the provenance
+            // QQQ: is there a way of getting the goodness-of-fit for the polynomial??
 
-//             lsst::daf::base::DataProperty::PtrType isrFunctionFlag(new lsst::daf::base::DataProperty("OVER_FN", funcForm));     
-//             trimmedChunkMetadata->addProperty(isrFunctionFlag);
-//             lsst::daf::base::DataProperty::PtrType isrOrderFlag(new lsst::daf::base::DataProperty("OVER_OR", funcOrder));        
-//             trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);  
+            lsst::daf::base::DataProperty::PtrType isrFunctionFlag(new lsst::daf::base::DataProperty("OVER_FN", funcForm));     
+            trimmedChunkMetadata->addProperty(isrFunctionFlag);
+            lsst::daf::base::DataProperty::PtrType isrOrderFlag(new lsst::daf::base::DataProperty("OVER_OR", funcOrder));        
+            trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);  
 
-//         } else if (funcForm == "spline") {
-//             // not yet implemented
-//             throw lsst::pex::exceptions::InvalidParameter(std::string("Spline is not yet implemented."));
-//         } else {
-//             throw lsst::pex::exceptions::InvalidParameter(std::string("Invalid functional form for overscan fit requested."));
-//         }
-//     } else {
+        } else if (funcForm == "spline") {
+            // not yet implemented
+            throw lsst::pex::exceptions::InvalidParameter(std::string("Spline is not yet implemented."));
+        } else {
+            throw lsst::pex::exceptions::InvalidParameter(std::string("Invalid functional form for overscan fit requested."));
+        }
+    } else {
 
-//         // Subtract a constant value.  For now, compute the mean for the
-//         // constant value to be subtracted. ADD THE OTHERS LATER...
+        // Subtract a constant value.  For now, compute the mean for the
+        // constant value to be subtracted. ADD THE OTHERS LATER...
         
-//         if (constantMeth == "mean") {
+        if (constantMeth == "mean") {
 
-//             // Compute the number of elements (n), mean (mu) and standard
-//             // deviation (sigma) borrowing some code from Russell Owen's
-//             // medianBinApprox
+            // Compute the number of elements (n), mean (mu) and standard
+            // deviation (sigma) borrowing some code from Russell Owen's
+            // medianBinApprox
 
-//             lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanRowAcc(overscanMaskedImage);
-//             long int n = 0;
-//             double sum = 0;
+            lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanRowAcc(overscanMaskedImage);
+            long int n = 0;
+            double sum = 0;
        
-//             for (int chunkRow = 0; chunkRow < overscanRows; chunkRow++, overscanRowAcc.nextRow()) {
-//                 lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanColAcc = overscanRowAcc;
-//                 for (int chunkCol = 0; chunkCol < overscanCols; chunkCol++, overscanColAcc.nextCol()) {
-//                     n++;
-//                     sum += static_cast<double>(*overscanColAcc.image);                 
-//                 } 
-//             }     
-//             // the mean
-//             double mu = sum/static_cast<double>(n);
-//             // subtract off the overscan mean form the Chunk Masked Image
-//             trimmedChunkMaskedImage -= mu;
+            for (int chunkRow = 0; chunkRow < overscanRows; chunkRow++, overscanRowAcc.nextRow()) {
+                lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanColAcc = overscanRowAcc;
+                for (int chunkCol = 0; chunkCol < overscanCols; chunkCol++, overscanColAcc.nextCol()) {
+                    n++;
+                    sum += static_cast<double>(*overscanColAcc.image);                 
+                } 
+            }     
+            // the mean
+            double mu = sum/static_cast<double>(n);
+            // subtract off the overscan mean form the Chunk Masked Image
+            trimmedChunkMaskedImage -= mu;
 
-//             double sumSq = 0;
-//             for (int chunkRow = 0; chunkRow < overscanRows; chunkRow++, overscanRowAcc.nextRow()) {
-//                 lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanColAcc = overscanRowAcc;
-//                 for (int chunkCol = 0; chunkCol < overscanCols; chunkCol++, overscanColAcc.nextCol()) {
-//                     n++;
-//                     double val = static_cast<double>(*overscanColAcc.image) - mu; 
-//                     sumSq += val * val; 
-//                 } 
-//              }
-//             // the standard deviation
-//             double sigma = std::sqrt(sumSq/static_cast<double>(n));
+            double sumSq = 0;
+            for (int chunkRow = 0; chunkRow < overscanRows; chunkRow++, overscanRowAcc.nextRow()) {
+                lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> overscanColAcc = overscanRowAcc;
+                for (int chunkCol = 0; chunkCol < overscanCols; chunkCol++, overscanColAcc.nextCol()) {
+                    n++;
+                    double val = static_cast<double>(*overscanColAcc.image) - mu; 
+                    sumSq += val * val; 
+                } 
+             }
+            // the standard deviation
+            double sigma = std::sqrt(sumSq/static_cast<double>(n));
 
-//             // Record the provenance
-//             lsst::daf::base::DataProperty::PtrType isrMeanFlag(new lsst::daf::base::DataProperty("OVER_MU", mu));
-//             trimmedChunkMetadata->addProperty(isrMeanFlag);
-//             lsst::daf::base::DataProperty::PtrType isrStdevFlag(new lsst::daf::base::DataProperty("OVER_SD", sigma));
-//             trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);    
+            // Record the provenance
+            lsst::daf::base::DataProperty::PtrType isrMeanFlag(new lsst::daf::base::DataProperty("OVER_MU", mu));
+            trimmedChunkMetadata->addProperty(isrMeanFlag);
+            lsst::daf::base::DataProperty::PtrType isrStdevFlag(new lsst::daf::base::DataProperty("OVER_SD", sigma));
+            trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);    
 
-//         } else if (constantMeth == "median"){
-//             // not yet implemented
-//             throw lsst::pex::exceptions::InvalidParameter(std::string("Median is not yet implemented."));
-//         } else if (constantMeth == "mode"){
-//             // not yet implemented
-//             throw lsst::pex::exceptions::InvalidParameter(std::string("Mode is not yet implemented."));
-//         } else {
-//             throw lsst::pex::exceptions::InvalidParameter(std::string("Invalid method for computing the overscan value requested."));
-//         }
-//     }
-//     // Record final sub-stage provenance to the Image Metadata
-//     lsst::daf::base::DataProperty::PtrType isrEndFlag(new lsst::daf::base::DataProperty("OVER_END", std::string("Completed Successfully"))); 
-//     trimmedChunkMetadata->addProperty(isrEndFlag);
-//     trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);
+        } else if (constantMeth == "median"){
+            // not yet implemented
+            throw lsst::pex::exceptions::InvalidParameter(std::string("Median is not yet implemented."));
+        } else if (constantMeth == "mode"){
+            // not yet implemented
+            throw lsst::pex::exceptions::InvalidParameter(std::string("Mode is not yet implemented."));
+        } else {
+            throw lsst::pex::exceptions::InvalidParameter(std::string("Invalid method for computing the overscan value requested."));
+        }
+    }
+    // Record final sub-stage provenance to the Image Metadata
+    lsst::daf::base::DataProperty::PtrType isrEndFlag(new lsst::daf::base::DataProperty("OVER_END", std::string("Completed Successfully"))); 
+    trimmedChunkMetadata->addProperty(isrEndFlag);
+    trimmedChunkMaskedImage.setMetadata(trimmedChunkMetadata);
 
-//     chunkMaskedImage = trimmedChunkMaskedImage;
+    chunkMaskedImage = trimmedChunkMaskedImage;
 
-//     // Calculate additional SDQA Metrics here??
+    // Calculate additional SDQA Metrics here??
 
-//     //Issue a logging message if the sub-stage executes without issue to this point!
-//     lsst::pex::logging::TTrace<3>("ISR stage, %s, completed successfully.", overStage);
-//     lsst::pex::logging::TTrace<3>("Leaving ISR stage: %s", overStage);
+    //Issue a logging message if the sub-stage executes without issue to this point!
+    lsst::pex::logging::TTrace<3>("ISR stage, %s, completed successfully.", overStage);
+    lsst::pex::logging::TTrace<3>("Leaving ISR stage: %s", overStage);
 }
 
 

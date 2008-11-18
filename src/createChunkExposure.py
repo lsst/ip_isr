@@ -6,12 +6,16 @@
 #
 # This code is designed to be a pre-stage to the nightly IPP.  It
 # takes as input a list of CCD MaskedImages (excluding the _img.fits
-# extension) and splits them into one LSST Exposure per amplifier of
-# the CCD Image.  This 'Chunk' Exposure is then written to
-# FitsStorage.
+# extension) and splits them into one LSST Exposure per chunk
+# requested of the CCD Image.  This 'Chunk' Exposure is then written
+# to FitsStorage.  Currently, the code assumes that the chunk is
+# defined as one amplifier but may be moodified to accept different
+# chunk sizes.
 #
 # The code also takes an input a Policy file (policyFile.paf) with
-# information specific to the data set being processed.
+# information specific to the data set being processed.  This file is
+# used to map the dataset-specific header information to standard LSST
+# metadata names.
 
 import os
 import re
