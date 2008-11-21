@@ -60,7 +60,7 @@
   * - delineate between A/D saturated pixels and other?
   * - Calculate additional SDQA metrics as requested by SDQA team
   * - use threshold or satLimit (from LookupTable?)??
-  * 
+  *
   */
 
 typedef double vectorType;
@@ -87,9 +87,9 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
 
     // Make sure we haven't run this sub-stage previously
 
-     lsst::daf::base::DataProperty::PtrType isrSatFlag = chunkMetadata->findUnique("SAT_END");  // ISR saturation stage processing flag
+     lsst::daf::base::DataProperty::PtrType isrSatFlag = chunkMetadata->findUnique("SATU_END");  // ISR saturation stage processing flag
     if (isrSatFlag) {
-        throw lsst::pex::exceptions::Runtime(std::string("Saturation Correction has already been applied to this Chunk Exposure - terminating stage."));
+        throw lsst::pex::exceptions::Runtime(std::string("Saturation Correction previously performed - terminating stage."));
     } 
     
     // Parse the ISR policy file for the saturation sub-stage information
@@ -176,57 +176,59 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
 
     // Save the saturated pixels as a vector of footprints.  
 
-    lsst::detection::DetectionSet<ImageT, MaskT> detectionSet(chunkMaskedImage, lsst::detection::Threshold(threshold, lsst::detection::Threshold::VALUE)
-        );       
+    lsst::detection::DetectionSet<ImageT, MaskT> detectionSet(chunkMaskedImage, lsst::detection::Threshold(threshold, lsst::detection::Threshold::VALUE));       
 
     newSatFps = detectionSet.getFootprints();
-  
-    // Grow around all of the saturated pixel footprints.  
+
+     // Grow around all of the saturated pixel footprints.  
+
+    lsst::detection::DetectionSet<ImageT, MaskT> detectionSetGrown(newSatFps, grow);
+
+    grownSatFps = detectionSetGrown.getFootprints();
 
     // QQQ: Can we distinguish between pixels saturated in the A/D converter and
     // those just saurated on chip?  If so, we don't want to grow around the A/D
     // saturated pixels (in unbinned data).
 
-    int numSatFootprints = 0;
-    int numSatPix = 0;
-    for (FootprintIter satFpIter = newSatFps.begin(); satFpIter < newSatFps.end(); satFpIter++) { 
+//     int numSatFootprints = 0;
+//     int numSatPix = 0;
+//     for (FootprintIter satFpIter = newSatFps.begin(); satFpIter < newSatFps.end(); satFpIter++) { 
 
-        // Need to create a bounding box to turn the saturated footprints into
-        // new grown footprints
+//         // Need to create a bounding box to turn the saturated footprints into
+//         // new grown footprints
  
-        vw::BBox2i const & bbox = (*satFpIter)->getBBox(); 
-        vw::Vector2i const minVec(bbox.min().x() - satGrow, bbox.min().y() - satGrow); 
-        vw::Vector2i const maxVec(bbox.max().x() + satGrow, bbox.max().y() + satGrow); 
-        vw::BBox2i const fpBBox(minVec, maxVec); 
+//         vw::BBox2i const & bbox = (*satFpIter)->getBBox(); 
+//         vw::Vector2i const minVec(bbox.min().x() - satGrow, bbox.min().y() - satGrow); 
+//         vw::Vector2i const maxVec(bbox.max().x() + satGrow, bbox.max().y() + satGrow); 
+//         vw::BBox2i const fpBBox(minVec, maxVec); 
               
-        // lets turn each into a subImage and get the cols/rows and number of
-        // pixels in each footprint so we can sum them
-        typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT fpChunkMaskedImagePtr;
+//         // lets turn each into a subImage and get the cols/rows and number of
+//         // pixels in each footprint so we can sum them
+//         typename lsst::afw::image::MaskedImage<ImageT, MaskT>::MaskedImagePtrT fpChunkMaskedImagePtr;
         
-        // 'getSubImage will throw an exception if the requested subImage is
-        // outside of the image.  This happens when we grow a footprint that is
-        // close to the edge of the chunk.  QQQ: Need to get the EDGE bit and do
-        // something here to deal with this case better.  Catch these for now,
-        // log them and continue.
+//         // 'getSubImage will throw an exception if the requested subImage is
+//         // outside of the image.  This happens when we grow a footprint that is
+//         // close to the edge of the chunk.  QQQ: Need to get the EDGE bit and do
+//         // something here to deal with this case better.  Catch these for now,
+//         // log them and continue.
 
-        try {
-        fpChunkMaskedImagePtr = chunkMaskedImage.getSubImage(fpBBox); 
-        const int numCols = static_cast<int>(fpChunkMaskedImagePtr->getCols());
-        const int numRows = static_cast<int>(fpChunkMaskedImagePtr->getRows());
-        // QQQ: Is there an easier way of returning the number of pixels in each
-        // footprint?
-        numSatPix += (numCols * numRows);
-        } catch (lsst::pex::exceptions::ExceptionStack &e) {
-            lsst::pex::logging::TTrace<3>("In ISR stage %s, Requested footprint BBox, %d, is not contained within the original Image.", satStage, numSatFootprints + 1);
-            continue;
-        }
-        // Create a new footprint with the grown bbox and save the new
-        // footprints in another vector.
+//         try {
+//         fpChunkMaskedImagePtr = chunkMaskedImage.getSubImage(fpBBox); 
+//         const int numCols = static_cast<int>(fpChunkMaskedImagePtr->getCols());
+//         const int numRows = static_cast<int>(fpChunkMaskedImagePtr->getRows());
+//         // use Footprint::setNpix?
+//         numSatPix += (numCols * numRows);
+//         } catch (lsst::pex::exceptions::ExceptionStack &e) {
+//             lsst::pex::logging::TTrace<3>("In ISR stage %s, Requested footprint BBox, %d, is not contained within the original Image.", satStage, numSatFootprints + 1);
+//             continue;
+//         }
+//         // Create a new footprint with the grown bbox and save the new
+//         // footprints in another vector.
 
-        lsst::detection::Footprint::PtrType fpGrow(new lsst::detection::Footprint(fpBBox)); 
-        grownSatFps.push_back(fpGrow);
-        numSatFootprints += 1;
-    } 
+//         lsst::detection::Footprint::PtrType fpGrow(new lsst::detection::Footprint(fpBBox)); 
+//         grownSatFps.push_back(fpGrow);
+//         numSatFootprints += 1;
+//     } 
 
     // Mask all of those saturated pixel footprints.  Using "SAT" bitmask for
     // all pixels in the footprint.  
@@ -242,13 +244,13 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
 
     // Record the sub-stage provenance to the Image Metadata
 
-    lsst::daf::base::DataProperty::PtrType isrThresholdFlag(new lsst::daf::base::DataProperty("SAT_TH", threshold));
+    lsst::daf::base::DataProperty::PtrType isrThresholdFlag(new lsst::daf::base::DataProperty("SATU_TH", threshold));
     chunkMetadata->addProperty(isrThresholdFlag);
-    lsst::daf::base::DataProperty::PtrType isrPixelFlag(new lsst::daf::base::DataProperty("SAT_PIX", numSatPix));
+    lsst::daf::base::DataProperty::PtrType isrPixelFlag(new lsst::daf::base::DataProperty("SATU_PIX", numSatPix));
     chunkMetadata->addProperty(isrPixelFlag);
-    lsst::daf::base::DataProperty::PtrType isrFootprintFlag(new lsst::daf::base::DataProperty("SAT_FP", numSatFootprints));
+    lsst::daf::base::DataProperty::PtrType isrFootprintFlag(new lsst::daf::base::DataProperty("SATU_FP", numSatFootprints));
     chunkMetadata->addProperty(isrFootprintFlag);
-    lsst::daf::base::DataProperty::PtrType isrEndFlag(new lsst::daf::base::DataProperty("SAT_END", std::string("Completed Successfully"))); 
+    lsst::daf::base::DataProperty::PtrType isrEndFlag(new lsst::daf::base::DataProperty("SATU_END", std::string("Completed Successfully"))); 
     chunkMetadata->addProperty(isrEndFlag); 
     chunkMaskedImage.setMetadata(chunkMetadata);
 

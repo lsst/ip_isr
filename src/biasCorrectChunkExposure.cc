@@ -53,6 +53,8 @@
   * - add more metadata
   */
 
+std::string biasStage = "lsst.ip.isr.biasCorrectChunkExposure";
+
 template <typename ImageT, typename MaskT>
 void lsst::ip::isr::biasCorrectChunkExposure(
     lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
@@ -61,11 +63,11 @@ void lsst::ip::isr::biasCorrectChunkExposure(
     lsst::pex::policy::Policy &datasetPolicy
     ) {
 
+    lsst::pex::logging::TTrace<3>("Entering ISR stage: %s", biasStage);
+
     // Get the Chunk MaskedImage and Image Metadata from the Chunk Exposure 
     lsst::afw::image::MaskedImage<ImageT, MaskT> chunkMaskedImage = chunkExposure.getMaskedImage();
-    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetadata();
-
-    std::string subStage = "Bias Correct Chunk Exposure";
+    lsst::daf::base::DataProperty::PtrType chunkMetadata = chunkMaskedImage.getImage()->getMetaData();
 
     // Get the Master Bias Chunk MaskedImage and Image Metadata from the Master
     // Bias Chunk Exposure
@@ -73,11 +75,10 @@ void lsst::ip::isr::biasCorrectChunkExposure(
     lsst::daf::base::DataProperty::PtrType masterChunkMetadata = masterChunkMaskedImage.getImage()->getMetadata();
 
     // Check that this ISR sub-stage has not been run previously on this Chunk
-    // Exposure.  If it has, terminate the stage.  Looking for ISR's bias stage flag, "BIAS_FL".
-    lsst::daf::base::DataProperty::PtrType isrBiasField = chunkMetadata->findUnique("BIAS_FL");
+    // Exposure.  If it has, terminate the stage.  Looking for ISR's bias stage flag, "BIAS_END".
+    lsst::daf::base::DataProperty::PtrType isrBiasField = chunkMetadata->findUnique("BIAS_END");
     if (isrBiasField) {
-        lsst::pex::logging::TTrace<3>("In %s: Exposure has already been corrected.  Terminating ISR sub-stage for this Chunk Exposure.", subStage);
-        throw lsst::pex::exceptions::Runtime(std::string("Bias Subtraction previously performed."));
+        throw lsst::pex::exceptions::Runtime(std::string("Bias Subtraction previously performed - terminating stage."));
     }
 
     // Check that the Master Bias Chunk Exposure and Chunk Exposure are the same
@@ -155,6 +156,21 @@ void lsst::ip::isr::biasCorrectChunkExposure(
         double sigClipVal = biasPolicy->getDouble("sigClipVal");
         // add sigClipping here - not yet implemented
     }
+    
+    // Get the relevant metadata 
+
+    lsst::daf::base::DataProperty::PtrType fileNameField = masterChunkMetadata->findUnique("FILENAME");
+    std::string fileName;
+    if (fileNameField) {
+        fileName = boost::any_cast<std::string>(fileNameField->getValue());
+    }
+
+    lsst::daf::base::DataProperty::PtrType meanBiasField = masterChunkMetadata->findUnique("MEAN");
+    doubel meanBias;
+    if (meanBiasField) {
+        meanBias = boost::any_cast<double>(meanBiasField->getValue());
+    }
+        
 
     // Subtract the Master Bias Chunk Exposure from the Chunk Exposure.
 
@@ -166,26 +182,27 @@ void lsst::ip::isr::biasCorrectChunkExposure(
     }
 
     // Record the sub-stage provenance to the Image Metadata
-    chunkMetadata->addProperty(lsst::daf::base::DataProperty("BIAS_FL"));
-    lsst::daf::base::DataProperty::PtrType biasCorProp = chunkMetadata->findUnique("BIAS_FL");
+
+
+    lsst::daf::base::DataProperty::PtrType isrMasterCalFlag(new lsst::daf::base::DataProperty("BIAS_MC", fileName));
+    chunkMetadata->addProperty(isrMasterCalFlag);
     // ISR version number std::string version; 
     // date run std::string date;
-    std::string exitTrue = "Completed";
-    // std::string completeFlag = version + date + exitTrue;
-    biasCorProp->setValue(boost::any_cast<std::string>(exitTrue));
-    // biasCorProp->setValue(boost::any_cast<std::string>(completeFlag));
-    chunkMetadata->addProperty(lsst::daf::base::DataProperty("BIAS_MU"));
-    lsst::daf::base::DataProperty::PtrType biasMeanProp = chunkMetadata->findUnique("BIAS_MU");
-    std::string meanBiasFieldName = biasPolicy->getString("meanBiasFieldName"); 
-    lsst::daf::base::DataProperty::PtrType meanField = masterChunkMetadata->findUnique(meanBiasFieldName);
-    double meanBias = boost::any_cast<double>(meanField->getValue());
-    biasMeanProp->setValue(boost::any_cast<double>(meanBias));
+   
+    lsst::daf::base::DataProperty::PtrType isrMeanFlag(new lsst::daf::base::DataProperty("BIAS_MU", meanBias));
+    chunkMetadata->addProperty(isrMeanFlag);
+   
+    lsst::daf::base::DataProperty::PtrType isrEndFlag(new lsst::daf::base::DataProperty("BIAS_END", std::sring("Completed Successfully")));
+    chunkMetadata->addProperty(isrEndFlag);
+
     chunkMaskedImage.setMetadata(chunkMetadata);
 
     // Calculate additional the SDQA metrics here ?
 
     // Issue a logging message indicating that the sub-stage executed without issue
-    lsst::pex::logging::TTrace<7>("ISR sub-stage, %s, completed successfully.", subStage);
+
+    lsst::pex::logging::TTrace<3>("ISR stage: %s completed successfully.", biasStage);
+    lsst::pex::logging::TTrace<3>("Leaving ISR stage: %s", biasStage);
 	
 }
 

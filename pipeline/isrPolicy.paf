@@ -36,7 +36,7 @@ saturationPolicy: {
  grow: 1
 
  # Threshold for saturation limit
- threshold: 1.0
+ threshold: 65535
 
 # Minimum number of saturated pixels to be detected in a footprint
  nSatPixMin: 1
