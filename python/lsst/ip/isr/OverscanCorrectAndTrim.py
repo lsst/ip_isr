@@ -1,3 +1,4 @@
+
 """
 
 @brief: Implementation of the stage, Overscan Correct and Trim, for the
@@ -9,14 +10,21 @@
 
 @file
 """
+import eups
+import os
 
 import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
 import lsst.daf.base as dafBase
-import lsst.detection as det
 import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
+
+dataDir = eups.productDir("afwdata")
+    if not dataDir:
+        raise RuntimeError("Must set up afwdata to run this program.")
+    overscanExposureOutPath = os.path.join(dataDir, "overscanStripTestExposure_1")
 
 def overscanCorrectAndTrim(chunkExposure, isrPolicy):
 
@@ -50,8 +58,8 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     - add any additional SDQA statistics requested by SDQA team
     """
 
-    satStage = "lsst.ip.isr.overscanCorrectAndTrim"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (satStage,))
+    overStage = "lsst.ip.isr.overscanCorrectAndTrim"   
+    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (overStage,))
 
     # Parse the Policy File
     try:
@@ -101,73 +109,161 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
         datasec = datasecProp.getValue()
         print "DATASEC: ", datasec
         trimsecProp = chunkMetadata.findUnique(trimsecKey)
+        if trimsecProp:
+            trimsec = trimsecProp.getValue()
+            print "TRIMSEC: ", trimsec
+        biassecProp = chunkMetadata.findUnique(biassecKey)
+        biassec = biassecProp.getValue()
+        print "BIASSEC: ", biassec
     except pexEx.LsstExceptionStack, e:
-        print "Cannot get the requested metadata from the chunkExposure: %s" % e      
+        print "Cannot get the requested data sections from the chunkExposure: %s" % e      
 
-    chunkMask = chunkMaskedImage.getMask()
-    satMaskBit = chunkMask.getPlaneBitMask("SAT")
+    datasecBbox = ipIsr.stringParse(datasec)
+    biassecBbox = ipIsr.stringParse(biassec)
+    if trimsec:
+        trimsecBbox = ipIsr.stringParse(trimsec)
 
-    # QQQ: Can we distinguish between pixels saturated in the A/D
-    # converter and those just saurated on chip?  If so, we don't want
-    # to grow around the A/D saturated pixels (in unbinned data).
+    trimExp = datasecBbox - biassecBbox
 
-    pexLog.Trace("%s" % (satStage,), 4, "Finding saturated footprints.")
-    satFootprintSet = det.DetectionSetD(chunkMaskedImage, det.Threshold(satThresh))
-    satFootprintList = satFootprintSet.getFootprints()
-    numSatFootprints = len(satFootprintList)
-    print "Found %s saturated footprints." % (numSatFootprints,)
+    overscanExposure = afwImage.ExposureD()
+    overscanMaskedImage = afwImage.MaskedImageD()
+    overscanExposure = chunkExposure.getSubExposure(biassecBbox)
+    overscanMaskedImage = chunkExposure.getMaskedImage()
+    overscanExposure.writeFits(overscanExposureOutPath)
 
-    numSatPix = 0
-    for feet in satFootprintList:
-        numSatPix = numSatPix + feet.getNpix()
+    trimmedExposure = afwImage.ExposureD()
+    if trimsec:
+        trimmedExposure = chunkExposure.getSubExposure(trimsecBbox)
+    else:
+        trimmedExposure = chunkExposure.getSubExposure(trimExp)
 
-    print "Found %s saturated pixels." % (numSatPix,)
+    # create a MaskedImage holding the overscan region to be
+    # subtracted QQQ: NEED TO TRIM RAMP UP HERE in addition to
+    # overscan region because we do not want to use the ramp in the
+    # overscan subtraction. How do I determine appropriate ramp to
+    # trim (need to create a Bbox)?
     
-    pexLog.Trace("%s" % (satStage,), 4, "Growing around all saturated footprints.")
-    grownSatFootprintSet = det.DetectionSetD(satFootprintSet, satGrow)
-    grownSatFootprintList = grownSatFootprintSet.getFootprints()
-    numGrownSatFootprints = len(grownSatFootprintList)
-    print "Found %s grown saturated footprints." % (numGrownSatFootprints,)
+    trimmedMaskedImage = afwImage.MaskedImageD()
+    trimmedMaskedImage = trimmedExposure.getMaskedImage()
+    trimmedChunkMetadata = trimmedMaskedImage.getImage().getMetaData()
+    trimmedVarianceMetadata = trimmedMaskedImage.getVariance()->getMetaData();
 
-    numGrownSatPix = 0
-    for bigFeet in grownSatFootprintList:
-        numGrownSatPix = numGrownSatPix + bigFeet.getNpix()
+    # Remove the datasec and biassec from the trimmed Chunk Exposure's
+    # metadata...which currently lives in both the image and the
+    # variance image.
 
-    print "Found %s grown saturated pixels." % (numGrownSatPix,)
+    trimmedChunkMetadata.deleteAll(datasecKey)
+    trimmedChunkMetadata.deleteAll(biassecKey)
+    trimmedVarianceMetadata.deleteAll(datasecKey)
+    trimmedVarianceMetadata.deleteAll(biassecKey)
+
+    if trimsec:
+        trimmedChunkMetadata.deleteAll(trimsecKey)
+        trimmedVarianceMetadata.deleteAll(trimsecKey)
+        
+    trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
+    trimmedMaskedImage.setMetadata(trimmedVarianceMetadata)
+
+    if method == "function":
+
+        # Find the best fit function to the overscan region and apply
+        # this function to the Chunk Exposure.  Best fit determined
+        # via Chi^2 minimization.
+
+        std.fill(parameterList.begin(), parameterList.end(), numParams)
+        std.fill(stepSizeList.begin(), stepSizeList.end(), stepSize)
+            
+        # collapse the overscan region down to a vector.  Get vectors
+        # of measurements, variances, and x,y positions
+        
+        ipIsr.makeVectorFromRegion(overscanMeasurementList, overscanVarianceList, colPositionList, rowPositionList, overscanMaskedImage)
+
+        # ideally we need a function factory to which we feed
+        # different functional forms and get out a Function1 or
+        # Function2...but for now, pick a few typical choices and code
+        # them here (poly for now 10/22/08...ADD THE OTHERS LATER)
+
+        if funcForm == "polynomial":
+
+            polyFunc1 = afwMath.PolynomialFunction1D()
+            polyFunc1(funcOrder)
+            sigma = 1.0; // initial guess
+
+            # find the best fit function
+            overscanFit  = afwMath.minimize( 
+                polyFunc1, 
+                parameterList, 
+                stepSizeList, 
+                overscanMeasurementList, # overscan values 
+                overscanVarianceList,    # variance for each value 
+                colPositionList,         # x position  
+                //rowPositionList,       # y position (if Function2 function)
+                sigma 
+                )  
+
+            for i = 0, i < overscanFit.parameterList.size(), ++i:
+                parameters[i] = overscanFit.parameterList[i]      
+            
+            order = overscanFit.parameterList.size() - 1
+            polyFunction = afwMath.PolynomialFunction1D()
+            polyFunction(order)
+            polyFunction.setParameters(parameters)
+        
+            ipIsr.fitFunctionToImage(trimmedMaskedImage, polyFunction)
+       
+            # Record the stage provenance to the Image Metadata (for now) this
+            # will eventually go into an ISR_info object.
+
+            pexLog.Trace("%s" % (satStage,), 4, "Recording ISR provenance information for %s." % (funcForm))
+            trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_FN", funcForm))
+            trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
+            
+        else if funcForm == "spline":
+            # not yet implemented
+            raise pexExcept.InvalidParameter, "Spline is not yet implemented."
+        else:
+            raise pexExcept.InvalidParameter, "Invalid functional form for overscan fit requested."
+        
+    else: 
+
+        # Subtract a constant value.  For now, compute the mean for
+        # the constant value to be subtracted. ADD THE OTHERS LATER...
+        
+        if constantMeth == "mean":
+
+            ipIsr.easyMean(n, mu, sigma, overscanMaskedImage)
+            trimmedMaskedImage -= mu
+        else if constantMeth == "median":
+            # not yet implemented
+            raise pexExcept.InvalidParameter, "Median is not yet implemented."
+        else if constantMeth == "mode":
+            # not yet implemented
+            raise pexExcept.InvalidParameter, "Mode is not yet implemented."
+        else: 
+            raise pexExcept.InvalidParameter, "Invalid method for computing the overscan value requested."
+        trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_FN", constantMeth)) 
+        trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_MU", mu))    
+        trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_SD", sigma))
+        trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
+        
+    # Record final sub-stage provenance to the Image Metadata
+    trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_END", "Completed Successfully")) 
+    trimmedMaskedImage.setMetadata(trimmedChunkMetadata);
+
+    # Set the original chunkExposure to the new trimmed chunkExposure
+    chunkMaskedImage = trimmedChunkMaskedImage
+    chunkExposure = trimmedExposure
     
-    # Mask all of the grown saturated pixel footprints.  Using "SAT"
-    # bitmask for all pixels in the footprint.
-
-    # QQQ: Do we want to distinguish between grown pixels and those
-    # that were actually saturated?  What bitmask would that be
-    # ("GROW")?
-    
-    det.setMaskFromFootprintList(chunkMask, grownSatFootprintList, satMaskBit)
-
-    pexLog.Trace("%s" % (satStage,), 4, "Interpolating over all saturated footprints.")
-    ipIsr.interpolateOverMaskedPixels(chunkExposure, isrPolicy)
-    
-    # Record the stage provenance to the Image Metadata (for now) this
-    # will eventually go into an ISR_info object.
-
-    pexLog.Trace("%s" % (satStage,), 4, "Recording ISR provenance information.")
-    chunkMetadata.addProperty(dafBase.DataProperty("SATU_TH", satThresh))
-    chunkMetadata.addProperty(dafBase.DataProperty("SATU_PIX", numSatPix))    
-    chunkMetadata.addProperty(dafBase.DataProperty("SATU_FP", numSatFootprints))
-    chunkMetadata.addProperty(dafBase.DataProperty("SATU_END", "Completed Successfully")) 
-    chunkMaskedImage.setMetadata(chunkMetadata)
-
     # Calculate any additional SDQA Metrics and write all metrics to
     # the SDQA object (or directly to the clipboard)
                                
-    # pexLog.Trace("%s" % (satStage,), 4, "Recording SDQA metric information." )
+    # pexLog.Trace("%s" % (overStage,), 4, "Recording SDQA metric information." )
                               
     """ Return the following for SDQA:
-    - numSatFootprints
-    - numSatPix
-    - numGrownSatFootprints
-    - numGrownSatPix                          
+    - n
+    - mu
+    - sigma
     """                       
-    pexLog.Trace("%s" % (satStage,), 4, "Completed Successfully" )
-    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (satStage,))
+    pexLog.Trace("%s" % (overStage,), 4, "Completed Successfully" )
+    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (overStage,))
                               
