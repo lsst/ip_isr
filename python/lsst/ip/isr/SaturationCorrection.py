@@ -43,12 +43,12 @@ def saturationCorrection(chunkExposure, isrPolicy):
     - sigma clipping?
     """
 
-    satStage = "lsst.ip.isr.saturationCorrection"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (satStage,))
+    stage = "lsst.ip.isr.saturationCorrection"   
+    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (stage,))
 
     # Parse the Policy File
     try:
-        pexLog.Trace("%s" % (satStage,), 4, "Parsing the ISR Policy File.")
+        pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File.")
         satPolicy = isrPolicy.getPolicy("saturationPolicy")
         
         satTable = satPolicy.getBool("satTable")
@@ -65,7 +65,7 @@ def saturationCorrection(chunkExposure, isrPolicy):
     chunkMetadata = chunkMaskedImage.getImage().getMetaData()
 
     try:
-        pexLog.Trace("%s" % (satStage,), 4, "Obtaining additional parameters from chunkMetadata.")
+        pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from chunkMetadata.")
         satField = chunkMetadata.findUnique("SATURATE")
         satLimit = satField.getValue()
         print "satLimit: %s" % (satLimit,)
@@ -79,7 +79,7 @@ def saturationCorrection(chunkExposure, isrPolicy):
     # converter and those just saurated on chip?  If so, we don't want
     # to grow around the A/D saturated pixels (in unbinned data).
 
-    pexLog.Trace("%s" % (satStage,), 4, "Finding saturated footprints.")
+    pexLog.Trace("%s" % (stage,), 4, "Finding saturated footprints.")
     satFootprintSet = det.DetectionSetD(chunkMaskedImage, det.Threshold(satThresh))
     satFootprintList = satFootprintSet.getFootprints()
     numSatFootprints = len(satFootprintList)
@@ -91,7 +91,7 @@ def saturationCorrection(chunkExposure, isrPolicy):
 
     print "Found %s saturated pixels." % (numSatPix,)
     
-    pexLog.Trace("%s" % (satStage,), 4, "Growing around all saturated footprints.")
+    pexLog.Trace("%s" % (stage,), 4, "Growing around all saturated footprints.")
     grownSatFootprintSet = det.DetectionSetD(satFootprintSet, satGrow)
     grownSatFootprintList = grownSatFootprintSet.getFootprints()
     numGrownSatFootprints = len(grownSatFootprintList)
@@ -112,13 +112,13 @@ def saturationCorrection(chunkExposure, isrPolicy):
     
     det.setMaskFromFootprintList(chunkMask, grownSatFootprintList, satMaskBit)
 
-    pexLog.Trace("%s" % (satStage,), 4, "Interpolating over all saturated footprints.")
+    pexLog.Trace("%s" % (stage,), 4, "Interpolating over all saturated footprints.")
     ipIsr.interpolateOverMaskedPixels(chunkExposure, isrPolicy)
     
     # Record the stage provenance to the Image Metadata (for now) this
     # will eventually go into an ISR_info object.
 
-    pexLog.Trace("%s" % (satStage,), 4, "Recording ISR provenance information.")
+    pexLog.Trace("%s" % (stage,), 4, "Recording ISR provenance information.")
     chunkMetadata.addProperty(dafBase.DataProperty("SATU_TH", satThresh))
     chunkMetadata.addProperty(dafBase.DataProperty("SATU_PIX", numSatPix))    
     chunkMetadata.addProperty(dafBase.DataProperty("SATU_FP", numSatFootprints))
@@ -128,7 +128,7 @@ def saturationCorrection(chunkExposure, isrPolicy):
     # Calculate any additional SDQA Metrics and write all metrics to
     # the SDQA object (or directly to the clipboard)
                                
-    # pexLog.Trace("%s" % (satStage,), 4, "Recording SDQA metric information." )
+    # pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
                               
     """ Return the following for SDQA:
     - numSatFootprints
@@ -136,6 +136,6 @@ def saturationCorrection(chunkExposure, isrPolicy):
     - numGrownSatFootprints
     - numGrownSatPix                          
     """                       
-    pexLog.Trace("%s" % (satStage,), 4, "Completed Successfully" )
-    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (satStage,))
+    pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
+    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
                               

@@ -1,13 +1,15 @@
 """
-@brief A simple test for the ISR stage, 'Saturation Correction'.
 
-@author Nicole M. Silvestri,
+@brief A simple test for the ISR stage, 'Dark Current Correction'.
+
+@author Nicole M. Silvestri
         University of Washington
         nms@astro.washington.edu
 
-file created Nov 20, 2008
+ file created: Mon Nov 24, 2008
 
 @file
+        
 """
 
 import os
@@ -28,7 +30,7 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
-Verbosity = 4 # increase frm zero to see trace
+Verbosity = 4 # increase from zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
 
 dataDir = eups.productDir("afwdata")
@@ -36,41 +38,43 @@ if not dataDir:
     raise RuntimeError("Must set up afwdata to run these tests!")
 
 isrDir = eups.productDir("ip_isr")
-if not isrDir:
-    raise RuntimeError("Must set up ip_isr to run these tests!")
+    if not isrDir:
+        raise RuntimeError("Must set up ip_isr to run these tests!")
 
-## INPUT IMAGE AND PATH NAMES
+## INPUT EXPOSURE AND PATH NAMES
 
+currDir = os.path.abspath(os.path.dirname(__file__))
 inFilePath = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")
+inMasterFilePath = os.path.join(dataDir, "CFHT", "D4", "05Am05.dark.0.36.00_1")
 isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-satLookupTablePath = (isrDir, "pipeline", "satLookUpTable")
 
 ## OUTPUT IMAGE AND PATH NAMES
 
-outputPath = os.path.join(dataDir, "testSatCorExposure")
+outputPath = os.path.join(dataDir, "testDarkCorExposure")
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class isrTestCases(unittest.TestCase):
     """
-    Tests for the ISR stage, 'Saturation Correction'.
+    Tests for the ISR stage, 'Dark Current Correction'.
     """
     def setUp(self):
         self.chunkExposure = afwImage.ExposureF()
         self.chunkExposure.readFits(inFilePath)
+        self.masterChunkExposure = afwImage.ExposureF()
+        self.masterChunkExposure.readFits(inMasterFilePath)
         self.isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
-        
+
     def tearDown(self):
         del self.chunkExposure
+        del self.masterChunkExposure
         del self.isrPolicy
 
-    def testSaturationCorrection(self):
+    def testBiasCorrection(self):
         
-        ipIsr.saturationCorrection(self.chunkExposure, self.isrPolicy, self.datasetPolicy)
+        ipIsr.darkCurrentCorrection(self.chunkExposure, self.masterChunkExposure, self.isrPolicy)
 
-        self.chunkExposure.writeFits(outputPath)
-        
-        #satCor = ipIsr.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy, satLookupTablePath)
+        self.chunkExposure.writeFits(outputPath)    
         
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 

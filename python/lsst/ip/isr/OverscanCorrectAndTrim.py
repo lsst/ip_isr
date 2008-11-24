@@ -58,8 +58,8 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     - add any additional SDQA statistics requested by SDQA team
     """
 
-    overStage = "lsst.ip.isr.overscanCorrectAndTrim"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (overStage,))
+    stage = "lsst.ip.isr.overscanCorrectAndTrim"   
+    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (stage,))
 
     # Parse the Policy File
     try:
@@ -257,13 +257,13 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     # Calculate any additional SDQA Metrics and write all metrics to
     # the SDQA object (or directly to the clipboard)
                                
-    # pexLog.Trace("%s" % (overStage,), 4, "Recording SDQA metric information." )
+    pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
                               
     """ Return the following for SDQA:
     - n
     - mu
     - sigma
     """                       
-    pexLog.Trace("%s" % (overStage,), 4, "Completed Successfully" )
-    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (overStage,))
+    pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
+    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
                               

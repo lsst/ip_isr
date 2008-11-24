@@ -1,10 +1,13 @@
 """
-Purpose: A simple test for the ISR sub-stage,
-         'Overscan Correct and Trim Chunk Exposure'.
+@brief A simple test for the ISRstage, 'Overscan Correct and Trim'.
 
-Author: Nicole M. Silvestri,
+@author Nicole M. Silvestri,
         University of Washington
         nms@astro.washington.edu
+
+ file created Nov 20, 2008
+
+@file
 """
 
 import os
@@ -25,31 +28,26 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
-Verbosity = 0 # increase to see trace
+Verbosity = 4 # increase from zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
 
 dataDir = eups.productDir("afwdata")
 if not dataDir:
     raise RuntimeError("Must set up afwdata to run these tests!")
 
+isrDir = eups.productDir("ip_isr")
+if not isrDir:
+    raise RuntimeError("Must set up ip_isr to run these tests!")
+
 ## INPUT IMAGE AND PATH NAMES
 
-InputChunkExposure = "raw-53535-i-797722_1" # The Chunk Exposure to be calibrated
-
-InputDatasetPolicy = "cfhtDataPolicy.paf"   # Contains information specific to the data set being processed
-InputIsrPolicy =  "isrPolicy.paf"           # Contains information directing ISR pipeline behavior
-
 currDir = os.path.abspath(os.path.dirname(__file__))
-inFilePath = os.path.join(dataDir, "CFHT", "D4", InputChunkExposure)
-
-datasetPolicyPath = os.path.join(currDir, "../pipeline", InputDatasetPolicy)
-isrPolicyPath = os.path.join(currDir, "../pipeline", InputIsrPolicy)
+inFilePath = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")
+isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
 
 ## OUTPUT IMAGE AND PATH NAMES
 
-OutputName = "testOverCorExposure"
-
-outputPath = os.path.join(dataDir, OutputName)
+outputPath = os.path.join(dataDir, "testOverCorExposure")
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -61,21 +59,16 @@ class isrTestCases(unittest.TestCase):
         self.chunkExposure = afwImage.ExposureF()
         self.chunkExposure.readFits(inFilePath)
         self.isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
-        self.datasetPolicy = pexPolicy.Policy.createPolicy(datasetPolicyPath)
-
+        
     def tearDown(self):
         del self.chunkExposure
         del self.isrPolicy
-        del self.datasetPolicy
 
-    def testOverscanTrimCorrection(self):
+    def testOverscanCorrectAndTrim(self):
         
-        ipIsr.overscanCorrectAndTrimChunkExposure(self.chunkExposure, self.isrPolicy, self.datasetPolicy)
-
+        ipIsr.overscanCorrectAndTrim(self.chunkExposure, self.isrPolicy)
         self.chunkExposure.writeFits(outputPath)
-        
-       
-        
+                
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 def suite():
@@ -94,7 +87,6 @@ def run(exit=False):
     """Run the tests"""
     utilsTests.run(suite(), exit)
 	   
-
 if __name__ == "__main__":
     #   utilsTests.run(suite())
     run(True)
