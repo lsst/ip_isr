@@ -28,7 +28,7 @@ import lsst.afw.image.testUtils as imUtilsTests
 import lsst.pex.logging as pexLog
 import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as ipIsr
+import lsst.ip.isr.DarkCurrentCorrection as ipIsrDark
 
 Verbosity = 4 # increase from zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
@@ -72,8 +72,7 @@ class isrTestCases(unittest.TestCase):
 
     def testBiasCorrection(self):
         
-        ipIsr.darkCurrentCorrection(self.chunkExposure, self.masterChunkExposure, self.isrPolicy)
-
+        ipIsrDark.darkCurrentCorrection(self.chunkExposure, self.masterChunkExposure, self.isrPolicy)
         self.chunkExposure.writeFits(outputPath)    
         
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

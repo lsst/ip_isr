@@ -18,7 +18,7 @@ import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
-def saturationCorrection(chunkExposure, isrPolicy):
+def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
 
     """Saturation Correction for the Chunk Exposure
 
@@ -53,8 +53,6 @@ def saturationCorrection(chunkExposure, isrPolicy):
         
         satTable = satPolicy.getBool("satTable")
         useDefSat = satPolicy.getBool("useDefSat")
-        satTableName = satPolicy.getString("satTableName")
-        satTableName = satPolicy.getString("satTableName") 
         satGrow = satPolicy.getInt("grow")
         satThresh = satPolicy.getInt("threshold")
         #nSatPixMin = satPolicy.getInt("nSatPixMin")

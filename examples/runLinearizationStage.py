@@ -1,5 +1,15 @@
+"""
+@brief Example code to run the nightly ISR's 'Linearization Stage'.
 
+@author Nicole M. Silvestri,
+        University of Washington
+        nms@astro.washington.edu
 
+ file created Mon Nov 24, 2008 
+
+@file
+
+"""
 if __name__ == "__main__":
     import eups
     import os
@@ -7,7 +17,7 @@ if __name__ == "__main__":
     import lsst.daf.base as dafBase
     import lsst.pex.logging as pexLog
     import lsst.pex.policy as pexPolicy
-    import lsst.ip.isr.SaturationCorrection as ipIsrSat 
+    import lsst.ip.isr.Linearization as ipIsrLinear 
 
     pexLog.Trace.setVerbosity("lsst.ip.isr", 4)
     
@@ -20,39 +30,39 @@ if __name__ == "__main__":
     
     chunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")
     isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-    lookupTablePath = os.path.join(isrDir, "pipeline", "saturationLookupTable.tab")
-    chunkExposureOutPath = os.path.join(dataDir, "satStageTestExposure_1")
+    lookupTablePath = os.path.join(isrDir, "pipeline", "linearizationLookupTable.tab")
+    chunkExposureOutPath = os.path.join(dataDir, "linearStageTestExposure_1")
     
     memId0 = dafBase.Citizen_getNextMemId()
 
     chunkExposure = afwImage.ExposureD()
     chunkExposure.readFits(chunkExposureInPath)
 
-    isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
-    
-    chunkMaskedImage = self.chunkExposure.getMaskedImage()
-        numCols = chunkMaskedImage.getCols()
-        numRows = chunkMaskedImage.getRows()
-        numpixels = numCols * numRows
-        
-        lookupTable = open(lookupTablePath, "rU")  
-        pixelValues = lookupTable.readlines()
-        numPix = len(pixelValues)
-        print 'Number of pixels: ', numPix
-        for pixels in pixelValues:
-            # strip trailing whitespace, returns, etc.
-            pixels = pixels.strip()
-            # ignore blank lines
-            if not pixels:
-                continue
-            # ignore comment lines
-            if pixels.startswith("#"):
-                continue
-            lookupList = pixels.split()
-            if len(pixelList) < numPixels or len(pixelList) > numPixels:
-                print "Cannot parse: " pixels
+    chunkMaskedImage = chunkExposure.getMaskedImage()
+    numCols = chunkMaskedImage.getCols()
+    numRows = chunkMaskedImage.getRows()
+    numpixels = numCols * numRows
 
-     ipIsrSat.saturationCorrection(chunkExposure, isrPolicy, lookupList)
+    isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
+
+    lookupTable = open(lookupTablePath, "rU")  
+    pixelValues = lookupTable.readlines()
+    numPix = len(pixelValues)
+    print 'Number of pixels: ', numPix
+     for pixels in pixelValues:
+        # strip trailing whitespace, returns, etc.
+        pixels = pixels.strip()
+        # ignore blank lines
+        if not pixels:
+            continue
+        # ignore comment lines
+        if pixels.startswith("#"):
+            continue
+        lookupList = pixels.split()
+        if len(pixelList) < numPixels or len(pixelList) > numPixels:
+            print "Cannot parse: " pixels
+    
+    ipIsrLinear.linearization(chunkExposure, isrPolicy, lookupList)
 
     pexLog.Trace("lsst.ip.isr.saturationCorrection", 4, "Writing chunkExposure to %s [_img|var|msk.fits]" % (chunkExposureOutPath,))
     chunkExposure.writeFits(chunkExposureOutPath)

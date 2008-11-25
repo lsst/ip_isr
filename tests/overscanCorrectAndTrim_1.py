@@ -26,7 +26,7 @@ import lsst.afw.image.testUtils as imUtilsTests
 import lsst.pex.logging as pexLog
 import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as ipIsr
+import lsst.ip.isr.OverscanCorrectAndTrim as ipIsrOver
 
 Verbosity = 4 # increase from zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
@@ -66,7 +66,7 @@ class isrTestCases(unittest.TestCase):
 
     def testOverscanCorrectAndTrim(self):
         
-        ipIsr.overscanCorrectAndTrim(self.chunkExposure, self.isrPolicy)
+        ipIsrOver.overscanCorrectAndTrim(self.chunkExposure, self.isrPolicy)
         self.chunkExposure.writeFits(outputPath)
                 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

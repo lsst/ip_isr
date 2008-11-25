@@ -1,11 +1,11 @@
 """
-@brief A simple test for the ISR stage, 'Saturation Correction'.
+@brief A simple test for the ISR stage, 'LInearization'.
 
 @author Nicole M. Silvestri,
         University of Washington
         nms@astro.washington.edu
 
-file created Nov 20, 2008
+file created MonNov 24, 2008
 
 @file
 """
@@ -26,7 +26,7 @@ import lsst.afw.image.testUtils as imUtilsTests
 import lsst.pex.logging as pexLog
 import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr.SaturationCorrection as ipIsrSat
+import lsst.ip.isr as ipIsr
 
 Verbosity = 4 # increase frm zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
@@ -43,17 +43,17 @@ if not isrDir:
 
 inFilePath = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")
 isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-satLookupTablePath = (isrDir, "pipeline", "satLookUpTable")
+lookupTablePath = (isrDir, "pipeline", "linearizationLookUpTable")
 
 ## OUTPUT IMAGE AND PATH NAMES
 
-outputPath = os.path.join(dataDir, "testSatCorExposure")
+outputPath = os.path.join(dataDir, "testLinearExposure")
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class isrTestCases(unittest.TestCase):
     """
-    Tests for the ISR stage, 'Saturation Correction'.
+    Tests for the ISR stage, 'Linearization'.
     """
     def setUp(self):
         self.chunkExposure = afwImage.ExposureF()
@@ -64,7 +64,7 @@ class isrTestCases(unittest.TestCase):
         del self.chunkExposure
         del self.isrPolicy
 
-    def testSaturationCorrection(self):
+    def testLinearization(self):
 
         chunkMaskedImage = self.chunkExposure.getMaskedImage()
         numCols = chunkMaskedImage.getCols()
@@ -87,13 +87,11 @@ class isrTestCases(unittest.TestCase):
             lookupList = pixels.split()
             if len(pixelList) < numPixels or len(pixelList) > numPixels:
                 print "Cannot parse: " pixels
-      
-        ipIsrSat.saturationCorrection(self.chunkExposure, self.isrPolicy, lookupList)
+
+        ipIsr.lineaization(self.chunkExposure, self.isrPolicy, lookupList)
 
         self.chunkExposure.writeFits(outputPath)
-        
-        #satCor = ipIsrSat.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy, satLookupTablePath)
-        
+                
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 def suite():

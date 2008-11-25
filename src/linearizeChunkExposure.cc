@@ -1,4 +1,4 @@
-// -*- LSST-C++ -*- // fixed format comment for emacs
+r// -*- LSST-C++ -*- // fixed format comment for emacs
 /**
   * \file
   *
