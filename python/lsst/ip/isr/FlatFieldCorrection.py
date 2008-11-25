@@ -18,7 +18,6 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
-import lsst.ip.isr.IlluminationCorrectionDR as ipIsrIllumDR
 import lsst.ip.isr.IlluminationCorrection as ipIsrIllum
 
 
@@ -208,7 +207,7 @@ def flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy):
             masterSfChunkExposure = afwImage.ExposureD() # Master Night Sky Flat Field Chunk Exposure
             sfCurrent = illumPolicy.getString("sfCurrent")
             masterSfChunkExposure.readFits(sfCurrent)
-            ipIsrIllumDR.illuminationCorrectionDR(masterChunkExposure, masterSfChunkExposure, isrPolicy)
+            ipIsrIllum.illuminationCorrectionDR(masterChunkExposure, masterSfChunkExposure, isrPolicy)
   
         if run == "nightly":
             masterIcpChunkMaskedImage = afwImage.MaskedImageD() # Master Night Sky Flat Field Chunk Exposure from a previous night

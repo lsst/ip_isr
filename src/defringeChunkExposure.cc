@@ -36,10 +36,8 @@
 
 #include "lsst/ip/isr/isr.h"
 
-/** \brief Remove overscan strip region and other non-illuminated edge pixels
-  * from the Chunk Exposure.  Valid region to be retained is defined by the
-  * DATASEC (defines the four corners of the valid region).
-  *
+/** \brief 
+ *
   * \return chunkExposure corrected for fringing
   *
   * \throw Runtime if sub-stage has been run previously
