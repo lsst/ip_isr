@@ -27,10 +27,10 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     lsst::detection::DetectionSet to create footprints of saturated pixels
     above a threshold as given in the ISR Policy.
 
-    Grow by additional pixels (as given in the ISR Policy) to mask charge
-    spillover.  Set appropriate bits in the Mask and interpolate over
-    masked pixels using the 'InterpolateOverMaskedPixels' utility
-    function.
+    Grow by additional pixels (as given in the ISR Policy) to mask
+    charge spillover.  Set appropriate bits in the Mask and
+    interpolate over masked pixels using the 'interpolateOverDefects'
+    member in detection.  A simple PSF estimation is used for now.
 
     @return chunkExposure with saturated pixels masked and interpolated
   
@@ -56,6 +56,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
         satGrow = satPolicy.getInt("grow")
         satThresh = satPolicy.getInt("threshold")
         #nSatPixMin = satPolicy.getInt("nSatPixMin")
+        psfFwhm = satPolicy.getInt("psfFWHM")
     except pexEx.LsstExceptionStack, e:
         print "Cannot parse the ISR Policy File: %s" % e   
     
@@ -111,7 +112,10 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     det.setMaskFromFootprintList(chunkMask, grownSatFootprintList, satMaskBit)
 
     pexLog.Trace("%s" % (stage,), 4, "Interpolating over all saturated footprints.")
-    ipIsr.interpolateOverMaskedPixels(chunkExposure, isrPolicy)
+    
+    psf = det.dgPSF(psfFwhm/(2*sqrt(2*log(2)))) 
+    chunkMaskedImage.getMask().addMaskPlane("INTERP")
+    det.interpolateOverDefects(chunkMaskedImage, psf, grownSatFootprintList)
     
     # Record the stage provenance to the Image Metadata (for now) this
     # will eventually go into an ISR_info object.
@@ -126,14 +130,15 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     # Calculate any additional SDQA Metrics and write all metrics to
     # the SDQA object (or directly to the clipboard)
                                
-    # pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
+    pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
                               
     """ Return the following for SDQA:
     - numSatFootprints
     - numSatPix
     - numGrownSatFootprints
     - numGrownSatPix                          
-    """                       
+    """
+    
     pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
     pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
                               

@@ -40,6 +40,9 @@ saturationPolicy: {
 
 # Minimum number of saturated pixels to be detected in a footprint
  nSatPixMin: 1
+
+# FWHM estimate for the PSF (needed for interpolation)
+ psfFWHM: 5
 }
 
 # Overscan Correct and Trim Chunk Exposure
@@ -119,9 +122,11 @@ illuminationPolicy: {
 
  # effective smoothing kernel size = binSize * kernelSize
  binSize: 4 # in pixels
- kernel: gaussian
- kernelSize: 30
+ kernelType: gaussian
+ kernelWidth: 5  # sigma
  chunkType: amp
+ kernelRow: 5
+ kernelCol: 5
  dfPrevious:  # file name (incl. path) of a previous night's Master Dome Flat (if running for nightly)
  sfCurrent:   # file name (incl. path) of the current night's Night Sky Flat (if running for DR)
  icPrevious:  tempIlumCorMaskedImage # file name (incl. path) of a previous night's Nights illumination correction MaskedImage (if running for nightly)

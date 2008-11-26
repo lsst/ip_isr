@@ -1,6 +1,6 @@
 """
 @brief: Implementation of the stage, Illumination Correction, for the
- Data Release Instrument Signature Removal Pipeline
+ Data Release and Nightly Instrument Signature Removal Pipeline
 
 @author: Nicole M. Silvestri
          University of Washington
@@ -228,8 +228,11 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         illumPolicy = isrPolicy.getPolicy("illuminationPolicy") 
         chunkType = illumPolicy.getString("chunkType")
         binSize = illumPolicy.getInt("binSize")
-        kernel = illumPolicy.getString("kernel")
-        kernelSize = illumPolicy.getInt("kernelSize")
+        kernelType = illumPolicy.getString("kernelType")
+        kernelWidth = illumPolicy.getInt("kernelWidth")
+        kernelCol = illumPolicy.getInt("kernelCol")
+        kernelRow = illumPolicy.getInt("kernelRow")
+        edgeMaskBit = illumPolicy.getInt("edgeMaskBit")
         illumMiName = illumPolicy.getString("illumMiName")
      except pexEx.LsstExceptionStack, e:
          print "Cannot parse the ISR Policy File: %s" % e   
@@ -366,27 +369,43 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
     # Divide the previous night's Dome Flat with the current night's Dome Flat.
   
     masterDpfChunkMaskedImage /= masterChunkMaskedImage
+
+    # WIll add other kernelTypes later...a simple gaussian is good for
+    # now.
+
+    if kernelType = "gaussian": 
     
-    # Smooth the new masterDpfChunkMaskedImage with a kernel
-    # NOTE: this is goingto be slow.  Bin the data and this will go faster.
-    # NEED TO ADD THIS STEP IN (11/25/08)
-    smoothedMasterChunkMaskedImage = afwImage.MaskedImageD()
-    
-    
+        # Smooth the new masterDpfChunkMaskedImage with a kernel NOTE:
+        # this is going to be slow.  Bin the maskedImage and this will go
+        # faster...
+        
+        smoothedMasterMaskedImage = afwImage.MaskedImageD()
+        gaussianFunc = afwMath.GaussianFunction2D()
+        gaussianFunc(kernelWidth, kernelWidth) 
+        kernel = afwMath.AnalyticKernel()
+        kernel(kernelCol, kernelRow, gaussianFunc) 
+        
+        # Do the convolution 
+        smoothedMasterMaskedImage(masterDpfChunkMaskedImage.getDimensions()) 
+        afwMath.convolve(smoothedMasterMaskedImage, masterDpfChunkMaskedImage, kernel, edgeMaskBit, true) 
+
+    else:
+        raise pexExcept.NotImplemented, "In %s: Invalid kernel type." % (stage,)
+
     # Construct the final illumination correction
     #RETURN THIS TO THE CLIPBOARD...DON'T WRITE IT OUT
     
-    smoothedMasterChunkMaskedImage *= masterIcpChunkMaskedImage
+    smoothedMasterMaskedImage *= masterIcpChunkMaskedImage
     smoothedMetadata = smoothedMasterChunkMaskedImage.getImage().getMetaData() 
 
     smoothedMetadata.addProperty(dafBase.DataProperty("ILNP_BS", binSize))
     smoothedMetadata.addProperty(dafBase.DataProperty("ILNP_KS", kernelSize))
+    smoothedMetadata.addProperty(dafBase.DataProperty("ILNP_KS", kernelWidth))
     smoothedMetadata.addProperty(dafBase.DataProperty("ILNP_KT", kernelType))
     smoothedMasterChunkMaskedImage.setMetadata(smoothedMetadata)
     
-    # Apply the Illumination Correction
-  
-    masterChunkMaskedImage *= smoothedMasterChunkMaskedImage
+    # Apply the Illumination Correction to the Master Flat Field MaskedImage
+    masterChunkMaskedImage *= smoothedMasterMaskedImage
 
     # Record final stage provenance to the Image Metadata
     dateTime = dafBase .DateTime.utc2mjd()
