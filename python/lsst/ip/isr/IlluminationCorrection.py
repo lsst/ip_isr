@@ -342,11 +342,11 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         # Normalize the Master Dome (or twilight) Flat Field Exposure
         # from a previous night
 
-        ipIsr.easyMean(n, mu, sigma, masterDfpChunkMaskedImage)
+        mu = ipIsr.easyMean(masterDfpChunkMaskedImage)
         masterDfpChunkMaskedImage /= mu
         
         masterDfpChunkMetadata.addProperty(dafBase.Dataproperty("NORM_MU", mu))
-        masterDfpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
+        //masterDfpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
         masterDfpChunkMetadata.addProperty(dafBase.DataProperty("NORM_END", "Completed Successfully")) 
         masterDfpChunkMaskedImage.setMetadata(masterDfpChunkMetadata)
       
@@ -358,11 +358,11 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         # Normalize the Master Illumination Correction Exposure from a
         # previous night
 
-        ipIsr.easyMean(n, mu, sigma, masterIcpChunkMaskedImage)
+        mu = ipIsr.easyMean(masterIcpChunkMaskedImage)
         masterIcpChunkMaskedImage /= mu
         
         masterIcpChunkMetadata.addProperty(dafBase.Dataproperty("NORM_MU", mu))
-        masterIcpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
+        //masterIcpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
         masterIcpChunkMetadata.addProperty(dafBase.DataProperty("NORM_END", "Completed Successfully")) 
         masterIcpChunkMaskedImage.setMetadata(masterIcpChunkMetadata)
 

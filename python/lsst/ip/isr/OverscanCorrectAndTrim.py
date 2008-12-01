@@ -1,6 +1,4 @@
-
 """
-
 @brief: Implementation of the stage, Overscan Correct and Trim, for the
  nightly Instrument Signature Removal Pipeline
 
@@ -12,6 +10,9 @@
 """
 import eups
 import os
+import sys
+
+import numpy
 
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
@@ -22,9 +23,37 @@ import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
 dataDir = eups.productDir("afwdata")
-    if not dataDir:
-        raise RuntimeError("Must set up afwdata to run this program.")
-    overscanExposureOutPath = os.path.join(dataDir, "overscanStripTestExposure_1")
+if not dataDir:
+    raise RuntimeError("Must set up afwdata to run this program.")
+overscanExposureOutPath = os.path.join(dataDir, "overscanStripTestExposure_1")
+
+
+def stringParser(dataString):
+
+    """
+    Simple code to parse data sections of CCD headers.
+    dataString is any data section in the form '[colBegin:colEnd,rowBegin,rowEnd]'
+
+    Return a vw::BBox2i, colBegin, colEnd, rowBegin, rowEnd
+    """
+
+    dsString = dataString[1:-1]
+    xdsPart, ydsPart = dsString.split(",")
+    colb, cole = xdsPart.split(":")
+    print "ColBegin, ColEnd :", colb, cole
+    rowb, rowe = ydsPart.split(":")
+    print "RowBegin, RowEnd: ", rowb, rowe
+    colEnd = int(cole)
+    colBegin = int(colb)
+    rowEnd = int(rowe)
+    rowBegin = int(rowb)
+    colSpan = colEnd - colBegin
+    print "ColSpan: ", colSpan
+    rowSpan = rowEnd - rowBegin
+    print "RowSpan: ", rowSpan 
+    dataBbox = afwImage.BBox2i(colBegin, rowBegin, colSpan, rowSpan)
+    return dataBbox, colBegin, colEnd, rowBegin, rowEnd
+
 
 def overscanCorrectAndTrim(chunkExposure, isrPolicy):
 
@@ -63,7 +92,7 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
 
     # Parse the Policy File
     try:
-     overscanPolicy = isrPolicy.getPolicy("overscanPolicy")
+     overPolicy = isrPolicy.getPolicy("overscanPolicy")
      method = overPolicy.getString("method")
      smooth = overPolicy.getBool("smooth")
      sigClip = overPolicy.getBool("sigClip")
@@ -84,47 +113,51 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     except pexEx.LsstExceptionStack, e:
         print "Cannot parse the Overscan Policy File for 'method': %s" % e
 
-     try:
-         if smooth = true:
-             smoothOpt = overPolicy.getString("smoothOpt")
-             if smoothOpt == "gaussian":
-                 smoothSigma = overPolicy.getInt("smoothSigma")
-             else:
-                 smoothOrder = overPolicy.getInt("smoothOrder")
-     except pexEx.LsstExceptionStack, e:
+    try:
+        if smooth == "true":
+            smoothOpt = overPolicy.getString("smoothOpt")
+            if smoothOpt == "gaussian":
+                smoothSigma = overPolicy.getInt("smoothSigma")
+            else:
+                smoothOrder = overPolicy.getInt("smoothOrder")
+    except pexEx.LsstExceptionStack, e:
          print "Cannot parse the Overscan Policy File for 'smooth': %s" % e
 
-     try:
-         if sigClip = true:
-             sigClipVal = overPolicy.getInt("sigClipVal") 
-     except pexEx.LsstExceptionStack, e:
-         print "Cannot parse the Overscan Policy File for 'sigClip': %s" % e
+    try:
+        if sigClip == "true":
+            sigClipVal = overPolicy.getInt("sigClipVal") 
+    except pexEx.LsstExceptionStack, e:
+        print "Cannot parse the Overscan Policy File for 'sigClip': %s" % e
     
     chunkMaskedImage = chunkExposure.getMaskedImage()
     chunkMetadata = chunkMaskedImage.getImage().getMetaData()
 
     try:
-        pexLog.Trace("%s" % (satStage,), 4, "Obtaining additional parameters from chunkMetadata.")
+        pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from chunkMetadata.")
         datasecProp = chunkMetadata.findUnique(datasecKey)
-        datasec = datasecProp.getValue()
+        datasec = datasecProp.getValueString()
         print "DATASEC: ", datasec
         trimsecProp = chunkMetadata.findUnique(trimsecKey)
         if trimsecProp:
-            trimsec = trimsecProp.getValue()
+            trimsec = trimsecProp.getValueString()
             print "TRIMSEC: ", trimsec
         biassecProp = chunkMetadata.findUnique(biassecKey)
-        biassec = biassecProp.getValue()
+        biassec = biassecProp.getValueString()
         print "BIASSEC: ", biassec
     except pexEx.LsstExceptionStack, e:
         print "Cannot get the requested data sections from the chunkExposure: %s" % e      
 
-    datasecBbox = ipIsr.stringParse(datasec)
-    biassecBbox = ipIsr.stringParse(biassec)
+    datasecBbox, dcb, dce, drb, dre = stringParser(datasec)
+    biassecBbox, bcb, bce, brb, bre = stringParser(biassec)
     if trimsec:
-        trimsecBbox = ipIsr.stringParse(trimsec)
+        trimsecBbox, tcb, tce, trb, tre = stringParser(trimsec)
 
-    trimExp = datasecBbox - biassecBbox
-
+    tcb = dcb - bce
+    tce = dce - bce
+    trb = drb - brb
+    tre - dre - bre
+    trimsecBbox = afwImage.BBox2i(tcb, trb, (tce - tcb), (tre - trb))
+    
     overscanExposure = afwImage.ExposureD()
     overscanMaskedImage = afwImage.MaskedImageD()
     overscanExposure = chunkExposure.getSubExposure(biassecBbox)
@@ -146,7 +179,7 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     trimmedMaskedImage = afwImage.MaskedImageD()
     trimmedMaskedImage = trimmedExposure.getMaskedImage()
     trimmedChunkMetadata = trimmedMaskedImage.getImage().getMetaData()
-    trimmedVarianceMetadata = trimmedMaskedImage.getVariance()->getMetaData();
+    trimmedVarianceMetadata = trimmedMaskedImage.getVariance().getMetaData()
 
     # Remove the datasec and biassec from the trimmed Chunk Exposure's
     # metadata...which currently lives in both the image and the
@@ -170,11 +203,24 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
         # this function to the Chunk Exposure.  Best fit determined
         # via Chi^2 minimization.
 
-        std.fill(parameterList.begin(), parameterList.end(), numParams)
-        std.fill(stepSizeList.begin(), stepSizeList.end(), stepSize)
-            
+        overCols = overscanMaskedImage.getCols()
+        overRows = overscanMaskedImage.getRows()
+        numOverPix = overCols * overRows
+
+        #fill(parameterList.begin(), parameterList.end(), numParams)
+        parameterList = numpy.empty(numParams)
+        
+        #fill(stepSizeList.begin(), stepSizeList.end(), stepSize)
+        stepSizeList = numpy.empty(numParams)
+        stepSizeList *= stepSize
+        
         # collapse the overscan region down to a vector.  Get vectors
         # of measurements, variances, and x,y positions
+
+        overscanMeasurementList = numpy.empty(numOverPix)
+        overscanVarianceList = numpy.empty(numOverPix)
+        colPositionList = numpy.empty(numOverPix)
+        rowPositionList = numpy.empty(numOverPix)
         
         ipIsr.makeVectorFromRegion(overscanMeasurementList, overscanVarianceList, colPositionList, rowPositionList, overscanMaskedImage)
 
@@ -187,7 +233,7 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
 
             polyFunc1 = afwMath.PolynomialFunction1D()
             polyFunc1(funcOrder)
-            sigma = 1.0; // initial guess
+            sigma = 1.0; # initial guess
 
             # find the best fit function
             overscanFit  = afwMath.minimize( 
@@ -197,13 +243,14 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
                 overscanMeasurementList, # overscan values 
                 overscanVarianceList,    # variance for each value 
                 colPositionList,         # x position  
-                //rowPositionList,       # y position (if Function2 function)
+              # rowPositionList,       # y position (if Function2 function)
                 sigma 
                 )  
 
-            for i = 0, i < overscanFit.parameterList.size(), ++i:
+            for i in range (0, overscanFit.parameterList.size()):
                 parameters[i] = overscanFit.parameterList[i]      
-            
+
+            print "Minimization Fit Parameters :", overscanFit.parameterList
             order = overscanFit.parameterList.size() - 1
             polyFunction = afwMath.PolynomialFunction1D()
             polyFunction(order)
@@ -218,7 +265,7 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
             trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_FN", funcForm))
             trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
             
-        else if funcForm == "spline":
+        elif funcForm == "spline":
             # not yet implemented
             raise pexExcept.InvalidParameter, "Spline is not yet implemented."
         else:
@@ -231,12 +278,12 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
         
         if constantMeth == "mean":
 
-            ipIsr.easyMean(n, mu, sigma, overscanMaskedImage)
+            mu = ipIsr.easyMean(overscanMaskedImage)
             trimmedMaskedImage -= mu
-        else if constantMeth == "median":
+        elif constantMeth == "median":
             # not yet implemented
             raise pexExcept.InvalidParameter, "Median is not yet implemented."
-        else if constantMeth == "mode":
+        elif constantMeth == "mode":
             # not yet implemented
             raise pexExcept.InvalidParameter, "Mode is not yet implemented."
         else: 

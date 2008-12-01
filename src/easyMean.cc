@@ -18,18 +18,20 @@
 
 #include <cmath>
 
-#include <lsst/afw/image/image.h>
-#include <lsst/afw/math.math.h>
+#include <lsst/afw/image.h>
+#include <lsst/afw/math.h>
 #include "lsst/ip/isr/isr.h"
 
 // Given the maskedImage, compute the number of elements (n), mean (mu) and
 // standard deviation (sigma) borrowing some code from Russell Owen's
 // medianBinApprox.
-// \return n, mu, and sigma
+// \return mu, and sigma
 
 typedef double funcType;
 
-int lsst::ip::isr::easyMean(long int &n, double &mu, double &sigma, lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage
+template <typename ImageT, typename MaskT>
+double lsst::ip::isr::easyMean(
+	lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage
     ) {
 
     lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miRowAcc(maskedImage);
@@ -49,6 +51,8 @@ int lsst::ip::isr::easyMean(long int &n, double &mu, double &sigma, lsst::afw::i
     // the mean
     double mu = sum/static_cast<double>(n);
     
+    return mu;
+
     double sumSq = 0;
     for (int miRow = 0; miRow < miRows; miRow++, miRowAcc.nextRow()) {
         lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miColAcc = miRowAcc;
@@ -60,4 +64,20 @@ int lsst::ip::isr::easyMean(long int &n, double &mu, double &sigma, lsst::afw::i
     }
     // the standard deviation
     double sigma = std::sqrt(sumSq/static_cast<double>(n));
+
 }
+
+/************************************************************************/
+/* Explicit instantiations */
+
+template
+double lsst::ip::isr::easyMean(
+    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> &maskedImage
+    );
+
+template
+double lsst::ip::isr::easyMean(
+    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> &maskedImage
+    ); 
+
+/************************************************************************/

@@ -17,8 +17,8 @@ Python bindings for lsst::ip::isr code
 #include "boost/cstdint.hpp"
 #include "boost/format.hpp"
 #include "boost/shared_ptr.hpp" 
-#include "vw/Math/Functions.h" 
-#include "vw/Math/Vector.h"
+// #include "vw/Math/Functions.h" 
+// #include "vw/Math/Vector.h"
 #include <lsst/afw/image.h> 
 #include <lsst/afw/image/MaskedImage.h>
 #include <lsst/afw/math.h> 
@@ -27,7 +27,6 @@ Python bindings for lsst::ip::isr code
 #include <lsst/pex/logging/Trace.h>
 #include <lsst/pex/policy/Policy.h>
 #include "lsst/ip/isr/isr.h"
-#include "lsst/ip/isr/interpolateOverMaskedPixels.h"
 %}
 
 %init %{
@@ -61,82 +60,102 @@ def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/pytho
 
 %include "lsst/ip/isr/isr.h"
 
-%template(saturationCorrectionForChunkExposure)
-    lsst::ip::isr::saturationCorrectionForChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(saturationCorrectionForChunkExposure)
-    lsst::ip::isr::saturationCorrectionForChunkExposure<double, lsst::afw::image::maskPixelType>;
+%template(easyMean)
+    lsst::ip::isr::easyMean<float, lsst::afw::image::maskPixelType>;
+%template(easyMean)
+    lsst::ip::isr::easyMean<double, lsst::afw::image::maskPixelType>;
 
-%template(overscanCorrectAndTrimChunkExposure)
-    lsst::ip::isr::overscanCorrectAndTrimChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(overscanCorrectAndTrimChunkExposure)
-    lsst::ip::isr::overscanCorrectAndTrimChunkExposure<double, lsst::afw::image::maskPixelType>;
+%template(fitFunctionToImage)
+    lsst::ip::isr::fitFunctionToImage<float, lsst::afw::image::maskPixelType>;
+%template(iterateTable)
+    lsst::ip::isr::fitFunctionToImage<double, lsst::afw::image::maskPixelType>;
 
-%template(biasCorrectChunkExposure)
-    lsst::ip::isr::biasCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(biasCorrectChunkExposure)
-    lsst::ip::isr::biasCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
+%template(iterateTable)
+    lsst::ip::isr::iterateTable<float, lsst::afw::image::maskPixelType>;
+%template(iterateTable)
+    lsst::ip::isr::iterateTable<double, lsst::afw::image::maskPixelType>;
 
-%template(darkCurrentCorrectChunkExposure)
-    lsst::ip::isr::darkCurrentCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(darkCurrentChunkExposure)
-    lsst::ip::isr::darkCurrentCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
+%template(findBestFit)
+    lsst::ip::isr::findBestFit<float, lsst::afw::image::maskPixelType >;
+%template(findBestFit)
+    lsst::ip::isr::findBestFit<double, lsst::afw::image::maskPixelType >;
 
-%template(linearizeChunkExposure)
-    lsst::ip::isr::linearizeChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(linearizeChunkExposure)
-    lsst::ip::isr::linearizeChunkExposure<double, lsst::afw::image::maskPixelType>;
+// %template(saturationCorrectionForChunkExposure)
+//     lsst::ip::isr::saturationCorrectionForChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(saturationCorrectionForChunkExposure)
+//     lsst::ip::isr::saturationCorrectionForChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%template(flatFieldCorrectChunkExposure)
-    lsst::ip::isr::flatFieldCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(flatFieldCorrectChunkExposure)
-    lsst::ip::isr::flatFieldCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
+// %template(overscanCorrectAndTrimChunkExposure)
+//     lsst::ip::isr::overscanCorrectAndTrimChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(overscanCorrectAndTrimChunkExposure)
+//     lsst::ip::isr::overscanCorrectAndTrimChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%template(illuminationCorrection)
-    lsst::ip::isr::illuminationCorrection<float, lsst::afw::image::maskPixelType>;
-%template(illuminationCorrection)
-    lsst::ip::isr::illuminationCorrection<double, lsst::afw::image::maskPixelType>;
+// %template(biasCorrectChunkExposure)
+//     lsst::ip::isr::biasCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(biasCorrectChunkExposure)
+//     lsst::ip::isr::biasCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%template(illuminationCorrectionDR)
-    lsst::ip::isr::illuminationCorrectionDR<float, lsst::afw::image::maskPixelType>;
-%template(illuminationCorrectionDR)
-    lsst::ip::isr::illuminationCorrectionDR<double, lsst::afw::image::maskPixelType>;
+// %template(darkCurrentCorrectChunkExposure)
+//     lsst::ip::isr::darkCurrentCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(darkCurrentChunkExposure)
+//     lsst::ip::isr::darkCurrentCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%template(pupilImageCorrection)
-    lsst::ip::isr::pupilImageCorrection<float, lsst::afw::image::maskPixelType>;
-%template(pupilImageCorrection)
-    lsst::ip::isr::pupilImageCorrection<double, lsst::afw::image::maskPixelType>;
+// %template(linearizeChunkExposure)
+//     lsst::ip::isr::linearizeChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(linearizeChunkExposure)
+//     lsst::ip::isr::linearizeChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%template(crosstalkCorrectChunkExposure)
-    lsst::ip::isr::crosstalkCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(crosstalkCorrectChunkExposure)
-    lsst::ip::isr::crosstalkCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
+// %template(flatFieldCorrectChunkExposure)
+//     lsst::ip::isr::flatFieldCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(flatFieldCorrectChunkExposure)
+//     lsst::ip::isr::flatFieldCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%template(defringeChunkExposure)
-    lsst::ip::isr::defringeChunkExposure<float, lsst::afw::image::maskPixelType>;
-%template(defringeChunkExposure)
-    lsst::ip::isr::defringeChunkExposure<double, lsst::afw::image::maskPixelType>;
+// %template(illuminationCorrection)
+//     lsst::ip::isr::illuminationCorrection<float, lsst::afw::image::maskPixelType>;
+// %template(illuminationCorrection)
+//     lsst::ip::isr::illuminationCorrection<double, lsst::afw::image::maskPixelType>;
 
-%template(geometricDistortionCorrection)
-    lsst::ip::isr::geometricDistortionCorrection<float, lsst::afw::image::maskPixelType>;
-%template(geometricDistortionCorrection)
-    lsst::ip::isr::geometricDistortionCorrection<double, lsst::afw::image::maskPixelType>;
+// %template(illuminationCorrectionDR)
+//     lsst::ip::isr::illuminationCorrectionDR<float, lsst::afw::image::maskPixelType>;
+// %template(illuminationCorrectionDR)
+//     lsst::ip::isr::illuminationCorrectionDR<double, lsst::afw::image::maskPixelType>;
 
-%template(maskAndCorrectAdditionalArtifacts)
-    lsst::ip::isr::maskAndCorrectAdditionalArtifacts<float, lsst::afw::image::maskPixelType>;
-%template(maskAndCorrectAdditionalArtifacts)
-    lsst::ip::isr::maskAndCorrectAdditionalArtifacts<double, lsst::afw::image::maskPixelType>;
+// %template(pupilImageCorrection)
+//     lsst::ip::isr::pupilImageCorrection<float, lsst::afw::image::maskPixelType>;
+// %template(pupilImageCorrection)
+//     lsst::ip::isr::pupilImageCorrection<double, lsst::afw::image::maskPixelType>;
 
-%template(additionalFlatFieldCorrection)
-    lsst::ip::isr::additionalFlatFieldCorrection<float, lsst::afw::image::maskPixelType>;
-%template(additionalFlatFieldCorrection)
-    lsst::ip::isr::additionalFlatFieldCorrection<double, lsst::afw::image::maskPixelType>;
+// %template(crosstalkCorrectChunkExposure)
+//     lsst::ip::isr::crosstalkCorrectChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(crosstalkCorrectChunkExposure)
+//     lsst::ip::isr::crosstalkCorrectChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%include "lsst/ip/isr/interpolateOverMaskedPixels.h"
+// %template(defringeChunkExposure)
+//     lsst::ip::isr::defringeChunkExposure<float, lsst::afw::image::maskPixelType>;
+// %template(defringeChunkExposure)
+//     lsst::ip::isr::defringeChunkExposure<double, lsst::afw::image::maskPixelType>;
 
-%template(interpolateOverMaskedPixels)
-    lsst::ip::isr::interpolateOverMaskedPixels<float, lsst::afw::image::maskPixelType>;
-%template(interpolateOverMaskedPixels)
-    lsst::ip::isr::interpolateOverMaskedPixels<double, lsst::afw::image::maskPixelType>;
+// %template(geometricDistortionCorrection)
+//     lsst::ip::isr::geometricDistortionCorrection<float, lsst::afw::image::maskPixelType>;
+// %template(geometricDistortionCorrection)
+//     lsst::ip::isr::geometricDistortionCorrection<double, lsst::afw::image::maskPixelType>;
+
+// %template(maskAndCorrectAdditionalArtifacts)
+//     lsst::ip::isr::maskAndCorrectAdditionalArtifacts<float, lsst::afw::image::maskPixelType>;
+// %template(maskAndCorrectAdditionalArtifacts)
+//     lsst::ip::isr::maskAndCorrectAdditionalArtifacts<double, lsst::afw::image::maskPixelType>;
+
+// %template(additionalFlatFieldCorrection)
+//     lsst::ip::isr::additionalFlatFieldCorrection<float, lsst::afw::image::maskPixelType>;
+// %template(additionalFlatFieldCorrection)
+//     lsst::ip::isr::additionalFlatFieldCorrection<double, lsst::afw::image::maskPixelType>;
+
+// %include "lsst/ip/isr/interpolateOverMaskedPixels.h"
+
+// %template(interpolateOverMaskedPixels)
+//     lsst::ip::isr::interpolateOverMaskedPixels<float, lsst::afw::image::maskPixelType>;
+// %template(interpolateOverMaskedPixels)
+//     lsst::ip::isr::interpolateOverMaskedPixels<double, lsst::afw::image::maskPixelType>;
 
 /******************************************************************************/
 // Local Variables: ***

@@ -22,32 +22,29 @@
 #include <cmath>
 
 #include "vw/Math/BBox.h"
+#include "lsst/ip/isr/stringParse.h"
 
 // Simple string iterator to help parse data sections.
 // Finds the string between two delimiting characters
 // Adapted from C-code snippet by Mike Wahler.
 
-std::string between(std::string& s, char ldelim, char rdelim)
+std::string between(std::string &s, char ldelim, char rdelim)
 {
     std::string::iterator b(s.begin());
     std::string::iterator e(s.end());
     std::string::iterator lp;
     std::string::iterator rp;
-    
+
     std::string result;
-    
+
     if((lp = std::find(b, e, ldelim)) != e)
         if((rp = std::find(++lp, e, rdelim)) != e)
             result = std::string(lp, rp);
-    
+
     return result;
 }
 
-// Simple parsing routine for data sections.
-// Typical pattern for the data sections is: [####:####,####:####]
-//\return vw::BBox2i 
-
-vw::BBox2i stringParse(std::string& section)
+vw::BBox2i lsst::ip::isr::stringParse(std::string &section)
 { 
 
     const char begin('[');
@@ -55,7 +52,7 @@ vw::BBox2i stringParse(std::string& section)
     const char delim1(':');
     const char delim2(',');
 
-    std::string temp1(between(section, delim2, end));
+    std::string temp(between(section, delim2, end));
     std::size_t position = temp.find(":");
 
     // NOTE: atoi() needs to be passed a c_str() to get the int out
@@ -72,7 +69,7 @@ vw::BBox2i stringParse(std::string& section)
     std::cout << "rowsEnd: " << rowsEnd << std::endl;
 
     const int colSpan = colsEnd - colsStart;
-    const int cowSpan = rowsEnd - rowsStart;
+    const int rowSpan = rowsEnd - rowsStart;
 
     vw::BBox2i bBox = vw::BBox2i(colsStart, rowsStart, colSpan, rowSpan);
 

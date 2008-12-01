@@ -17,8 +17,8 @@
   * LSST Legalese here...
   */
 
-#include <lsst/afw/image/image.h>
-#include <lsst/afw/math.math.h>
+#include <lsst/afw/image.h>
+#include <lsst/afw/math.h>
 #include "lsst/ip/isr/isr.h"
 
 // Given the maskedImage and the lookupTable, 
@@ -32,8 +32,10 @@ void lsst::ip::isr::iterateTable(
     std::vector<vectorType> &lookupTable
     ) {
 
-    std::vector<vectorType>::iterator tableIter = lookupTable.begin();
-    std::vector<vectorType>::iterator tableIterEnd = lookupTable.end();
+//    std::vector<vectorType>::iterator tableIter = lookupTable.begin();
+//    std::vector<vectorType>::iterator tableIterEnd = lookupTable.end();
+
+    int maxInd = lookupTable.size() - 1;
     const int miCols = static_cast<int>(maskedImage.getCols());
     const int miRows = static_cast<int>(maskedImage.getRows());
 
@@ -42,14 +44,29 @@ void lsst::ip::isr::iterateTable(
     for (int miRow = 0; miRow < miRows; miRow++, miRowAcc.nextRow()) {
         lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miColAcc = miRowAcc;
         for (int miCol = 0; miCol < miCols; miCol++, miColAcc.nextCol()) {
-            if (tableIter != tableIterEnd) {
-                    
-                double tableVal = lookupTable[tableIter];     
-                // Note: if adding a constant with no associated uncertainty,
-                // the variance does not change
-                *chunkColAcc.image += static_cast<ImageT>(tableVal);
-                *tableIter++;
-            }
+            int ind = static_cast<int>(*miColAcc.image);
+            if ((ind < 0) || (ind > maxInd)) {
+            	 throw lsst::pex::exceptions::RangeError(std::string("Lookup table iterator out of range."));        
+            } else {
+                *miColAcc.image += lookupTable[ind]; 
+	    } 
         }
     }
 }
+
+/************************************************************************/
+/* Explicit instantiations */
+
+template
+void lsst::ip::isr::iterateTable(
+    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> &maskedImage,
+    std::vector<vectorType> &lookupTable
+    );
+
+template
+void lsst::ip::isr::iterateTable(
+    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> &maskedImage,
+    std::vector<vectorType> &lookupTable
+    );
+
+/************************************************************************/

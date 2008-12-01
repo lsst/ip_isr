@@ -19,38 +19,19 @@
 #ifndef LSST_IP_ISR_ISR_H
 #define LSST_IP_ISR_ISR_H
 	
+#include <string>
 #include <vector>
 
-#include <lsst/daf/base.h>
-#include <lsst/daf/data/LsstBase.h>	
+#include "vw/Math/BBox.h"
+
+#include <lsst/daf/base.h> 
+#include <lsst/daf/data/LsstBase.h>  	
 #include <lsst/afw/image.h>
-#include <lsst/pex/policy/Policy.h>
+#include <lsst/afw/image/MaskedImage.h>
+#include <lsst/afw/math.h>
 
 /** \brief Remove all non-astronomical source counts from the Chunk Exposure's
   * pixels.
-  * 
-  * The sequence of sub-stages within the Instrument Signature Removal (ISR)
-  * stage of the nightly IPP are as follows:
-  * 
-  * Saturation Correction for Chunk Exposure
-  * Overscan Correct and Trim Chunk Exposure
-  * Bias Correct Chunk Exposure
-  * Dark Current Correct Chunk Exposure
-  * Linearize Chunk Exposure
-  * Flat Field Correct Chunk Exposure
-  *  (DC3 Stretch) - Pupil Image Correction
-  *  - Illumination Correction (scattered light correction)
-  * Defringe Chunk Exposure
-  * (DC3 Stretch) Geometric Distortion Correction
-  * (DC3 Stretch) Mask and Correct Additional Artifacts
-  * (DC3 Stretch) Additional Flat Correction
-  * (DC3 Stretch) Crosstalk Correct Chunk Exposure
-  * (DC3 Stretch) Cosmic Ray Detection
-  * 
-  * Crosstalk Correction will be incorporated as an individual sub-stage for the
-  * Data Release ISR stage.  It is not currently part of the nightly ISR stage
-  * as we receive a crosstalk corrected image from the camera for the nightly
-  * pipeline.
   * 
   */
 	
@@ -59,132 +40,34 @@ namespace ip {
 namespace isr {
     
     typedef double vectorType;
-    
+    typedef double funcType;    
+
     template<typename ImageT, typename MaskT>
-    void saturationCorrectionForChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-        lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
-//        std::vector<vectorType> &saturationLookupTable
-        );
-    
-    template<typename ImageT, typename MaskT>
-    void overscanCorrectAndTrimChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-        lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy & datasetPolicy
-//	lsst::afw::image::Exposure<ImageT, MaskT> &chunkOverscanExposure
+    double easyMean(
+        lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage
         );
 
     template<typename ImageT, typename MaskT>
-    void biasCorrectChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
+    void fitFunctionToImage(
+        lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage,
+        lsst::afw::math::PolynomialFunction1<funcType> &polyFunction
         );
 
-    template<typename ImageT, typename MaskT>
-    void darkCurrentCorrectChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
+    template<typename ImageT, typename MaskT> 
+    void iterateTable(
+        lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage,
+        std::vector<vectorType> &lookupTable
         );
 
-    template<typename ImageT, typename MaskT>
-    void linearizeChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-        lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy,
-	std::vector<vectorType> &linearizeLookupTable
+    template<typename ImageT, typename MaskT> 
+    void findBestFit(
+        lsst::afw::image::MaskedImage<ImageT, MaskT> const &maskedImage,
+        std::string &funcForm,
+        int &funcOrder
         );
 
-    template<typename ImageT, typename MaskT>
-    void flatFieldCorrectChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
-        lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
-        );
-
-    template<typename ImageT, typename MaskT>
-    void illuminationCorrection(
-	lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> const &masterDfpChunkExposure,
-        lsst::afw::image::MaskedImage<ImageT, MaskT> const &masterIcpChunkMaskedImage,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
-        );
-
-    template<typename ImageT, typename MaskT>
-    void illuminationCorrectionDR(
-	lsst::afw::image::Exposure<ImageT, MaskT> &masterChunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> &masterSfChunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
-        );
-
-    template<typename ImageT, typename MaskT>
-    void defringeChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-        lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
-        lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy  
-        );
-
-//     template<typename ImageT, typename MaskT>
-//     void interpolateOverMaskedPixels(
-//         lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure, 
-//         lsst::pex::policy::Policy &stagePolicy
-//         );
-
-// DC3 STRETCH GOALS
-
-    template<typename ImageT, typename MaskT>
-    void geometricDistortionCorrection(
-	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-        lsst::pex::policy::Policy &datasetPolicy
-        );
-
-    template<typename ImageT, typename MaskT>
-    void pupilImageCorrection(
-	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy        
-        );
-
-    template<typename ImageT, typename MaskT>
-    void maskAndCorrectAdditionalArtifacts(
-	lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-        lsst::pex::policy::Policy &datasetPolicy
-        );
-
-    template<typename ImageT, typename MaskT>
-    void crosstalkCorrectChunkExposure(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
- 	lsst::pex::policy::Policy &datasetPolicy,
-	std::vector<vectorType> &crosstalkLookupTable
-        );
-
-    template<typename ImageT, typename MaskT>
-    void cosmicRayDetection(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy
-        );
-
-// LSST GOAL - not for DC3.  Requires tunable laser dome flats
-    template<typename ImageT, typename MaskT>
-    void additionalFlatFieldCorrection(
-        lsst::afw::image::Exposure<ImageT, MaskT> &chunkExposure,
-	lsst::afw::image::Exposure<ImageT, MaskT> const &masterChunkExposure,
-	lsst::pex::policy::Policy &isrPolicy,
-	lsst::pex::policy::Policy &datasetPolicy          
+    vw::BBox2i stringParse(
+        std::string &section
         );
 
 }}} // namespace lsst::ip::isr

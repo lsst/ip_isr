@@ -9,14 +9,15 @@
 
 @file
 """
-
+import math
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
 import lsst.detection as det
 import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as ipIsr
+#import lsst.ip.isr as ipIsr
+import isrLib
 
 def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
 
@@ -39,7 +40,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     TO DO (as of Tue 11/20/08):
     - delineate between A/D saturated pixels and other?
     - Calculate additional SDQA metrics as requested by SDQA team
-    - inplement option for using satLimit from LookupTable??
+    - implement option for using satLimit from LookupTable??
     - sigma clipping?
     """
 
@@ -113,7 +114,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
 
     pexLog.Trace("%s" % (stage,), 4, "Interpolating over all saturated footprints.")
     
-    psf = det.dgPSF(psfFwhm/(2*sqrt(2*log(2)))) 
+    psf = det.dgPSF(psfFwhm/(2*math.sqrt(2*math.log(2)))) 
     chunkMaskedImage.getMask().addMaskPlane("INTERP")
     det.interpolateOverDefects(chunkMaskedImage, psf, grownSatFootprintList)
     

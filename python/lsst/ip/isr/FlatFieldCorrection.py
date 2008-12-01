@@ -177,11 +177,11 @@ def flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy):
         # the Master Flat Field Chunk Exposure by the mean value of
         # the entire Master Flat Field Chunk Exposure.
 
-        ipIsr.easyMean(n, mu, sigma, masterChunkMaskedImage)
+        mu = ipIsr.easyMean(masterChunkMaskedImage)
         masterChunkMaskedImage /= mu
         
         masterChunkMetadata.addProperty(dafBase.Dataproperty("NORM_MU", mu))
-        masterChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))
+        //masterChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))
         chunkMetadata.addProperty(dafBase.DataProperty("NORM_MU", mu))
         chunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))
         masterChunkMetadata.addProperty(dafBase.DataProperty("NORM_END", "Completed Successfully")) 

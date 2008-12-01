@@ -16,8 +16,8 @@
   * LSST Legalese here...
   */
 
-#include <lsst/afw/image/image.h>
-#include <lsst/afw/math.math.h>
+#include <lsst/afw/image.h>
+#include <lsst/afw/math.h>
 #include "lsst/ip/isr/isr.h"
 
 //Given the maskedImage and the polynomial function, 
@@ -44,3 +44,20 @@ void lsst::ip::isr::fitFunctionToImage(
         }
     }
 }
+
+/************************************************************************/
+/* Explicit instantiations */
+
+template
+void lsst::ip::isr::fitFunctionToImage(
+    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> &maskedImage,
+    lsst::afw::math::PolynomialFunction1<funcType> &polyFunction
+    );
+
+template
+void lsst::ip::isr::fitFunctionToImage(
+    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> &maskedImage,
+    lsst::afw::math::PolynomialFunction1<funcType> &polyFunction
+    );
+
+/************************************************************************/

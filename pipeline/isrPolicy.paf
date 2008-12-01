@@ -72,6 +72,14 @@ overscanPolicy: {
  sigClip: false
  sigClipVal: 3
 
+# header keywords
+# datasec: DATASEC
+# biassec: BIASSEC
+# trimsec: TRIMSEC
+ datasec: DSECA
+ biassec: BSECA
+ trimsec: TSECA
+
 }
 
 # Bias Correct Chunk Exposure

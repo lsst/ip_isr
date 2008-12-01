@@ -1,5 +1,3 @@
-
-
 if __name__ == "__main__":
     import eups
     import os
@@ -17,8 +15,9 @@ if __name__ == "__main__":
     isrDir = eups.productDir("ip_isr")
     if not isrDir:
         raise RuntimeError("Must set up ip_isr to run this program.")
-    
-    chunkExposureInPath = os.path.join(dataDir, "satStageTestExposure_1")
+ 
+    chunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")   
+#    chunkExposureInPath = os.path.join(dataDir, "satStageTestExposure_1")
     isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
     chunkExposureOutPath = os.path.join(dataDir, "overStageTestExposure_1")
     
