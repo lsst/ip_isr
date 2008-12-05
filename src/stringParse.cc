@@ -22,7 +22,7 @@
 #include <cmath>
 
 #include "vw/Math/BBox.h"
-#include "lsst/ip/isr/stringParse.h"
+#include "lsst/ip/isr/isr.h"
 
 // Simple string iterator to help parse data sections.
 // Finds the string between two delimiting characters

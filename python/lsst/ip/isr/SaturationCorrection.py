@@ -9,6 +9,8 @@
 
 @file
 """
+
+import os
 import math
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
@@ -17,6 +19,7 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 #import lsst.ip.isr as ipIsr
+import lsst.detection.defects as defects
 import isrLib
 
 def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
@@ -67,7 +70,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     try:
         pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from chunkMetadata.")
         satField = chunkMetadata.findUnique("SATURATE")
-        satLimit = satField.getValue()
+        satLimit = satField.getValueInt()
         print "satLimit: %s" % (satLimit,)
     except pexEx.LsstExceptionStack, e:
         print "Cannot get the saturation limit from the chunkExposure: %s" % e      
@@ -116,7 +119,12 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     
     psf = det.dgPSF(psfFwhm/(2*math.sqrt(2*math.log(2)))) 
     chunkMaskedImage.getMask().addMaskPlane("INTERP")
-    det.interpolateOverDefects(chunkMaskedImage, psf, grownSatFootprintList)
+
+    badPixList = defects.policyToBadRegionList(os.path.join(os.environ["DETECTION_DIR"],
+                                                                    "pipeline/BadPixels.paf"))
+
+    det.interpolateOverDefects(chunkMaskedImage, psf, badPixList)
+    #det.interpolateOverDefects(chunkMaskedImage, psf, grownSatFootprintList)
     
     # Record the stage provenance to the Image Metadata (for now) this
     # will eventually go into an ISR_info object.

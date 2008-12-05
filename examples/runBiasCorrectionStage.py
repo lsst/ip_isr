@@ -1,23 +1,24 @@
 """
-@brief Example code to run the nightly ISR's 'Bias Correction Stage'.
+@brief Example code to run the nightly ISR Bias Correction Stage.
 
-@author Nicole M. Silvestri, University of Washington
- contact nms@astro.washington.edu
+@author Nicole M. Silvestri
+        University of Washington
+        nms@astro.washington.edu
 
- file created Mon Nov 24, 2008 
+        created: Mon Nov 24, 2008 
 
 @file
 
 """
+import eups
+import os
+import lsst.afw.image as afwImage
+import lsst.daf.base as dafBase
+import lsst.pex.logging as pexLog
+import lsst.pex.policy as pexPolicy
+import lsst.ip.isr.BiasCorrection as ipIsrBias
 
-if __name__ == "__main__":
-    import eups
-    import os
-    import lsst.afw.image as afwImage
-    import lsst.daf.base as dafBase
-    import lsst.pex.logging as pexLog
-    import lsst.pex.policy as pexPolicy
-    import lsst.ip.isr.BiasCorrection as ipIsrBias 
+def main():
 
     pexLog.Trace.setVerbosity("lsst.ip.isr", 4)
     
@@ -29,11 +30,9 @@ if __name__ == "__main__":
         raise RuntimeError("Must set up ip_isr to run this program.")
     
     chunkExposureInPath = os.path.join(dataDir, "overStageTestExposure_1")
-    masterChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.bias.0.36.00_1_img.fits")
+    masterChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.bias.0.36.00_1")
     isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
     chunkExposureOutPath = os.path.join(dataDir, "biasStageTestExposure_1")
-    
-    memId0 = dafBase.Citizen_getNextMemId()
 
     chunkExposure = afwImage.ExposureD()
     chunkExposure.readFits(chunkExposureInPath)
@@ -46,6 +45,11 @@ if __name__ == "__main__":
 
     pexLog.Trace("lsst.ip.isr.biasCorrection", 4, "Writing chunkExposure to %s [_img|var|msk.fits]" % (chunkExposureOutPath,))
     chunkExposure.writeFits(chunkExposureOutPath)
+
+if __name__ == "__main__":
+   
+    memId0 = dafBase.Citizen_getNextMemId()
+    main()
     
     # check for memory leaks
     if dafBase.Citizen_census(0, memId0) != 0:

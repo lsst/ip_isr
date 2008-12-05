@@ -1,8 +1,14 @@
 #<?cfg paf policy ?>
-# Main ISR Pipeline Policy File
+#
+# MAIN ISR POLICY FILE
+# Created Aug 10, 2008
+# Author: Nicole M.Silvestri
+#         University of Washington
+#         nms@astro.washington.edu
+# Version: 1.0 - last updated Tue Nov 02, 2008
 
-# GENERAL ISR PIPELINE INFORMATION
 ######################################
+# GENERAL ISR PIPELINE INFORMATION
 
 # Debugging/testing? (boolean)
 debugIO: false
@@ -11,151 +17,205 @@ debugIO: false
 bpm: true
 
 # Size of Chunk (FPA, RAFT, CCD, AMP, OTHER)
-chunk: amp
+chunkType: AMP
 
-# Current ISR run for Nightly or for Data Release Processing ('DR' or 'nightly')
-run: DR
+# Is urrent ISR run Nightly or Data Release Processing?
+run: DR #('DR' or 'nightly')
 
-
-# ISR STAGE-SPECIFIC INFORMATION
-######################################
-
-# Saturation Correction For Chunk Exposure		
+########################################
+# SATURATION CORRECTION STAGE POLICY	
+	
 saturationPolicy: {
 
  # Does a Saturation Lookup Table exist? (boolean)
  satTable: false
  
- # Use the default saturation limit in the dataset file? (boolean)
+ # Saturation Lookup Table Name
+ satTableName: saturationLookupTable.tab
+
+ # Use the default saturation limit in the policy file? (boolean)
  useDefSat: true
 
- # Saturation Lookup Table Name
- satTableName: satTable 
+ # Threshold for saturated pixel detection if not found elsewhere
+ threshold: 65535 #ADUs - CFHT limit
 
- # Number of pixels to grow
- grow: 1
-
- # Threshold for saturation limit
- threshold: 65535
-
-# Minimum number of saturated pixels to be detected in a footprint
+ # Minimum number of saturated pixels to be detected in a footprint
  nSatPixMin: 1
 
-# FWHM estimate for the PSF (needed for interpolation)
+ # Number of pixels to grow around footprints
+ grow: 1
+
+ # FWHM estimate for the PSF (needed for interpolation)
  psfFWHM: 5
+
 }
 
-# Overscan Correct and Trim Chunk Exposure
+########################################
+# OVERSCAN CORRECT AND TRIM STAGE
+
 overscanPolicy: {
 
- # Fit a constant value or function?
- method: function
+ # Fit a constant value or function ('CONSTANT' or 'FUNCTION')?
+ method: CONSTANT
 
- # Functional form (polynomial, spline, etc)
- # will run Chi^2 minimization, get these parameters too
- funcForm: polynomial
+ # Functional form, 1D only ('POLYNOMIAL', 'SPLINE', CHEBYCHEV) 
+ funcForm: POLYNOMIAL
  funcOrder: 3
- stepSize: 1.0 # some reasonable guess at a step size for the minimization
- numParams: 0.0 # number of parameters to start with for the minimization
+ # Parameters for the minimization
+ stepSize: 1.0 # some reasonable guess at a step size
+ numParams: 4 # number of parameters to start with
 
- # Method for determining the constant value to use
- constantMeth: mean
+ # Method for determining the constant value ('MEAN', 'MEDIAN', 'AVERAGE', 'MODE')
+ constantMeth: MEAN
 
- # Do you want to smooth the image?
+ # Smooth the image or overscan region?
  smooth: false
- # boxcar or gaussian (if gaussian, # gaussian sigma)
- smoothOpt: boxcar
+
+ # Smoothing function (BOXCAR or GAUSSIAN)
+ smoothOpt: BOXCAR
  smoothOrder: 3
+ # if gaussian:
  smoothSigma: 4
 
- # Do you want to sigma-clip the image?
+ # Want to sigma-clip the image?
  sigClip: false
  sigClipVal: 3
 
-# header keywords
-# datasec: DATASEC
-# biassec: BIASSEC
-# trimsec: TRIMSEC
+ # header keywords for conversion to LSST standard keys in ISR 
+ # TO DO: these will be removed and rectified in the data format stage eventually 
+ # datasec: DATASEC
+ # biassec: BIASSEC
+ # trimsec: TRIMSEC
  datasec: DSECA
  biassec: BSECA
  trimsec: TSECA
 
 }
 
-# Bias Correct Chunk Exposure
+######################################
+# BIAS CORRECTION STAGE
+
 biasPolicy: {
+
+ # Want to sigma-clip the exposure?
  sigClip: false
  sigClipVal: 3
- biasScale: 1.0
- chunkType: amp
+
+ # Additional scaling of the master bias?
  biasScale: 1.0
 
 }
 
-# Dark Current Correct Chunk Exposure
+######################################
+# DARK CURRENT CORRECTION STAGE
+
 darkPolicy: {
- darkScale: 1.0
+
+ # Want to sigma-clip the exposure?
  sigClip: false
  sigClipValue: 3
- chunkType: amp
+
+ # Additional scaling of the master dark (beyond EXPTIME scale)?
  darkScale: 1.0
- 
+
 }
 
-# Linearize Chunk Exposure
+######################################
+# LINEARIZATION STAGE
+
 linearizePolicy: {
+
+ # Perform a functional fit or use a lookup table (FUNCTION or LOOKUP)
+ linearizeType: FUNCTION
 
  # Does a Linearization Lookup Table exist? (boolean)
  linTable: false
- # Functional form of the linearization fit
- funcForm: polynomial
+ lookupTableName: linearizationLookupTable.tab
+
+ # Functional form, 1D only (POLINOMIAL, SPLINE, CHEBYCHEV)
+ funcForm: POLYNOMIAL
  funcOrder: 3
- stepSize: 1.0 # some reasonable guess at a step size for the minimization
- numParams: 0.0 #number of parameters to start with for the minimization
+ # Parameters for the minimization
+ stepSize: 1.0 # some reasonable guess at a step size
+ numParams: 4 # number of parameters to start with 
 
 }
 
-# Flat Field Correct Chunk Exposure
+######################################
+# FLAT FIELD CORRECTION STAGE
+
 flatPolicy: {
+ 
+ 
+ # Want to stretch the image?
  stretchFactor: 1.0
+
+ # Want to sigma-clip the image?
  sigClip: false
  sigClipVal: 3
- chunkType: amp 
+ 
+ # Additional scaling of the master flat
  flatScale: 1.0
 
 }
 
-# Ilumination Correction
+######################################
+# ILLUMINATION CORRECTION STAGE(S)
+
 illuminationPolicy: {
 
  # effective smoothing kernel size = binSize * kernelSize
  binSize: 4 # in pixels
- kernelType: gaussian
+
+ # Type of kernel to smooth with (GAUSSIAN, BOXCAR)?
+ kernelType: GAUSSIAN
  kernelWidth: 5  # sigma
- chunkType: amp
- kernelRow: 5
- kernelCol: 5
- dfPrevious:  # file name (incl. path) of a previous night's Master Dome Flat (if running for nightly)
- sfCurrent:   # file name (incl. path) of the current night's Night Sky Flat (if running for DR)
- icPrevious:  tempIlumCorMaskedImage # file name (incl. path) of a previous night's Nights illumination correction MaskedImage (if running for nightly)
- illumMiName: tempIlumCorMaskedImage # name for the Ilumination Correction MaskedIamge (incl. full path)
+ kernelRow: 5 # size of kernel, number of cols
+ kernelCol: 5 # size of kernel, number of rows
+
+ # file name (incl. path) of a previous night's Master Dome Flat (if running for nightly)
+ dfPrevious:  
+ 
+ # file name (incl. path) of the current night's Night Sky Flat (if running for DR)
+ sfCurrent:   
+
+ # file name (incl. path) of a previous night's Nights illum. corr. (if running for nightly)
+ icPrevious:  tempIlumCorMaskedImage 
+
+ # file name  (incl. path) of the Ilum. Corr. MaskedIamge
+ illumMiName: tempIlumCorMaskedImage 
+
 }
 
-# Pupil Image Correction
+######################################
+# PUPIL IMAGE CORRECTION STAGE
+
 pupilPolicy: {
 
+
 }
 
-# Defringe Chunk Exposure
+######################################
+# FRINGE CORRECTION STAGE
+
 fringePolicy: {
+
+ # Want to stretch the image?
  stretchFactor: 1.0
+
+ # Want to sigma-clip the image?
  sigClip: false
  sigClipVal: 3
- chunkType: amp 
+
+ # Additional scaling of the master fringe
  fringeScale: 1.0
-}
-
-# Interpolate Over Masked Pixels
-interpolatePolicy: {
 
 }
+
+######################################
+# ADDITIONAL DC3B STAGES HERE
+
+
+
+######################################
+# END MAIN ISR POLICY FILE

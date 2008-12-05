@@ -49,8 +49,8 @@ namespace isr {
 
     template<typename ImageT, typename MaskT>
     void fitFunctionToImage(
-        lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage,
-        lsst::afw::math::PolynomialFunction1<funcType> &polyFunction
+        lsst::afw::image::MaskedImage<ImageT, MaskT> const &maskedImage,
+        lsst::afw::math::PolynomialFunction1<funcType> const &polyFunction
         );
 
     template<typename ImageT, typename MaskT> 
@@ -60,10 +60,11 @@ namespace isr {
         );
 
     template<typename ImageT, typename MaskT> 
-    void findBestFit(
+    lsst::afw::math::FitResults findBestFit(
         lsst::afw::image::MaskedImage<ImageT, MaskT> const &maskedImage,
-        std::string &funcForm,
-        int &funcOrder
+        std::string const &funcForm,
+        int funcOrder,
+        double stepSize
         );
 
     vw::BBox2i stringParse(

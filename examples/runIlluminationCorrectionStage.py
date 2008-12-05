@@ -1,5 +1,6 @@
 """
-@brief Example code to run the nightly ISR's 'Illumination Correction Stage'.
+@brief Example code to run the Data Release and nightly ISR
+Illumination Correction Stage.
 
 @author Nicole M. Silvestri
         University of Washington
@@ -10,45 +11,64 @@
 @file
 
 """
+import eups
+import os
+import lsst.afw.image as afwImage
+import lsst.daf.base as dafBase
+import lsst.pex.logging as pexLog
+import lsst.pex.policy as pexPolicy
+import lsst.ip.isr.IlluminationCorrection as ipIsrIllum
 
-if __name__ == "__main__":
-    import eups
-    import os
-    import lsst.afw.image as afwImage
-    import lsst.daf.base as dafBase
-    import lsst.pex.logging as pexLog
-    import lsst.pex.policy as pexPolicy
-    import lsst.ip.isr.IlluminationCorrection as ipIsrIllum 
+def main():
 
+    #Set verbosity - increase from zero to see messages
     pexLog.Trace.setVerbosity("lsst.ip.isr", 4)
-    
+
+    #Check for data and ISR directories
     dataDir = eups.productDir("afwdata")
     if not dataDir:
         raise RuntimeError("Must set up afwdata to run this program.")
     isrDir = eups.productDir("ip_isr")
     if not isrDir:
         raise RuntimeError("Must set up ip_isr to run this program.")
-    
-    chunkExposureInPath = os.path.join(dataDir, "linearStageTestExposure_1")
-    masterChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.flat.0.36.00_1_img.fits")
+
+    #INPUTS:
+    masterChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.flat.0.36.00_1_img.fits")  
     # going to have to make the night sky flat
     masterSFChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.NSflat.0.36.00_1_img.fits")
     isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-    chunkExposureOutPath = os.path.join(dataDir, "IllumStageTestExposure_1")
-    
-    memId0 = dafBase.Citizen_getNextMemId()
+    masterIcpChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.IC.0.36.00_1_img.fits") ##WRONG NAME
+    masterDfpChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.flat.0.36.00_1_img.fits")
 
+    #OUTPUTS:
+    masterChunkExposureOutPath = os.path.join(dataDir, "IllumStageTestExposure_1")
+    masterChunkExposureOutPathDR = os.path.join(dataDir, "IllumStageDRTestExposure_1")
+   
     masterChunkExposure = afwImage.ExposureD()
     masterChunkExposure.readFits(masterChunkExposureInPath)
     masterSFChunkExposure = afwImage.ExposureD()
-    masterSFChunkExposure.readFits(masterSFChunkExposureInPath) 
+    masterSFChunkExposure.readFits(masterSFChunkExposureInPath)
+    masterIcpChunkExposure = afwImage.ExposureD()
+    masterIcpChunkExposure.readFits(masterIcpChunkExposureInPath)
+    masterDfpChunkExposure = afwImage.ExposureD()
+    masterDfpChunkExposure.readFits(masterDfpChunkExposureInPath)
 
     isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
-    
-    ipIsrIllum.illuminationCorrection(masterChunkExposure, masterSFChunkExposure, isrPolicy)
 
-    pexLog.Trace("lsst.ip.isr.illuminationCorrection", 4, "Writing chunkExposure to %s [_img|var|msk.fits]" % (chunkExposureOutPath,))
-    chunkExposure.writeFits(masterChunkExposureOutPath)
+    # Call the Data Release version
+    ipIsrIllum.illuminationCorrectionDR(masterChunkExposure, masterSFChunkExposure, isrPolicy)
+    pexLog.Trace("lsst.ip.isr.illuminationCorrection", 4, "Writing chunkExposure to %s [_img|var|msk.fits]" % (masterChunkExposurOutPathDR,))
+    masterChunkExposure.writeFits(masterChunkExposureOutPathDR)
+
+    # Call the nightly processing version
+    ipIsrIllum.illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIcpChunkExposure, isrPolicy)
+    pexLog.Trace("lsst.ip.isr.illuminationCorrection", 4, "Writing chunkExposure to %s [_img|var|msk.fits]" % (masterChunkExposureOutPath,))
+    masterChunkExposure.writeFits(masterChunkExposureOutPath)
+    
+if __name__ == "__main__":
+    
+    memId0 = dafBase.Citizen_getNextMemId()
+    main()
     
     # check for memory leaks
     if dafBase.Citizen_census(0, memId0) != 0:

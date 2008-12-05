@@ -1,12 +1,25 @@
-if __name__ == "__main__":
-    import eups
-    import os
-    import lsst.afw.image as afwImage
-    import lsst.daf.base as dafBase
-    import lsst.pex.logging as pexLog
-    import lsst.pex.policy as pexPolicy
-    import lsst.ip.isr as ipIsr
-    import lsst.ip.isr.SaturationCorrection as ipIsrSat 
+"""
+@brief Example code to run the nightly ISR Saturation Correction Stage.
+
+@author Nicole M. Silvestri
+        University of Washington
+        nms@astro.washington.edu
+
+        created: Mon Nov 24, 2008 
+
+@file
+
+"""
+import eups
+import os
+import lsst.afw.image as afwImage
+import lsst.daf.base as dafBase
+import lsst.pex.logging as pexLog
+import lsst.pex.policy as pexPolicy
+import lsst.ip.isr as ipIsr
+import lsst.ip.isr.SaturationCorrection as ipIsrSat 
+
+def main():
 
     pexLog.Trace.setVerbosity("lsst.ip.isr", 4)
     
@@ -22,8 +35,6 @@ if __name__ == "__main__":
     lookupTablePath = os.path.join(isrDir, "pipeline", "saturationLookupTable.tab")
     chunkExposureOutPath = os.path.join(dataDir, "satStageTestExposure_1")
     
-    memId0 = dafBase.Citizen_getNextMemId()
-
     chunkExposure = afwImage.ExposureD()
     chunkExposure.readFits(chunkExposureInPath)
 
@@ -48,14 +59,19 @@ if __name__ == "__main__":
         if pixels.startswith("#"):
             continue
         lookupList = pixels.split()
-        if len(lookupList) < numPixels or len(lookupList) > numPixels:
+        if len(lookupList) < numPix or len(lookupList) > numPix:
             print "Cannot parse: ", pixels
 
     ipIsrSat.saturationCorrection(chunkExposure, isrPolicy, lookupList)
 
     pexLog.Trace("lsst.ip.isr.saturationCorrection", 4, "Writing chunkExposure to %s [_img|var|msk.fits]" % (chunkExposureOutPath,))
-    chunkExposure.writeFits(chunkExposureOutPath)
-    
+    chunkExposure.writeFits(chunkExposureOutPath)    
+
+if __name__ == "__main__":
+   
+    memId0 = dafBase.Citizen_getNextMemId()
+    main()
+   
     # check for memory leaks
     if dafBase.Citizen_census(0, memId0) != 0:
         print dafBase.Citizen_census(0, memId0), "Objects leaked:"

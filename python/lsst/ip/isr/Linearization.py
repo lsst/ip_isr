@@ -12,6 +12,7 @@
 """
 
 import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
 import lsst.daf.base as dafBase
 import lsst.detection as det
 import lsst.pex.exceptions as pexEx
@@ -41,17 +42,17 @@ def linearization(chunkExposure, isrPolicy, lookupTable):
     - sigma clipping?
     """
     stage = "lsst.ip.isr.linearization"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (stage,))
+    pexLog.Trace("%s" % (stage,), 4, "Entering ISR Linearization Stage")
 
     # Parse the Policy File
+    pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
-        pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File.")
-        linPolicy = isrPolicy.getPolicy("linearizationPolicy")
+        linPolicy = isrPolicy.getPolicy("linearizePolicy")
         linearizeType = linPolicy.getString("linearizeType")
         lookupTableName = linPolicy.getString("lookupTableName")
     except pexEx.LsstExceptionStack, e:
         print "Cannot parse the ISR Policy File: %s" % e   
-        raise pexExcept.NotFound, "Can not parse the Linearization policy file"
+        raise pexEx.NotFound, "Can not parse the Linearization policy file"
     
     # Get the MaskedImage and Metadata
     
@@ -63,39 +64,64 @@ def linearization(chunkExposure, isrPolicy, lookupTable):
 
        
     except pexEx.LsstExceptionStack, e:
-        print "Cannot get the saturation limit from the chunkExposure: %s" % e      
+        print "Cannot get the ... from the chunkExposure: %s" % e      
 
 
     # currently accepts as "FUNCTION" either a polynomial or spline
     if linearizeType == "FUNCTION":
+
         # Get the functional form and coeffs for the polynomial from the policy
         try:
             funcForm = linPolicy.getString("funcForm")
             funcOrder = linPolicy.getInt("funcOrder")
+            stepSize = linPolicy.getDouble("stepSize")
         except pexEx.LsstExceptionStack, e:
-            print "Cannot get polynomial parameters from the Policy: %s" % e
-            raise pexExcept.NotFound, "Can not parse the Linearization Policy File"
+            pexLog.Trace("%s" % (stage,), 4, "Cannot get FUNCTION parameters from the Policy.")
+            raise pexEx.NotFound, "Can not parse the Linearization Policy File"
             
-        if funcForm == "polynomial":
-            polyFunction = afwMath.PolynomialFunction1D()
-            polyFunction(funcorder)
-            for j = 0, j < parameters.size(), ++j:
-                parameters[j] = 1 + funcOrder - j
-            
+        if funcForm == "POLYNOMIAL":
+            pexLog.Trace("%s" % (stage,), 4, "Entering polynomial fitting block.")
+            polyFunction = afwMath.PolynomialFunction1D(funcOrder)
+
+            # Find the best fit function to the Exposure and apply
+            # this function.  Best fit determined via Chi^2
+            # minimization.
+
+            pexLog.Trace("%s" % (stage,), 4, "Performing Chi^2 minimization for functional fit for %s." % (funcForm,))
+            functionFit = ipIsr.findBestFit(chunkMaskedImage, funcForm, funcOrder, stepSize)
+
+            for i in range (0, functionFit.parameterList.size()):
+                parameters[i] = functionFit.parameterList[i]
+
+            print "Minimization Fit Parameters :", functionFit.parameterList
             polyFunction.setParameters(parameters)
 
+            pexLog.Trace("%s" % (stage,), 4, "Fitting minimized polynomial function.")
             ipIsr.fitFunctionToImage(chunkMaskedImage, polyFunction)
             
-        pexLog.Trace("%s" % (stage,), 4, "Recording ISR functional fit provenance information.")
-        chunkMetadata.addProperty(dafBase.DataProperty("LIN_FN", funcForm))    
-        chunkMetadata.addProperty(dafBase.DataProperty("LIN_OR", funcOrder))
-        chunkMaskedImage.setMetadata(chunkMetadata)
+            pexLog.Trace("%s" % (stage,), 4, "Recording ISR functional fit provenance information.")
+            chunkMetadata.addProperty(dafBase.DataProperty("LIN_FN", funcForm))    
+            chunkMetadata.addProperty(dafBase.DataProperty("LIN_OR", funcOrder))
+            chunkMaskedImage.setMetadata(chunkMetadata)
         
-        else if funcForm == "spline":
+        elif funcForm == "SPLINE":
             # need to add a spline function to afw/math/FunctionLibrary
-            
-    if linearizeType == "lookup":
+            raise pexEx.NotFound, "Function SPLINE not implemented." 
 
+        elif funcForm == "CHEBYCHEV":
+            # need to add a spline function to afw/math/FunctionLibrary
+            raise pexEx.NotFound, "Function CHEBYCHEV not implemented." 
+
+        else:
+            raise pexEx.NotFound, "Function not implemented. Use 'POLYNOMIAL', 'SPLINE', or 'CHEVYCHEV'." 
+            
+    if linearizeType == "LOOKUP":
+
+        pexLog.Trace("%s" % (stage,), 4, "Adding lookup table 'deltas' to MaskedImage")
+
+        #QQQ: wil the lookup tabel deltas have uncertainties?  If so,
+        #the variance will change.  It is currently not adjusted.
+        
         ipIsr.iterateTable(chunkMaskedImage, lookupTable)
         
         pexLog.Trace("%s" % (stage,), 4, "Recording ISR lokup table provenance information.")
@@ -117,7 +143,8 @@ def linearization(chunkExposure, isrPolicy, lookupTable):
                               
     """ Return the following for SDQA:
     - ?                     
-    """                       
+    """
+    
     pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
     pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
                               

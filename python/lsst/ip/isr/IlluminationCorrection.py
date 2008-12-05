@@ -20,10 +20,6 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
-
-dataDir = eups.productDir("afwdata")
-    if not dataDir:
-        raise RuntimeError("Must set up afwdata to run this program.")
    
 def illuminationCorrectionDR(masterChunkExposure, masterSFChunkExposure, isrPolicy):
 
@@ -74,18 +70,19 @@ def illuminationCorrectionDR(masterChunkExposure, masterSFChunkExposure, isrPoli
     """
 
     stage = "lsst.ip.isr.illuminationCorrectionDR"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (stage,))
+    pexLog.Trace("%s" % (stage,), 4, "Entering ISR Illumination Correction for DR Stage")
 
     # Parse the Policy File
+    pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
         illumPolicy = isrPolicy.getPolicy("illuminationPolicy") 
-        chunkType = illumPolicy.getString("chunkType")
+        chunkType = isrPolicy.getString("chunkType")
         binSize = illumPolicy.getInt("binSize")
         kernel = illumPolicy.getString("kernel")
         kernelSize = illumPolicy.getInt("kernelSize") 
-     except pexEx.LsstExceptionStack, e:
-         print "Cannot parse the ISR Policy File: %s" % e   
-         raise pexExcept.NotFound, "Can not obtain Illumination Correction Policy Parameters."
+    except pexEx.LsstExceptionStack, e:
+        pexLog.Trace("%s" % (stage,), 4, "Cannot parse the ISR Policy File: %s" % e )
+        raise pexExcept.NotFound, "Can not obtain Illumination Correction Policy Parameters."
    
     masterChunkMaskedImage = masterChunkExposure.getMaskedImage()
     masterChunkMetadata = masterChunkMaskedImage.getImage().getMetaData()
@@ -95,54 +92,76 @@ def illuminationCorrectionDR(masterChunkExposure, masterSFChunkExposure, isrPoli
     # Check that the Master Illumination Chunk Exposure and Chunk Exposure are
     # the same size.
 
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same size." )
     numCols = masterChunkMaskedImage.getCols()
     numRows = masterChunkMaskedImage.getRows() 
 
     mnumCols = masterSFChunkMaskedImage.getCols()
     mnumRows = masterSFChunkMaskedImage.getRows() 
 
-    if numCols != mnumCols || numRows != mnumRows:
+    if numCols != mnumCols or numRows != mnumRows:
         raise pexExcept.LengthError, "In %s: Chunk Exposure and Master Flat Field Chunk Exposure are not the same size." % (stage,)
+    else:
+        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are the same size." )
 
     # Check that the Master Ilumination Chunk Exposure and Chunk Exposure are
     # derived from the same pixels (eg. both are from the same amp,
     # CCD, or raft).
 
-    if chunkType == "amp":
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are derived from the same pixels." )
+    if chunkType == "AMP":
         
-        ampidField = masterChunkMetadata.findUnique("AMPID")
-        mampidField = masterSFChunkMetadata.findUnique("AMPID")
-        if ampField:
-            ampid = ampidField.getValue()
-            mampid = mampidField.getValue()
+        ampidField = masterChunkMetadata.findUnique("AMPLIST")
+        mampidField = masterSFChunkMetadata.findUnique("AMPLIST")
+        if ampField and mampField:
+            ampid = ampidField.getValueString()
+            print "AMPID chunk: ", ampid
+            mampid = mampidField.getValueString()
+            print "AMPID master: ", mampid
         else:
             raise pexExcept.NotFound, "In %s: Could not get AMPID from the Metadata." %(stage,)
 
-    if chunkType == "ccd":
+        if ampid != mampid:
+            raise pexEx.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels.")
+
+    elif chunkType == "CCD":
         
         ccdidField = masterChunkMetadata.findUnique("CCDID")
         mccdidField = masterSFChunkMetadata.findUnique("CCDID")
-        if ccdField:
-            ccdid = ccdidField.getValue()
-            mccdid = mccdidField.getValue()
+        if ccdField and mccdField:
+            ccdid = ccdidField.getValueString()
+            mccdid = mccdidField.getValueString()
         else:
             raise pexExcept.NotFound, "In %s: Could not get CCDID from the Metadata." %(stage,)
 
-    if chunkType == "raft":
+        if ccdid != mccdid:
+            raise pexEx.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels.")
+
+    elif chunkType == "RAFT":
         
         raftidField = masterChunkMetadata.findUnique("RAFTID")
         mraftidField = masterSFChunkMetadata.findUnique("RAFTID")
-        if raftField:
-            raftid = raftidField.getValue()
-            mraftid = mraftidField.getValue()
+        if raftField and mraftField:
+            raftid = raftidField.getValueString()
+            mraftid = mraftidField.getValueString()
         else:
             raise pexExcept.NotFound, "In %s: Could not get RAFTID from the Metadata." %(stage,)
-        
-    if ampid != mampid || ccdid != mccdid || raftid != mraftid:
-        raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
 
+        if raftid != mraftid:
+            raise pexEx.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
+        
+    else:
+        raise pexExcept.NotFound, "In %s: Chunk Type Not Implemented. Use 'AMP', 'CCD', or 'RAFT'." % (stage,)
+   
     # Get the relevant metadata 
 
+    pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from the metadata." )
     fileNameField = masterSFChunkMetadata.findUnique("FILENAME")
     if fileNameField:
         fileName = fileNameField.getValue()
@@ -151,29 +170,35 @@ def illuminationCorrectionDR(masterChunkExposure, masterSFChunkExposure, isrPoli
 
     filterField = chunkMetadata.findUnique("FILTER")
     mfilterField = masterSFChunkMetadata.findUnique("FILTER")
-    if filterField:
-        filter = filterField.getValue()
-        mfilter = mfilterField.getValue()
+    if filterField and mfilterField:
+        filter = filterField.getValueString()
+        print "FILTER chunk: ", filter
+        mfilter = mfilterField.getValueString()
+        print "FILTER master: ", mfilter
     else:
         raise pexExcept.NotFound,"In %s: Could not get FILTER from the Metadata." %(stage,)
 
-    # Make sure the chunk and master have the same filter designation 
+    # Make sure the chunk and master have the same filter designation
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same FILTER." )
     if filter != mfilter:
         raise pexExcept.NotFound,"In %s, Chunk Exposure and Master Flat Field Chunk Exposure are not from the same FILTER." % (stage,) 
-
+    else:
+        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are from the same filter." )
+        
     # Apply the Illumination Correction
     # assuming that masterSFChunkExposure has been normalized, Fs/Fd, and smoothed with some kernel
+    pexLog.Trace("%s" % (stage,), 4, "Applying the Illumination Correction for DR." )
     masterChunkMaskedImage *= masterSFChunkMaskedImage
-
+    
     # Record final stage provenance to the Image Metadata
+    pexLog.Trace("%s" % (stage,), 4, "Recording final provenance information." )
     dateTime = dafBase .DateTime.utc2mjd()
     masterChunkMetadata.addProperty(dafBase.Dataproperty("ILDR_MJD", dateTime))
     masterChunkMetadata.addProperty(dafBase.DataProperty("ILDR_END", "Completed Successfully")) 
     masterChunkMaskedImage.setMetadata(masterChunkMetadata);
   
     # Calculate any additional SDQA Metrics and write all metrics to
-    # the SDQA object (or directly to the clipboard)
-                               
+    # the SDQA object (or directly to the clipboard)                               
     pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
                               
     """ Return the following for SDQA:
@@ -189,7 +214,6 @@ def illuminationCorrectionDR(masterChunkExposure, masterSFChunkExposure, isrPoli
                               
 
 def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIcpChunkExposure, isrPolicy):
-
     """Illumination Correction (for the Nightly Processing Pipeline)
 
     @brief Correct Master Flat Field Chunk Exposures for the differences in dome
@@ -221,12 +245,13 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
     """
 
     stage = "lsst.ip.isr.illuminationCorrection"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (stage,))
+    pexLog.Trace("%s" % (stage,), 4, "Entering ISR Illumination Coreection for Nightly Processing Stage")
 
     # Parse the Policy File
+    pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
         illumPolicy = isrPolicy.getPolicy("illuminationPolicy") 
-        chunkType = illumPolicy.getString("chunkType")
+        chunkType = isrPolicy.getString("chunkType")
         binSize = illumPolicy.getInt("binSize")
         kernelType = illumPolicy.getString("kernelType")
         kernelWidth = illumPolicy.getInt("kernelWidth")
@@ -234,9 +259,9 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         kernelRow = illumPolicy.getInt("kernelRow")
         edgeMaskBit = illumPolicy.getInt("edgeMaskBit")
         illumMiName = illumPolicy.getString("illumMiName")
-     except pexEx.LsstExceptionStack, e:
-         print "Cannot parse the ISR Policy File: %s" % e   
-         raise pexExcept.NotFound, "Can not obtain Illumination Correction Policy Parameters."
+    except pexEx.LsstExceptionStack, e:
+        print "Cannot parse the ISR Policy File: %s" % e   
+        raise pexExcept.NotFound, "Can not obtain Illumination Correction Policy Parameters."
    
     masterChunkMaskedImage = masterChunkExposure.getMaskedImage()
     masterChunkMetadata = masterChunkMaskedImage.getImage().getMetaData()
@@ -248,6 +273,7 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
     # Check that the Master Illumination Chunk Exposure and Master Dome Chunk Exposures are
     # the same size.
 
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master Exposures are the same size." )
     numCols = masterChunkMaskedImage.getCols()
     numRows = masterChunkMaskedImage.getRows() 
 
@@ -258,82 +284,103 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
     inumRows = masterIcpChunkMaskedImage.getRows() 
     
 
-    if numCols != mnumCols || numRows != mnumRows || numCols != inumRows || numRows != inumRows:
+    if numCols != mnumCols or numRows != mnumRows or numCols != inumRows or numRows != inumRows:
         raise pexExcept.LengthError, "In %s: Master Illumination Chunk Exposure and Master Flat Field Chunk Exposures are not the same size." % (stage,)
+    else:
+        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are the same size." )
 
     # Check that the Master Ilumination Chunk Exposure and Master Dome
     # Chunk Exposures are derived from the same pixels (eg. all are
     # from the same amp, CCD, or raft).
 
-    if chunkType == "amp":
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are derived from the same pixels." )
+    if chunkType == "AMP":
         
-        ampidField = masterChunkMetadata.findUnique("AMPID")
-        mampidField = masterDfpChunkMetadata.findUnique("AMPID")
-        iampidField = masterIcpChunkMetadata.findUnique("AMPID")
-        if ampField:
-            ampid = ampidField.getValue()
-            mampid = mampidField.getValue()
-            iampid = iampidField.getValue()
+        ampidField = masterChunkMetadata.findUnique("AMPLIST")
+        mampidField = masterDfpChunkMetadata.findUnique("AMPLIST")
+        iampidField = masterIcpChunkMetadata.findUnique("AMPLIST")
+        if ampField and mampField and iampField:
+            ampid = ampidField.getValueString()
+            mampid = mampidField.getValueString()
+            iampid = iampidField.getValueString()
         else:
-            raise pexExcept.NotFound, "In %s: Could not get AMPID from the Metadata." %(stage,)
+            raise pexExcept.NotFound, "In %s: Could not get AMPID from the Metadata." % (stage,)
 
-    if chunkType == "ccd":
+        if ampid != mampid or ampid != iampid:
+            raise pexEx.RangeError, "In %s: Master Chunk Exposures are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master Chunk Exposures are derived from the same pixels.")
+            
+    elif chunkType == "ccd":
         
         ccdidField = masterChunkMetadata.findUnique("CCDID")
         mccdidField = masterDfpChunkMetadata.findUnique("CCDID")
         iccdidField = masterIcpChunkMetadata.findUnique("CCDID")
-        if ccdField:
-            ccdid = ccdidField.getValue()
-            mccdid = mccdidField.getValue()
-            iccdid = iccdidField.getValue()
+        if ccdField and mccdField and iccdField:
+            ccdid = ccdidField.getValueString()
+            mccdid = mccdidField.getValueString()
+            iccdid = iccdidField.getValueString()
         else:
-            raise pexExcept.NotFound, "In %s: Could not get CCDID from the Metadata." %(stage,)
+            raise pexExcept.NotFound, "In %s: Could not get CCDID from the Metadata." % (stage,)
 
-    if chunkType == "raft":
+        if ccdid != mccdid or ccdid != iccdid:
+            raise pexEx.RangeError, "In %s: Master Chunk Exposures are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master Chunk Exposures are derived from the same pixels.")
+        
+    elif chunkType == "raft":
         
         raftidField = masterChunkMetadata.findUnique("RAFTID")
         mraftidField = masterDfpChunkMetadata.findUnique("RAFTID")
         iraftidField = masterIcpChunkMetadata.findUnique("RAFTID")
-        if raftField && mraftidField && iraftidField:
-            raftid = raftidField.getValue()
-            mraftid = mraftidField.getValue()
-            iraftid = iraftidField.getValue()
+        if raftField and mraftidField and iraftidField:
+            raftid = raftidField.getValueString()
+            mraftid = mraftidField.getValueString()
+            iraftid = iraftidField.getValueString()
         else:
-            raise pexExcept.NotFound, "In %s: Could not get RAFTID from the Metadata." %(stage,)
-        
-    if ampid != mampid || ccdid != mccdid || raftid != mraftid || ampid != iampid || ccdid != iccdid || raftid != iraftid:
-        raise pexExcept.RangeError, "In %s: Master Illumination Chunk Exposure and Master Dome Flat Field Chunk Exposures are not derived from the same pixels." % (stage,)
+            raise pexExcept.NotFound, "In %s: Could not get RAFTID from the Metadata." % (stage,)
 
+        if raftid != mraftid or rafttid != iraftid:
+            raise pexEx.RangeError, "In %s: Master Chunk Exposures are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master Chunk Exposures are derived from the same pixels.")
+
+    else:
+        raise pexExcept.NotFound, "In %s: Chunk Type Not Implemented. Use 'AMP', 'CCD', or 'RAFT'." % (stage,)
+    
     # Get the relevant metadata 
-
+    pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from the metadata." )
     fileNameField = masterDfpChunkMetadata.findUnique("FILENAME")
     mfileNameField = masterDfpChunkMetadata.findUnique("FILENAME")
     ifileNameField = masterIcpChunkMetadata.findUnique("FILENAME")
-    if fileNameField && ifileNameField:
-        fileName = fileNameField.getValue()
-        mfilename = mfileNameField.getValue()
-        ifileName = ifileNameField.getValue()
+    if fileNameField and mfileNameField and ifileNameField:
+        fileName = fileNameField.getValueString()
+        mfilename = mfileNameField.getValueString()
+        ifileName = ifileNameField.getValueString()
     else:
         raise pexExcept.NotFound,"In %s: Could not get FILENAME from the Metadata." %(stage,) 
 
     filterField = chunkMetadata.findUnique("FILTER")
     mfilterField = masterDfpChunkMetadata.findUnique("FILTER")
     ifilterField = masterIcpChunkMetadata.findUnique("FILTER")
-    if filterField && mfilterField && ifilterField:
-        filter = filterField.getValue()
-        mfilter = mfilterField.getValue()
-        ifilter = ifilterField.getValue()
+    if filterField and mfilterField and ifilterField:
+        filter = filterField.getValueString()
+        mfilter = mfilterField.getValueString()
+        ifilter = ifilterField.getValueString()
     else:
         raise pexExcept.NotFound,"In %s: Could not get FILTER from the Metadata." %(stage,)
 
-    # Make sure the chunk and master have the same filter designation 
+    # Make sure the masters have the same filter designation
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master Chunk Exposures are the same FILTER." )
     if filter != mfilter != ifilter:
-        raise pexExcept.NotFound,"In %s, Master Illumination Chunk Exposure and Master Dome Flat Field Chunk Exposures are not from the same FILTER." % (stage,) 
-
+        raise pexExcept.NotFound,"In %s, Master Flat Field Chunk Exposures are not from the same FILTER." % (stage,) 
+    else:
+        pexLog.Trace("%s" % (stage,), 4, "Success: Master Chunk Exposures are from the same filter." )
+    
     # Have all of the Master Chunk Exposures been normalized?  The
     # 'Flat Field Correction' stage checks the current night's
     # masterChunkExposure
-    
+    pexLog.Trace("%s" % (stage,), 4, "Checking Master Flat Field Exposure for normalization." )
     misrNormalize = masterDfpChunkMetadata.findUnique("ISR_NC")
     if misrNormalize:
         pexLog.Trace("In %s:" % (stage,), 4, "Master Flat Field Chunk Exposure has been normalized by the ISR.")
@@ -341,44 +388,49 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         
         # Normalize the Master Dome (or twilight) Flat Field Exposure
         # from a previous night
-
+        pexLog.Trace("In %s:" % (stage,), 4, "Normalizing the Master Flat Field Exposure.")
         mu = ipIsr.easyMean(masterDfpChunkMaskedImage)
         masterDfpChunkMaskedImage /= mu
         
+        pexLog.Trace("%s" % (stage,), 4, "Recording normalization provenance information." )
         masterDfpChunkMetadata.addProperty(dafBase.Dataproperty("NORM_MU", mu))
-        //masterDfpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
+        #masterDfpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
         masterDfpChunkMetadata.addProperty(dafBase.DataProperty("NORM_END", "Completed Successfully")) 
         masterDfpChunkMaskedImage.setMetadata(masterDfpChunkMetadata)
-      
+
+    pexLog.Trace("%s" % (stage,), 4, "Checking Master Illumination Exposure for normalization." )
     iisrNormalize = masterIcpChunkMetadata.findUnique("ISR_NC")
     if iisrNormalize:
-        pexLog.Trace("In %s:" % (stage,), 4, "Master Flat Field Chunk Exposure has been normalized by the ISR.")
+        pexLog.Trace("In %s:" % (stage,), 4, "Master Illumination Chunk Exposure has been normalized by the ISR.")
     else:
         
         # Normalize the Master Illumination Correction Exposure from a
         # previous night
-
+        pexLog.Trace("In %s:" % (stage,), 4, "Normalizing the Master Illumination Exposure.")
         mu = ipIsr.easyMean(masterIcpChunkMaskedImage)
         masterIcpChunkMaskedImage /= mu
-        
+
+        pexLog.Trace("%s" % (stage,), 4, "Recording normalization provenance information." )
         masterIcpChunkMetadata.addProperty(dafBase.Dataproperty("NORM_MU", mu))
-        //masterIcpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
+        #masterIcpChunkMetadata.addProperty(dafBase.DataProperty("NORM_SD", sigma))      
         masterIcpChunkMetadata.addProperty(dafBase.DataProperty("NORM_END", "Completed Successfully")) 
         masterIcpChunkMaskedImage.setMetadata(masterIcpChunkMetadata)
 
     # Divide the previous night's Dome Flat with the current night's Dome Flat.
-  
+
+    pexLog.Trace("%s" % (stage,), 4, "Dividing previous night Flat by current night Flat." )
     masterDpfChunkMaskedImage /= masterChunkMaskedImage
 
-    # WIll add other kernelTypes later...a simple gaussian is good for
+    # Will add other kernelTypes later...a simple gaussian is good for
     # now.
 
-    if kernelType = "gaussian": 
+    if kernelType == "GAUSSIAN": 
     
         # Smooth the new masterDpfChunkMaskedImage with a kernel NOTE:
         # this is going to be slow.  Bin the maskedImage and this will go
         # faster...
-        
+
+        pexLog.Trace("%s" % (stage,), 4, "Obtaining kernel parameters for %s." % (kernelType,))
         smoothedMasterMaskedImage = afwImage.MaskedImageD()
         gaussianFunc = afwMath.GaussianFunction2D()
         gaussianFunc(kernelWidth, kernelWidth) 
@@ -386,6 +438,7 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         kernel(kernelCol, kernelRow, gaussianFunc) 
         
         # Do the convolution 
+        pexLog.Trace("%s" % (stage,), 4, "Convolving the Master Flat with the kernel.")
         smoothedMasterMaskedImage(masterDpfChunkMaskedImage.getDimensions()) 
         afwMath.convolve(smoothedMasterMaskedImage, masterDpfChunkMaskedImage, kernel, edgeMaskBit, true) 
 
@@ -394,10 +447,12 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
 
     # Construct the final illumination correction
     #RETURN THIS TO THE CLIPBOARD...DON'T WRITE IT OUT
-    
+
+    pexLog.Trace("%s" % (stage,), 4, "Constucting the finel Illumination Correction.")
     smoothedMasterMaskedImage *= masterIcpChunkMaskedImage
     smoothedMetadata = smoothedMasterChunkMaskedImage.getImage().getMetaData() 
 
+    pexLog.Trace("%s" % (stage,), 4, "Recording smoothing provenance information.")
     smoothedMetadata.addProperty(dafBase.DataProperty("ILNP_BS", binSize))
     smoothedMetadata.addProperty(dafBase.DataProperty("ILNP_KS", kernelSize))
     smoothedMetadata.addProperty(dafBase.DataProperty("ILNP_KS", kernelWidth))
@@ -405,17 +460,18 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
     smoothedMasterChunkMaskedImage.setMetadata(smoothedMetadata)
     
     # Apply the Illumination Correction to the Master Flat Field MaskedImage
+    pexLog.Trace("%s" % (stage,), 4, "Applying the Illumination Correction.")
     masterChunkMaskedImage *= smoothedMasterMaskedImage
 
     # Record final stage provenance to the Image Metadata
+    pexLog.Trace("%s" % (stage,), 4, "Recording final provenance information." )
     dateTime = dafBase .DateTime.utc2mjd()
     masterChunkMetadata.addProperty(dafBase.Dataproperty("ILNP_MJD", dateTime))
     masterChunkMetadata.addProperty(dafBase.DataProperty("ILNP_END", "Completed Successfully")) 
     masterChunkMaskedImage.setMetadata(masterChunkMetadata)
   
     # Calculate any additional SDQA Metrics and write all metrics to
-    # the SDQA object (or directly to the clipboard)
-                               
+    # the SDQA object (or directly to the clipboard)                            
     pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
                               
     """ Return the following for SDQA:

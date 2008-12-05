@@ -27,8 +27,8 @@ typedef double funcType;
 
 template<typename ImageT, typename MaskT> 
 void lsst::ip::isr::fitFunctionToImage(
-    lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage,
-    lsst::afw::math::PolynomialFunction1<funcType> &polyFunction
+    lsst::afw::image::MaskedImage<ImageT, MaskT> const &maskedImage,
+    lsst::afw::math::PolynomialFunction1<funcType> const &polyFunction
     ) {
 
     const int miCols = static_cast<int>(maskedImage.getCols());
@@ -50,14 +50,14 @@ void lsst::ip::isr::fitFunctionToImage(
 
 template
 void lsst::ip::isr::fitFunctionToImage(
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> &maskedImage,
-    lsst::afw::math::PolynomialFunction1<funcType> &polyFunction
+    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> const &maskedImage,
+    lsst::afw::math::PolynomialFunction1<funcType> const &polyFunction
     );
 
 template
 void lsst::ip::isr::fitFunctionToImage(
-    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> &maskedImage,
-    lsst::afw::math::PolynomialFunction1<funcType> &polyFunction
+    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> const &maskedImage,
+    lsst::afw::math::PolynomialFunction1<funcType> const &polyFunction
     );
 
 /************************************************************************/

@@ -10,9 +10,6 @@
 """
 import eups
 import os
-import sys
-
-import numpy
 
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
@@ -26,7 +23,6 @@ dataDir = eups.productDir("afwdata")
 if not dataDir:
     raise RuntimeError("Must set up afwdata to run this program.")
 overscanExposureOutPath = os.path.join(dataDir, "overscanStripTestExposure_1")
-
 
 def stringParser(dataString):
 
@@ -88,17 +84,21 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     """
 
     stage = "lsst.ip.isr.overscanCorrectAndTrim"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (stage,))
+    pexLog.Trace("%s" % (stage,), 4, "Entering ISR Overscan Correct and Trim")
+
+    # Check for an overscan region.  If there isn't one, trim the
+    # image, issue a logging message, and end the function
 
     # Parse the Policy File
+    pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File.")
     try:
-     overPolicy = isrPolicy.getPolicy("overscanPolicy")
-     method = overPolicy.getString("method")
-     smooth = overPolicy.getBool("smooth")
-     sigClip = overPolicy.getBool("sigClip")
-     datasecKey = overPolicy.getString("datasec")
-     biassecKey = overPolicy.getString("biassec")
-     trimsecKey = overPolicy.getString("trimsec")
+        overPolicy = isrPolicy.getPolicy("overscanPolicy")
+        method = overPolicy.getString("method")
+        smooth = overPolicy.getBool("smooth")
+        sigClip = overPolicy.getBool("sigClip")
+        datasecKey = overPolicy.getString("datasec")
+        biassecKey = overPolicy.getString("biassec")
+        trimsecKey = overPolicy.getString("trimsec")
     except pexEx.LsstExceptionStack, e:
         print "Cannot parse the ISR Policy File: %s" % e   
 
@@ -107,7 +107,6 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
             funcForm = overPolicy.getString("funcForm")
             funcOrder = overPolicy.getInt("funcOrder")
             stepSize = overPolicy.getDouble("stepSize")
-            numParams = overPolicy.getDouble("numParams")
         else: 
             constantMeth = overPolicy.getString("constantMeth")
     except pexEx.LsstExceptionStack, e:
@@ -152,16 +151,18 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     if trimsec:
         trimsecBbox, tcb, tce, trb, tre = stringParser(trimsec)
 
-    tcb = dcb - bce
-    tce = dce - bce
-    trb = drb - brb
-    tre - dre - bre
-    trimsecBbox = afwImage.BBox2i(tcb, trb, (tce - tcb), (tre - trb))
+    else: 	
+        tcb = dcb - bce
+        tce = dce - bce
+        trb = drb - brb
+        tre - dre - bre
+        trimsecBbox = afwImage.BBox2i(tcb, trb, (tce - tcb), (tre - trb))
     
     overscanExposure = afwImage.ExposureD()
     overscanMaskedImage = afwImage.MaskedImageD()
     overscanExposure = chunkExposure.getSubExposure(biassecBbox)
     overscanMaskedImage = chunkExposure.getMaskedImage()
+    pexLog.Trace("%s" % (stage,), 4, "Writing Overscan Exposure to FitsStorage.")
     overscanExposure.writeFits(overscanExposureOutPath)
 
     trimmedExposure = afwImage.ExposureD()
@@ -185,6 +186,7 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     # metadata...which currently lives in both the image and the
     # variance image.
 
+    pexLog.Trace("%s" % (stage,), 4, "Removing DATASEC and BIASSEC keywords from metadata.")
     trimmedChunkMetadata.deleteAll(datasecKey)
     trimmedChunkMetadata.deleteAll(biassecKey)
     trimmedVarianceMetadata.deleteAll(datasecKey)
@@ -197,108 +199,80 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
     trimmedMaskedImage.setMetadata(trimmedVarianceMetadata)
 
-    if method == "function":
+    if method == "FUNCTION":
+        if funcForm == "POLYNOMIAL":
+            # Find the best fit function to the overscan region and apply
+            # this function to the Chunk Exposure.  Best fit determined
+            # via Chi^2 minimization.
 
-        # Find the best fit function to the overscan region and apply
-        # this function to the Chunk Exposure.  Best fit determined
-        # via Chi^2 minimization.
-
-        overCols = overscanMaskedImage.getCols()
-        overRows = overscanMaskedImage.getRows()
-        numOverPix = overCols * overRows
-
-        #fill(parameterList.begin(), parameterList.end(), numParams)
-        parameterList = numpy.empty(numParams)
+            print "Performing Chi^2 minimization for functional fit for ", funcForm
+            overscanFit = ipIsr.findBestFit(overscanMaskedImage, funcForm, funcOrder, stepSize)
         
-        #fill(stepSizeList.begin(), stepSizeList.end(), stepSize)
-        stepSizeList = numpy.empty(numParams)
-        stepSizeList *= stepSize
-        
-        # collapse the overscan region down to a vector.  Get vectors
-        # of measurements, variances, and x,y positions
-
-        overscanMeasurementList = numpy.empty(numOverPix)
-        overscanVarianceList = numpy.empty(numOverPix)
-        colPositionList = numpy.empty(numOverPix)
-        rowPositionList = numpy.empty(numOverPix)
-        
-        ipIsr.makeVectorFromRegion(overscanMeasurementList, overscanVarianceList, colPositionList, rowPositionList, overscanMaskedImage)
-
-        # ideally we need a function factory to which we feed
-        # different functional forms and get out a Function1 or
-        # Function2...but for now, pick a few typical choices and code
-        # them here (poly for now 10/22/08...ADD THE OTHERS LATER)
-
-        if funcForm == "polynomial":
-
-            polyFunc1 = afwMath.PolynomialFunction1D()
-            polyFunc1(funcOrder)
-            sigma = 1.0; # initial guess
-
-            # find the best fit function
-            overscanFit  = afwMath.minimize( 
-                polyFunc1, 
-                parameterList, 
-                stepSizeList, 
-                overscanMeasurementList, # overscan values 
-                overscanVarianceList,    # variance for each value 
-                colPositionList,         # x position  
-              # rowPositionList,       # y position (if Function2 function)
-                sigma 
-                )  
-
             for i in range (0, overscanFit.parameterList.size()):
                 parameters[i] = overscanFit.parameterList[i]      
 
-            print "Minimization Fit Parameters :", overscanFit.parameterList
-            order = overscanFit.parameterList.size() - 1
-            polyFunction = afwMath.PolynomialFunction1D()
-            polyFunction(order)
-            polyFunction.setParameters(parameters)
+                print "Minimization Fit Parameters :", overscanFit.parameterList
+                order = overscanFit.parameterList.size() - 1
+                polyFunction = afwMath.PolynomialFunction1D()
+                polyFunction(order)
+                polyFunction.setParameters(parameters)
         
-            ipIsr.fitFunctionToImage(trimmedMaskedImage, polyFunction)
-       
-            # Record the stage provenance to the Image Metadata (for now) this
-            # will eventually go into an ISR_info object.
+                ipIsr.fitFunctionToImage(trimmedMaskedImage, polyFunction)
 
-            pexLog.Trace("%s" % (satStage,), 4, "Recording ISR provenance information for %s." % (funcForm))
-            trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_FN", funcForm))
-            trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
-            
-        elif funcForm == "spline":
-            # not yet implemented
-            raise pexExcept.InvalidParameter, "Spline is not yet implemented."
+                # Record the polynomial provenance information
+
+                pexLog.Trace("%s" % (stage,), 4, "Recording ISR provenance information for %s." % (funcForm))
+                trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_FN", funcForm))
+                trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_OR", order))
+                trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
+        
+        elif funcForm == "SPLINE":
+            # need to add a spline function to afw/math/FunctionLibrary
+            raise pexEx.NotFound, "Function SPLINE not implemented." 
+
+        elif funcForm == "CHEBYCHEV":
+            # need to add a spline function to afw/math/FunctionLibrary
+            raise pexEx.NotFound, "Function CHEBYCHEV not implemented." 
+
         else:
-            raise pexExcept.InvalidParameter, "Invalid functional form for overscan fit requested."
-        
+            raise pexEx.NotFound, "Function not implemented. Use 'POLYNOMIAL', 'SPLINE', or 'CHEVYCHEV'." 
+       
     else: 
-
+        
         # Subtract a constant value.  For now, compute the mean for
         # the constant value to be subtracted. ADD THE OTHERS LATER...
         
-        if constantMeth == "mean":
+        if constantMeth == "MEAN":
 
+            pexLog.Trace("%s" % (stage,), 4, "Computing mean for overscan region.")
             mu = ipIsr.easyMean(overscanMaskedImage)
+	    print "Mean Value: ", mu
+            
+            pexLog.Trace("%s" % (stage,), 4, "Subtracting mean from MaskedImmge.")
             trimmedMaskedImage -= mu
-        elif constantMeth == "median":
+
+            pexLog.Trace("%s" % (stage,), 4, "Recording ISR provenance information for mean.")
+            trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_FN", constantMeth)) 
+            trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_MU", mu))    
+            # trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_SD", sigma))
+        trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
+            
+        elif constantMeth == "MEDIAN":
             # not yet implemented
             raise pexExcept.InvalidParameter, "Median is not yet implemented."
-        elif constantMeth == "mode":
+        elif constantMeth == "MODE":
             # not yet implemented
             raise pexExcept.InvalidParameter, "Mode is not yet implemented."
         else: 
-            raise pexExcept.InvalidParameter, "Invalid method for computing the overscan value requested."
-        trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_FN", constantMeth)) 
-        trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_MU", mu))    
-        trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_SD", sigma))
-        trimmedMaskedImage.setMetadata(trimmedChunkMetadata)
+            raise pexExcept.InvalidParameter, "Invalid method requested for computing the constant overscan value."
         
     # Record final sub-stage provenance to the Image Metadata
+    pexLog.Trace("%s" % (stage,), 4, "Recording final ISR stage provenance information.")
     trimmedChunkMetadata.addProperty(dafBase.DataProperty("OVER_END", "Completed Successfully")) 
     trimmedMaskedImage.setMetadata(trimmedChunkMetadata);
 
     # Set the original chunkExposure to the new trimmed chunkExposure
-    chunkMaskedImage = trimmedChunkMaskedImage
+    chunkMaskedImage = trimmedMaskedImage
     chunkExposure = trimmedExposure
     
     # Calculate any additional SDQA Metrics and write all metrics to
@@ -313,4 +287,3 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
     """                       
     pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
     pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
-                              

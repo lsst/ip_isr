@@ -27,7 +27,8 @@ def fringeCorrection(chunkExposure, masterChunkExposure, isrPolicy):
 
     """Fringe Correction
 
-    @brief
+    @brief Remove fringe pattern associated with night sky emission lines.  The intensity of the night sky lines varies with time.  Additional 
+scaling is necessary.  Fringing varies with filter/bandpass so master Fringe and chunk Exposure should be taken through the same filter.
     
     @return chunkExposure corrected for fringe
 
@@ -45,7 +46,7 @@ def fringeCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     # Parse the Policy File
     try:
         fringePolicy = isrPolicy.getPolicy("fringePolicy")
-        chunkType = fringePolicy.getString("chunkType")
+        chunkType = isrPolicy.getString("chunkType")
         sigClip = fringePolicy.getBool("sigClip")
         sigClipVal = fringePolicy.getDouble("sigClipVal")
         # THIS IS DERIVED FROM SEVERAL PLACES ON THE MASTER

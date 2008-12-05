@@ -20,10 +20,6 @@ import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
-dataDir = eups.productDir("afwdata")
-    if not dataDir:
-        raise RuntimeError("Must set up afwdata to run this program.")
-   
 def biasCorrection(chunkExposure, masterChunkExposure, isrPolicy):
 
     """Bias Correction
@@ -46,20 +42,21 @@ def biasCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     """
 
     stage = "lsst.ip.isr.biasCorrection"   
-    pexLog.Trace("Entering ISR Stage: ", 4, "%s" % (stage,))
+    pexLog.Trace("%s" % (stage,), 4, "Entering ISR Bias Correction stage." )
 
     # Parse the Policy File
+    pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
-     biasPolicy = isrPolicy.getPolicy("biasPolicy")
-     chunkType = biasPolicy.getString("chunkType");
-     biasScale = biasPolicy.getDouble("biasScale");
-     sigClip = biasPolicy.getBool("sigClip");
-     if sigClip = true:
-         sigClipVal = biasPolicy.getDouble("sigClipVal");
-         # add sigClipping policy info here - not yet implemented
-     except pexEx.LsstExceptionStack, e:
-         print "Cannot parse the ISR Policy File: %s" % e   
-         raise pexExcept.NotFound, "Can not obtain Bias Correction Policy Parameters."
+        biasPolicy = isrPolicy.getPolicy("biasPolicy")
+        chunkType = isrPolicy.getString("chunkType");
+        biasScale = biasPolicy.getDouble("biasScale");
+        sigClip = biasPolicy.getBool("sigClip");
+        if sigClip == "true":
+            sigClipVal = biasPolicy.getDouble("sigClipVal");
+            # add sigClipping policy info here - not yet implemented
+    except pexEx.LsstExceptionStack, e:
+        print "Cannot parse the ISR Policy File: %s" % e   
+        raise pexExcept.NotFound, "Can not obtain Bias Correction Policy Parameters."
    
     chunkMaskedImage = chunkExposure.getMaskedImage()
     chunkMetadata = chunkMaskedImage.getImage().getMetaData()
@@ -69,70 +66,89 @@ def biasCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     # Check that the Master Bias Chunk Exposure and Chunk Exposure are
     # the same size.
 
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same size." )
     numCols = chunkMaskedImage.getCols()
     numRows = chunkMaskedImage.getRows() 
 
     mnumCols = masterChunkMaskedImage.getCols()
     mnumRows = masterChunkMaskedImage.getRows() 
 
-    if numCols != mnumCols || numRows != mnumRows:
+    if numCols != mnumCols or numRows != mnumRows:
         raise pexExcept.LengthError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not the same size." % (stage,)
+    else:
+        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk are the same size." )
 
     # Check that the Master Bias Chunk Exposure and Chunk Exposure are
     # derived from the same pixels (eg. both are from the same amp,
     # CCD, or raft).
 
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are derived from the same pixels." )
     if chunkType == "amp":
-        
-        ampidField = chunkMetadata.findUnique("AMPID")
-        mampidField = masterChunkMetadata.findUnique("AMPID");
-        if ampField:
-            ampid = ampidField.getValue()
-            mampid = mampidField.getValue()
+
+        ampidField = chunkMetadata.findUnique("AMPLIST")
+        mampidField = masterChunkMetadata.findUnique("AMPLIST");
+        if ampidField:
+            ampid = ampidField.getValueString()
+            mampid = mampidField.getValueString()
         else:
             raise pexExcept.NotFound, "In %s: Could not get AMPID from the Metadata." %(stage,)
+
+        if ampid != mampid:
+            raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
 
     if chunkType == "ccd":
         
         ccdidField = chunkMetadata.findUnique("CCDID")
         mccdidField = masterChunkMetadata.findUnique("CCDID");
         if ccdField:
-            ccdid = ccdidField.getValue()
-            mccdid = mccdidField.getValue()
+            ccdid = ccdidField.getValueString()
+            mccdid = mccdidField.getValueString()
         else:
             raise pexExcept.NotFound, "In %s: Could not get CCDID from the Metadata." %(stage,)
+
+        if ccdid != mccdid:
+            raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
 
     if chunkType == "raft":
         
         raftidField = chunkMetadata.findUnique("RAFTID")
         mraftidField = masterChunkMetadata.findUnique("RAFTID");
         if raftField:
-            raftid = raftidField.getValue()
-            mraftid = mraftidField.getValue()
+            raftid = raftidField.getValueString()
+            mraftid = mraftidField.getValueString()
         else:
             raise pexExcept.NotFound, "In %s: Could not get RAFTID from the Metadata." %(stage,)
         
-    if ampid != mampid || ccdid != mccdid || raftid != mraftid:
-        raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
-        }
+        if raftid != mraftid:
+            raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
+        else:
+            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
 
     # Get the relevant metadata 
 
+    pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from the metadata." )
     fileNameField = masterChunkMetadata.findUnique("FILENAME")
     if fileNameField:
-        fileName = fileNameField.getValue()
+        fileName = fileNameField.getValueString()
+        print "Filename: ", fileName
     else:
         raise pexExcept.NotFound,"In %s: Could not get FILENAME from the Metadata." %(stage,) 
 
-    meanBiasField = masterChunkMetadata.findUnique("MEAN");
-    if meanBiasField:
-        meanBias = meanBiasField.getValue()
-    else:
-        raise pexExcept.NotFound,"In %s: Could not get MEAN from the master Metadata." %(stage,) 
+#    meanBiasField = masterChunkMetadata.findUnique("MEAN");
+#    if meanBiasField:
+#        meanBias = meanBiasField.getValueDouble()
+#        print "Mean of Master Bias: ", meanBias
+#    else:
+#        raise pexExcept.NotFound,"In %s: Could not get MEAN from the master Metadata." %(stage,) 
 
     # subtract the master Bias MaskedImage form the Chunk MaskedImage.
     # Allow for aditional scaling if desired.
 
+    pexLog.Trace("%s" % (stage,), 4, "Subtracting Master Bias from Chunk Exposure." )
     if biasScale:
         masterChunkMaskedImage *= biasScale
         chunkMaskedImage -= masterChunkMaskedImage
@@ -140,10 +156,11 @@ def biasCorrection(chunkExposure, masterChunkExposure, isrPolicy):
         chunkMaskedImage -= masterChunkMaskedImage
         
     # Record final stage provenance to the Image Metadata
-    dateTime = dafBase.DateTime.utc2mjd()
-    chunkMetadata.addProperty(dafBase.Dataproperty("BIAS_MJD", dateTime))
+    pexLog.Trace("%s" % (stage,), 4, "Recording final provenance information." )
+#    dateTime = dafBase.DateTime.utc2mjd()
+ # chunkMetadata.addProperty(dafBase.Dataproperty("BIAS_MJD", dateTime))
     chunkMetadata.addProperty(dafBase.DataProperty("BIAS_MC", fileName))
-    chunkMetadata.addProperty(dafBase.DataProperty("BIAS_MU", meanBias))
+ #   chunkMetadata.addProperty(dafBase.DataProperty("BIAS_MU", meanBias))
     chunkMetadata.addProperty(dafBase.DataProperty("BIAS_END", "Completed Successfully")) 
     chunkMaskedImage.setMetadata(chunkMetadata);
   
