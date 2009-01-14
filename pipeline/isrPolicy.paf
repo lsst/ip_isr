@@ -104,6 +104,12 @@ biasPolicy: {
  # Additional scaling of the master bias?
  biasScale: 1.0
 
+# Chunk field name (for AMP or CCD)
+ chunkField: AMPLIST
+
+# File Name field from the Metadata
+fileName: FILENAME
+
 }
 
 ######################################
@@ -117,6 +123,16 @@ darkPolicy: {
 
  # Additional scaling of the master dark (beyond EXPTIME scale)?
  darkScale: 1.0
+
+# Chunk field name (for AMP or CCD)
+ chunkField: AMPLIST
+
+# File Name field from the Metadata
+ fileName: FILENAME
+
+# Field name for Exposure and DarkTime
+ exptimeField: EXPTIME
+ darktimeField: DARKTIME
 
 }
 

@@ -28,7 +28,7 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr.SaturationCorrection as ipIsrSat
 
-Verbosity = 4 # increase frm zero to see trace
+Verbosity = 4 # increase from zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
 
 dataDir = eups.productDir("afwdata")
@@ -90,9 +90,9 @@ class isrTestCases(unittest.TestCase):
       
         ipIsrSat.saturationCorrection(self.chunkExposure, self.isrPolicy, lookupList)
 
-        self.chunkExposure.writeFits(outputPath)
         
-        #satCor = ipIsrSat.saturationCorrectionForChunkExposure(chunkExposure, isrPolicy, datasetPolicy, satLookupTablePath)
+        
+        self.chunkExposure.writeFits(outputPath)    
         
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 

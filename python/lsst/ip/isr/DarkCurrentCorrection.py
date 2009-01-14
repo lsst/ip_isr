@@ -1,17 +1,15 @@
 """
 
-@brief: Implementation of the stage, Dark Currecnt Correction, for the
- nightly Instrument Signature Removal Pipeline
+@brief Implementation of the stage, Dark Currecnt Correction, for the
+       nightly Instrument Signature Removal Pipeline
 
-@author: Nicole M. Silvestri
- contact: nms@astro.washington.edu
- file created: Mon Nov 24, 2008  
+@author Nicole M. Silvestri
+        University of Washington
+        nms@astro.washington.edu
+        created: Mon Nov 24, 2008  
 
 @file
 """
-import eups
-import os
-
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.daf.base as dafBase
@@ -20,11 +18,11 @@ import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
-def darkCurrentCorrection(chunkExposure, masterChunkExposure, isrPolicy):
+def darkCurrentCorrection(chunkExposure, masterExposure, isrPolicy):
 
     """Dark Current Correction
 
-    @brief The appropriate Master Dark Curent Chunk Exposure is
+    @brief The appropriate Master Dark Curent Exposure is
             retrieved from the Clipboard, scaled, and subtracted from
             the Chunk Exposure to correct for the thermal noise
             contribution of the electronics.
@@ -32,12 +30,12 @@ def darkCurrentCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     @return chunkExposure corrected for thermal noise 
 
     @throw LengthError if chunk and master Exposures are different sizes
-    @throw RangeError if chunk and master are derived from different pixels 
+    @throw RangeError if chunk and master Exposures are derived from different pixels 
     @throw NotFound if any Policy or metadata value can not be obtained
    
-    TO DO (as of 11/24/08):
-    - Implement sigma-clipping
+    TO DO (as of 1/08/09):
     - add any additional SDQA statistics requested by SDQA team
+    - scale darktime properly
     """
 
     stage = "lsst.ip.isr.darkCurrentCorrection"   
@@ -47,20 +45,24 @@ def darkCurrentCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
         darkPolicy = isrPolicy.getPolicy("darkPolicy")
-        chunkType = isrPolicy.getString("chunkType");
-        darkScale = darkPolicy.getDouble("darkScale");
-        sigClip = darkPolicy.getBool("sigClip");
+        chunkType = isrPolicy.getString("chunkType")
+        darkScale = darkPolicy.getDouble("darkScale")
+        chunkField = darkPolicy.getString("chunkField")
+        fileNameField = darkPolicy.getString("fileName")
+        expField = darkPolicy.getString("exptimeField")
+        darkField = darkPolicy.getString("darktimeField")
+        sigClip = darkPolicy.getBool("sigClip")
         if sigClip = true:
-            sigClipVal = darkPolicy.getDouble("sigClipVal");
+            sigClipVal = darkPolicy.getDouble("sigClipVal")
             # add sigClipping policy info here - not yet implemented
     except pexEx.LsstExceptionStack, e:
-        print "Cannot parse the ISR Policy File: %s" % e   
-        raise pexExcept.NotFound, "Can not obtain %s Policy Parameters." % (stage,)
+        pexLog.Trace("%s" % (stage,), 4, "Can not parse the ISR Policy File." % (e,))   
+        raise pexExcept.NotFound, "In %s: Can not obtain policy parameters from the ISR Policy File." % (stage,)
    
     chunkMaskedImage = chunkExposure.getMaskedImage()
     chunkMetadata = chunkMaskedImage.getImage().getMetaData()
-    masterChunkMaskedImage = masterChunkExposure.getMaskedImage()
-    masterChunkMetadata = chunkMaskedImage.getImage().getMetaData()
+    masterMaskedImage = masterExposure.getMaskedImage()
+    masterMetadata = chunkMaskedImage.getImage().getMetaData()
 
     # Check that the Master Bias Chunk Exposure and Chunk Exposure are
     # the same size.
@@ -68,106 +70,95 @@ def darkCurrentCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same size." )
     numCols = chunkMaskedImage.getCols()
     numRows = chunkMaskedImage.getRows() 
+    pexLog.Trace("%s" % (stage,), 4, "Chunk Exposure NumCols, NumRows: %s, %s" % numCols, numRows )
 
-    mnumCols = masterChunkMaskedImage.getCols()
-    mnumRows = masterChunkMaskedImage.getRows() 
+    mnumCols = masterMaskedImage.getCols()
+    mnumRows = masterMaskedImage.getRows() 
+    pexLog.Trace("%s" % (stage,), 4, "Master Exposure NumCols, NumRows: %s, %s" % mnumCols, mnumRows )
 
     if numCols != mnumCols || numRows != mnumRows:
-        raise pexExcept.LengthError, "In %s: Chunk Exposure and Master Dark Chunk Exposure are not the same size." % (stage,)
+        raise pexExcept.LengthError, "In %s: Chunk Exposure and Master Dark Current Exposure are not the same size." % (stage,)
     else:
-        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk are the same size." )
+        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are the same size." )
 
     # Check that the Master Bias Chunk Exposure and Chunk Exposure are
-    # derived from the same pixels (eg. both are from the same amp,
-    # CCD, or raft).
+    # derived from the same pixels (eg. both are from the same 'chunk').
 
-    if chunkType == "amp":
+    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are derived from the same pixels." )
         
-        ampidField = chunkMetadata.findUnique("AMPLIST")
-        mampidField = masterChunkMetadata.findUnique("AMPLIST");
-        if ampField:
-            ampid = ampidField.getValueString()
-            print "AmpID chunk: ", ampid
-            mampid = mampidField.getValueString()
-            print "AmpID master: ", mampid
-        else:
-            raise pexExcept.NotFound, "In %s: Could not get AMPID from the Metadata." %(stage,)
+    chunkField = chunkMetadata.findUnique(chunkField)
+    mchunkField = masterMetadata.findUnique(chunkField);
+    if chunkField and mampidField:
+        chunkId = chunkField.getValueString()
+        print "ID chunk: ", chunkId
+        mchunkId = mchunkField.getValueString()
+        print "ID master: ", mchunkId
+    else:
+        raise pexExcept.NotFound, "In %s: Could not get %s from the Metadata." % (stage, chunkType)
 
-    if ampid != mampid:
-        raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Dark Chunk Exposure are not derived from the same pixels." % (stage,)
+    if chunkId != mchunkId:
+        raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Dark Current Exposure are not derived from the same pixels." % (stage,)
     else:
         pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
 
-    if chunkType == "ccd":
-        
-        ccdidField = chunkMetadata.findUnique("CCDID")
-        mccdidField = masterChunkMetadata.findUnique("CCDID");
-        if ccdField:
-            ccdid = ccdidField.getValueString()
-            mccdid = mccdidField.getValueString()
-        else:
-            raise pexExcept.NotFound, "In %s: Could not get CCDID from the Metadata." %(stage,)
-
-    if ccdid != mccdid:
-        raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Dark Chunk Exposure are not derived from the same pixels." % (stage,)
-    else:
-        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
-
-    if chunkType == "raft":
-        
-        raftidField = chunkMetadata.findUnique("RAFTID")
-        mraftidField = masterChunkMetadata.findUnique("RAFTID");
-        if raftField:
-            raftid = raftidField.getValueString()
-            mraftid = mraftidField.getValueString()
-        else:
-            raise pexExcept.NotFound, "In %s: Could not get RAFTID from the Metadata." %(stage,)
-
-    if raftid != mraftid:
-        raise pexExcept.RangeError, "In %s: Chunk Exposure and Master Bias Chunk Exposure are not derived from the same pixels." % (stage,)
-    else:
-        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
-    
-    
-    # Get the relevant metadata
+    # Get additional metadata
     
     pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from the metadata." )
-    fileNameField = masterChunkMetadata.findUnique("FILENAME")
-    if fileNameField:
-        fileName = fileNameField.getValueString()
+    fileNameKey = masterMetadata.findUnique(fileNameField)
+    if fileNameKey:
+        fileName = fileNameKey.getValueString()
+        pexLog.Trace("%s" % (stage,), 4, "Master Dark Current Filename: %s" % (fileName,))
     else:
         raise pexExcept.NotFound,"In %s: Could not get FILENAME from the Metadata." %(stage,) 
 
-#    meanDarkField = masterChunkMetadata.findUnique("MEAN");
+#    meanDarkField = masterMetadata.findUnique("MEAN");
 #    if meanDarkField:
 #        meanDark = meanDarkField.getValue()
 #    else:
 #        raise pexExcept.NotFound,"In %s: Could not get MEAN from the master Metadata." %(stage,)
 
-    exptimeField = chunkMetadata.findUnique("EXPTIME")
-    mexptimeField = masterChunkMetadata.findUnique("EXPTIME")
-    if exptimeField:
+    exptimeField = chunkMetadata.findUnique(expField)
+    darkTimeField = chunkMetadata.findUnique(darkField)
+    mexptimeField = masterMetadata.findUnique(expField)
+    mdarkTimeField = masterMetadata.findUnique(darkField)
+    if exptimeField and mexptimeField and darkTimeField and mdarkTimeField:
         exptime = exptimeField.getValueDouble()
-        print "EXPTIME chunk: ", exptime
+        pexLog.Trace("%s" % (stage,), 4,"EXPTIME for Chunk: %s" % (exptime,))
         mexptime = mexptimeField.getValueDouble()
-        print "EXPTIME master: ", mexptime
+        pexLog.Trace("%s" % (stage,), 4,"EXPTIME for Master Dark: %s" % (mexptime,))
+        darkTime = darkTimeField.getValueDouble()
+        pexLog.Trace("%s" % (stage,), 4,"DARKTIME for Chunk: %s" % (darktime,))
+        mdarkTime = mdarkTimeField.getValueDouble()
+        pexLog.Trace("%s" % (stage,), 4,"DARKTIME for Master Dark: %s" % (mdarktime,))
     else:
-        raise pexExcept.NotFound, "In %s: Could not get EXPTIME from Chunk Metadata." % (stage,)
+        raise pexExcept.NotFound, "In %s: Could not get EXPTIME or DARKTIME from Chunk Metadata." % (stage,)
 
-    pexLog.Trace("%s" % (stage,), 4, "Scaling Master Dark to Chunk Exposure's EXPTIME." )
-    scale= exptime/mexptime 
+    pexLog.Trace("%s" % (stage,), 4, "Normalizing Exposures to DARKTIME." )
+  
+  # The darktime scaling needs some work - need to normalize the dark
+  # times by fitting polynomial to the exposure times for surrounding
+  # chunks (?) as PS does it?  Is this because of the shutter delay
+  # (dark and exptimes will be different by fractions of a second) 
+  #      if darktime and mdarkTime:  
+  #      scale = exptime/darkTime
+  #      masterMaskedImage *= scale
+    pexLog.Trace("%s" % (stage,), 4, "Scaling Master Dark Exposure to Chunk Exposure's EXPTIME." )
     if exptime != mexptime:
-        masterChunkMaskedImage *= scale 
+        scale = exptime/mexptime 
+        masterMaskedImage *= scale 
+    else:
+        continue
 
-    # subtract the master Bias MaskedImage form the Chunk MaskedImage.
-    # Allow for additional scaling if desired.
+    # subtract the Master Dark Current MaskedImage form the Chunk
+    # MaskedImage.  Allow for additional scaling if desired.
     
     pexLog.Trace("%s" % (stage,), 4, "Subtracting Master Dark from Chunk Exposure." )
     if darkScale:
-        masterChunkMaskedImage *= darkScale
-        chunkMaskedImage -= masterChunkMaskedImage
+         pexLog.Trace("%s" % (stage,), 4, "Additional scale factor applied to Master Dark: %s" %(darkScale,))
+        masterMaskedImage *= darkScale
+        chunkMaskedImage -= masterMaskedImage
     else:
-        chunkMaskedImage -= masterChunkMaskedImage
+        chunkMaskedImage -= masterMaskedImage
         
     # Record final stage provenance to the Image Metadata
     pexLog.Trace("%s" % (stage,), 4, "Recording final provenance information." )
