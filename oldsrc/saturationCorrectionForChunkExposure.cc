@@ -29,12 +29,9 @@
 #include "vw/Math/Functions.h" 
 #include "vw/Math/Vector.h" 
 
-#include <lsst/afw/image/Exposure.h>
-#include <lsst/afw/image/Mask.h>
-#include <lsst/afw/image/MaskedImage.h>
-#include <lsst/afw/image/PixelAccessors.h>
+#include <lsst/afw/image.h>
+#include <lsst/afw/detection.h>
 #include <lsst/daf/base/DataProperty.h>
-#include <lsst/detection/Footprint.h>
 #include <lsst/pex/exceptions/Exception.h>
 #include <lsst/pex/logging/Trace.h>
 #include <lsst/pex/policy/Policy.h>
@@ -44,7 +41,7 @@
 
 /** \brief Detect and mask pixels that are saturated in the A/D converter or
   * have excessive non-linear response in the Chunk Exposure.  Uses the
-  * lsst::detection::DetectionSet to create footprints of saturated pixels above
+  * lsst::afw::detection::DetectionSet to create footprints of saturated pixels above
   * a threshold as given in the ISR Policy.
   *
   * Grow by additional pixels (as given in the ISR Policy) to mask charge
@@ -87,7 +84,8 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
 
     // Make sure we haven't run this sub-stage previously
 
-     lsst::daf::base::DataProperty::PtrType isrSatFlag = chunkMetadata->findUnique("SATU_END");  // ISR saturation stage processing flag
+    lsst::daf::base::DataProperty::PtrType isrSatFlag = chunkMetadata->findUnique("SATU_END"); 
+        // ISR saturation stage processing flag
     if (isrSatFlag) {
         throw lsst::pex::exceptions::Runtime(std::string("Saturation Correction previously performed - terminating stage."));
     } 
@@ -167,7 +165,7 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     chunkMaskPtr = chunkMaskedImage.getMask();
     MaskT const satMaskBit = chunkMaskedImage.getMask()->getPlaneBitMask("SAT");
     
-    typedef std::vector<lsst::detection::Footprint::PtrType> FootprintList;
+    typedef std::vector<lsst::afw::detection::Footprint::PtrType> FootprintList;
     typedef typename FootprintList::iterator FootprintIter;
 
     FootprintList newSatFps;   // newly detected saturated pixel footprints
@@ -176,13 +174,13 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
 
     // Save the saturated pixels as a vector of footprints.  
 
-    lsst::detection::DetectionSet<ImageT, MaskT> detectionSet(chunkMaskedImage, lsst::detection::Threshold(threshold, lsst::detection::Threshold::VALUE));       
+    lsst::afw::detection::DetectionSet<ImageT, MaskT> detectionSet(chunkMaskedImage, lsst::afw::detection::Threshold(threshold, lsst::afw::detection::Threshold::VALUE));       
 
     newSatFps = detectionSet.getFootprints();
 
      // Grow around all of the saturated pixel footprints.  
 
-    lsst::detection::DetectionSet<ImageT, MaskT> detectionSetGrown(newSatFps, grow);
+    lsst::afw::detection::DetectionSet<ImageT, MaskT> detectionSetGrown(newSatFps, grow);
 
     grownSatFps = detectionSetGrown.getFootprints();
 
@@ -219,13 +217,15 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
 //         // use Footprint::setNpix?
 //         numSatPix += (numCols * numRows);
 //         } catch (lsst::pex::exceptions::ExceptionStack &e) {
-//             lsst::pex::logging::TTrace<3>("In ISR stage %s, Requested footprint BBox, %d, is not contained within the original Image.", satStage, numSatFootprints + 1);
+//             lsst::pex::logging::TTrace<3>(
+//                 "In ISR stage %s, Requested footprint BBox, %d, is not contained within the original Image.",
+//                 satStage, numSatFootprints + 1);
 //             continue;
 //         }
 //         // Create a new footprint with the grown bbox and save the new
 //         // footprints in another vector.
 
-//         lsst::detection::Footprint::PtrType fpGrow(new lsst::detection::Footprint(fpBBox)); 
+//         lsst::afw::detection::Footprint::PtrType fpGrow(new lsst::afw::detection::Footprint(fpBBox)); 
 //         grownSatFps.push_back(fpGrow);
 //         numSatFootprints += 1;
 //     } 
@@ -237,7 +237,7 @@ void lsst::ip::isr::saturationCorrectionForChunkExposure(
     // actually saturated?  What bitmask would that be ("GROW")? Detection set
     // will mask pixels but its not yet implemented.
    
-    lsst::detection::setMaskFromFootprintList<MaskT>(chunkMaskPtr, grownSatFps, satMaskBit);
+    lsst::afw::detection::setMaskFromFootprintList<MaskT>(chunkMaskPtr, grownSatFps, satMaskBit);
     
     // Interpolate over all of the masked saturated pixels. 
     lsst::ip::isr::interpolateOverMaskedPixels(chunkExposure, isrPolicy);

@@ -21,8 +21,10 @@
 #include <vector>
 #include <cmath>
 
-#include "vw/Math/BBox.h"
 #include "lsst/ip/isr/isr.h"
+
+namespace afwImage = lsst::afw::image;
+namespace ipIsr = lsst::ip::isr;
 
 // Simple string iterator to help parse data sections.
 // Finds the string between two delimiting characters
@@ -44,7 +46,7 @@ std::string between(std::string &s, char ldelim, char rdelim)
     return result;
 }
 
-vw::BBox2i lsst::ip::isr::stringParse(std::string &section)
+afwImage::BBox ipIsr::stringParse(std::string &section)
 { 
 
     const char begin('[');
@@ -53,25 +55,19 @@ vw::BBox2i lsst::ip::isr::stringParse(std::string &section)
     const char delim2(',');
 
     std::string temp(between(section, delim2, end));
-    std::size_t position = temp.find(":");
+    std::size_t colonPos = temp.find(":");
 
     // NOTE: atoi() needs to be passed a c_str() to get the int out
-    const int colsStart = atoi(between(section, begin, delim1).c_str());
-    std::cout << "colsStart: " << colsStart << std::endl;
+    afwImage::PointI startPt(
+        atoi(between(section, begin, delim1).c_str()),
+        atoi(between(section, delim2, delim1).c_str()));
+    std::cout << "start = " << startPt.getX() << ", " << startPt.getY() << std::endl;
 
-    const int colsEnd = atoi(between(section, delim1, delim2).c_str());
-    std::cout << "colsEnd: " << colsEnd << std::endl;
 
-    const int rowsStart = atoi(between(section, delim2, delim1).c_str());
-    std::cout << "rowsStart: " << rowsStart << std::endl;
+    afwImage::PointI endPt(
+        atoi(between(section, delim1, delim2).c_str()),
+        atoi(temp.substr(colonPos + 1).c_str()));
+    std::cout << "end = " << endPt.getX() << ", " << endPt.getY() << std::endl;
 
-    const int rowsEnd = atoi(temp.substr(position + 1).c_str());
-    std::cout << "rowsEnd: " << rowsEnd << std::endl;
-
-    const int colSpan = colsEnd - colsStart;
-    const int rowSpan = rowsEnd - rowsStart;
-
-    vw::BBox2i bBox = vw::BBox2i(colsStart, rowsStart, colSpan, rowSpan);
-
-    return bBox;
+    return afwImage::BBox(startPt, endPt);
 }

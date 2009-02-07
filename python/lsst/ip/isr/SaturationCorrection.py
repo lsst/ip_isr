@@ -10,15 +10,20 @@
 @file
 """
 
+TODO: replace double gaussian psf
+TODO: replace lsst.detection.defects
+import lsst.detection as det
+import lsst.detection.defects as defects
+
 import os
 import math
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
-import lsst.detection as det
+import lsst.afw.detection as afwDet
+import lsst.meas.algorithms as measAlg
 import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
-import lsst.detection.defects as defects
 import isrLib
 
 def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
@@ -27,7 +32,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
 
     Detect and mask pixels that are saturated in the A/D converter or
     have excessive non-linear response in the Chunk Exposure.  Uses
-    the lsst::detection::DetectionSet to create footprints of
+    lsst.afw.detection.DetectionSet to create footprints of
     saturated pixels above a threshold as given in the ISR Policy
     File, a lookup table or given in the metadata as the 'SATURATE'
     field.
@@ -38,8 +43,8 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
 
     Grow by additional pixels (as given in the ISR Policy) to mask
     charge spillover.  Set appropriate bits in the Mask and
-    interpolate over masked pixels using the 'interpolateOverDefects'
-    member in detection.  A simple PSF estimation is used for now.
+    interpolate over masked pixels using lsst.meas.algorithms.interpolateOverDefects.
+    A simple PSF estimation is used for now.
 
     @return chunkExposure with saturated pixels masked, grown, and interpolated
   
@@ -151,7 +156,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     # to grow around the A/D saturated pixels (in unbinned data).
 
     pexLog.Trace("%s" % (stage,), 4, "Finding saturated footprints.")
-    satFootprintSet = det.DetectionSetD(chunkMaskedImage, det.Threshold(thresholdVal))
+    satFootprintSet = afwDet.DetectionSetD(chunkMaskedImage, afwDet.Threshold(thresholdVal))
     satFootprintList = satFootprintSet.getFootprints()
     numSatFootprints = len(satFootprintList)
     pexLog.Trace("%s" % (stage,), 4, "Found %s saturated footprints." % (numSatFootprints,))
@@ -163,7 +168,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     pexLog.Trace("%s" % (stage,), 4, "Found %s saturated pixels." % (numSatPix,))
     
     pexLog.Trace("%s" % (stage,), 4, "Growing around all saturated footprints.")
-    grownSatFootprintSet = det.DetectionSetD(satFootprintSet, satGrow)
+    grownSatFootprintSet = afwDet.DetectionSetD(satFootprintSet, satGrow)
     grownSatFootprintList = grownSatFootprintSet.getFootprints()
     numGrownSatFootprints = len(grownSatFootprintList)
     pexLog.Trace("%s" % (stage,), 4, "Found %s grown saturated footprints." % (numGrownSatFootprints,))
@@ -182,7 +187,7 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     # grown pixels only?
     
     pexLog.Trace("%s" % (stage,), 4, "Masking all saturated pixels.")
-    det.setMaskFromFootprintList(chunkMask, grownSatFootprintList, satMaskBit)
+    afwDet.setMaskFromFootprintList(chunkMask, grownSatFootprintList, satMaskBit)
 
     pexLog.Trace("%s" % (stage,), 4, "Interpolating over all saturated footprints.")  
     psf = det.dgPSF(psfFwhm/(2*math.sqrt(2*math.log(2)))) 
@@ -190,8 +195,8 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
 
     badPixList = defects.policyToBadRegionList(os.path.join(os.environ["DETECTION_DIR"], "pipeline/BadPixels.paf"))
 
-    det.interpolateOverDefects(chunkMaskedImage, psf, badPixList)
-    #det.interpolateOverDefects(chunkMaskedImage, psf, grownSatFootprintList)
+    measAlg.interpolateOverDefects(chunkMaskedImage, psf, badPixList)
+    #measAlg.interpolateOverDefects(chunkMaskedImage, psf, grownSatFootprintList)
     
     # Record the stage provenance to the Image Metadata (for now) this
     # will eventually go into an ISR_info object.

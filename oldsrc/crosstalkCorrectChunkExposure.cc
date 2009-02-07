@@ -26,12 +26,8 @@
 #include "vw/Math/Functions.h" 
 #include "vw/Math/Vector.h" 
 
-#include <lsst/afw/image/Exposure.h>
-#include <lsst/afw/image/Mask.h>
-#include <lsst/afw/image/MaskedImage.h>
-#include <lsst/afw/image/PixelAccessors.h>
+#include <lsst/afw/image.h>
 #include <lsst/daf/base/DataProperty.h>
-#include <lsst/detection/Footprint.h>
 #include <lsst/pex/exceptions/Exception.h>
 #include <lsst/pex/logging/Trace.h>
 #include <lsst/pex/policy/Policy.h>

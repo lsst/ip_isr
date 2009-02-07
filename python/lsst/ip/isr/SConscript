@@ -1,8 +1,8 @@
 # -*- python -*-
 Import("env")
-import lsst.SConsUtils as scons
 
-# includedProducts lists packages with included .i files
-env.CheckSwig("python", ilang="c++", includedProducts="utils afw detection")
-
+pkg = env["eups_product"]
+# includedProducts lists the names of all packages on which you depend that have their own SWIG wrappers
+# (which should generally be all of them), separated by spaces.
+env.CheckSwig("python", ilang="c++", includedProducts="utils daf_base pex_exceptions pex_logging pex_policy daf_persistence daf_data security afw meas_algorithms")
 env.LoadableModuleIncomplete("_isrLib", "isrLib.i", LIBS=env.getlibs("ip_isr"))

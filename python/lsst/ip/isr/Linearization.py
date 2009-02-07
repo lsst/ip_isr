@@ -14,7 +14,6 @@
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.daf.base as dafBase
-import lsst.detection as det
 import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy

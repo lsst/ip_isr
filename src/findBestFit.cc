@@ -19,8 +19,7 @@
 #include <string>
 #include <vector>
 
-#include <lsst/afw/image.h>
-#include <lsst/afw/math.h>
+#include "lsst/pex/exceptions.h"
 #include "lsst/ip/isr/isr.h"
 
 /**\brief Iterate through a given MaskedImage to fill vectors for the pixel
@@ -29,25 +28,22 @@
   *
   * \return FitResults for best parameter fit.
   *
-  * \throw Runtime if equested function is not implemented.
+  * \throw lsst::pex::exceptions::RuntimeErrorException if equested function is not implemented.
   */ 
 
-typedef double vectorType;
-typedef double funcType;
-
-template<typename ImageT, typename MaskT> 
+template<typename ImagePixelT>
 lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
-    lsst::afw::image::MaskedImage<ImageT, MaskT> const &maskedImage,
+    lsst::afw::image::MaskedImage<ImagePixelT> const &maskedImage,
     std::string const &funcForm,
     int funcOrder,
     double stepSize
-    ) {
+) {
+    typedef lsst::afw::image::MaskedImage<ImagePixelT> MaskedImage;
 
-    // Find the best fit function to the MaskedImage region.  Best fit
-    // determined via Chi^2 minimization.
+    // Find the best fit function to the MaskedImage region. Best fit determined via Chi^2 minimization.
 
-    std::vector<vectorType> parameterList;
-    std::vector<vectorType> stepSizeList;
+    std::vector<double> parameterList;
+    std::vector<double> stepSizeList;
     
     //std::fill(parameterList.begin(), parameterList.end(), numParams);
     //std::fill(stepSizeList.begin(), stepSizeList.end(), stepSize);
@@ -55,23 +51,19 @@ lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
     // collapse the image region down to a vector.  Get vectors of measurements,
     // variances, and x,y positions
 
-    std::vector<vectorType> measurementList;
-    std::vector<vectorType> varianceList;
-    std::vector<vectorType> colPositionList;
-    std::vector<vectorType> rowPositionList;
+    std::vector<double> measurementList;
+    std::vector<double> varianceList;
+    std::vector<double> colPositionList;
     
-    lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miRowAcc(maskedImage);
-       
-    const int miCols = static_cast<int>(maskedImage.getCols());
-    const int miRows = static_cast<int>(maskedImage.getRows());
+    const int miHeight = maskedImage.getHeight();
+    
 
-    for (int miRow = 0; miRow < miRows; miRow++, miRowAcc.nextRow()) {
-        lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miColAcc = miRowAcc;
-        for (int miCol = 0; miCol < miCols; miCol++, miColAcc.nextCol()) {
-            measurementList.push_back(*miColAcc.image);
-            varianceList.push_back(*miColAcc.variance);
+    for (int y = 0,; y < miHeight; ++y) {
+        int miCol = 0;
+        for (typename MaskedImage::x_iterator miPtr = maskedImage.row_begin(y), end = maskedImage.row_end(y); miPtr != end; ++miPtr, ++miCol) {
+            measurementList.push_back(miPtr.image());
+            varianceList.push_back(miPtr.variance());
             colPositionList.push_back(miCol);
-            rowPositionList.push_back(miRow);
         }
     }   
       
@@ -82,15 +74,15 @@ lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
     
     if (funcForm == "POLYNOMIAL") {
 
-        lsst::afw::math::PolynomialFunction1<funcType> polyFunc1(funcOrder);
+        lsst::afw::math::PolynomialFunction1<double> polyFunc1(funcOrder);
         double sigma = 1.0; // initial guess
 
-	const unsigned int nParams = polyFunc1.getNParameters();
+        const unsigned int nParams = polyFunc1.getNParameters();
 
-	std::vector<vectorType> parameterList = polyFunc1.getParameters();
-        std::vector<vectorType> stepSizeList(nParams);
-	polyFunc1.setParameters(parameterList);
-	for (unsigned int i = 0; i < nParams; ++i) {
+        std::vector<double> parameterList = polyFunc1.getParameters();
+        std::vector<double> stepSizeList(nParams);
+        polyFunc1.setParameters(parameterList);
+        for (unsigned int i = 0; i < nParams; ++i) {
             stepSizeList[i] = stepSize;
         }
 
@@ -108,13 +100,13 @@ lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
         return fitResults;
         
     } else if (funcForm == "SPLINE") {
-        throw lsst::pex::exceptions::Runtime(std::string("Function 'SPLINE' Not Implemented Yet."));
+        throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeErrorException, "Function 'SPLINE' Not Implemented Yet.");
 
     } else if (funcForm == "CHEVYCHEV") {
-        throw lsst::pex::exceptions::Runtime(std::string("Function 'CHEVYCHEV' Not Implemented Yet."));
+        throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeErrorException, "Function 'CHEVYCHEV' Not Implemented Yet.");
 
     } else {
-        throw lsst::pex::exceptions::Runtime(std::string("Function Not Implemented. Use 'POLYNOMIAL', 'SPLINE', or 'CHEVYCHEV'."));
+        throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeErrorException, "Function Not Implemented. Use 'POLYNOMIAL', 'SPLINE', or 'CHEVYCHEV'.");
     }
 }
 
@@ -123,7 +115,7 @@ lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
 
 template
 lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> const &maskedImage,
+    lsst::afw::image::MaskedImage<float> const &maskedImage,
     std::string const &funcForm,
     int funcOrder,
     double stepSize
@@ -131,7 +123,7 @@ lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
 
 template
 lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
-    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> const &maskedImage,
+    lsst::afw::image::MaskedImage<double> const &maskedImage,
     std::string const &funcForm,
     int funcOrder,
     double stepSize

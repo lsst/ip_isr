@@ -22,8 +22,8 @@ import numarray
 
 import eups
 
-import lsst.detection.detectionLib as detectionLib
 import lsst.afw.image as afwImage
+import lsst.afw.detection as afwDet
 import lsst.daf.base as dafBase
 import lsst.pex.logging as pexLogging
 import lsst.pex.policy as pexPolicy
@@ -146,7 +146,7 @@ def main():
         badBitMask = mask.getPlaneBitMask(maskPlane)
        
         # put them all in a list and do at once
-        footprintList = detectionLib.FootprintContainerT()
+        footprintList = afwDet.FootprintContainerT()
        
         for card in header.ascardlist().keys():
             if card.startswith('MASK_'):
@@ -173,11 +173,11 @@ def main():
                     group[2]-group[0]+1,    # col span
                     group[3]-group[1]+1
                 )    # row span
-                maskFootprint = detectionLib.FootprintPtrT( detectionLib.Footprint(maskBBox2i) )
+                maskFootprint = afwDet.FootprintPtrT( afwDet.Footprint(maskBBox2i) )
                 footprintList.push_back(maskFootprint)
 
         # set all the bad masks at once!
-        detectionLib.setMaskFromFootprintList(mask, footprintList, badBitMask)
+        afwDet.setMaskFromFootprintList(mask, footprintList, badBitMask)
                 
         # Write the Mask to disk
         outMaskFileName = re.sub('.fits', '_%d_msk.fits' % (extension), inImage)

@@ -203,7 +203,7 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
         datasecBbox = stringParser(datasec)
         biassecBbox = stringParser(biassec)
   
-	if writeOverscan == 'true':  
+        if writeOverscan == 'true':  
             overscanExposure = afwImage.ExposureD()
             overscanMaskedImage = afwImage.MaskedImageD()
             overscanExposure = chunkExposure.getSubExposure(biassecBbox)
@@ -211,10 +211,10 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
             pexLog.Trace("%s" % (stage,), 4, "Writing Overscan Exposure to FitsStorage.")
             overscanExposure.writeFits(overscanExposureOutPath)
 
-	trimmedExposure = trimExposure(chunkExposure)
-	trimmedMaskedImage = afwImage.MaskedImageD()
-	trimmedMaskedImage = trimmedExposure.getMaskedImage()
-	trimmedMetadata = trimmedMaskedImage.getImage().getMetaData()
+        trimmedExposure = trimExposure(chunkExposure)
+        trimmedMaskedImage = afwImage.MaskedImageD()
+        trimmedMaskedImage = trimmedExposure.getMaskedImage()
+        trimmedMetadata = trimmedMaskedImage.getImage().getMetaData()
 
         if method == "FUNCTION":
             if funcForm == "POLYNOMIAL":
@@ -262,8 +262,8 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
             if constantMeth == "MEAN":
 
                 pexLog.Trace("%s" % (stage,), 4, "Computing mean for overscan region.")
-                mu = ipIsr.easyMean(overscanMaskedImage)
-	        print "Mean Value: ", mu
+                mu = afwMath.make_Statistics(overscanMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
+                print "Mean Value: ", mu
             
                 pexLog.Trace("%s" % (stage,), 4, "Subtracting mean from MaskedImmge.")
                 trimmedMaskedImage -= mu
@@ -307,12 +307,12 @@ def overscanCorrectAndTrim(chunkExposure, isrPolicy):
 
     else:       
         pexLog.Trace("%s" % (stage,), 4, "Requested overscan correction can not be applied.  No overscan region defined. Skipping overscan correction.")
-        pexLog.Trace("%s" % (stage,), 4, "Verifying trim region.")    	     
+        pexLog.Trace("%s" % (stage,), 4, "Verifying trim region.")           
         if trimsec =="NULL":
             pexLog.Trace("%s" % (stage,), 4, "Requested exposure trimming can not be applied.  No trim region defined. Terminating stage.")
             pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
         else:
-	    trimmedExposure = trimExposure(chunkExposure)
-	    chunkExposure = trimmedExposure
+            trimmedExposure = trimExposure(chunkExposure)
+            chunkExposure = trimmedExposure
             pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
 

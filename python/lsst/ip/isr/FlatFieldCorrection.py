@@ -202,7 +202,7 @@ def flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy):
         # the entire Master Flat Field Chunk Exposure.
 
         pexLog.Trace("In %s:" % (stage,), 4, "Normalizing the Master Flat Field Exposure.")
-        mu = ipIsr.easyMean(masterChunkMaskedImage)
+        mu = afwMath.make_Statistics(masterChunkMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
         masterChunkMaskedImage /= mu
 
         pexLog.Trace("%s" % (stage,), 4, "Recording normalization provenance information." )

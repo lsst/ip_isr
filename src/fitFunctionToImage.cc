@@ -5,7 +5,7 @@
   *
   * \ingroup isr
   *
-  * \brief Utility function to fit a polynomial function to a maskedImage.
+  * \brief Utility function to fit a polynomial function to a image.
   *
   * \author Nicole M. Silvestri, University of Washington
   *
@@ -16,31 +16,24 @@
   * LSST Legalese here...
   */
 
-#include <lsst/afw/image.h>
-#include <lsst/afw/math.h>
 #include "lsst/ip/isr/isr.h"
 
-//Given the maskedImage and the polynomial function, 
-//\return the maskedImage fitted for the polynomial.
+//Given the image and the polynomial function, 
+//\return the image fitted for the polynomial.
 
-typedef double funcType;
-
-template<typename ImageT, typename MaskT> 
+template<typename ImagePixelT>
 void lsst::ip::isr::fitFunctionToImage(
-    lsst::afw::image::MaskedImage<ImageT, MaskT> const &maskedImage,
-    lsst::afw::math::PolynomialFunction1<funcType> const &polyFunction
-    ) {
+    lsst::afw::image::MaskedImage<ImagePixelT> &maskedImage,
+    lsst::afw::math::Function1<double> const &function
+) {
+    typedef lsst::afw::image::MaskedImage<ImagePixelT> MaskedImage;
 
-    const int miCols = static_cast<int>(maskedImage.getCols());
-    const int miRows = static_cast<int>(maskedImage.getRows());
+    const int miHeight = maskedImage.getHeight();
 
-    lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miRowAcc(maskedImage);
-                
-    for (int miRow = 0; miRow < miRows; miRow++, miRowAcc.nextRow()) {
-        lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miColAcc = miRowAcc;
-        for (int miCol = 0; miCol < miCols; miCol++, miColAcc.nextCol()) {
-            *miColAcc.image = static_cast<ImageT>(polyFunction(*miColAcc.image));
-            *miColAcc.variance = static_cast<ImageT>(polyFunction(*miColAcc.image) * polyFunction(*miColAcc.image));
+    // Set the pixels row by row, to avoid repeated checks for end-of-row
+    for (int y = 0,; y < miHeight; ++y) {
+        for (typename MaskedImage::x_iterator miPtr = maskedImage.row_begin(y), end = maskedImage.row_end(y); miPtr != end; ++miPtr) {
+            miPtr.image() = static_cast<ImagePixelT>(function(static_cast<double>(miPtr.image())));
         }
     }
 }
@@ -50,14 +43,14 @@ void lsst::ip::isr::fitFunctionToImage(
 
 template
 void lsst::ip::isr::fitFunctionToImage(
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> const &maskedImage,
-    lsst::afw::math::PolynomialFunction1<funcType> const &polyFunction
+    lsst::afw::image::MaskedImage<float> &maskedImage,
+    lsst::afw::math::Function1<double> const &function
     );
 
 template
 void lsst::ip::isr::fitFunctionToImage(
-    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> const &maskedImage,
-    lsst::afw::math::PolynomialFunction1<funcType> const &polyFunction
+    lsst::afw::image::MaskedImage<double> &maskedImage,
+    lsst::afw::math::Function1<double> const &function
     );
 
 /************************************************************************/

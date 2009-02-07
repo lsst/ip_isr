@@ -28,7 +28,6 @@ import eups
 
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
-import lsst.detection.detectionLib as detectionLib
 import lsst.pex.logging as pexLogging
 import lsst.pex.policy as pexPolicy
 
@@ -97,7 +96,6 @@ def main():
                                                nColSubImages,
                                                nRowSubImages)
                 ccdNumField = policy.getString('ccdField')
-                #ccdNumber = dafBase.DataProperty.PtrType
                 print 'CCD Number Field: ', ccdNumField
                 ccdNumber = inCcdMetadata.findUnique(ccdNumField)
                 ccdNum = ccdNumber.getValue()

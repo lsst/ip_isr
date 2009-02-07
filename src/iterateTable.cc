@@ -17,39 +17,36 @@
   * LSST Legalese here...
   */
 
-#include <lsst/afw/image.h>
-#include <lsst/afw/math.h>
+#include "lsst/pex/exceptions.h"
 #include "lsst/ip/isr/isr.h"
 
-// Given the maskedImage and the lookupTable, 
-//\return the maskedImage adjusted to the table values
-
-typedef double vectorType;
-
-template<typename ImageT, typename MaskT> 
+/**
+* \brief Given the maskedImage and the lookupTable, 
+*
+* \return the maskedImage adjusted to the table values
+*
+* \throw lsst::pex::exceptions::RangeErrorException if lookup table index out of range
+*/
+template<typename ImagePixelT>
 void lsst::ip::isr::iterateTable(
-    lsst::afw::image::MaskedImage<ImageT, MaskT> &maskedImage,
-    std::vector<vectorType> &lookupTable
-    ) {
-
-//    std::vector<vectorType>::iterator tableIter = lookupTable.begin();
-//    std::vector<vectorType>::iterator tableIterEnd = lookupTable.end();
+    lsst::afw::image::MaskedImage<ImagePixelT> &maskedImage,
+    std::vector<double> const &lookupTable
+) {
+    typedef lsst::afw::image::MaskedImage<ImagePixelT> MaskedImage;
 
     int maxInd = lookupTable.size() - 1;
-    const int miCols = static_cast<int>(maskedImage.getCols());
-    const int miRows = static_cast<int>(maskedImage.getRows());
 
-    lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miRowAcc(maskedImage);
-                
-    for (int miRow = 0; miRow < miRows; miRow++, miRowAcc.nextRow()) {
-        lsst::afw::image::MaskedPixelAccessor<ImageT, MaskT> miColAcc = miRowAcc;
-        for (int miCol = 0; miCol < miCols; miCol++, miColAcc.nextCol()) {
-            int ind = static_cast<int>(*miColAcc.image);
+    const int miHeight = maskedImage.getHeight();
+
+    // Set the pixels row by row, to avoid repeated checks for end-of-row
+    for (int y = 0,; y < miHeight; ++y) {
+        for (typename MaskedImage::x_iterator miPtr = maskedImage.row_begin(y), end = maskedImage.row_end(y); miPtr != end; ++miPtr) {
+            int ind = static_cast<int>(miPtr.image());
             if ((ind < 0) || (ind > maxInd)) {
-            	 throw lsst::pex::exceptions::RangeError(std::string("Lookup table iterator out of range."));        
+                 throw LSST_EXCEPT(lsst::pex::exceptions::RangeErrorException, "Lookup table index out of range.");
             } else {
-                *miColAcc.image += lookupTable[ind]; 
-	    } 
+                miPtr.image() += lookupTable[ind]; 
+            } 
         }
     }
 }
@@ -59,14 +56,14 @@ void lsst::ip::isr::iterateTable(
 
 template
 void lsst::ip::isr::iterateTable(
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> &maskedImage,
-    std::vector<vectorType> &lookupTable
+    lsst::afw::image::MaskedImage<float> &maskedImage,
+    std::vector<double> const &lookupTable
     );
 
 template
 void lsst::ip::isr::iterateTable(
-    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> &maskedImage,
-    std::vector<vectorType> &lookupTable
+    lsst::afw::image::MaskedImage<double> &maskedImage,
+    std::vector<double> const &lookupTable
     );
 
 /************************************************************************/

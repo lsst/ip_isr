@@ -24,7 +24,6 @@ import numarray as num
 
 import eups
 
-import lsst.detection.detectionLib as detectionLib
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
 import lsst.pex.logging as pexLogging

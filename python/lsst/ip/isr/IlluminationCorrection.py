@@ -389,7 +389,7 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         # Normalize the Master Dome (or twilight) Flat Field Exposure
         # from a previous night
         pexLog.Trace("In %s:" % (stage,), 4, "Normalizing the Master Flat Field Exposure.")
-        mu = ipIsr.easyMean(masterDfpChunkMaskedImage)
+        mu = afwMath.make_Statistics(masterDfpChunkMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
         masterDfpChunkMaskedImage /= mu
         
         pexLog.Trace("%s" % (stage,), 4, "Recording normalization provenance information." )
@@ -407,7 +407,7 @@ def illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIc
         # Normalize the Master Illumination Correction Exposure from a
         # previous night
         pexLog.Trace("In %s:" % (stage,), 4, "Normalizing the Master Illumination Exposure.")
-        mu = ipIsr.easyMean(masterIcpChunkMaskedImage)
+        mu = afwMath.make_Statistics(masterIcpChunkMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
         masterIcpChunkMaskedImage /= mu
 
         pexLog.Trace("%s" % (stage,), 4, "Recording normalization provenance information." )
