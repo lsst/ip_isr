@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Read and get header information from a MEF file.
 
 import os

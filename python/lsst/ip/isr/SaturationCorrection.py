@@ -10,17 +10,13 @@
 @file
 """
 
-TODO: replace double gaussian psf
-TODO: replace lsst.detection.defects
-import lsst.detection as det
-import lsst.detection.defects as defects
-
 import os
 import math
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
 import lsst.afw.detection as afwDet
 import lsst.meas.algorithms as measAlg
+import lsst.meas.algorithms.defects as algDefects
 import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
@@ -190,10 +186,10 @@ def saturationCorrection(chunkExposure, isrPolicy, lookupTable):
     afwDet.setMaskFromFootprintList(chunkMask, grownSatFootprintList, satMaskBit)
 
     pexLog.Trace("%s" % (stage,), 4, "Interpolating over all saturated footprints.")  
-    psf = det.dgPSF(psfFwhm/(2*math.sqrt(2*math.log(2)))) 
+    psf = measAlg.dgPSF(psfFwhm/(2*math.sqrt(2*math.log(2)))) 
     chunkMask.addMaskPlane("INTERP")
 
-    badPixList = defects.policyToBadRegionList(os.path.join(os.environ["DETECTION_DIR"], "pipeline/BadPixels.paf"))
+    badPixList = algDefects.policyToBadRegionList(os.path.join(os.environ["DETECTION_DIR"], "pipeline/BadPixels.paf"))
 
     measAlg.interpolateOverDefects(chunkMaskedImage, psf, badPixList)
     #measAlg.interpolateOverDefects(chunkMaskedImage, psf, grownSatFootprintList)

@@ -3,7 +3,6 @@ import re
 import sys
 import pyfits
 import string
-import numarray
 
 import eups
 
@@ -48,8 +47,7 @@ def main():
         # ignore comment lines
         if image.startswith("#"):
             continue
-        inCcdMaskedImage = afwImage.MaskedImageF()
-        inCcdMaskedImage.readFits(image)
+        inCcdMaskedImage = afwImage.MaskedImageF(image)
         print 'Read: ', image + '_img.fits'
         inCcdWCS = afwImage.Wcs(inCcdMaskedImage.getImage().getMetaData())
         inCcdExposure = afwImage.ExposureF(inCcdMaskedImage, inCcdWCS)

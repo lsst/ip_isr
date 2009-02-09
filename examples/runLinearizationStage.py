@@ -35,8 +35,7 @@ def main():
     lookupTablePath = os.path.join(isrDir, "pipeline", "linearizationLookupTable.tab")
     chunkExposureOutPath = os.path.join(dataDir, "linearStageTestExposure_1")
 
-    chunkExposure = afwImage.ExposureD()
-    chunkExposure.readFits(chunkExposureInPath)
+    chunkExposure = afwImage.ExposureD(chunkExposureInPath)
 
     chunkMaskedImage = chunkExposure.getMaskedImage()
     numCols = chunkMaskedImage.getCols()

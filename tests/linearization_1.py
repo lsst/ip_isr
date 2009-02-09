@@ -56,8 +56,7 @@ class isrTestCases(unittest.TestCase):
     Tests for the ISR stage, 'Linearization'.
     """
     def setUp(self):
-        self.chunkExposure = afwImage.ExposureF()
-        self.chunkExposure.readFits(inFilePath)
+        self.chunkExposure = afwImage.ExposureF(inFilePath)
         self.isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
         
     def tearDown(self):
@@ -86,7 +85,7 @@ class isrTestCases(unittest.TestCase):
                 continue
             lookupList = pixels.split()
             if len(pixelList) < numPixels or len(pixelList) > numPixels:
-                print "Cannot parse: " pixels
+                print "Cannot parse:", pixels
 
         ipIsr.lineaization(self.chunkExposure, self.isrPolicy, lookupList)
 

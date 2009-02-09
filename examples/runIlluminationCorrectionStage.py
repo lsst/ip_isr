@@ -44,14 +44,10 @@ def main():
     masterChunkExposureOutPath = os.path.join(dataDir, "IllumStageTestExposure_1")
     masterChunkExposureOutPathDR = os.path.join(dataDir, "IllumStageDRTestExposure_1")
    
-    masterChunkExposure = afwImage.ExposureD()
-    masterChunkExposure.readFits(masterChunkExposureInPath)
-    masterSFChunkExposure = afwImage.ExposureD()
-    masterSFChunkExposure.readFits(masterSFChunkExposureInPath)
-    masterIcpChunkExposure = afwImage.ExposureD()
-    masterIcpChunkExposure.readFits(masterIcpChunkExposureInPath)
-    masterDfpChunkExposure = afwImage.ExposureD()
-    masterDfpChunkExposure.readFits(masterDfpChunkExposureInPath)
+    masterChunkExposure = afwImage.ExposureD(masterChunkExposureInPath)
+    masterSFChunkExposure = afwImage.ExposureD(masterSFChunkExposureInPath)
+    masterIcpChunkExposure = afwImage.ExposureD(masterIcpChunkExposureInPath)
+    masterDfpChunkExposure = afwImage.ExposureD(masterDfpChunkExposureInPath)
 
     isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
 

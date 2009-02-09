@@ -34,10 +34,8 @@ def main():
     isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
     chunkExposureOutPath = os.path.join(dataDir, "biasStageTestExposure_1")
 
-    chunkExposure = afwImage.ExposureD()
-    chunkExposure.readFits(chunkExposureInPath)
-    masterChunkExposure = afwImage.ExposureD()
-    masterChunkExposure.readFits(masterChunkExposureInPath)
+    chunkExposure = afwImage.ExposureD(chunkExposureInPath)
+    masterChunkExposure = afwImage.ExposureD(masterChunkExposureInPath)
 
     isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
     

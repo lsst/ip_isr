@@ -56,8 +56,7 @@ class isrTestCases(unittest.TestCase):
     Tests for the ISR stage, 'Overscan Correct and Trim Chunk Exposure'.
     """
     def setUp(self):
-        self.chunkExposure = afwImage.ExposureF()
-        self.chunkExposure.readFits(inFilePath)
+        self.chunkExposure = afwImage.ExposureF(inFilePath)
         self.isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
         
     def tearDown(self):

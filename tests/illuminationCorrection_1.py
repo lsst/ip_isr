@@ -36,8 +36,8 @@ if not dataDir:
     raise RuntimeError("Must set up afwdata to run these tests!")
 
 isrDir = eups.productDir("ip_isr")
-    if not isrDir:
-        raise RuntimeError("Must set up ip_isr to run these tests!")
+if not isrDir:
+    raise RuntimeError("Must set up ip_isr to run these tests!")
 
 ## INPUT EXPOSURE AND PATH NAMES
 
@@ -58,10 +58,8 @@ class isrTestCases(unittest.TestCase):
     Tests for the ISR stage, 'Flat Field Correction'.
     """
     def setUp(self):
-        self.masterChunkExposure = afwImage.ExposureF()
-        self.masterChunkExposure.readFits(inMasterFilePath)
-        self.masterSFChunkExposure = afwImage.ExposureF()
-        self.masterSFChunkExposure.readFits(inMasterSFFilePath)
+        self.masterChunkExposure = afwImage.ExposureF(inMasterFilePath)
+        self.masterSFChunkExposure = afwImage.ExposureF(inMasterSFFilePath)
         self.isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
 
     def tearDown(self):

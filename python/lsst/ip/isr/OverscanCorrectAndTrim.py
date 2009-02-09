@@ -19,10 +19,7 @@ import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
-dataDir = eups.productDir("afwdata")
-if not dataDir:
-    raise RuntimeError("Must set up afwdata to run this program.")
-overscanExposureOutPath = os.path.join(dataDir, "overscanStripTestExposure_1")
+overscanExposureOutPath = "overscanStripTestExposure_1"
 
 def stringParser(dataString):
 

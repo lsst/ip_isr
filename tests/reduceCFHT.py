@@ -77,22 +77,13 @@ class isrTestCases(unittest.TestCase):
     """
     def setUp(self):
        
-        chunkExposure = afwImage.ExposureF()
-        biasExposure = afwImage.ExposureF()
-        #darkExposure = afwImage.ExposureF()
-        flatExposure = afwImage.ExposureF()
-        fringeExposure = afwImage.ExposureF()
-        illumExposure = afwImage.ExposureF()
-        pupilExposure = afwImage.ExposureF()
-
-        # reread chunk exposure after each sub-stage...
-        chunkExposure.readFits(inFilePath)
-        biasExposure.readFits(biasPath)
-        #darkExposure.readFits(darkPath)
-        flatExposure.readFits(flatPath)
-        fringeExposure.readFits(fringePath)
-        #illumExposure.readFits(illumPath)
-        #pupilExposure.readFits(pupilPath)
+        chunkExposure = afwImage.ExposureF(inFilePath)
+        biasExposure = afwImage.ExposureF(biasPath)
+        #darkExposure = afwImage.ExposureF(darkPath)
+        flatExposure = afwImage.ExposureF(flatPath)
+        fringeExposure = afwImage.ExposureF(fringePath)
+        illumExposure = afwImage.ExposureF(illumPath)
+        pupilExposure = afwImage.ExposureF(pupilPath)
 
         isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
         datasetPolicy = pexPolicy.Policy.createPolicy(datasetPolicyPath)

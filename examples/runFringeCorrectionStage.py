@@ -39,10 +39,8 @@ def main():
     #OUTPUTS
     chunkExposureOutPath = os.path.join(dataDir, "FringeStageTestExposure_1")
 
-    chunkExposure = afwImage.ExposureD()
-    chunkExposure.readFits(chunkExposureInPath)
-    masterChunkExposure = afwImage.ExposureD()
-    masterChunkExposure.readFits(masterChunkExposureInPath)
+    chunkExposure = afwImage.ExposureD(chunkExposureInPath)
+    masterChunkExposure = afwImage.ExposureD(masterChunkExposureInPath)
 
     isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
 

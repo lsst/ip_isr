@@ -291,18 +291,15 @@ void lsst::ip::isr::flatFieldCorrectChunkExposure(
         lsst::pex::policy::Policy::Ptr illumPolicy = isrPolicy.getPolicy("illumPolicy");
         std::string run = isrPolicy.getString("run");
         if (run == "DR"){
-            lsst::afw::image::Exposure<ImageT, MaskT> masterSfChunkExposure; // Master Night Sky Flat Field Chunk Exposure
             std::string sfCurrent = illumPolicy->getString("sfCurrent");
-            masterSfChunkExposure.readFits(sfCurrent);
+            lsst::afw::image::Exposure<ImageT, MaskT> masterSfChunkExposure(sfCurrent); // Master Night Sky Flat Field Chunk Exposure
             lsst::ip::isr::illuminationCorrectionDR<ImageT, MaskT>(masterChunkExposure, masterSfChunkExposure, isrPolicy, datasetPolicy);
         } 
         if (run == "nightly"){
-            lsst::afw::image::MaskedImage<ImageT, MaskT> masterIcpChunkMaskedImage; // Master Night Sky Flat Field Chunk Exposure from a previous night
             std::string icPrevious = illumPolicy->getString("icPrevious");
-            masterIcpChunkMaskedImage.readFits(icPrevious);
-            lsst::afw::image::Exposure<ImageT, MaskT> masterDfpChunkExposure; // Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
+            lsst::afw::image::MaskedImage<ImageT, MaskT> masterIcpChunkMaskedImage(icPrevious); // Master Night Sky Flat Field Chunk Exposure from a previous night
             std::string dfPrevious = illumPolicy->getString("dfPrevious");
-            masterDfpChunkExposure.readFits(dfPrevious);
+            lsst::afw::image::Exposure<ImageT, MaskT> masterDfpChunkExposure(dfPrevious); // Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
             lsst::ip::isr::illuminationCorrection<ImageT, MaskT>(masterChunkExposure, masterDfpChunkExposure, masterIcpChunkMaskedImage, isrPolicy, datasetPolicy);
         } 
     }

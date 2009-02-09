@@ -17,8 +17,6 @@ import os
 import re
 import sys
 import pyfits
-import string
-import numarray
 
 import eups
 
@@ -94,8 +92,7 @@ def main():
         newInFile = pyfits.PrimaryHDU(inFile[extension].data, ccdHeader)
         newInFile.writeto(outImgDir)
         print 'Wrote:', outImageFileName
-        scienceImage = afwImage.ImageF()
-        scienceImage.readFits(outImgDir)
+        scienceImage = afwImage.ImageF(outImgDir)
         print 'Reading: ', outImageFileName  
 
         # Synthesize the Varaince Image using the Science Image, gain,
@@ -105,8 +102,7 @@ def main():
         print 'Gain: ', gain
         rdNoise = ccdHeader['RDNOISE']
         print 'RdNoise: ', rdNoise
-        varianceImage = afwImage.ImageF()
-        varianceImage.readFits(outImgDir)
+        varianceImage = afwImage.ImageF(outImgDir)
 
         # The varaince: sigma^2= DN/gain + (rdNoise^2/gain^2)
         scale = rdNoise**2 / gain**2
@@ -186,8 +182,7 @@ def main():
         print 'Wrote: ',outMaskFileName
         
     inName = re.sub('.fits', '_%d' % (extension), inImage)
-    inCcdMaskedImage = afwImage.MaskedImageF()
-    inCcdMaskedImage.readFits(inName)
+    inCcdMaskedImage = afwImage.MaskedImageF(inName)
     inCcdWCS = afwImage.Wcs(inCcdMaskedImage.getImage().getMetaData())
     inCcdExposure = afwImage.ExposureF(inCcdMaskedImage, inCcdWCS)
 

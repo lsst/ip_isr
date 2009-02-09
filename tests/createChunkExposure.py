@@ -18,9 +18,6 @@ import os
 import re
 import sys
 import pyfits
-import string
-#import glob
-import numarray as num
 
 import eups
 
@@ -103,10 +100,8 @@ def main():
         tempMask.writeFits(tempMskFileName)
         print 'Wrote:', tempMskFileName
                                                          
-        maskedImage = afwImage.MaskedImageF
-        inputMaskedImage = maskedImage()
         tempName = re.sub('.fits', '_%d' % (extension), inImage)
-        inputMaskedImage.readFits(tempName)
+        inputMaskedImage = afwImage.MaskedImageF(tempName)
         
         nImageRows = inputMaskedImage.getRows()
         nImageCols = inputMaskedImage.getCols()

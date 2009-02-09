@@ -231,23 +231,20 @@ def flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy):
             pexLog.Trace("In %s:" % (stage,), 4, "Applying Illumination Correction for Data Release processing.")
 
             # Master Night Sky Flat Field Chunk Exposure
-            masterSfChunkExposure = afwImage.ExposureD() 
             sfCurrent = illumPolicy.getString("sfCurrent")
-            masterSfChunkExposure.readFits(sfCurrent)
+            masterSfChunkExposure = afwImage.ExposureD(sfCurrent) 
             
             ipIsrIllum.illuminationCorrectionDR(masterChunkExposure, masterSfChunkExposure, isrPolicy)
   
         else:
             pexLog.Trace("In %s:" % (stage,), 4, "Applying Illumination Correction for nightly processing.")
             # Master Night Sky Flat Field Chunk Exposure from a previous night
-            masterIcpChunkMaskedImage = afwImage.MaskedImageD() 
             icPrevious = illumPolicy.getString("icPrevious")
-            masterIcpChunkMaskedImage.readFits(icPrevious)
+            masterIcpChunkMaskedImage = afwImage.MaskedImageD(icPrevious) 
             
             # Master Dome (or Twilight) Flat Field Chunk Exposure from a previous night
-            masterDfpChunkExposure = afwImage.ExposureD() 
             dfPrevious = illumPolicy.getString("dfPrevious")
-            masterDfpChunkExposure.readFits(dfPrevious)
+            masterDfpChunkExposure = afwImage.ExposureD(dfPrevious) 
             
             ipIsrIllum.illuminationCorrection(masterChunkExposure, masterDfpChunkExposure, masterIcpChunkMaskedImage, isrPolicy)    
 

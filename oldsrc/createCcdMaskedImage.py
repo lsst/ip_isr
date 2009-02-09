@@ -94,7 +94,7 @@ def main():
             print "Cannot parse: " image
         inImage, badPixFile = imageList[0:2]
         
-        # afwImage readFits can not open MEF files. Using PyFits...
+        # afwImage can not open MEF files. Using PyFits...
         try:
             print 'Reading Input Image Fits File with PyFits.'
             inFile  = open(inImage)
@@ -144,8 +144,7 @@ def main():
             newInFile = pyfits.PrimaryHDU(inFile[extension].data, ccdHeader)
             newInFile.writeto(outImgDir)
             print 'Wrote:', outImageFileName
-            scienceImage = afwImage.ImageF()
-            scienceImage.readFits(outImgDir)
+            scienceImage = afwImage.ImageF(outImgDir)
             print 'Reading: ', outImageFileName  
 
             # Synthesize the Varaince Image using the Science Image, gain,
@@ -155,8 +154,7 @@ def main():
             print 'Gain: ', gain
             rdNoise = ccdHeader['RDNOISE']
             print 'RdNoise: ', rdNoise
-            varianceImage = afwImage.ImageF()
-            varianceImage.readFits(outImgDir)
+            varianceImage = afwImage.ImageF(outImgDir)
 
             # The varaince: sigma^2= DN/gain + (rdNoise^2/gain^2)
             scale = rdNoise**2 / gain**2

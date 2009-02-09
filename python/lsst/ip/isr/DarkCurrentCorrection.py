@@ -52,7 +52,7 @@ def darkCurrentCorrection(chunkExposure, masterExposure, isrPolicy):
         expField = darkPolicy.getString("exptimeField")
         darkField = darkPolicy.getString("darktimeField")
         sigClip = darkPolicy.getBool("sigClip")
-        if sigClip = true:
+        if sigClip == True:
             sigClipVal = darkPolicy.getDouble("sigClipVal")
             # add sigClipping policy info here - not yet implemented
     except pexEx.LsstExceptionStack, e:
@@ -68,15 +68,15 @@ def darkCurrentCorrection(chunkExposure, masterExposure, isrPolicy):
     # the same size.
     
     pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same size." )
-    numCols = chunkMaskedImage.getCols()
-    numRows = chunkMaskedImage.getRows() 
-    pexLog.Trace("%s" % (stage,), 4, "Chunk Exposure NumCols, NumRows: %s, %s" % numCols, numRows )
+    numWidth = chunkMaskedImage.getWidth()
+    numHeight = chunkMaskedImage.getHeight() 
+    pexLog.Trace("%s" % (stage,), 4, "Chunk Exposure NumWidth, NumHeight: %s, %s" % numWidth, numHeight )
 
-    mnumCols = masterMaskedImage.getCols()
-    mnumRows = masterMaskedImage.getRows() 
-    pexLog.Trace("%s" % (stage,), 4, "Master Exposure NumCols, NumRows: %s, %s" % mnumCols, mnumRows )
+    mnumWidth = masterMaskedImage.getWidth()
+    mnumHeight = masterMaskedImage.getHeight() 
+    pexLog.Trace("%s" % (stage,), 4, "Master Exposure NumWidth, NumHeight: %s, %s" % mnumWidth, mnumHeight )
 
-    if numCols != mnumCols || numRows != mnumRows:
+    if (numWidth != mnumWidth) or (numHeight != mnumHeight):
         raise pexExcept.LengthError, "In %s: Chunk Exposure and Master Dark Current Exposure are not the same size." % (stage,)
     else:
         pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are the same size." )
@@ -147,6 +147,7 @@ def darkCurrentCorrection(chunkExposure, masterExposure, isrPolicy):
         scale = exptime/mexptime 
         masterMaskedImage *= scale 
     else:
+        # What is this supposed to do? Early return? It's not in a loop
         continue
 
     # subtract the Master Dark Current MaskedImage form the Chunk
@@ -154,7 +155,7 @@ def darkCurrentCorrection(chunkExposure, masterExposure, isrPolicy):
     
     pexLog.Trace("%s" % (stage,), 4, "Subtracting Master Dark from Chunk Exposure." )
     if darkScale:
-         pexLog.Trace("%s" % (stage,), 4, "Additional scale factor applied to Master Dark: %s" %(darkScale,))
+        pexLog.Trace("%s" % (stage,), 4, "Additional scale factor applied to Master Dark: %s" %(darkScale,))
         masterMaskedImage *= darkScale
         chunkMaskedImage -= masterMaskedImage
     else:

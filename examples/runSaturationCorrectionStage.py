@@ -35,8 +35,7 @@ def main():
     lookupTablePath = os.path.join(isrDir, "pipeline", "saturationLookupTable.tab")
     chunkExposureOutPath = os.path.join(dataDir, "satStageTestExposure_1")
     
-    chunkExposure = afwImage.ExposureD()
-    chunkExposure.readFits(chunkExposureInPath)
+    chunkExposure = afwImage.ExposureD(chunkExposureInPath)
 
     isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
     
