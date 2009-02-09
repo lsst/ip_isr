@@ -23,17 +23,18 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %init %{
 %}
 
+%include "lsst/p_lsstSwig.i"
+
+%lsst_exceptions();
+
 // namespace boost {
 //     class bad_any_cast; // remove warning: Nothing known about 'boost::bad_any_cast'
 // }
 
 // Everything whose bindings we will have to know about
-%import "lsst/p_lsstSwig.i"
 %import "lsst/afw/image/imageLib.i"
 %import "lsst/afw/math/mathLib.i"
 //%import "lsst/afw/detection/detectionLib.i"
-
-%lsst_exceptions();
 
 // Here you give the names of the functions you want to Swig
 
