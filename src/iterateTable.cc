@@ -39,7 +39,7 @@ void lsst::ip::isr::iterateTable(
     const int miHeight = maskedImage.getHeight();
 
     // Set the pixels row by row, to avoid repeated checks for end-of-row
-    for (int y = 0,; y < miHeight; ++y) {
+    for (int y = 0; y < miHeight; ++y) {
         for (typename MaskedImage::x_iterator miPtr = maskedImage.row_begin(y), end = maskedImage.row_end(y); miPtr != end; ++miPtr) {
             int ind = static_cast<int>(miPtr.image());
             if ((ind < 0) || (ind > maxInd)) {

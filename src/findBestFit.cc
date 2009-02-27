@@ -58,7 +58,7 @@ lsst::afw::math::FitResults lsst::ip::isr::findBestFit(
     const int miHeight = maskedImage.getHeight();
     
 
-    for (int y = 0,; y < miHeight; ++y) {
+    for (int y = 0; y < miHeight; ++y) {
         int miCol = 0;
         for (typename MaskedImage::x_iterator miPtr = maskedImage.row_begin(y), end = maskedImage.row_end(y); miPtr != end; ++miPtr, ++miCol) {
             measurementList.push_back(miPtr.image());

@@ -31,7 +31,7 @@ void lsst::ip::isr::fitFunctionToImage(
     const int miHeight = maskedImage.getHeight();
 
     // Set the pixels row by row, to avoid repeated checks for end-of-row
-    for (int y = 0,; y < miHeight; ++y) {
+    for (int y = 0; y < miHeight; ++y) {
         for (typename MaskedImage::x_iterator miPtr = maskedImage.row_begin(y), end = maskedImage.row_end(y); miPtr != end; ++miPtr) {
             miPtr.image() = static_cast<ImagePixelT>(function(static_cast<double>(miPtr.image())));
         }

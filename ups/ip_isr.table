@@ -5,6 +5,7 @@ setupRequired(pex_policy)
 setupRequired(daf_persistence)
 setupRequired(afw)
 setupRequired(meas_algorithms)
+setupRequired(gcc)
 
 setupOptional(pex_harness)
 setupOptional(afwdata)
