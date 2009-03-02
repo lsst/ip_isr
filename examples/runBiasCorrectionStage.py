@@ -22,9 +22,9 @@ def main():
 
     pexLog.Trace.setVerbosity("lsst.ip.isr", 4)
     
-    dataDir = eups.productDir("afwdata")
+    dataDir = eups.productDir("isrdata")
     if not dataDir:
-        raise RuntimeError("Must set up afwdata to run this program.")
+        raise RuntimeError("Must set up isrdata to run this program.")
     isrDir = eups.productDir("ip_isr")
     if not isrDir:
         raise RuntimeError("Must set up ip_isr to run this program.")

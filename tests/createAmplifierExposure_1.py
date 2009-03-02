@@ -26,9 +26,9 @@ import lsst.daf.base as dafBase
 import lsst.pex.logging as pexLogging
 import lsst.pex.policy as pexPolicy
 
-## dataDir = eups.productDir("afwdata")
+## dataDir = eups.productDir("isrdata")
 ## if not dataDir:
-##     raise RuntimeError("You must set up DMS/testdata/afwdata to run this code.")
+##     raise RuntimeError("You must set up DMS/testdata/isrdata to run this code.")
      
 def main():
 

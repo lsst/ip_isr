@@ -22,9 +22,9 @@ import lsst.ip.isr.isrLib as isrTrunk
 Verbosity = 0 # increase to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
 
-dataDir = eups.productDir("afwdata/trunk/CFHT/D4/")
+dataDir = eups.productDir("isrdata/trunk/CFHT/D4/")
 if not dataDir:
-    raise RuntimeError("Must set up afwdata to run these tests!")
+    raise RuntimeError("Must set up isrdata to run these tests!")
 
 ## INPUT IMAGE AND PATH NAMES
 

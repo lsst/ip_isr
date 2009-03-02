@@ -33,9 +33,9 @@ import lsst.ip.isr.DarkCurrentCorrection as ipIsrDark
 Verbosity = 4 # increase from zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
 
-dataDir = eups.productDir("afwdata")
+dataDir = eups.productDir("isrdata")
 if not dataDir:
-    raise RuntimeError("Must set up afwdata to run these tests!")
+    raise RuntimeError("Must set up isrdata to run these tests!")
 
 isrDir = eups.productDir("ip_isr")
 if not isrDir:

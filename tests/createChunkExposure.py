@@ -28,9 +28,9 @@ import lsst.pex.policy as pexPolicy
 
 import createCfhtMask as createMask
 
-dataDir = eups.productDir("afwdata")
+dataDir = eups.productDir("isrdata")
 if not dataDir:
-    raise RuntimeError("You must set up afwdata to run these tests")
+    raise RuntimeError("You must set up isrdata to run these tests")
 
 def main():
 

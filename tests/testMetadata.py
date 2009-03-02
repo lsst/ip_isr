@@ -11,9 +11,9 @@ import lsst.daf.base as dafBase
 import lsst.pex.logging as pexLogging
 import lsst.pex.policy as pexPolicy
 
-dataDir = eups.productDir("afwdata")
+dataDir = eups.productDir("isrdata")
 if not dataDir:
-    raise RuntimeError("You must set up afwdata to run this code.")
+    raise RuntimeError("You must set up isrdata to run this code.")
 destinationDir = '/astro/users/nms/code/isrtrunk/examples/tempfiles/'
     
 def main():
