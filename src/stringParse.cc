@@ -21,7 +21,7 @@
 #include <vector>
 #include <cmath>
 
-#include "lsst/ip/isr/isr.h"
+#include "lsst/ip/isr/Isr.h"
 
 namespace afwImage = lsst::afw::image;
 namespace ipIsr = lsst::ip::isr;

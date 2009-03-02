@@ -141,12 +141,14 @@ darkPolicy: {
 
 linearizePolicy: {
 
- # Perform a functional fit or use a lookup table (FUNCTION or LOOKUP)
- linearizeType: FUNCTION
-
  # Does a Linearization Lookup Table exist? (boolean)
- linTable: false
- lookupTableName: linearizationLookupTable.tab
+ linTable: true
+ lookupTableName: linearizationLookupTable.paf
+
+ # For FUNCTION fitting below
+
+ # Perform a functional fit or use a lookup table (FUNCTION or LOOKUP)
+ linearizeType: LOOKUP
 
  # Functional form, 1D only (POLINOMIAL, SPLINE, CHEBYCHEV)
  funcForm: POLYNOMIAL

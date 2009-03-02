@@ -18,8 +18,31 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
+import time
 
-def linearization(chunkExposure, isrPolicy, lookupTable):
+# global variables
+STAGE_SIGNATURE = 'ISR_LIN'
+
+def readLookupTable(tablePath):
+    tablePolicy = pexPolicy.Policy.createPolicy(tablePath)
+    tableType   = tablePolicy.getString('type')
+    tableLength = tablePolicy.getInt('length')
+    tableValues = tablePolicy.getArray('value')
+    assert len(tableValues) == tableLength
+    tableValues = afwMath.vectorD(tableValues)
+
+    if tableType == 'Replace':
+        linTable = ipIsr.LookupTableReplaceF(tableValues)
+    elif tableType == 'Multiplicative':
+        linTable = ipIsr.LookupTableMultiplicativeF(tableValues)
+    else:
+        pexLog.Trace('lsst.ip.isr.linearization', 4, 'Unknown table type : %s' % (tableType))
+        return None
+    
+    return linTable
+    
+
+def doLinearization(chunkExposure, isrPolicy, linTable=None):
 
     """Linearization
     
@@ -46,34 +69,50 @@ def linearization(chunkExposure, isrPolicy, lookupTable):
     # Parse the Policy File
     pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
-        linPolicy = isrPolicy.getPolicy("linearizePolicy")
-        linearizeType = linPolicy.getString("linearizeType")
+        linPolicy       = isrPolicy.getPolicy("linearizePolicy")
+        linearizeType   = linPolicy.getString("linearizeType")
         lookupTableName = linPolicy.getString("lookupTableName")
     except pexEx.LsstExceptionStack, e:
         print "Cannot parse the ISR Policy File: %s" % e   
         raise pexEx.NotFound, "Can not parse the Linearization policy file"
+
+    # If its not sent (testing) read it from the policy
+    if linTable == None and linearizeType == "LOOKUP":
+        linTable = readLookupTable(lookupTableName)
     
     # Get the MaskedImage and Metadata
-    
     chunkMaskedImage = chunkExposure.getMaskedImage()
-    chunkMetadata = chunkMaskedImage.getImage().getMetaData()
+    chunkMetadata    = chunkExposure.getMetadata()
+    if chunkMetadata == None:
+        chunkMetadata = dafBase.PropertySet()
+    if chunkMetadata.exists(STAGE_SIGNATURE):
+        pexLog.Trace("%s" % (stage,), 4, "ISR has already been run")
+        return
 
     try:
         pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from chunkMetadata.")
-
-       
     except pexEx.LsstExceptionStack, e:
         print "Cannot get the ... from the chunkExposure: %s" % e      
 
 
-    # currently accepts as "FUNCTION" either a polynomial or spline
-    if linearizeType == "FUNCTION":
+    if linearizeType == "LOOKUP":
+
+        pexLog.Trace("%s" % (stage,), 4, "Correcting with lookup table %s" % (lookupTableName))
+        linTable.apply(chunkMaskedImage)
+
+        pexLog.Trace("%s" % (stage,), 4, "Recording ISR lookup table provenance information.")
+        chunkMetadata.setString("LIN_LU", lookupTableName)
+
+    elif linearizeType == "FUNCTION":
+        # NOTE : FUNCTION not likely to be used.
+        
+        # currently accepts as "FUNCTION" either a polynomial or spline
 
         # Get the functional form and coeffs for the polynomial from the policy
         try:
-            funcForm = linPolicy.getString("funcForm")
+            funcForm  = linPolicy.getString("funcForm")
             funcOrder = linPolicy.getInt("funcOrder")
-            stepSize = linPolicy.getDouble("stepSize")
+            stepSize  = linPolicy.getDouble("stepSize")
         except pexEx.LsstExceptionStack, e:
             pexLog.Trace("%s" % (stage,), 4, "Cannot get FUNCTION parameters from the Policy.")
             raise pexEx.NotFound, "Can not parse the Linearization Policy File"
@@ -99,9 +138,8 @@ def linearization(chunkExposure, isrPolicy, lookupTable):
             ipIsr.fitFunctionToImage(chunkMaskedImage, polyFunction)
             
             pexLog.Trace("%s" % (stage,), 4, "Recording ISR functional fit provenance information.")
-            chunkMetadata.addProperty(dafBase.DataProperty("LIN_FN", funcForm))    
-            chunkMetadata.addProperty(dafBase.DataProperty("LIN_OR", funcOrder))
-            chunkMaskedImage.setMetadata(chunkMetadata)
+            chunkMetadata.setString("LIN_FN", funcForm)
+            chunkMetadata.setInt("LIN_OR", funcOrder)
         
         elif funcForm == "SPLINE":
             # need to add a spline function to afw/math/FunctionLibrary
@@ -114,26 +152,14 @@ def linearization(chunkExposure, isrPolicy, lookupTable):
         else:
             raise pexEx.NotFound, "Function not implemented. Use 'POLYNOMIAL', 'SPLINE', or 'CHEVYCHEV'." 
             
-    if linearizeType == "LOOKUP":
-
-        pexLog.Trace("%s" % (stage,), 4, "Adding lookup table 'deltas' to MaskedImage")
-
-        #QQQ: wil the lookup tabel deltas have uncertainties?  If so,
-        #the variance will change.  It is currently not adjusted.
-        
-        ipIsr.iterateTable(chunkMaskedImage, lookupTable)
-        
-        pexLog.Trace("%s" % (stage,), 4, "Recording ISR lokup table provenance information.")
-        chunkMetadata.addProperty(dafBase.DataProperty("LIN_LU", lookupTableName))
-        chunkMaskedImage.setMetadata(chunkMetadata)
         
     # Record the stage provenance to the Image Metadata (for now) this
     # will eventually go into an ISR_info object.
 
     pexLog.Trace("%s" % (stage,), 4, "Recording final ISR provenance information.")
-   
-    chunkMetadata.addProperty(dafBase.DataProperty("LIN_END", "Completed Successfully")) 
-    chunkMaskedImage.setMetadata(chunkMetadata)
+    chunkMetadata.setString(STAGE_SIGNATURE, 'Completed Successfully: %s' % (time.asctime()))
+
+    chunkExposure.setMetadata(chunkMetadata)
 
     # Calculate any additional SDQA Metrics and write all metrics to
     # the SDQA object (or directly to the clipboard)

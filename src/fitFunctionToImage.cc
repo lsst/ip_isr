@@ -16,7 +16,7 @@
   * LSST Legalese here...
   */
 
-#include "lsst/ip/isr/isr.h"
+#include "lsst/ip/isr/Isr.h"
 
 //Given the image and the polynomial function, 
 //\return the image fitted for the polynomial.

@@ -13,10 +13,12 @@
 import eups
 import os
 import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
 import lsst.daf.base as dafBase
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr.Linearization as ipIsrLinear
+import lsst.ip.isr as ipIsr
+import lsst.ip.isr.Linearization as ipIsrLinearize
 
 def main():
 
@@ -29,41 +31,19 @@ def main():
     if not isrDir:
         raise RuntimeError("Must set up ip_isr to run this program.")
     
-    #chunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")
-    chunkExposureInPath = os.path.join(dataDir, "biasStageTestExposure_1")
-    isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-    lookupTablePath = os.path.join(isrDir, "pipeline", "linearizationLookupTable.tab")
+    chunkExposureInPath  = os.path.join(dataDir, "biasStageTestExposure_1")
+    isrPolicyPath        = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
+    lookupTablePath      = os.path.join(isrDir, "pipeline", "linearizationLookupTable.paf")
     chunkExposureOutPath = os.path.join(dataDir, "linearStageTestExposure_1")
 
-    chunkExposure = afwImage.ExposureD(chunkExposureInPath)
-
+    chunkExposure    = afwImage.ExposureF(chunkExposureInPath)
     chunkMaskedImage = chunkExposure.getMaskedImage()
-    numCols = chunkMaskedImage.getCols()
-    numRows = chunkMaskedImage.getRows()
-    numpixels = numCols * numRows
 
     isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
+    linTable  = ipIsrLinearize.readLookupTable(lookupTablePath)
+    ipIsrLinearize.doLinearization(chunkExposure, isrPolicy, linTable)
 
-    lookupTable = open(lookupTablePath, "rU")  
-    pixelValues = lookupTable.readlines()
-    numPix = len(pixelValues)
-    print 'Number of pixels: ', numPix
-    for pixels in pixelValues:
-        # strip trailing whitespace, returns, etc.
-        pixels = pixels.strip()
-        # ignore blank lines
-        if not pixels:
-            continue
-        # ignore comment lines
-        if pixels.startswith("#"):
-            continue
-        lookupList = pixels.split()
-        if len(lookupList) < numPix or len(lookupList) > numPix:
-            print "Cannot parse: ", pixels
-    
-    ipIsrLinear.linearization(chunkExposure, isrPolicy, lookupList)
-
-    pexLog.Trace("lsst.ip.isr.saturationCorrection", 4, "Writing chunkExposure to %s [_img|var|msk.fits]" % (chunkExposureOutPath,))
+    pexLog.Trace('lsst.ip.isr.linearization', 4, 'Writing chunkExposure to %s [_img|var|msk.fits]' % (chunkExposureOutPath,))
     chunkExposure.writeFits(chunkExposureOutPath)
 
 if __name__ == "__main__":

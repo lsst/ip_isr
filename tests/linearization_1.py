@@ -1,5 +1,5 @@
 """
-@brief A simple test for the ISR stage, 'LInearization'.
+@brief A simple test for the ISR stage, 'Linearization'.
 
 @author Nicole M. Silvestri,
         University of Washington
@@ -28,7 +28,7 @@ import lsst.pex.exceptions as pexEx
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 
-Verbosity = 4 # increase frm zero to see trace
+Verbosity = 4 # increase from zero to see trace
 pexLog.Trace_setVerbosity("lsst.ip.isr", Verbosity)
 
 dataDir = eups.productDir("isrdata")
@@ -41,13 +41,13 @@ if not isrDir:
 
 ## INPUT IMAGE AND PATH NAMES
 
-inFilePath = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")
-isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-lookupTablePath = (isrDir, "pipeline", "linearizationLookUpTable")
+inFilePath      = os.path.join(dataDir, "CFHT", "D4", "raw-53535-i-797722_1")
+isrPolicyPath   = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
+lookupTablePath = (isrDir, "pipeline", "linearizationLookUpTable.tab")
 
 ## OUTPUT IMAGE AND PATH NAMES
 
-outputPath = os.path.join(dataDir, "testLinearExposure")
+outputPath      = os.path.join(dataDir, "testLinearExposure")
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -57,22 +57,22 @@ class isrTestCases(unittest.TestCase):
     """
     def setUp(self):
         self.chunkExposure = afwImage.ExposureF(inFilePath)
-        self.isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
+        self.isrPolicy     = pexPolicy.Policy.createPolicy(isrPolicyPath)
         
     def tearDown(self):
         del self.chunkExposure
         del self.isrPolicy
 
     def testLinearization(self):
-
         chunkMaskedImage = self.chunkExposure.getMaskedImage()
-        numCols = chunkMaskedImage.getCols()
-        numRows = chunkMaskedImage.getRows()
-        numpixels = numCols * numRows
+        numCols          = chunkMaskedImage.getCols()
+        numRows          = chunkMaskedImage.getRows()
+        numpixels        = numCols * numRows
         
         lookupTable = open(lookupTablePath, "rU")  
         pixelValues = lookupTable.readlines()
-        numPix = len(pixelValues)
+        numPix      = len(pixelValues)
+        
         print 'Number of pixels: ', numPix
         for pixels in pixelValues:
             # strip trailing whitespace, returns, etc.
@@ -87,7 +87,7 @@ class isrTestCases(unittest.TestCase):
             if len(pixelList) < numPixels or len(pixelList) > numPixels:
                 print "Cannot parse:", pixels
 
-        ipIsr.lineaization(self.chunkExposure, self.isrPolicy, lookupList)
+        ipIsr.linearization(self.chunkExposure, self.isrPolicy, lookupList)
 
         self.chunkExposure.writeFits(outputPath)
                 

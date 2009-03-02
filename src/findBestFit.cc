@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "lsst/pex/exceptions.h"
-#include "lsst/ip/isr/isr.h"
+#include "lsst/ip/isr/Isr.h"
 
 /**\brief Iterate through a given MaskedImage to fill vectors for the pixel
   * values, variances, and col and row positions.  Pass these vectors with policy
