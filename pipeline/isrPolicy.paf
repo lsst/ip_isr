@@ -105,7 +105,8 @@ biasPolicy: {
  biasScale: 1.0
 
 # Chunk field name (for AMP or CCD)
- chunkField: AMPLIST
+ chunkFields: AMPLIST
+ chunkFields: AMPNAME
 
 # File Name field from the Metadata
 fileName: FILENAME

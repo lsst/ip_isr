@@ -13,10 +13,15 @@
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.daf.base as dafBase
-import lsst.pex.exceptions as pexEx
+import lsst.pex.exceptions as pexExcept
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
+from VerifyMasterFile import VerifyMasterFile
+import time
+
+# global variables
+STAGE_SIGNATURE = 'ISR_BIAS'
 
 def biasCorrection(chunkExposure, masterExposure, isrPolicy):
 
@@ -39,109 +44,66 @@ def biasCorrection(chunkExposure, masterExposure, isrPolicy):
     stage = "lsst.ip.isr.biasCorrection"   
     pexLog.Trace("%s" % (stage,), 4, "Entering ISR Bias Correction stage." )
 
+    if not VerifyMasterFile(chunkExposure, masterExposure, stage, isrPolicy.getPolicy("biasPolicy")):
+        raise pexExcept.LsstException, "%s: Can not verify Master file for Bias correction" % (stage,)
+        
     # Parse the Policy File
     pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
-        biasPolicy = isrPolicy.getPolicy("biasPolicy")
-        chunkType = isrPolicy.getString("chunkType")
-        biasScale = biasPolicy.getDouble("biasScale")
-        chunkField = biasPolicy.getString("chunkField")
+        chunkType     = isrPolicy.getString("chunkType")
+        biasPolicy    = isrPolicy.getPolicy("biasPolicy")
+        
+        biasScale     = biasPolicy.getDouble("biasScale")
         fileNameField = biasPolicy.getString("fileName")
-        sigClip = biasPolicy.getBool("sigClip")
+        sigClip       = biasPolicy.getBool("sigClip")
+        
         if sigClip == "true":
             sigClipVal = biasPolicy.getDouble("sigClipVal")
             # add additional sigClipping policy info here - not yet implemented
-    except pexEx.LsstExceptionStack, e:
-        pexLog.Trace("%s" % (stage,), 4, "Can not parse the ISR Policy File." % (e,)) 
-        raise pexExcept.NotFound, "in %s: Can not obtain policy parameters from the ISR Policy File." % (stage,)
-   
+    except:
+        pexLog.Trace("%s" % (stage,), 4, "Can not parse the ISR Policy File.")
+        raise pexExcept.LsstException, "%s: Can not obtain policy parameters from the ISR Policy File." % (stage,)
+
+    # Get the MaskedImage and Metadata
     chunkMaskedImage = chunkExposure.getMaskedImage()
-    chunkMetadata = chunkMaskedImage.getImage().getMetaData()
+    chunkMetadata    = chunkExposure.getMetadata()
+    if chunkMetadata == None:
+        chunkMetadata = dafBase.PropertySet()
+    if chunkMetadata.exists(STAGE_SIGNATURE):
+        pexLog.Trace("%s" % (stage,), 4, "BiasCorrection has already been run")
+        return
+
+    masterMetadata    = masterExposure.getMetadata()
     masterMaskedImage = masterExposure.getMaskedImage()
-    masterMetadata = chunkMaskedImage.getImage().getMetaData()
-
-    # Verify that the Master Bias Exposure and Chunk Exposure are the
-    # same size.
-
-    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same size." )
-    numCols = chunkMaskedImage.getCols()
-    numRows = chunkMaskedImage.getRows() 
-    pexLog.Trace("%s" % (stage,), 4, "Chunk Exposure NumCols, NumRows: %s, %s" % numCols, numRows )
-    
-    mnumCols = masterMaskedImage.getCols()
-    mnumRows = masterMaskedImage.getRows() 
-    pexLog.Trace("%s" % (stage,), 4, "Master Exposure NumCols, NumRows: %s, %s" % mnumCols, mnumRows )
-
-    if numCols != mnumCols or numRows != mnumRows:
-        raise pexExcept.LengthError, "In %s: Chunk Exposure and Master Bias Exposure are not the same size." % (stage,)
-    else:
-        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are the same size." )
-
-    # Check that the Master Bias Exposure and Chunk Exposure are
-    # derived from the same pixels (eg. both are from the same 'chunk').
-
-    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are derived from the same pixels." )
-    
-    chunkField = chunkMetadata.findUnique(chunkField)
-    mchunkField = masterMetadata.findUnique(chunkField);
-    if chunkField and mchunkField:
-        chunkId = chunkField.getValueString()
-        mchunkId = mchunkField.getValueString()
-    else:
-        raise pexExcept.NotFound, "In %s: Could not get %s info from the Metadata." % (stage, chunkType)
-
-    if chunkId != mchinkId:
-        raise pexExcept.RangeError, "In %s: Chunk and Master Bias Exposure are not derived from the same pixels." % (stage,)
-    else:
-        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
-
     # Get additional metadata 
     pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from the metadata." )
-    fileNameKey = masterMetadata.findUnique(fileNameField)
-    if fileNameKey:
-        fileName = fileNameKey.getValueString()
-        pexLog.Trace("%s" % (stage,), 4, "Master Bias Filename: %s" % (fileName,))
-    else:
-        raise pexExcept.NotFound,"In %s: Could not get FILENAME from the Metadata." %(stage,) 
+    fileName = masterMetadata.getString(fileNameField, 'None')
 
-#    meanBiasField = masterMetadata.findUnique("MEAN");
-#    if meanBiasField:
-#        meanBias = meanBiasField.getValueDouble()
-#        print "Mean of Master Bias: ", meanBias
-#    else:
-#        raise pexExcept.NotFound,"In %s: Could not get MEAN from the master Metadata." %(stage,) 
-
-    # subtract the Master Bias MaskedImage from the Chunk MaskedImage.
-    # Allow for aditional scaling if desired.
-
+    # Subtract the Master Bias MaskedImage from the Chunk MaskedImage.
     pexLog.Trace("%s" % (stage,), 4, "Subtracting Master Bias Exposure from Chunk Exposure." )
     if biasScale:
-        pexLog.Trace("%s" % (stage,), 4, "Additional scale factor applied to Master Bias: %s" %(biasScale,))
+        # Not sure if we will ever use this feature
+        pexLog.Trace("%s" % (stage,), 4, "Additional scale factor applied to Master Bias: %s" % (biasScale,))
         masterMaskedImage *= biasScale
-        chunkMaskedImage -= masterMaskedImage
+        chunkMaskedImage  -= masterMaskedImage
     else:
-        chunkMaskedImage -= masterMaskedImage
+        chunkMaskedImage  -= masterMaskedImage
         
     # Record final stage provenance to the Image Metadata
     pexLog.Trace("%s" % (stage,), 4, "Recording final provenance information." )
-#    dateTime = dafBase.DateTime.utc2mjd()
- # chunkMetadata.addProperty(dafBase.Dataproperty("BIAS_MJD", dateTime))
-    chunkMetadata.addProperty(dafBase.DataProperty("BIAS_MC", fileName))
- #   chunkMetadata.addProperty(dafBase.DataProperty("BIAS_MU", meanBias))
-    chunkMetadata.addProperty(dafBase.DataProperty("BIAS_END", "Completed Successfully")) 
+    chunkMetadata.setString("BIAS_IM", fileName)
+    chunkMetadata.setString(STAGE_SIGNATURE, 'Completed Successfully: %s' % (time.asctime()))
+
     chunkMaskedImage.setMetadata(chunkMetadata);
   
     # Calculate any additional SDQA Metrics and write all metrics to
     # the SDQA object (or directly to the clipboard)
-                               
     pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
-                              
     """ Return the following for SDQA:
     - ?
     - ?
     - ?
     """
-    
     pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
     pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
                               

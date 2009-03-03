@@ -29,15 +29,14 @@ def main():
     if not isrDir:
         raise RuntimeError("Must set up ip_isr to run this program.")
     
-    chunkExposureInPath = os.path.join(dataDir, "overStageTestExposure_1")
+    chunkExposureInPath       = os.path.join(dataDir, "overStageTestExposure_1")
     masterChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.bias.0.36.00_1")
-    isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-    chunkExposureOutPath = os.path.join(dataDir, "biasStageTestExposure_1")
+    isrPolicyPath             = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
+    chunkExposureOutPath      = os.path.join(dataDir, "biasStageTestExposure_1")
 
-    chunkExposure = afwImage.ExposureD(chunkExposureInPath)
-    masterChunkExposure = afwImage.ExposureD(masterChunkExposureInPath)
-
-    isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
+    chunkExposure       = afwImage.ExposureF(chunkExposureInPath)
+    masterChunkExposure = afwImage.ExposureF(masterChunkExposureInPath)
+    isrPolicy           = pexPolicy.Policy.createPolicy(isrPolicyPath)
     
     ipIsrBias.biasCorrection(chunkExposure, masterChunkExposure, isrPolicy)
 

@@ -2,7 +2,7 @@
 @brief Implementation of the stage, Linearization, for the nightly
  Instrument Signature Removal Pipeline
 
-@author: Nicole M. Silvestri
+@author: Nicole M. Silvestri / ACB
          University of Washington
          nms@astro.washington.edu
          
@@ -163,13 +163,11 @@ def doLinearization(chunkExposure, isrPolicy, linTable=None):
 
     # Calculate any additional SDQA Metrics and write all metrics to
     # the SDQA object (or directly to the clipboard)
-                               
     pexLog.Trace("%s" % (stage,), 4, "Recording SDQA metric information." )
                               
     """ Return the following for SDQA:
     - ?                     
     """
-    
     pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
     pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
                               
