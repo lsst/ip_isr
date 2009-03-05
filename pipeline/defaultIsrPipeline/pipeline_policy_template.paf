@@ -1,4 +1,0 @@
-executionMode: "oneloop"
-appStages: "lsst.pex.harness.IOStage.InputStage" "lsst.ip.isr.pipeline.defaultIsrPipeline" "lsst.pex.harness.IOStage.OutputStage"
-eventTopics: "None" "None" "None"
-stagePolicies: "input_policy.paf" "%(isrPolicyPath)s" "output_policy.paf"
