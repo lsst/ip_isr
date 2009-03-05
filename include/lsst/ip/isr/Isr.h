@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/shared_ptr.hpp>
+
 #include <lsst/afw/math.h>
 #include <lsst/afw/image.h>
 #include <lsst/pex/exceptions/Exception.h>
@@ -142,30 +144,18 @@ namespace isr {
         int _max;
     };
 
-
-
-
-
-    template<typename ImagePixelT>
-    lsst::afw::math::FitResults findBestFit(
-        lsst::afw::image::MaskedImage<ImagePixelT> const &maskedImage,
-        std::string const &funcForm,
-        int funcOrder,
-        double stepSize
+    template<typename ImagePixelT, typename FunctionT>
+    void fitOverscanImage(
+        boost::shared_ptr<lsst::afw::math::Function1<FunctionT> > &overscanFunction,
+        lsst::afw::image::MaskedImage<ImagePixelT> const& overscan,
+        double ssize=1.,
+        int sigma=1
         );
-
-    lsst::afw::image::BBox stringParse(
-        std::string &section
-        );
-
-    template<typename ImagePixelT>
-    void fitFunctionToImage(
-        lsst::afw::image::MaskedImage<ImagePixelT> &maskedImage,
-        lsst::afw::math::Function1<double> const &function
-        );
-
     
-
+    lsst::afw::image::BBox BboxFromDatasec(
+        std::string & datasection
+        );
+    
 }}} // namespace lsst::ip::isr
 	
 #endif // !defined(LSST_IP_ISR_ISR_H)

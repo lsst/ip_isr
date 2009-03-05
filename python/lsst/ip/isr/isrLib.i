@@ -46,11 +46,8 @@ SWIG_SHARED_PTR(LookupTableReplaceD, lsst::ip::isr::LookupTableReplace<double>);
 %template(LookupTableReplaceF) lsst::ip::isr::LookupTableReplace<float>;
 %template(LookupTableReplaceD) lsst::ip::isr::LookupTableReplace<double>;
 
-%template(fitFunctionToImage) lsst::ip::isr::fitFunctionToImage<float>;
-%template(fitFunctionToImage) lsst::ip::isr::fitFunctionToImage<double>;
-
-%template(findBestFit) lsst::ip::isr::findBestFit<float>;
-%template(findBestFit) lsst::ip::isr::findBestFit<double>;
+%template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<float, double>;
+%template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<double, double>;
 
 /******************************************************************************/
 // Local Variables: ***

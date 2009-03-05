@@ -23,6 +23,7 @@ def ValidateCalibration(exposure, calibration, policy):
      * Through the same filter (dome flat)
      * Appropriate for the date range (anything time variable; dflats, etc)
     """
+    
     pass
 
 #
@@ -32,11 +33,11 @@ def ValidateCalibration(exposure, calibration, policy):
 def MaskFromDefects(dimensions, fpList):
     # the output LSST Mask image
     mask    = afwImage.MaskU(dimensions)
+    mask.set(0)
     bitmask = mask.getPlaneBitMask('BAD')
 
     # set the bits
-    for fp in fpList:
-        afwDetection.setMaskFromFootprint(mask, fp, bitmask)
+    afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
     return mask
     
@@ -73,8 +74,7 @@ def MaskBadPixels(exposure, policy, fpList,
     mi      = exposure.getMaskedImage()
     mask    = mi.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
-    for fp in fpList:
-        afwDetection.setMaskFromFootprint(mask, fp, bitmask)
+    afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)    
 
     if interpolate:
         # and interpolate over them
@@ -235,10 +235,10 @@ def DarkCorrection(exposure, dark, policy,
     darkscaling       = dmetadata.getDouble(scalingKeyword)
     scale             = expscaling / darkscaling
 
-    mi   = exposure.getMaskedImage()
-    bmi  = afwImage.MaskedImageF(bias.getMaskedImage(), True)
-    bmi *= scale
-    mi  -= bmi
+    #mi   = exposure.getMaskedImage()
+    #bmi  = afwImage.MaskedImageF(bias.getMaskedImage(), True)
+    #bmi *= scale
+    mi.scaledMinus(scale, bias.getMaskedImage())
 
     # common outputs
     stageSummary = 'using %s with scale=%.2f' % (filename, scale)
@@ -268,10 +268,11 @@ def FlatCorrection(exposure, flat, policy,
     flatscaling       = dmetadata.getDouble(scalingKeyword)
 
     mi   = exposure.getMaskedImage()
-    fmi  = afwImage.MaskedImageF(flat.getMaskedImage(), True)
-    if flatscaling != 1.:
-        fmi /= flatscaling
-    mi  /= fmi
+    #fmi  = afwImage.MaskedImageF(flat.getMaskedImage(), True)
+    #if flatscaling != 1.:
+    #    fmi /= flatscaling
+    #mi  /= fmi
+    mi.scaledDivides(1./flatscaling, flat.getMaskedImage())
     
     # common outputs
     stageSummary = 'using %s with scale=%.2f' % (filename, flatscaling)
@@ -297,10 +298,11 @@ def IlluminationCorrection(exposure, illum, policy,
     illumscaling      = dmetadata.getDouble(scalingKeyword)
 
     mi   = exposure.getMaskedImage()
-    imi  = afwImage.MaskedImageF(illum.getMaskedImage(), True)
-    if illumscaling != 1.:
-        imi /= illumscaling
-    mi  /= imi
+    #imi  = afwImage.MaskedImageF(illum.getMaskedImage(), True)
+    #if illumscaling != 1.:
+    #    imi /= illumscaling
+    #mi  /= imi
+    mi.scaledDivides(1./illumscaling, illum.getMaskedImage())
     
     # common outputs
     stageSummary = 'using %s with scale=%.2f' % (filename, flatscaling)
