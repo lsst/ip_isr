@@ -20,9 +20,8 @@ def maskFromImage(fitsfile):
 
     # set the bits
     for fp in fpList:
-        for s in fp.getSpans():
-            print s.toString()
-            
+        #for s in fp.getSpans():
+        #    print s.toString()
         afwDetection.setMaskFromFootprint(maskMask, fp, bitmask)
 
     return maskMask

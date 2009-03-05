@@ -89,12 +89,6 @@ def doLinearization(chunkExposure, isrPolicy, linTable=None):
         pexLog.Trace("%s" % (stage,), 4, "ISR has already been run")
         return
 
-    try:
-        pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from chunkMetadata.")
-    except pexEx.LsstExceptionStack, e:
-        print "Cannot get the ... from the chunkExposure: %s" % e      
-
-
     if linearizeType == "LOOKUP":
 
         pexLog.Trace("%s" % (stage,), 4, "Correcting with lookup table %s" % (lookupTableName))
@@ -169,5 +163,5 @@ def doLinearization(chunkExposure, isrPolicy, linTable=None):
     - ?                     
     """
     pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
-    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
+    pexLog.Trace("%s" % (stage,), 4, "Leaving ISR Stage: %s" % (stage,))
                               

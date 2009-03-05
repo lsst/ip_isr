@@ -17,6 +17,7 @@ import lsst.daf.base as dafBase
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr.BiasCorrection as ipIsrBias
+from lsst.ip.isr.VerifyMasterFile import VerifyMasterFile
 
 def main():
 
@@ -37,6 +38,9 @@ def main():
     chunkExposure       = afwImage.ExposureF(chunkExposureInPath)
     masterChunkExposure = afwImage.ExposureF(masterChunkExposureInPath)
     isrPolicy           = pexPolicy.Policy.createPolicy(isrPolicyPath)
+
+    if not VerifyMasterFile(chunkExposure, masterChunkExposure, 'lsst.ip.isr.biasCorrection', isrPolicy.getPolicy("biasPolicy")):
+        raise pexExcept.LsstException, "Can not verify Master file for Bias correction"
     
     ipIsrBias.biasCorrection(chunkExposure, masterChunkExposure, isrPolicy)
 

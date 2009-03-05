@@ -60,7 +60,7 @@ def trimExposure(chunkExposure):
    
     @return trimmedExposure
 
-    """"
+    """
     trimsecBbox = stringParser(trimsec)
     trimmedExposure = chunkExposure.getSubExposure(trimsecBbox)
 

@@ -3,7 +3,7 @@
 @brief Implementation of the stage, Bias Correction, for the Nightly
        or Data Release Instrument Signature Removal Pipelines
 
-@author Nicole M. Silvestri
+@author Nicole M. Silvestri / ACB
         University of Washington
         nms@astro.washington.edu
         created: Mon Nov 24, 2008  
@@ -17,14 +17,12 @@ import lsst.pex.exceptions as pexExcept
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
-from VerifyMasterFile import VerifyMasterFile
 import time
 
 # global variables
 STAGE_SIGNATURE = 'ISR_BIAS'
 
 def biasCorrection(chunkExposure, masterExposure, isrPolicy):
-
     """Bias Correction
 
     @brief The appropriate Master Bias Exposure is subtracted from the
@@ -44,9 +42,6 @@ def biasCorrection(chunkExposure, masterExposure, isrPolicy):
     stage = "lsst.ip.isr.biasCorrection"   
     pexLog.Trace("%s" % (stage,), 4, "Entering ISR Bias Correction stage." )
 
-    if not VerifyMasterFile(chunkExposure, masterExposure, stage, isrPolicy.getPolicy("biasPolicy")):
-        raise pexExcept.LsstException, "%s: Can not verify Master file for Bias correction" % (stage,)
-        
     # Parse the Policy File
     pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
@@ -75,19 +70,18 @@ def biasCorrection(chunkExposure, masterExposure, isrPolicy):
 
     masterMetadata    = masterExposure.getMetadata()
     masterMaskedImage = masterExposure.getMaskedImage()
+
     # Get additional metadata 
     pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from the metadata." )
     fileName = masterMetadata.getString(fileNameField, 'None')
 
     # Subtract the Master Bias MaskedImage from the Chunk MaskedImage.
-    pexLog.Trace("%s" % (stage,), 4, "Subtracting Master Bias Exposure from Chunk Exposure." )
+    pexLog.Trace("%s" % (stage,), 4, "Subtracting Master Bias Exposure %s." % (fileName) )
     if biasScale:
         # Not sure if we will ever use this feature
         pexLog.Trace("%s" % (stage,), 4, "Additional scale factor applied to Master Bias: %s" % (biasScale,))
         masterMaskedImage *= biasScale
-        chunkMaskedImage  -= masterMaskedImage
-    else:
-        chunkMaskedImage  -= masterMaskedImage
+    chunkMaskedImage -= masterMaskedImage
         
     # Record final stage provenance to the Image Metadata
     pexLog.Trace("%s" % (stage,), 4, "Recording final provenance information." )
@@ -105,5 +99,6 @@ def biasCorrection(chunkExposure, masterExposure, isrPolicy):
     - ?
     """
     pexLog.Trace("%s" % (stage,), 4, "Completed Successfully" )
-    pexLog.Trace("Leaving ISR Stage: ", 4, "%s" % (stage,))
+    pexLog.Trace("%s" % (stage,), 4, "Leaving ISR Stage: %s" % (stage,))
+
                               

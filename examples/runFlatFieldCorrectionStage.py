@@ -17,6 +17,7 @@ import lsst.daf.base as dafBase
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr.FlatFieldCorrection as ipIsrFlat 
+from lsst.ip.isr.VerifyMasterFile import VerifyMasterFile
 
 def main():
    
@@ -29,16 +30,17 @@ def main():
     if not isrDir:
         raise RuntimeError("Must set up ip_isr to run this program.")
     
-    # NOTE: original raw exposure is: raw-53535-i-797722_1_img.fits  
-    chunkExposureInPath = os.path.join(dataDir, "biasStageTestExposure_1")
+    chunkExposureInPath       = os.path.join(dataDir, "biasStageTestExposure_1")
     masterChunkExposureInPath = os.path.join(dataDir, "CFHT", "D4", "05Am05.flat.i.36.01_1")
-    isrPolicyPath = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
-    chunkExposureOutPath = os.path.join(dataDir, "flatStageTestExposure_1")
+    isrPolicyPath             = os.path.join(isrDir, "pipeline", "isrPolicy.paf")
+    chunkExposureOutPath      = os.path.join(dataDir, "flatStageTestExposure_1")
     
-    chunkExposure = afwImage.ExposureD(chunkExposureInPath)
+    chunkExposure       = afwImage.ExposureD(chunkExposureInPath)
     masterChunkExposure = afwImage.ExposureD(masterChunkExposureInPath)
+    isrPolicy           = pexPolicy.Policy.createPolicy(isrPolicyPath)
 
-    isrPolicy = pexPolicy.Policy.createPolicy(isrPolicyPath)
+    if not VerifyMasterFile(chunkExposure, masterChunkExposure, 'lsst.ip.isr.flatFieldCorrection', isrPolicy.getPolicy("flatPolicy")):
+        raise pexExcept.LsstException, "Can not verify Master file for Bias correction"
     
     ipIsrFlat.flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy)
 

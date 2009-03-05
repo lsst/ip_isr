@@ -2,7 +2,7 @@
 @brief: Implementation of the stage, Flat Field Correction, for the
  nightly Instrument Signature Removal Pipeline
 
-@author: Nicole M. Silvestri
+@author: Nicole M. Silvestri / ACB
  contact: nms@astro.washington.edu
  file created: Tue Nov 25, 2008  
 
@@ -18,6 +18,10 @@ import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.ip.isr.IlluminationCorrection as ipIsrIllum
+import time
+
+# global variables
+STAGE_SIGNATURE = 'ISR_FLAT'
    
 def flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy):
 
@@ -65,124 +69,34 @@ def flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     # Parse the Policy File
     pexLog.Trace("%s" % (stage,), 4, "Parsing the ISR Policy File." )
     try:
-        chunkType = isrPolicy.getString("chunkType")
-        run = isrPolicy.getString("run")
-        flatPolicy = isrPolicy.getPolicy("flatPolicy")
-        illumPolicy = isrPolicy.getPolicy("illumPolicy")
+        chunkType      = isrPolicy.getString("chunkType")
+        run            = isrPolicy.getString("run")
+        illumPolicy    = isrPolicy.getPolicy("illumPolicy")
+
+        flatPolicy     = isrPolicy.getPolicy("flatPolicy")
+        fileNameField  = flatPolicy.getString("fileName")
         flatFieldScale = flatPolicy.getDouble("flatFieldScale")
-        stretchFactor = flatPolicy.getDouble("stretchFactor")
-        sigClip = flatPolicy.getBool("sigClip")
-        sigClipVal = flatPolicy.getDouble("sigClipVal")
+        stretchFactor  = flatPolicy.getDouble("stretchFactor")
+        sigClip        = flatPolicy.getBool("sigClip")
+        sigClipVal     = flatPolicy.getDouble("sigClipVal")
     except pexEx.LsstExceptionStack, e:
         pexLog.Trace("%s" % (stage,), 4, "Cannot parse the ISR Policy File: %s" % e )
-        raise pexEx.NotFound, "Can not obtain Flat Field Correction Policy Parameters."
+        raise pexExcept.LsstException, "%s: Can not obtain policy parameters from the ISR Policy File." % (stage,)
    
     chunkMaskedImage = chunkExposure.getMaskedImage()
-    chunkMetadata = chunkMaskedImage.getImage().getMetaData()
+    chunkMetadata    = chunkExposure.getMetaData()
+    if chunkMetadata == None:
+        chunkMetadata = dafBase.PropertySet()
+    if chunkMetadata.exists(STAGE_SIGNATURE):
+        pexLog.Trace("%s" % (stage,), 4, "BiasCorrection has already been run")
+        return
+
     masterChunkMaskedImage = masterChunkExposure.getMaskedImage()
-    masterChunkMetadata = chunkMaskedImage.getImage().getMetaData()
+    masterChunkMetadata    = masterChunkExposure.getMetaData()
 
-    # Check that the Master Bias Chunk Exposure and Chunk Exposure are
-    # the same size.
-
-    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same size." )
-    numCols = chunkMaskedImage.getCols()
-    numRows = chunkMaskedImage.getRows() 
-
-    mnumCols = masterChunkMaskedImage.getCols()
-    mnumRows = masterChunkMaskedImage.getRows() 
-
-    if numCols != mnumCols or numRows != mnumRows:
-        raise pexEx.LengthError, "In %s: Chunk Exposure and Master Flat Field Chunk Exposure are not the same size." % (stage,)
-    else:
-        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are the same size." )
-
-    # Check that the Master Flat Field Chunk Exposure and Chunk Exposure are
-    # derived from the same pixels (eg. both are from the same amp,
-    # CCD, or raft).
-    
-    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are derived from the same pixels." )
-    if chunkType == "AMP":
-        
-        ampidField = chunkMetadata.findUnique("AMPLIST")
-        mampidField = masterChunkMetadata.findUnique("AMPLIST");
-        if ampField:
-            ampid = ampidField.getValueString()
-            print "AMPID chunk: ", ampid
-            mampid = mampidField.getValueString()
-            print "AMPID master: ", mampid
-        else:
-            raise pexEx.NotFound, "In %s: Could not get AMPID from the Metadata." %(stage,)
-
-        if ampid != mampid:
-            raise pexEx.RangeError, "In %s: Chunk Exposure and Master Chunk Exposure are not derived from the same pixels." % (stage,)
-        else:
-            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels.")
-
-    elif chunkType == "CCD":
-        
-        ccdidField = chunkMetadata.findUnique("CCDID")
-        mccdidField = masterChunkMetadata.findUnique("CCDID");
-        if ccdField:
-            ccdid = ccdidField.getValue()
-            mccdid = mccdidField.getValue()
-        else:
-            raise pexEx.NotFound, "In %s: Could not get CCDID from the Metadata." %(stage,)
-
-        if ccdid != mccdid:
-            raise pexEx.RangeError, "In %s: Chunk Exposure and Master Chunk Exposure are not derived from the same pixels." % (stage,)
-        else:
-            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels.")
-
-    elif chunkType == "RAFT":
-        
-        raftidField = chunkMetadata.findUnique("RAFTID")
-        mraftidField = masterChunkMetadata.findUnique("RAFTID");
-        if raftField:
-            raftid = raftidField.getValueString()
-            mraftid = mraftidField.getValueString()
-        else:
-            raise pexEx.NotFound, "In %s: Could not get RAFTID from the Metadata." %(stage,)
-
-        if raftid != mraftid:
-            raise pexEx.RangeError, "In %s: Chunk Exposure and Master Chunk Exposure are not derived from the same pixels." % (stage,)
-        else:
-            pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are derived from the same pixels." )
-
-    else:
-        raise pexExcept.NotFound, "In %s: Chunk Type Not Implemented. Use 'AMP', 'CCD', or 'RAFT'." % (stage,)
-
-    # Get the relevant metadata  
+    # Get additional metadata 
     pexLog.Trace("%s" % (stage,), 4, "Obtaining additional parameters from the metadata." )
-    fileNameField = masterChunkMetadata.findUnique("FILENAME")
-    if fileNameField:
-        fileName = fileNameField.getValue()
-    else:
-        raise pexEx.NotFound,"In %s: Could not get FILENAME from the Metadata." %(stage,) 
-
-#    meanFlatField = masterChunkMetadata.findUnique("MEAN");
-#    if meanFlatField:
-#        meanFlat = meanFlatField.getValue()
-#    else:
-#        raise pexEx.NotFound,"In %s: Could not get MEAN from the master Metadata." %(stage,)
-
-    flterField = chunkMetadata.findUnique("FILTER")
-    mfilterField = masterChunkMetadata.findUnique("FILTER")
-    if filterField:
-        #QQQ: this will likely be a numerical value for LSST so need to generalize here.
-        filter = filterField.getValueString()
-        print "FILTER chunk: ", filter
-        mfilter = mfilterField.getValueString()
-        print "FILTER master: ", mfilter
-    else:
-        raise pexEx.NotFound,"In %s: Could not get FILTER from the Metadata." % (stage,)
-
-    # Make sure the chunk and master have the same filter designation
-    pexLog.Trace("%s" % (stage,), 4, "Verifying Master and Chunk Exposures are the same FILTER." )
-    if filter != mfilter:
-        raise pexEx.Runtime,"In %s, Chunk Exposure and Master Flat Field Chunk Exposure are not from the same FILTER." % (stage,) 
-    else:
-        pexLog.Trace("%s" % (stage,), 4, "Success: Master and Chunk Exposures are from the same filter." )
+    fileName = masterMetadata.getString(fileNameField, 'None')
 
     # Has the Master Flat Field Chunk Exposure been normalized?
     pexLog.Trace("%s" % (stage,), 4, "Checking Master Flat Field Exposure for normalization." )
@@ -258,7 +172,7 @@ def flatFieldCorrection(chunkExposure, masterChunkExposure, isrPolicy):
     pexLog.Trace("In %s:" % (stage,), 4, "Dividing MaskedImage by Master Flat Field MaskedImage.")
     
     if flatFieldScale:
-        pexLog.Trace("In %s:" % (stage,), 4, "Scaling Flat Field MaksedImage by %s." % (flatFieldScale,))
+        pexLog.Trace("In %s:" % (stage,), 4, "Scaling Flat Field MaskedImage by %s." % (flatFieldScale,))
         masterChunkMaskedImage *= flatFieldScale
         chunkMaskedImage /= masterChunkMaskedImage
     else:

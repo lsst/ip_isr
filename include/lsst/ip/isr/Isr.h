@@ -7,7 +7,7 @@
   * \brief Implementation of the templated Instrument Signature Removal 
   * stage of the nightly LSST Image Processing Pipeline.
   *
-  * \author Nicole M. Silvestri, University of Washington
+  * \author Nicole M. Silvestri / ACB, University of Washington
   *
   * Contact: nms@astro.washington.edu
   *
@@ -34,6 +34,37 @@
 namespace lsst {
 namespace ip {
 namespace isr {
+
+    /** Signature strings associated with each stage of the ISR
+     * 
+     * @note Added to Exposure metadata after stage processing
+     *
+     * @note As implementation detail, no more than 8 characters for fits
+     * compliance?
+     */
+    std::string const& ISR_LIN   = "ISR_LIN";    ///< Linearization
+    std::string const& ISR_OSCAN = "ISR_OSCAN";  ///< Overscan
+    std::string const& ISR_TRIM  = "ISR_TRIM";   ///< Trim
+    std::string const& ISR_BIAS  = "ISR_BIAS";   ///< Bias 
+    std::string const& ISR_DFLAT = "ISR_DFLAT";  ///< Dome flat
+    std::string const& ISR_ILLUM = "ISR_ILLUM";  ///< Illumination correction
+    std::string const& ISR_BADP  = "ISR_BADP";   ///< Bad pixel mask
+    std::string const& ISR_SAT   = "ISR_SAT";    ///< Saturated pixels
+    std::string const& ISR_FRIN  = "ISR_FRIN";   ///< Fringe correction
+    std::string const& ISR_DARK  = "ISR_DARK";   ///< Dark correction
+
+    enum StageId {
+        ISR_LINid   = 0x1,   ///< Linearization
+        ISR_OSCANid = 0x2,   ///< Overscan
+        ISR_TRIMid  = 0x4,   ///< Trim
+        ISR_BIASid  = 0x8,   ///< Bias 
+        ISR_DFLATid = 0x10,  ///< Dome flat
+        ISR_ILLUMid = 0x20,  ///< Illumination correction
+        ISR_BADPid  = 0x40,  ///< Bad pixel mask
+        ISR_SATid   = 0x80,  ///< Saturated pixels
+        ISR_FRINid  = 0x100, ///< Fringe correction
+        ISR_DARKid  = 0x100, ///< Dark correction
+    };
 
     /** Multiplicative linearization lookup table
      *
@@ -88,6 +119,7 @@ namespace isr {
         virtual ~LookupTableReplace() {};
 
         void apply(lsst::afw::image::MaskedImage<ImageT> &image, double gain=1.0) {
+            double igain = 1.0 / gain;
             for (int y = 0; y != image.getHeight(); ++y) {
                 for (x_iterator ptr = image.row_begin(y); ptr != image.row_end(y); ++ptr) {
                     int ind = static_cast<int>(ptr.image() + 0.5);  // Rounded pixel value
@@ -97,7 +129,7 @@ namespace isr {
                     }
                     PixelT p = PixelT(_table[ind], 
                                       (*ptr).mask(), 
-                                      _table[ind] * gain);
+                                      _table[ind] * igain);
                     *ptr = p;
                 }
             }
