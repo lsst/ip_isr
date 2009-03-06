@@ -108,12 +108,6 @@ class IsrTestCases(unittest.TestCase):
                     self.assertAlmostEqual(mi.getImage().get(i,j),    i)
                     self.assertAlmostEqual(mi.getVariance().get(i,j), i)
 
-        
-
-        
-
-
-
 #####
         
 def suite():
