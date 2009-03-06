@@ -2,7 +2,7 @@
 #
 # MAIN ISR POLICY FILE
 # Created Aug 10, 2008
-# Author: Nicole M.Silvestri
+# Author: Nicole M.Silvestri / ACB
 #         University of Washington
 #         nms@astro.washington.edu
 # Version: 1.0 - last updated Tue Nov 02, 2008
@@ -19,76 +19,66 @@ bpm: true
 # Size of Chunk (FPA, RAFT, CCD, AMP, OTHER)
 chunkType: AMP
 
-# Is urrent ISR run Nightly or Data Release Processing?
-run: DR #('DR' or 'nightly')
+# Is current ISR run Nightly or Data Release Processing?
+# ('DR' or 'nightly')
+run: DR 
+
+# Default PSF FWHM estimate for the PSF (needed for interpolation)
+defaultFwhm: 5.
+
+# Metadata keyword that gives the original filename
+filenameKeyword: FILENAME
+
+# Which stages to run in the ISR
+# Implemented in IsrStages.py
+# isrStages: Linearization
+# isrStages: OverscanCorrection
+# isrStages: TrimNew
+# isrStages: SaturationCorrection
+# isrStages: MaskBadPixels
+# isrStages: BiasCorrection
+# isrStages: DarkCorrection
+# isrStages: FlatCorrection
+# isrStages: IlluminationCorrection
+# isrStages: FringeCorrection
+# isrStages: PupilCorrection
 
 ########################################
 # SATURATION CORRECTION STAGE POLICY	
 	
 saturationPolicy: {
 
- # Does a Saturation Lookup Table exist? (boolean)
- satTable: false
- 
- # Saturation Lookup Table Name
- satTableName: saturationLookupTable.tab
-
- # Use the default saturation limit in the policy file? (boolean)
- useDefSat: true
+ # Keyword in metadata for saturaton limit
+ saturationKeyword: SATURATE
 
  # Threshold for saturated pixel detection if not found elsewhere
- threshold: 65535 #ADUs - CFHT limit
-
- # Minimum number of saturated pixels to be detected in a footprint
- nSatPixMin: 1
+ defaultSaturation: 65535.
 
  # Number of pixels to grow around footprints
- grow: 1
-
- # FWHM estimate for the PSF (needed for interpolation)
- psfFWHM: 5
+ growSaturated: 1
 
 }
 
 ########################################
 # OVERSCAN CORRECT AND TRIM STAGE
 
+trimPolicy: {
+
+ # Metadata keyword containing Trim section
+ trimsecKeyword: TRIMSEC
+
+}
+
 overscanPolicy: {
 
- # Fit a constant value or function ('CONSTANT' or 'FUNCTION')?
- method: CONSTANT
+ # Metadata keyword containing Overscan region
+ overscanKeyword: BIASSEC
 
- # Functional form, 1D only ('POLYNOMIAL', 'SPLINE', CHEBYCHEV) 
- funcForm: POLYNOMIAL
- funcOrder: 3
- # Parameters for the minimization
- stepSize: 1.0 # some reasonable guess at a step size
- numParams: 4 # number of parameters to start with
+ # Type of overscan model : MEAN, MEDIAN, POLYNOMIAL
+ overscanFitType: MEDIAN
 
- # Method for determining the constant value ('MEAN', 'MEDIAN', 'AVERAGE', 'MODE')
- constantMeth: MEAN
-
- # Smooth the image or overscan region?
- smooth: false
-
- # Smoothing function (BOXCAR or GAUSSIAN)
- smoothOpt: BOXCAR
- smoothOrder: 3
- # if gaussian:
- smoothSigma: 4
-
- # Want to sigma-clip the image?
- sigClip: false
- sigClipVal: 3
-
- # header keywords for conversion to LSST standard keys in ISR 
- # TO DO: these will be removed and rectified in the data format stage eventually 
- # datasec: DATASEC
- # biassec: BIASSEC
- # trimsec: TRIMSEC
- datasec: DSECA
- biassec: BSECA
- trimsec: TSECA
+ # If POLYNOMIAL, what is the order of the variation
+ polyOrder: 1
 
 }
 
@@ -97,19 +87,9 @@ overscanPolicy: {
 
 biasPolicy: {
 
- # Want to sigma-clip the exposure?
- sigClip: false
- sigClipVal: 3
-
- # Additional scaling of the master bias?
- biasScale: 1.0
-
-# Chunk field name (for AMP or CCD)
- chunkFields: AMPLIST
- chunkFields: AMPNAME
-
-# File Name field from the Metadata
-fileName: FILENAME
+ # Metadata keyword that provides the mean counts in the image
+ # e.g. CCDMEAN
+ meanCountsKeyword: IMMODE 
 
 }
 
@@ -118,22 +98,9 @@ fileName: FILENAME
 
 darkPolicy: {
 
- # Want to sigma-clip the exposure?
- sigClip: false
- sigClipValue: 3
-
- # Additional scaling of the master dark (beyond EXPTIME scale)?
- darkScale: 1.0
-
-# Chunk field name (for AMP or CCD)
- chunkField: AMPLIST
-
-# File Name field from the Metadata
- fileName: FILENAME
-
-# Field name for Exposure and DarkTime
- exptimeField: EXPTIME
- darktimeField: DARKTIME
+ # Metadata keyword that allows you to scale the dark current
+ # E.g. EXPTIME
+ darkScaleKeyword: EXPTIME
 
 }
 
@@ -142,21 +109,10 @@ darkPolicy: {
 
 linearizePolicy: {
 
- # Does a Linearization Lookup Table exist? (boolean)
- linTable: true
+ # Name for linarization table.  Lookup table is the only one supported
+ # Can be multiplicative or replace the value in the image.
+ # This option is described in the lookup table policy
  lookupTableName: linearizationLookupTable.paf
-
- # For FUNCTION fitting below
-
- # Perform a functional fit or use a lookup table (FUNCTION or LOOKUP)
- linearizeType: LOOKUP
-
- # Functional form, 1D only (POLINOMIAL, SPLINE, CHEBYCHEV)
- funcForm: POLYNOMIAL
- funcOrder: 3
- # Parameters for the minimization
- stepSize: 1.0 # some reasonable guess at a step size
- numParams: 4 # number of parameters to start with 
 
 }
 
@@ -164,53 +120,21 @@ linearizePolicy: {
 # FLAT FIELD CORRECTION STAGE
 
 flatPolicy: {
- 
- 
- # Want to stretch the image?
- stretchFactor: 1.0
 
- # Want to sigma-clip the image?
- sigClip: false
- sigClipVal: 3
- 
- # Additional scaling of the master flat
- flatScale: 1.0
+ # Metadata keyword that describes how to scale the flat field image
+ # E.g. CCDMEAN
+ flatScaleKeyword: IMMODE
 
 }
 
 ######################################
-# ILLUMINATION CORRECTION STAGE(S)
+# ILLUMINATION CORRECTION STAGE
 
 illuminationPolicy: {
 
- # effective smoothing kernel size = binSize * kernelSize
- binSize: 4 # in pixels
-
- # Type of kernel to smooth with (GAUSSIAN, BOXCAR)?
- kernelType: GAUSSIAN
- kernelWidth: 5  # sigma
- kernelRow: 5 # size of kernel, number of cols
- kernelCol: 5 # size of kernel, number of rows
-
- # file name (incl. path) of a previous night's Master Dome Flat (if running for nightly)
- dfPrevious:  
- 
- # file name (incl. path) of the current night's Night Sky Flat (if running for DR)
- sfCurrent:   
-
- # file name (incl. path) of a previous night's Nights illum. corr. (if running for nightly)
- icPrevious:  tempIlumCorMaskedImage 
-
- # file name  (incl. path) of the Ilum. Corr. MaskedIamge
- illumMiName: tempIlumCorMaskedImage 
-
-}
-
-######################################
-# PUPIL IMAGE CORRECTION STAGE
-
-pupilPolicy: {
-
+ # Metadata keyword that describes how to scale the illumination image
+ # E.g. CCDMEAN
+ illumScaleKeyword: IMMODE
 
 }
 
@@ -232,9 +156,18 @@ fringePolicy: {
 }
 
 ######################################
-# ADDITIONAL DC3B STAGES HERE
+# PUPIL IMAGE CORRECTION STAGE
 
+pupilPolicy: {
 
+ # Metadata keyword that describes the effective sky of the fringe
+ fringeSkyKeyword: FRNG_SKY
+
+ # Metadata keyword that describes how to scale the fringe image
+ # I.e. the fringe amplitude
+ fringeScaleKeyword: FRNG_RNG
+
+}
 
 ######################################
 # END MAIN ISR POLICY FILE
