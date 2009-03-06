@@ -361,7 +361,11 @@ def TrimNew(exposure, policy,
     trimsecBbox     = isrLib.BboxFromDatasec(trimsec)
 
     # if "True", do a deep copy
+    print exposure.getWcs()
+    print exposure.getMaskedImage().getDimensions()
+    print trimsecBbox.getX0(), trimsecBbox.getX1(), trimsecBbox.getY0(), trimsecBbox.getY1()
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBbox, False)
+    print 'done'
 
     # common outputs
     stageSummary = 'using trimsec %s' % (trimsec)
@@ -393,16 +397,16 @@ def OverscanCorrection(exposure, policy,
     overscanBbox    = isrLib.BboxFromDatasec(overscan)
 
     # if "True", do a deep copy
-    overscanData    = afwImage.MaskedImage(exposure.getMaskedImage(), overscanBbox, False)
+    overscanData    = afwImage.ImageF(exposure.getMaskedImage().getImage(), overscanBbox, False)
 
     # what type of overscan modeling?
     overscanFitType = policy.getPolicy('overscanPolicy').getString('overscanFitType')
     if overscanFitType == 'MEAN':
-        mean   = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
-        mi    -= mean
+        offset = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
+        mi    -= offset
     elif overscanFitType == 'MEDIAN':
-        median = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
-        mi    -= median
+        offset = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+        mi    -= offset
     elif overscanFitType == 'POLY':
         polyOrder = policy.getPolicy('overscanPolicy').getInt('polyOrder')
         raise pexExcept.LsstException, '%s : %s not implemented' % (stageName, overscanFitType)
@@ -410,7 +414,7 @@ def OverscanCorrection(exposure, policy,
         raise pexExcept.LsstException, '%s : %s an invalid overscan type' % (stageName, overscanFitType)
 
     # common outputs
-    stageSummary = 'using overscan section %s' % (overscan)
+    stageSummary = 'using overscan section %s with %s=%f' % (overscan, overscanFitType, offset)
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
 

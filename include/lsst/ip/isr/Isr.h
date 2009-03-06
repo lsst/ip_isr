@@ -156,7 +156,7 @@ namespace isr {
         );
     
     lsst::afw::image::BBox BboxFromDatasec(
-        std::string & datasection
+        std::string datasection
         );
     
 }}} // namespace lsst::ip::isr
