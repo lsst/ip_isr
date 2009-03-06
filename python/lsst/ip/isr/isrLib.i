@@ -18,6 +18,7 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 #include <lsst/afw/image.h>
 #include <lsst/afw/math.h>
+#include <lsst/afw/math/Statistics.h>
 
 #include "lsst/pex/exceptions.h"
 #include "lsst/pex/logging/Trace.h"
@@ -27,6 +28,7 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 %include "lsst/p_lsstSwig.i"
 %import  "lsst/afw/image/imageLib.i" 
+%import  "lsst/afw/math/mathLib.i" 
 %lsst_exceptions();
 
 %{
@@ -43,8 +45,8 @@ SWIG_SHARED_PTR(LookupTableReplaceD, lsst::ip::isr::LookupTableReplace<double>);
 
 %template(LookupTableMultiplicativeF) lsst::ip::isr::LookupTableMultiplicative<float>;
 %template(LookupTableMultiplicativeD) lsst::ip::isr::LookupTableMultiplicative<double>;
-%template(LookupTableReplaceF) lsst::ip::isr::LookupTableReplace<float>;
-%template(LookupTableReplaceD) lsst::ip::isr::LookupTableReplace<double>;
+
+%template(LookupTableReplaceI) lsst::ip::isr::LookupTableReplace<int>;
 
 %template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<float, double>;
 %template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<double, double>;

@@ -25,6 +25,7 @@
 #include <boost/shared_ptr.hpp>
 
 #include <lsst/afw/math.h>
+#include <lsst/afw/math/Statistics.h>
 #include <lsst/afw/image.h>
 #include <lsst/pex/exceptions/Exception.h>
 #include <lsst/pex/logging/Trace.h>
@@ -52,8 +53,9 @@ namespace isr {
     std::string const& ISR_ILLUM = "ISR_ILLUM";  ///< Illumination correction
     std::string const& ISR_BADP  = "ISR_BADP";   ///< Bad pixel mask
     std::string const& ISR_SAT   = "ISR_SAT";    ///< Saturated pixels
-    std::string const& ISR_FRIN  = "ISR_FRIN";   ///< Fringe correction
+    std::string const& ISR_FRING = "ISR_FRING";  ///< Fringe correction
     std::string const& ISR_DARK  = "ISR_DARK";   ///< Dark correction
+    std::string const& ISR_PUPIL = "ISR_PUPIL";  ///< Pupil correction
 
     enum StageId {
         ISR_LINid   = 0x1,   ///< Linearization
@@ -65,7 +67,8 @@ namespace isr {
         ISR_BADPid  = 0x40,  ///< Bad pixel mask
         ISR_SATid   = 0x80,  ///< Saturated pixels
         ISR_FRINid  = 0x100, ///< Fringe correction
-        ISR_DARKid  = 0x100, ///< Dark correction
+        ISR_DARKid  = 0x200, ///< Dark correction
+        ISR_PUPILid = 0x400, ///< Pupil correction
     };
 
     /** Multiplicative linearization lookup table
