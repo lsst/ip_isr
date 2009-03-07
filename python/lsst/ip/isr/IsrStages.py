@@ -361,11 +361,7 @@ def TrimNew(exposure, policy,
     trimsecBbox     = isrLib.BboxFromDatasec(trimsec)
 
     # if "True", do a deep copy
-    print exposure.getWcs()
-    print exposure.getMaskedImage().getDimensions()
-    print trimsecBbox.getX0(), trimsecBbox.getX1(), trimsecBbox.getY0(), trimsecBbox.getY1()
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBbox, False)
-    print 'done'
 
     # common outputs
     stageSummary = 'using trimsec %s' % (trimsec)
