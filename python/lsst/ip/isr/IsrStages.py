@@ -61,7 +61,7 @@ def DefectsFromCfhtImage(fitsfile):
     return fpList
 
 
-def MaskBadPixels(exposure, policy, fpList,
+def MaskBadPixelsFp(exposure, policy, fpList,
                   interpolate = True,
                   maskName    = 'BAD',
                   stageSig    = isrLib.ISR_BADP,
@@ -82,9 +82,46 @@ def MaskBadPixels(exposure, policy, fpList,
     if interpolate:
         # and interpolate over them
         defaultFwhm = policy.getDouble('defaultFwhm')
-        psf = algorithms.createPSF('DGPSF', 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
+        psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
         for fp in fpList:
-            defect = afwDetection.Defect(fp.getBbox())
+            defect = afwDetection.Defect(fp.getBBox())
+            algorithms.interpolateOverDefects(mi, psf, defect)
+
+        stageSummary = 'with interpolation'
+    else:
+        stageSummary = 'without interpolation'
+
+        
+    # common outputs
+    pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
+    metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
+
+
+def MaskBadPixelsDef(exposure, policy, defectList,
+                     interpolate = True,
+                     maskName    = 'BAD',
+                     stageSig    = isrLib.ISR_BADP,
+                     stageName   = 'lsst.ip.isr.maskbadpixels'):
+                  
+    # common input test
+    metadata   = exposure.getMetadata()
+    if metadata.exists(stageSig):
+        pexLog.Trace(stageName, 4, '%s has already been run' % (stageSig))
+        return
+
+    # mask bad pixels
+    mi      = exposure.getMaskedImage()
+    mask    = mi.getMask()
+    bitmask = mask.getPlaneBitMask(maskName)
+    for defect in defectList:
+        afwDetection.setMaskFromFootprint(mask, defect.getFootprint(), bitmask)    
+
+    if interpolate:
+        # and interpolate over them
+        defaultFwhm = policy.getDouble('defaultFwhm')
+        psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
+        for fp in fpList:
+            defect = afwDetection.Defect(fp.getBBox())
             algorithms.interpolateOverDefects(mi, psf, defect)
 
         stageSummary = 'with interpolation'
@@ -185,7 +222,7 @@ def CrRejection(exposure, policy,
     bg = 0.
     
     defaultFwhm = policy.getDouble('defaultFwhm')
-    psf         = algorithms.createPSF('DGPSF', 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
+    psf         = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
     crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
     
     if subBackground:
@@ -245,7 +282,7 @@ def SaturationCorrection(exposure, policy,
     if interpolate:
         mask.addMaskPlane('INTERP')
         defaultFwhm   = policy.getDouble('defaultFwhm')
-        psf           = algorithms.createPSF('DGPSF', 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
+        psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
         algorithms.interpolateOverDefects(mi, psf, defectList)
     
     # common outputs
@@ -375,7 +412,7 @@ def IlluminationCorrection(exposure, illum, policy,
 
 # Now implemented in C++
 #
-#def BboxFromDatasec(string,
+#def BBoxFromDatasec(string,
 #                    stageName = 'lsst.ip.isr.bboxfromdatasec'):
 #    
 #    c = re.compile('^\[(\d+):(\d+),(\d+):(\d+)\]$')
@@ -410,10 +447,10 @@ def TrimNew(exposure, policy,
 
     trimsecKeyword  = policy.getPolicy('trimPolicy').getString('trimsecKeyword')
     trimsec         = metadata.getString(trimsecKeyword)
-    trimsecBbox     = isrLib.BboxFromDatasec(trimsec)
+    trimsecBBox     = isrLib.BBoxFromDatasec(trimsec)
 
     # if "True", do a deep copy
-    trimmedExposure = afwImage.ExposureF(exposure, trimsecBbox, False)
+    trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox, False)
     llc = trimsecBBox.getLLC()
     trimmedExposure.setXY0(llc)
 
@@ -444,10 +481,10 @@ def OverscanCorrection(exposure, policy,
     
     overscanKeyword = policy.getPolicy('overscanPolicy').getString('overscanKeyword')
     overscan        = metadata.getString(overscanKeyword)
-    overscanBbox    = isrLib.BboxFromDatasec(overscan)
+    overscanBBox    = isrLib.BBoxFromDatasec(overscan)
 
     # if "True", do a deep copy
-    overscanData    = afwImage.ImageF(exposure.getMaskedImage().getImage(), overscanBbox, False)
+    overscanData    = afwImage.ImageF(exposure.getMaskedImage().getImage(), overscanBBox, False)
 
     # what type of overscan modeling?
     overscanFitType = policy.getPolicy('overscanPolicy').getString('overscanFitType')

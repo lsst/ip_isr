@@ -157,7 +157,7 @@ namespace isr {
         int sigma=1
         );
     
-    lsst::afw::image::BBox BboxFromDatasec(
+    lsst::afw::image::BBox BBoxFromDatasec(
         std::string datasection
         );
     

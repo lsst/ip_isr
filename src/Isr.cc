@@ -52,8 +52,7 @@ void isr::fitOverscanImage(
     overscanFunction->setParameters(fitResults.parameterList);
 }
 
-std::string between(std::string &s, char ldelim, char rdelim)
-{
+std::string between(std::string &s, char ldelim, char rdelim) {
     std::string::iterator b(s.begin());
     std::string::iterator e(s.end());
     std::string::iterator lp;
@@ -68,8 +67,7 @@ std::string between(std::string &s, char ldelim, char rdelim)
     return result;
 }
 
-image::BBox isr::BboxFromDatasec(std::string datasection)
-{ 
+image::BBox isr::BBoxFromDatasec(std::string datasection) { 
     
     const char begin('[');
     const char end(']');
