@@ -44,6 +44,29 @@ filenameKeyword: FILENAME
 # isrStages: PupilCorrection
 
 ########################################
+# CALIBRATION IDENTIFICATION STAGE POLICY
+
+calibrationIdentificationPolicy: {
+
+ # Start date for cal data; of the form 2004/03/12
+ startDateKeyword: TVSTART
+ 
+ # Stop date for cal data
+ stopDateKeyword: TVSTOP
+
+ # Data date
+ dataDateKeyword: DATE-OBS
+
+ # Filter keyword
+ filterKeyword: FILTER
+
+ # Dark keyword
+ darkKeyword: DARKTIME
+
+}
+
+
+########################################
 # SATURATION CORRECTION STAGE POLICY	
 	
 saturationPolicy: {
