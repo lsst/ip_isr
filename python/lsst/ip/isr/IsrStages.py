@@ -230,7 +230,7 @@ def CrRejection(exposure, policy,
     
     # common outputs
     stageSummary = 'with background subtraction = %s; found %d CRs' % (str(subBackground),
-                                                                       crs.size())
+                                                                       len(crs))
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
 
