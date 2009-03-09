@@ -83,6 +83,32 @@ saturationPolicy: {
 }
 
 ########################################
+# COSMIC RAY CORRECTION STAGE POLICY	
+	
+crRejectionPolicy: {
+
+ # gain of detector
+ gainKeyword: 'GAIN'
+ # e_per_dn:    1.0    
+
+ # CRs must be > this many sky-sig above sky
+ min_sigma:   6.0    
+
+ # CRs must have > this many electrons in initial detection
+ min_e:     150.0    
+
+ # used in condition 3 for CR; see CR.cc code
+ cond3_fac:   2.5    
+
+ # used in condition 3 for CR; see CR.cc code
+ cond3_fac2:  0.6    
+
+ # number of times to look for contaminated pixels near known CR pixels
+ niteration:    3    
+
+}
+
+########################################
 # OVERSCAN CORRECT AND TRIM STAGE
 
 trimPolicy: {

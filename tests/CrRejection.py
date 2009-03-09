@@ -38,53 +38,35 @@ class IsrTestCases(unittest.TestCase):
     def tearDown(self):
         del self.policy
 
-    def testSaturation(self):
+    def testCrRejection(self):
         saturation = 1000
         
-        saturationKeyword = self.policy.getString('saturationPolicy.saturationKeyword')
-        growSaturated     = self.policy.getInt('saturationPolicy.growSaturated')
-
         mi       = afwImage.MaskedImageF(20,20)
-        mi.set(100)
+        mi.set(100, 0x0, 1)
         exposure = afwImage.ExposureF(mi)
         metadata = exposure.getMetadata()
-        metadata.setDouble(saturationKeyword, saturation)
-        
-        bbox     = afwImage.BBox(afwImage.PointI(9,5),
-                                 afwImage.PointI(9,15))
-        submi    = afwImage.MaskedImageF(mi, bbox)
-        submi.set(saturation)
 
-        ipIsr.SaturationCorrection(exposure, self.policy)
+        gainKeyword = self.policy.getPolicy('crRejectionPolicy').getString('gainKeyword')
+        metadata.setDouble(gainKeyword, 1.0)
 
-        bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')
-        bitmaskSat    = mi.getMask().getPlaneBitMask('SAT')
+        mi.set(7,7,1000)
+
+        ipIsr.CrRejection(exposure, self.policy)
+
+        bitmaskCr     = mi.getMask().getPlaneBitMask('CR')
         bitmaskInterp = mi.getMask().getPlaneBitMask('INTRP')
         height        = mi.getHeight()
         width         = mi.getWidth()
 
         for j in range(height):
             for i in range(width):
-                # Grown saturation mask; one around the mask at 9
-                if i >= 8 and i <= 10:
-                    if (j == 4 or j == 16) and (i == 8 or i == 10):
-                        # Not saturated but interpolated over
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
-                    elif (j == 4 or j == 16):
-                        # Both saturated and interpolated over; bottom/top
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskSat,    bitmaskSat)
-                    elif (j > 4 and j < 16):
-                        # Both saturated and interpolated over; guts of it
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskSat,    bitmaskSat)
-                    else:
-                        # Neither; above or below the mask
-                        self.assertEqual(mi.getMask().get(i,j), 0)
+                if i == 7 and j == 7:
+                    self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
+                    self.assertEqual(mi.getMask().get(i,j) & bitmaskCr, bitmaskCr)
+                    self.assertEqual(mi.getImage().get(i,j), 100)
                 else:
                     self.assertEqual(mi.getMask().get(i,j), 0)
-                           
-
+                    self.assertEqual(mi.getImage().get(i,j), 100)
 #####
         
 def suite():

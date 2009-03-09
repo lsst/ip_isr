@@ -146,6 +146,58 @@ def Linearization(exposure, policy,
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
 
 #
+### STAGE : Cosmic Ray Rejection
+#
+
+def CrRejection(exposure, policy,
+                stageSig      = isrLib.ISR_CRREJ,
+                stageName     = 'lsst.ip.isr.crreject',
+                subBackground = False):
+    
+    # common input test
+    metadata   = exposure.getMetadata()
+    if metadata.exists(stageSig):
+        pexLog.Trace(stageName, 4, '%s has already been run' % (stageSig))
+        return
+
+    crPolicy    = policy.getPolicy('crRejectionPolicy')
+    gainKeyword = crPolicy.getString('gainKeyword')
+    gain        = metadata.getDouble(gainKeyword)
+    # needed for CR
+    crPolicy.set('e_per_dn', gain)
+
+    mi = exposure.getMaskedImage()
+    import pdb
+    pdb.set_trace()
+    if subBackground:
+        # how much of this do we put in policy?
+        bctrl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
+        bctrl.setNxSample(int(mi.getWidth()/256) + 1)
+        bctrl.setNySample(int(mi.getHeight()/256) + 1)
+        bctrl.sctrl.setNumSigmaClip(3.0)
+        bctrl.sctrl.setNumIter(2)
+        
+        im      = mi.getImage()
+        backobj = afwMath.makeBackground(im, bctrl)
+        im     -= backobj.getImageF()
+
+    # NOTE - this background issue needs to be resolved
+    bg = 0.
+    
+    defaultFwhm = policy.getDouble('defaultFwhm')
+    psf         = algorithms.createPSF('DGPSF', 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
+    crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
+    
+    if subBackground:
+        im     += backobj.getImageF() 
+    
+    # common outputs
+    stageSummary = 'with background subtraction = %s; found %d CRs' % (str(subBackground),
+                                                                       crs.size())
+    pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
+    metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
+
+#
 ### STAGE : Saturation correction
 #
 
@@ -362,6 +414,8 @@ def TrimNew(exposure, policy,
 
     # if "True", do a deep copy
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBbox, False)
+    llc = trimsecBBox.getLLC()
+    trimmedExposure.setXY0(llc)
 
     # common outputs
     stageSummary = 'using trimsec %s' % (trimsec)

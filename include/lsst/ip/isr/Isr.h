@@ -56,6 +56,7 @@ namespace isr {
     std::string const& ISR_FRING = "ISR_FRING";  ///< Fringe correction
     std::string const& ISR_DARK  = "ISR_DARK";   ///< Dark correction
     std::string const& ISR_PUPIL = "ISR_PUPIL";  ///< Pupil correction
+    std::string const& ISR_CRREJ = "ISR_CRREJ";  ///< Cosmic ray rejection
 
     enum StageId {
         ISR_LINid   = 0x1,   ///< Linearization
@@ -69,6 +70,7 @@ namespace isr {
         ISR_FRINid  = 0x100, ///< Fringe correction
         ISR_DARKid  = 0x200, ///< Dark correction
         ISR_PUPILid = 0x400, ///< Pupil correction
+        ISR_CRREJid = 0x800, ///< Cosmic ray rejection
     };
 
     /** Multiplicative linearization lookup table
