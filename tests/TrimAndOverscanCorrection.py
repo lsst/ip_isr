@@ -35,10 +35,6 @@ class IsrTestCases(unittest.TestCase):
     def setUp(self):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
 
-        # we need to grab a valid wcs because of ticket 686
-        # http://dev.lsstcorp.org/trac/ticket/686
-        self.wcs    = afwImage.ExposureF(InputExposure).getWcs()
-        
     def tearDown(self):
         del self.policy
 
@@ -54,7 +50,7 @@ class IsrTestCases(unittest.TestCase):
         overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
-        exposure = afwImage.ExposureF(mi, self.wcs)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(overscanKeyword, biassec)
 
@@ -81,7 +77,7 @@ class IsrTestCases(unittest.TestCase):
         overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
-        exposure = afwImage.ExposureF(mi, self.wcs)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(overscanKeyword, biassec)
 
@@ -103,12 +99,10 @@ class IsrTestCases(unittest.TestCase):
         # these should be functionally equivalent
         bbox     = afwImage.BBox(afwImage.PointI(0,10),
                                  afwImage.PointI(9,12))
-        trimsec  = '[1:10,11:13]'
-        trim     = afwImage.MaskedImageF(mi, bbox)
-        trim.set(2, 0x0, 1)
+        trimsec  = '[1:10,1:10]'
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
@@ -130,12 +124,10 @@ class IsrTestCases(unittest.TestCase):
         # these should be functionally equivalent
         bbox     = afwImage.BBox(afwImage.PointI(10,0),
                                  afwImage.PointI(12,9))
-        trimsec  = '[11:13,1:10]'
-        trim     = afwImage.MaskedImageF(mi, bbox)
-        trim.set(2, 0x0, 1)
+        trimsec  = '[1:10,1:10]'
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 

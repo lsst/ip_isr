@@ -204,8 +204,6 @@ def CrRejection(exposure, policy,
     crPolicy.set('e_per_dn', gain)
 
     mi = exposure.getMaskedImage()
-    import pdb
-    pdb.set_trace()
     if subBackground:
         # how much of this do we put in policy?
         bctrl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
@@ -216,6 +214,12 @@ def CrRejection(exposure, policy,
         
         im      = mi.getImage()
         backobj = afwMath.makeBackground(im, bctrl)
+        s = afwMath.makeStatistics(mi.getImage(), afwMath.MEAN|afwMath.VARIANCE, bctrl.sctrl)
+        print s.getValue(afwMath.MEAN), s.getValue(afwMath.VARIANCE)
+
+        #for i in range(10):
+        #    for j in range(10):
+        #        print j, i, backobj.getPixel(j,i)
         im     -= backobj.getImageF()
 
     # NOTE - this background issue needs to be resolved
@@ -451,8 +455,8 @@ def TrimNew(exposure, policy,
 
     # if "True", do a deep copy
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox, False)
-    llc = trimsecBBox.getLLC()
-    trimmedExposure.setXY0(llc)
+    #llc = trimsecBBox.getLLC()
+    #trimmedExposure.setXY0(llc)
 
     # common outputs
     stageSummary = 'using trimsec %s' % (trimsec)
