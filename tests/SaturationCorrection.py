@@ -45,7 +45,7 @@ class IsrTestCases(unittest.TestCase):
         growSaturated     = self.policy.getInt('saturationPolicy.growSaturated')
 
         mi       = afwImage.MaskedImageF(20,20)
-        mi.set(100)
+        mi.set(100, 0x0, 1)
         exposure = afwImage.ExposureF(mi)
         metadata = exposure.getMetadata()
         metadata.setDouble(saturationKeyword, saturation)

@@ -44,14 +44,14 @@ class IsrTestCases(unittest.TestCase):
 
     def testOverscanCorrectionY(self):
         mi = afwImage.MaskedImageF(10,13)
-        mi.getImage().set(10)
+        mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwImage.BBox(afwImage.PointI(0,10),
                                  afwImage.PointI(9,12))
         biassec  = '[1:10,11:13]'
         overscan = afwImage.MaskedImageF(mi, bbox)
-        overscan.set(2)
+        overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
         exposure = afwImage.ExposureF(mi, self.wcs)
@@ -71,14 +71,14 @@ class IsrTestCases(unittest.TestCase):
 
     def testOverscanCorrectionX(self):
         mi = afwImage.MaskedImageF(13,10)
-        mi.getImage().set(10)
+        mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwImage.BBox(afwImage.PointI(10,0),
                                  afwImage.PointI(12,9))
         biassec  = '[11:13,1:10]'
         overscan = afwImage.MaskedImageF(mi, bbox)
-        overscan.set(2)
+        overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
         exposure = afwImage.ExposureF(mi, self.wcs)
@@ -98,14 +98,14 @@ class IsrTestCases(unittest.TestCase):
 
     def testTrimY(self):
         mi = afwImage.MaskedImageF(10,13)
-        mi.getImage().set(10)
+        mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwImage.BBox(afwImage.PointI(0,10),
                                  afwImage.PointI(9,12))
         trimsec  = '[1:10,11:13]'
         trim     = afwImage.MaskedImageF(mi, bbox)
-        trim.set(2)
+        trim.set(2, 0x0, 1)
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi)
@@ -125,14 +125,14 @@ class IsrTestCases(unittest.TestCase):
 
     def testTrimX(self):
         mi = afwImage.MaskedImageF(13,10)
-        mi.getImage().set(10)
+        mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwImage.BBox(afwImage.PointI(10,0),
                                  afwImage.PointI(12,9))
         trimsec  = '[11:13,1:10]'
         trim     = afwImage.MaskedImageF(mi, bbox)
-        trim.set(2)
+        trim.set(2, 0x0, 1)
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi)

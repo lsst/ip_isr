@@ -49,7 +49,7 @@ class IsrTestCases(unittest.TestCase):
         gainKeyword = self.policy.getPolicy('crRejectionPolicy').getString('gainKeyword')
         metadata.setDouble(gainKeyword, 1.0)
 
-        mi.set(7,7,1000)
+        mi.set(7, 7, (1000, 0x0, 1))
 
         ipIsr.CrRejection(exposure, self.policy)
 

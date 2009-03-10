@@ -62,10 +62,10 @@ def DefectsFromCfhtImage(fitsfile):
 
 
 def MaskBadPixelsFp(exposure, policy, fpList,
-                  interpolate = True,
-                  maskName    = 'BAD',
-                  stageSig    = isrLib.ISR_BADP,
-                  stageName   = 'lsst.ip.isr.maskbadpixels'):
+                    interpolate = True,
+                    maskName    = 'BAD',
+                    stageSig    = isrLib.ISR_BADP,
+                    stageName   = 'lsst.ip.isr.maskbadpixels'):
                   
     # common input test
     metadata   = exposure.getMetadata()
@@ -189,7 +189,7 @@ def Linearization(exposure, policy,
 def CrRejection(exposure, policy,
                 stageSig      = isrLib.ISR_CRREJ,
                 stageName     = 'lsst.ip.isr.crreject',
-                subBackground = False):
+                subBackground = True):
     
     # common input test
     metadata   = exposure.getMetadata()
