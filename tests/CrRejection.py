@@ -38,18 +38,47 @@ class IsrTestCases(unittest.TestCase):
     def tearDown(self):
         del self.policy
 
-    def testCrRejection(self):
-        saturation = 1000
-        
+    def testCrRejectionVariance(self):
+
+        # RHL debiases the interpolation; is off by a small factor
+        # when all the pixel values are equal and the bias is non-zero
         mi       = afwImage.MaskedImageF(20,20)
         mi.set(100, 0x0, 1)
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
 
         gainKeyword = self.policy.getPolicy('crRejectionPolicy').getString('gainKeyword')
         metadata.setDouble(gainKeyword, 1.0)
 
-        mi.set(7, 7, (10000, 0x0, 1))
+        mi.set(7, 7, (1000, 0x0, 1))
+
+        ipIsr.CrRejection(exposure, self.policy)
+
+        bitmaskCr     = mi.getMask().getPlaneBitMask('CR')
+        bitmaskInterp = mi.getMask().getPlaneBitMask('INTRP')
+        height        = mi.getHeight()
+        width         = mi.getWidth()
+
+        for j in range(height):
+            for i in range(width):
+                if i == 7 and j == 7:
+                    self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
+                    self.assertEqual(mi.getMask().get(i,j) & bitmaskCr, bitmaskCr)
+                    self.assertAlmostEqual(mi.getImage().get(i,j)/100., 1, 1)
+                else:
+                    self.assertEqual(mi.getMask().get(i,j), 0)
+                    self.assertEqual(mi.getImage().get(i,j), 100)
+
+    def testCrRejectionNoVariance(self):
+        mi       = afwImage.MaskedImageF(20,20)
+        mi.set(100, 0x0, 0)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        metadata = exposure.getMetadata()
+
+        gainKeyword = self.policy.getPolicy('crRejectionPolicy').getString('gainKeyword')
+        metadata.setDouble(gainKeyword, 1.0)
+
+        mi.set(7, 7, (1000, 0x0, 0))
 
         ipIsr.CrRejection(exposure, self.policy)
 

@@ -46,7 +46,7 @@ class IsrTestCases(unittest.TestCase):
 
         mi       = afwImage.MaskedImageF(20,20)
         mi.set(100, 0x0, 1)
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setDouble(saturationKeyword, saturation)
         

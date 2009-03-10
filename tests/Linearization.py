@@ -86,7 +86,7 @@ class IsrTestCases(unittest.TestCase):
         lookupPolicy.add('value', 1.2)
         lookupPolicy.add('value', 1.)
         mi       = afwImage.MaskedImageF(10,10)
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         for i in range(10):
             for j in range(10):
                 exposure.getMaskedImage().getImage().set(i, j, i)

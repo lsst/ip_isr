@@ -44,13 +44,13 @@ class IsrTestCases(unittest.TestCase):
         
         mi = afwImage.MaskedImageF(10,10)
         mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setDouble(flatScaleKeyword, 1.)
         
         flat = afwImage.MaskedImageF(10,10)
         flat.getImage().set(1)
-        flatexposure = afwImage.ExposureF(flat)
+        flatexposure = afwImage.ExposureF(flat, afwImage.Wcs())
         dmetadata = flatexposure.getMetadata()
         dmetadata.setDouble(flatScaleKeyword, scaling)
         dmetadata.setString(filenameKeyword, 'Unittest Flat')
@@ -78,13 +78,13 @@ class IsrTestCases(unittest.TestCase):
         
         mi = afwImage.MaskedImageF(10,10)
         mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setDouble(illumScaleKeyword, 1.)
         
         illum = afwImage.MaskedImageF(10,10)
         illum.getImage().set(1)
-        illumexposure = afwImage.ExposureF(illum)
+        illumexposure = afwImage.ExposureF(illum, afwImage.Wcs())
         dmetadata = illumexposure.getMetadata()
         dmetadata.setDouble(illumScaleKeyword, scaling)
         dmetadata.setString(filenameKeyword, 'Unittest Illum')

@@ -207,19 +207,13 @@ def CrRejection(exposure, policy,
     if subBackground:
         # how much of this do we put in policy?
         bctrl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
-        bctrl.setNxSample(int(mi.getWidth()/256) + 1)
-        bctrl.setNySample(int(mi.getHeight()/256) + 1)
-        bctrl.sctrl.setNumSigmaClip(3.0)
-        bctrl.sctrl.setNumIter(2)
+        bctrl.setNxSample(max(2, int(mi.getWidth()/256) + 1))
+        bctrl.setNySample(max(2, int(mi.getHeight()/256) + 1))
+        bctrl.sctrl.setNumSigmaClip(3)
+        bctrl.sctrl.setNumIter(3)
         
         im      = mi.getImage()
         backobj = afwMath.makeBackground(im, bctrl)
-        s = afwMath.makeStatistics(mi.getImage(), afwMath.MEAN|afwMath.VARIANCE, bctrl.sctrl)
-        print s.getValue(afwMath.MEAN), s.getValue(afwMath.VARIANCE)
-
-        #for i in range(10):
-        #    for j in range(10):
-        #        print j, i, backobj.getPixel(j,i)
         im     -= backobj.getImageF()
 
     # NOTE - this background issue needs to be resolved

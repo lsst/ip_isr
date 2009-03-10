@@ -44,11 +44,11 @@ class IsrTestCases(unittest.TestCase):
         
         mi = afwImage.MaskedImageF(10,10)
         mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
 
         bias = afwImage.MaskedImageF(10,10)
         bias.getImage().set(1)
-        biasexposure = afwImage.ExposureF(bias)
+        biasexposure = afwImage.ExposureF(bias, afwImage.Wcs())
         bmetadata = biasexposure.getMetadata()
         bmetadata.setDouble(meanCountsKeyword, 1.)
         bmetadata.setString(filenameKeyword, 'Unittest Bias')
@@ -67,13 +67,13 @@ class IsrTestCases(unittest.TestCase):
         
         mi = afwImage.MaskedImageF(10,10)
         mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setDouble(darkScaleKeyword, 1.)
         
         dark = afwImage.MaskedImageF(10,10)
         dark.getImage().set(1)
-        darkexposure = afwImage.ExposureF(dark)
+        darkexposure = afwImage.ExposureF(dark, afwImage.Wcs())
         dmetadata = darkexposure.getMetadata()
         dmetadata.setDouble(darkScaleKeyword, scaling)
         dmetadata.setString(filenameKeyword, 'Unittest Dark')
