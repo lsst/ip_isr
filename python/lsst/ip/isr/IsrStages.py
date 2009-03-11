@@ -269,7 +269,9 @@ def SaturationCorrection(exposure, policy,
     # grow them
     growSaturated = policy.getPolicy('saturationPolicy').getInt('growSaturated')
     for fp in fpList:
-        fpGrow = afwDetection.growFootprint(fp, growSaturated)
+        # if "True", growing requires a convolution
+        # if "False", its faster
+        fpGrow = afwDetection.growFootprint(fp, growSaturated, False)
         afwDetection.setMaskFromFootprint(mask, fpGrow, bitmask)
 
         if interpolate:
