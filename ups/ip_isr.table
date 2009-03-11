@@ -1,13 +1,7 @@
-setupRequired(daf_base)
-setupRequired(pex_logging)
-setupRequired(pex_exceptions)
-setupRequired(pex_policy)
-setupRequired(daf_persistence)
-setupRequired(afw)
-setupRequired(meas_algorithms)
-setupOptional(gcc)
+setupRequired(afw >= 3.3.4)
+setupRequired(meas_algorithms >= 3.3)
 
-setupOptional(pex_harness)
+setupOptional(gcc)
 setupOptional(afwdata)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
