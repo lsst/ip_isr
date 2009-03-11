@@ -1,0 +1,11 @@
+AdditionalData: "exposureId=triggerImageprocEvent.exposureid"
+RunMode: "process"
+OutputItems: {
+    OutputExposure: {
+        required: true
+        StoragePolicy: {
+            Storage: "FitsStorage"
+            Location: "%(output)/%(exposureId)p"
+        }
+    }
+}

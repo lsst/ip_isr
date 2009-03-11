@@ -1,0 +1,35 @@
+# isrPipelinePolicy.paf
+#
+#
+localLogMode: true 
+executionMode: "oneloop"
+eventBrokerHost: "lsst8.ncsa.uiuc.edu"
+
+# only for stand-alone mode
+appStage: {
+     stageName: "lsst.pex.harness.IOStage.InputStage"
+     eventTopic: "triggerImageprocEvent" 
+     stagePolicy: "policy/input_policy.paf" 
+}
+
+# this should be replicated in the DC3a pipeline policy file
+appStage: {
+     stageName: "lsst.ip.isr.PipelineStages.IdentifyCalibrationStage" 
+     eventTopic: "None" 
+     stagePolicy: "policy/idcals_policy.paf" 
+}
+
+# this should be replicated in the DC3a pipeline policy file
+appStage: {
+     stageName: "lsst.ip.isr.PipelineStages.ImageprocStage" 
+     eventTopic: "None" 
+     stagePolicy: "policy/isr_policy.paf" 
+}
+
+# only for stand-alone mode
+appStage: {
+     stageName: "lsst.pex.harness.IOStage.OutputStage"
+     eventTopic: "None" 
+     stagePolicy: "policy/output_policy.paf" 
+}
+
