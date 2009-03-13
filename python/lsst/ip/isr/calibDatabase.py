@@ -180,13 +180,18 @@ class CalibDB(object):
         except pexExcept.LsstCppException, e:
             raise "Failed to read %s: %s" % (self.calibDatabasePaf, e)
 
-    def lookup(self, lsstDateTime, calibType, CCD="CCD009", amplifier=1, filter=None, expTime=None, all=False):
+    def lookup(self, lsstDateTime, calibType, CCD="CCD009", amplifier=1, filter=None, expTime=None,
+               all=False, nothrow=False):
         """Find the  proper calibration given an lsst::daf::data::DateTime, a calib type, a CCD and an amplifier; if appropriate, a filter may also be specified
 
 Calibrations are only valid for a range of times (special case:  if the times are equal, it is
 assumed that the files are always valid)
 
 Valid calibTypes are bias, dark, defect, flat, fringe, and linearize
+
+If you specify all=True, return a list of all CalibData objects that matching your desired.
+
+If nothrow is true, return None if nothing is available
 """
         if isinstance(CCD, int):
             CCD = "CCD%03d" % CCD
@@ -275,5 +280,9 @@ Valid calibTypes are bias, dark, defect, flat, fringe, and linearize
         if needFilter(calibType):
             ctype += " %s" % filter
 
-        raise RuntimeError, "Unable to locate %s for %s %s for %s" % (ctype, CCD, amplifier,
-                                                                      datetime.datetime.fromtimestamp(int(lsstDateTime.nsecs()/1e9)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        if nothrow:
+            return None
+        else:
+            raise RuntimeError, "Unable to locate %s for %s %s for %s" % (ctype, CCD, amplifier,
+                                                                          datetime.datetime.fromtimestamp(int(lsstDateTime.nsecs()/1e9)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        
