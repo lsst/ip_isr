@@ -7,13 +7,14 @@ import lsst.ip.isr.calibDatabase as calibDatabase
 import lsst.daf.base
 
 >>> calibDatabase.writeCalibValidityPaf(glob.glob("/lsst/images/repository/calib/03Am06/*-*-c00[89]-*[01].fits"),
-                                        fd=open("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf", "w"))
+                                        fd=open("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf", "w"),
+                                        "/lsst/images/repository/calib")
 
 >>> when = lsst.daf.base.DateTime(2003, 07, 21, 0, 0, 0)
 >>> cdb = calibDatabase.CalibDB("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf")
 >>> print cdb.lookup(when, "bias", "CCD009", 1)
 
-(N.b. CCDs may be named as 11 or "CCD011", amplifiers as 1 or Amplifier001)
+(N.b. CCDs may be named as 11 or "CCD011", amplifiers as 1 or "Amplifier001")
 """
 
 import datetime, os, re, sys
@@ -39,10 +40,13 @@ def needExpTime(calibType):
 def needFilter(calibType):
     return calibType in ("flat", "fringe")
 
-def writeCalibValidityPaf(fileNameList, fd=sys.stdout):
+def writeCalibValidityPaf(fileNameList, fd=sys.stdout, stripPrefix=None):
 
     if isinstance(fileNameList, str):
         fileNameList = [fileNameList]
+
+    if stripPrefix:
+        stripPrefix = re.sub(r"/*$", "", stripPrefix)
 
     calibInfo = {}
     for fileName in fileNameList:
@@ -108,6 +112,10 @@ def writeCalibValidityPaf(fileNameList, fd=sys.stdout):
             calibInfo[ccd][amp] = {}
         if not calibInfo[ccd][amp].has_key(calibType):
             calibInfo[ccd][amp][calibType] = []
+
+        if stripPrefix:
+            if os.path.commonprefix([fileName, stripPrefix]) == stripPrefix:
+                fileName = fileName[len(stripPrefix) + 1:]
 
         calibInfo[ccd][amp][calibType].append(_CalibData(fileName, crunid, validFrom, validTo,
                                                          expTime=expTime, filter=filter))
