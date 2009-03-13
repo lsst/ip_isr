@@ -3,14 +3,15 @@ Manage a "data base" of calibration data
 
 E.g.
 import glob
-import lsst.ip.isr.calibDatabase as cdb
+import lsst.ip.isr.calibDatabase as calibDatabase
 import lsst.daf.base
 
->>> cdb.writeCalibValidityPaf(glob.glob("/lsst/images/repository/calib/03Am06/*-*-c00[89]-*[01].fits"),
+>>> calibDatabase.writeCalibValidityPaf(glob.glob("/lsst/images/repository/calib/03Am06/*-*-c00[89]-*[01].fits"),
                                         fd=open("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf", "w"))
 
 >>> when = lsst.daf.base.DateTime(2003, 07, 21, 0, 0, 0)
->>> filename = cdb.findCalib("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf", when, "bias", "CCD009", 1)
+>>> cdb = calibDatabase.CalibDB("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf")
+>>> print cdb.lookup(when, "bias", "CCD009", 1)
 
 (N.b. CCDs may be named as 11 or "CCD011", amplifiers as 1 or Amplifier001)
 """
@@ -21,7 +22,7 @@ import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
 import lsst.pex.exceptions as pexExcept
 
-class CalibData(object):
+class _CalibData(object):
     """Contain what we know about calibration data"""
 
     def __init__(self, fileName, version, validFrom, validTo, expTime=0, filter=None):
@@ -108,8 +109,8 @@ def writeCalibValidityPaf(fileNameList, fd=sys.stdout):
         if not calibInfo[ccd][amp].has_key(calibType):
             calibInfo[ccd][amp][calibType] = []
 
-        calibInfo[ccd][amp][calibType].append(CalibData(fileName, crunid, validFrom, validTo,
-                                                        expTime=expTime, filter=filter))
+        calibInfo[ccd][amp][calibType].append(_CalibData(fileName, crunid, validFrom, validTo,
+                                                         expTime=expTime, filter=filter))
     #
     # Write that out
     #
@@ -158,8 +159,8 @@ def DateTimeFromIsoStr(str, scale=dafBase.DateTime.TAI):
 
     return dafBase.DateTime(year, month, day, hr, min, sec, scale)
 
-class CalibFinder(object):
-    """A class to find calibration objects"""
+class CalibDB(object):
+    """A class to find the proper calibration files for a given type of calibration"""
 
     def __init__(self, calibDatabasePaf):
         """Read calibration file in calibDatabasePaf"""
