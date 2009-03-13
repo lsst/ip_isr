@@ -23,7 +23,7 @@ import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
 import lsst.pex.exceptions as pexExcept
 
-class _CalibData(object):
+class CalibData(object):
     """Contain what we know about calibration data"""
 
     def __init__(self, fileName, version, validFrom, validTo, expTime=0, filter=None):
@@ -117,8 +117,8 @@ def writeCalibValidityPaf(fileNameList, fd=sys.stdout, stripPrefix=None):
             if os.path.commonprefix([fileName, stripPrefix]) == stripPrefix:
                 fileName = fileName[len(stripPrefix) + 1:]
 
-        calibInfo[ccd][amp][calibType].append(_CalibData(fileName, crunid, validFrom, validTo,
-                                                         expTime=expTime, filter=filter))
+        calibInfo[ccd][amp][calibType].append(CalibData(fileName, crunid, validFrom, validTo,
+                                                        expTime=expTime, filter=filter))
     #
     # Write that out
     #
@@ -180,7 +180,7 @@ class CalibDB(object):
         except pexExcept.LsstCppException, e:
             raise "Failed to read %s: %s" % (self.calibDatabasePaf, e)
 
-    def lookup(self, lsstDateTime, calibType, CCD="CCD009", amplifier=1, filter=None, expTime=None):
+    def lookup(self, lsstDateTime, calibType, CCD="CCD009", amplifier=1, filter=None, expTime=None, all=False):
         """Find the  proper calibration given an lsst::daf::data::DateTime, a calib type, a CCD and an amplifier; if appropriate, a filter may also be specified
 
 Calibrations are only valid for a range of times (special case:  if the times are equal, it is
@@ -188,7 +188,6 @@ assumed that the files are always valid)
 
 Valid calibTypes are bias, dark, defect, flat, fringe, and linearize
 """
-
         if isinstance(CCD, int):
             CCD = "CCD%03d" % CCD
         if isinstance(amplifier, int):
@@ -207,29 +206,61 @@ Valid calibTypes are bias, dark, defect, flat, fringe, and linearize
                 raise RuntimeError, ("You may not specify an expTime for a bias: %s" % expTime)
             expTime = 0
 
-        if needExpTime(calibType) and expTime is None:
-            raise RuntimeError, ("Please specify an expTime for your %s" % (calibType))
+        if not all:
+            if needExpTime(calibType) and expTime is None:
+                raise RuntimeError, ("Please specify an expTime for your %s" % (calibType))
 
-        if needFilter(calibType) and not filter:
-            raise RuntimeError, ("Please specify a filter for your %s" % (calibType))
+            if needFilter(calibType) and not filter:
+                raise RuntimeError, ("Please specify a filter for your %s" % (calibType))
 
         try:
+            returnVals = []
             for calib in self.calibPolicy.getPolicy("calibrations").getPolicy(CCD).getPolicy(amplifier).getArray(calibType):
                 validTo = DateTimeFromIsoStr(calib.get("validTo"))
                 validFrom = DateTimeFromIsoStr(calib.get("validFrom"))
 
                 if validFrom.nsecs() == validTo.nsecs() or validFrom.nsecs() <= lsstDateTime.nsecs() < validTo.nsecs():
                     if needExpTime(calibType):
-                        if calib.get("expTime") != expTime:
-                            continue
+                        if all:
+                            if expTime and calib.get("expTime") != expTime:
+                                continue
+                        else:
+                            if calib.get("expTime") != expTime:
+                                continue
 
                     if needFilter(calibType):
-                        if calib.get("filter") != filter:
-                            continue
+                        if all:
+                            if filter and calib.get("filter") != filter:
+                                continue
+                        else:
+                            if calib.get("filter") != filter:
+                                continue
 
-                    fileName = calib.get("fileName")
+                    if all:
+                        _expTime, _filter = None, None
+                        try:
+                            _expTime = calib.get("expTime")
+                        except:
+                            pass
 
-                    return fileName
+                        try:
+                            _filter = calib.get("filter")
+                        except:
+                            pass
+
+                        returnVals.append(
+                            CalibData(calib.get("fileName"), calib.get("version"),
+                                      calib.get("validFrom"), calib.get("validTo"),
+                                      expTime=_expTime, filter=_filter))
+                    else:
+                        fileName = calib.get("fileName")
+
+                        return fileName
+
+            if all:
+                return returnVals
+            else:
+                pass                # continue to an exception
 
         except IndexError, e:
             pass
