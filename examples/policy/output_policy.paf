@@ -1,7 +1,7 @@
 AdditionalData: "exposureId=triggerImageprocEvent.exposureid"
 RunMode: "process"
 OutputItems: {
-    OutputExposure: {
+    CalibratedExposure: {
         required: true
         StoragePolicy: {
             Storage: "FitsStorage"
