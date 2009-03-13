@@ -6,9 +6,119 @@ import lsst.afw.math        as afwMath
 import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
 import lsst.pex.exceptions  as pexExcept
-
+import lsst.meas.algorithms as measAlgorithms
 # relative imports
 import isrLib
+
+#
+### Actual Pipeline stage to run the ISR
+#
+from lsst.pex.harness.Stage import Stage
+
+class IsrStage(Stage):
+
+    def process(self):
+        self.activeClipboard = self.inputQueue.getNextDataset()
+
+        inputImageName       = self._policy.get('inputImageName')
+        inputMetadataName    = self._policy.get('inputMetadataName')
+
+        inputImage           = self.activeClipboard.get(inputImageName)
+        inputMetadata        = self.activeClipboard.get(inputMetadata)
+        calibData            = self.activeClipboard.get('calibData')
+
+        # Grab the necessary calibration data products
+        biasPath             = calibData['bias']
+        darkPath             = calibData['dark']
+        defectPath           = calibData['defect']
+        flatPath             = calibData['flat']
+        fringePath           = calibData['fringe']
+        linearizePath        = calibData['linearize']
+        
+        # Step 1 : create an exposure
+        inputExposure = ExposureFromInputData(inputImage, inputMetadata)
+
+        ###
+        # Isr Substages
+        #
+        
+        # Linearize
+        linearityTable  = LookupTableFromPolicy(linearizePath)
+        Linearization(inputExposure, self._policy, linearityTable)
+
+        # Overscan correction
+        OverscanCorrection(inputExposure, self._policy)
+        
+        # Trim; yields new exposure
+        calibratedExposure = TrimNew(inputExposure, self._policy)
+
+        # Saturation correction
+        SaturationCorrection(calibratedExposure, self._policy)
+
+        # Bias correct
+        bias = imageFromInputData(biasPath)
+        BiasCorrection(calibratedExposure, bias, self._policy)
+
+        # Dark correct
+        dark = imageFromInputData(darkPath)
+        DarkCorrection(calibratedExposure, dark, self._policy)
+
+        # Flat field
+        flat = imageFromInputData(flatPath)
+        FlatCorrection(calibratedExposure, flat, self._policy)
+
+        # Fringe; not for DC3a
+        fringe = imageFromInputData(fringePath)
+        
+        # Finally, mask bad pixels
+        defectList = measAlgorithms.policyToBadRegionList(defectPath)
+        MaskBadPixelsDef(calibratedExposure, self._policy, defectList)
+
+        # And cosmic rays
+        CrRejection(calibratedExposure, self._policy)
+            
+        #
+        # Isr Substages
+        ###
+
+        self.activeClipboard.put('calibratedExposure', calibratedExposure)
+        self.outputQueue.addDataset(self.activeClipboard)
+
+        
+
+    
+
+#
+### STAGE : Assemble Exposure from input Image
+#
+
+
+# ISSUE - HOW DO WE GET THE HEADER INFO OF THE CALIBRATION DATA?????
+
+def ExposureFromInputData(image, metadata, makeWcs=True):
+    # makeMaskedImage() will make a MaskedImage with the same type as Image
+    mi   = afwImage.makeMaskedImage(image)
+
+    # Generate an empty mask
+    mask = afwImage.Mask(mi.getDimensions())
+    mi.setMask(mask)
+
+    # Generate a variance from the image pixels and gain
+    variance  = image.Factory(image, True)
+    gain      = metadata.get('gain')
+    variance /= gain
+    mi.setVariance(variance)
+
+    if makeWcs:
+        # Extract the Wcs info from the input metadata
+        wcs      = afwImage.Wcs(metadata)
+    else:
+        wcs      = afwImage.Wcs()
+        
+    # makeExposure will make an Exposure with the same type as MaskedImage
+    exposure = afwImage.makeExposure(mi, wcs)
+    
+    return exposure
 
 #
 ### STAGE : Validation of the image sizes, contents, etc.
