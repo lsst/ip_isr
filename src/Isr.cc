@@ -112,6 +112,9 @@ void isr::fitOverscanImage(
     double ssize,
     int sigma);
 
+template class isr::CountMaskedPixels<float>;
+template class isr::CountMaskedPixels<double>;
+
 // Integer classes make no sense for multiplicative table
 //   unless you change the image type
 template class isr::LookupTableMultiplicative<float>;
@@ -119,3 +122,5 @@ template class isr::LookupTableMultiplicative<double>;
 
 // Only integer images make sense for a replacement table
 template class isr::LookupTableReplace<int>;
+// But we turn our images into floats immediately, so use it
+template class isr::LookupTableReplace<float>;

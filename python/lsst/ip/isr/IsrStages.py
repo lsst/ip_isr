@@ -5,8 +5,13 @@ import lsst.afw.image       as afwImage
 import lsst.afw.math        as afwMath
 import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
+import lsst.pex.policy      as pexPolicy
 import lsst.pex.exceptions  as pexExcept
-import lsst.meas.algorithms as measAlgorithms
+import lsst.meas.algorithms.defects as measDefects
+import lsst.sdqa            as sdqa
+
+from lsst.ctrl.dc3pipe.MetadataStages import transformMetadata
+
 # relative imports
 import isrLib
 
@@ -20,68 +25,92 @@ class IsrStage(Stage):
     def process(self):
         self.activeClipboard = self.inputQueue.getNextDataset()
 
-        inputImageName       = self._policy.get('inputImageName')
-        inputMetadataName    = self._policy.get('inputMetadataName')
+        # we get suffixs of either '0' or '1'; allow for both here
+        inputImageKey       = self._policy.get('inputImageKey')
+        inputMetadataKey    = self._policy.get('inputMetadataKey')
+        calibDataKey        = self._policy.get('calibDataKey')
 
-        inputImage           = self.activeClipboard.get(inputImageName)
-        inputMetadata        = self.activeClipboard.get(inputMetadata)
-        calibData            = self.activeClipboard.get('calibData')
+        inputImage          = self.activeClipboard.get(inputImageKey)
+        inputMetadata       = self.activeClipboard.get(inputMetadataKey)
+        calibData           = self.activeClipboard.get(calibDataKey)
 
         # Grab the necessary calibration data products
-        biasPath             = calibData['bias']
-        darkPath             = calibData['dark']
-        defectPath           = calibData['defect']
-        flatPath             = calibData['flat']
-        fringePath           = calibData['fringe']
-        linearizePath        = calibData['linearize']
+        biasPath             = calibData.get('bias')
+        darkPath             = calibData.get('dark')
+        defectPath           = calibData.get('defect')
+        flatPath             = calibData.get('flat')
+        fringePath           = calibData.get('fringe')
+        linearizePath        = calibData.get('linearize')
         
         # Step 1 : create an exposure
         inputExposure = ExposureFromInputData(inputImage, inputMetadata)
-
+        
         ###
         # Isr Substages
         #
+
+        isrPolicy = self._policy.get('isrPolicy')
         
         # Linearize
-        linearityTable  = LookupTableFromPolicy(linearizePath)
-        Linearization(inputExposure, self._policy, linearityTable)
-
-        # Overscan correction
-        OverscanCorrection(inputExposure, self._policy)
-        
-        # Trim; yields new exposure
-        calibratedExposure = TrimNew(inputExposure, self._policy)
+        # Note - a replacement lookup table requires an integer image
+        linearityPolicy = pexPolicy.Policy.createPolicy(linearizePath)
+        linearityTable  = LookupTableFromPolicy(linearityPolicy)
+        Linearization(inputExposure, isrPolicy, linearityTable)
 
         # Saturation correction
-        SaturationCorrection(calibratedExposure, self._policy)
+        SaturationCorrection(inputExposure, isrPolicy)
+
+        # Overscan correction
+        OverscanCorrection(inputExposure, isrPolicy)
+        
+        # Trim; yields new exposure
+        calibratedExposure = TrimNew(inputExposure, isrPolicy)
+        # Merge the metadata
+        calibratedExposure.getMetadata().combine(inputExposure.getMetadata())
 
         # Bias correct
-        bias = imageFromInputData(biasPath)
-        BiasCorrection(calibratedExposure, bias, self._policy)
+        biasImage    = afwImage.ImageF(biasPath)
+        biasMetadata = afwImage.readMetadata(biasPath)
+        bias = ExposureFromInputData(biasImage, biasMetadata, makeWcs=False, policy=isrPolicy)
+        BiasCorrection(calibratedExposure, bias, isrPolicy)
 
         # Dark correct
-        dark = imageFromInputData(darkPath)
-        DarkCorrection(calibratedExposure, dark, self._policy)
+        darkImage    = afwImage.ImageF(darkPath)
+        darkMetadata = afwImage.readMetadata(darkPath)
+        dark = ExposureFromInputData(darkImage, darkMetadata, makeWcs=False, policy=isrPolicy)
+        DarkCorrection(calibratedExposure, dark, isrPolicy)
 
         # Flat field
-        flat = imageFromInputData(flatPath)
-        FlatCorrection(calibratedExposure, flat, self._policy)
+        flatImage    = afwImage.ImageF(flatPath)
+        flatMetadata = afwImage.readMetadata(flatPath)
+        flat = ExposureFromInputData(flatImage, flatMetadata, makeWcs=False, policy=isrPolicy)
+        FlatCorrection(calibratedExposure, flat, isrPolicy)
 
         # Fringe; not for DC3a
-        fringe = imageFromInputData(fringePath)
+        fringeImage    = afwImage.ImageF(fringePath)
+        fringeMetadata = afwImage.readMetadata(fringePath)
+        fringe = ExposureFromInputData(fringeImage, fringeMetadata, makeWcs=False, policy=isrPolicy)
         
         # Finally, mask bad pixels
-        defectList = measAlgorithms.policyToBadRegionList(defectPath)
-        MaskBadPixelsDef(calibratedExposure, self._policy, defectList)
+        defectList = measDefects.policyToBadRegionList(defectPath)
+        MaskBadPixelsDef(calibratedExposure, isrPolicy, defectList)
 
         # And cosmic rays
-        CrRejection(calibratedExposure, self._policy)
+        CrRejection(calibratedExposure, isrPolicy)
+
+        # Finally, produce Sdqa metrics
+        sdqaRatingSet = CalculateSdqaRatings(calibratedExposure)
             
         #
         # Isr Substages
         ###
+        
+        calibratedExposureKey = self._policy.get('calibratedExposureKey')
+        self.activeClipboard.put(calibratedExposureKey, calibratedExposure)
 
-        self.activeClipboard.put('calibratedExposure', calibratedExposure)
+        sdqaRatingSetKey = self._policy.get('sdqaRatingSetKey')
+        self.activeClipboard.put(sdqaRatingSetKey, sdqaRatingSet)
+        
         self.outputQueue.addDataset(self.activeClipboard)
 
         
@@ -92,22 +121,61 @@ class IsrStage(Stage):
 ### STAGE : Assemble Exposure from input Image
 #
 
+def CalculateSdqaRatings(exposure):
+    sdqaRatingSet = sdqa.SdqaRatingSet()
+    counter       = isrLib.CountMaskedPixelsF()
+    mi   = exposure.getMaskedImage()
 
-# ISSUE - HOW DO WE GET THE HEADER INFO OF THE CALIBRATION DATA?????
+    bitmaskSat = mi.getMask().getPlaneBitMask('SAT')
+    counter.apply( mi, bitmaskSat )
+    satRating  = sdqa.SdqaRating('ip.isr.numSaturatedPixels', counter.getCount(), 0, sdqa.SdqaRating.AMP)
+    sdqaRatingSet.push_back(satRating)
+    
+    bitmaskCr  = mi.getMask().getPlaneBitMask('CR')
+    counter.apply( mi, bitmaskCr )
+    crRating   = sdqa.SdqaRating('ip.isr.numCosmicRayPixels', counter.getCount(), 0, sdqa.SdqaRating.AMP)
+    sdqaRatingSet.push_back(crRating)
 
-def ExposureFromInputData(image, metadata, makeWcs=True):
-    # makeMaskedImage() will make a MaskedImage with the same type as Image
-    mi   = afwImage.makeMaskedImage(image)
+    return sdqaRatingSet
 
+#
+### STAGE : Assemble Exposure from input Image
+#
+
+def ExposureFromInputData(image, metadata,
+                          makeWcs     = True,
+                          policy      = None,
+                          defaultGain = 1.0,
+                          stageName   = 'lsst.ip.isr.exposurefrominputdata'):
     # Generate an empty mask
-    mask = afwImage.Mask(mi.getDimensions())
-    mi.setMask(mask)
+    mask = afwImage.MaskU(image.getDimensions())
+    mask.set(0)
 
     # Generate a variance from the image pixels and gain
-    variance  = image.Factory(image, True)
-    gain      = metadata.get('gain')
-    variance /= gain
-    mi.setVariance(variance)
+    var  = afwImage.ImageF(image, True)
+    if metadata.exists('gain'):
+        gain = metadata.get('gain')
+    elif policy:
+        filenameKeyword = policy.get('filenameKeyword')
+        filename        = metadata.get(filenameKeyword)
+        if policy.exists('defaultGainKeyword'):
+            gainKeyword = policy.get('defaultGainKeyword')
+            if metadata.exists(gainKeyword):
+                gain = metadata.get(gainKeyword)
+            else:
+                pexLog.Trace(stageName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
+                gain = defaultGain
+        else:
+            pexLog.Trace(stageName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
+            gain = defaultGain
+    else:
+        pexLog.Trace(stageName, 4, 'Using default gain=%f' % (defaultGain))
+        gain = defaultGain
+
+    var /= gain
+
+    # makeMaskedImage() will make a MaskedImage with the same type as Image
+    mi   = afwImage.makeMaskedImage(image, mask, var)
 
     if makeWcs:
         # Extract the Wcs info from the input metadata
@@ -117,7 +185,8 @@ def ExposureFromInputData(image, metadata, makeWcs=True):
         
     # makeExposure will make an Exposure with the same type as MaskedImage
     exposure = afwImage.makeExposure(mi, wcs)
-    
+    exposure.setMetadata(metadata)
+
     return exposure
 
 #
@@ -191,7 +260,7 @@ def MaskBadPixelsFp(exposure, policy, fpList,
 
     if interpolate:
         # and interpolate over them
-        defaultFwhm = policy.getDouble('defaultFwhm')
+        defaultFwhm = policy.get('defaultFwhm')
         psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
         for fp in fpList:
             defect = afwDetection.Defect(fp.getBBox())
@@ -224,15 +293,14 @@ def MaskBadPixelsDef(exposure, policy, defectList,
     mask    = mi.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
     for defect in defectList:
-        afwDetection.setMaskFromFootprint(mask, defect.getFootprint(), bitmask)    
+        bbox = defect.getBBox()
+        afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)    
 
     if interpolate:
         # and interpolate over them
-        defaultFwhm = policy.getDouble('defaultFwhm')
+        defaultFwhm = policy.get('defaultFwhm')
         psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
-        for fp in fpList:
-            defect = afwDetection.Defect(fp.getBBox())
-            algorithms.interpolateOverDefects(mi, psf, defect)
+        algorithms.interpolateOverDefects(mi, psf, defectList)
 
         stageSummary = 'with interpolation'
     else:
@@ -256,7 +324,7 @@ def LookupTableFromPolicy(tablePolicy,
     tableValues = afwMath.vectorD(tableValues)
 
     if tableType == 'Replace':
-        lookupTable = isrLib.LookupTableReplaceI(tableValues)
+        lookupTable = isrLib.LookupTableReplaceF(tableValues)
     elif tableType == 'Multiplicative':
         lookupTable = isrLib.LookupTableMultiplicativeF(tableValues)
     else:
@@ -309,7 +377,7 @@ def CrRejection(exposure, policy,
 
     crPolicy    = policy.getPolicy('crRejectionPolicy')
     gainKeyword = crPolicy.getString('gainKeyword')
-    gain        = metadata.getDouble(gainKeyword)
+    gain        = metadata.get(gainKeyword)
     # needed for CR
     crPolicy.set('e_per_dn', gain)
 
@@ -329,7 +397,7 @@ def CrRejection(exposure, policy,
     # NOTE - this background issue needs to be resolved
     bg = 0.
     
-    defaultFwhm = policy.getDouble('defaultFwhm')
+    defaultFwhm = policy.get('defaultFwhm')
     psf         = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
     crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
     
@@ -360,9 +428,9 @@ def SaturationCorrection(exposure, policy,
 
     try:
         satKeyword = policy.getPolicy('saturationPolicy').getString('saturationKeyword')
-        saturation = metadata.getDouble(satKeyword)
+        saturation = metadata.get(satKeyword)
     except:
-        saturation = policy.getPolicy('saturationPolicy').getDouble('defaultSaturation')
+        saturation = policy.getPolicy('saturationPolicy').get('defaultSaturation')
         pexLog.Trace(stageName, 4, 'Unable to read %s, using default saturation of %s' % (satKeyword, saturation))    
         
     mi         = exposure.getMaskedImage()
@@ -391,7 +459,7 @@ def SaturationCorrection(exposure, policy,
     # interpolate over them
     if interpolate:
         mask.addMaskPlane('INTERP')
-        defaultFwhm   = policy.getDouble('defaultFwhm')
+        defaultFwhm   = policy.get('defaultFwhm')
         psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
         algorithms.interpolateOverDefects(mi, psf, defectList)
     
@@ -419,15 +487,12 @@ def BiasCorrection(exposure, bias, policy,
     filenameKeyword   = policy.getString('filenameKeyword')
     filename          = bmetadata.getString(filenameKeyword)
 
-    meanCountsKeyword = policy.getPolicy('biasPolicy').getString('meanCountsKeyword')
-    meanCounts        = bmetadata.getDouble(meanCountsKeyword)
-
     mi  = exposure.getMaskedImage()
     bmi = bias.getMaskedImage()
     mi -= bmi
 
     # common outputs
-    stageSummary = 'using %s with mean=%.2f' % (filename, meanCounts)
+    stageSummary = 'using %s' % (filename)
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
     
@@ -447,8 +512,8 @@ def DarkCorrection(exposure, dark, policy,
     filename          = dmetadata.getString(filenameKeyword)
 
     scalingKeyword    = policy.getPolicy('darkPolicy').getString('darkScaleKeyword') # e.g. EXPTIME
-    expscaling        = metadata.getDouble(scalingKeyword)
-    darkscaling       = dmetadata.getDouble(scalingKeyword)
+    expscaling        = metadata.get(scalingKeyword)
+    darkscaling       = dmetadata.get(scalingKeyword)
     scale             = expscaling / darkscaling
 
     mi  = exposure.getMaskedImage()
@@ -479,7 +544,7 @@ def FlatCorrection(exposure, flat, policy,
     filename          = fmetadata.getString(filenameKeyword)
 
     scalingKeyword    = policy.getPolicy('flatPolicy').getString('flatScaleKeyword') # e.g. MEAN
-    flatscaling       = fmetadata.getDouble(scalingKeyword)
+    flatscaling       = fmetadata.get(scalingKeyword)
 
     mi   = exposure.getMaskedImage()
     mi.scaledDivides(1./flatscaling, flat.getMaskedImage())
@@ -505,7 +570,7 @@ def IlluminationCorrection(exposure, illum, policy,
     filename          = imetadata.getString(filenameKeyword)
 
     scalingKeyword    = policy.getPolicy('illuminationPolicy').getString('illumScaleKeyword')
-    illumscaling      = imetadata.getDouble(scalingKeyword)
+    illumscaling      = imetadata.get(scalingKeyword)
 
     mi   = exposure.getMaskedImage()
     mi.scaledDivides(1./illumscaling, illum.getMaskedImage())
@@ -560,6 +625,8 @@ def TrimNew(exposure, policy,
     trimsecBBox     = isrLib.BBoxFromDatasec(trimsec)
 
     # if "True", do a deep copy
+    #print trimsecBBox.getX0(), trimsecBBox.getX1(), trimsecBBox.getY0(), trimsecBBox.getY1()
+    
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox, False)
     #llc = trimsecBBox.getLLC()
     #trimmedExposure.setXY0(llc)

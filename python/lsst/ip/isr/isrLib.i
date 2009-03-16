@@ -35,6 +35,9 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 #include "lsst/ip/isr/Isr.h"
 %}
 
+SWIG_SHARED_PTR(CountMaskedPixelsF, lsst::ip::isr::CountMaskedPixels<float>);
+SWIG_SHARED_PTR(CountMaskedPixelsD, lsst::ip::isr::CountMaskedPixels<double>);
+
 SWIG_SHARED_PTR(LookupTableMultiplicativeF, lsst::ip::isr::LookupTableMultiplicative<float>);
 SWIG_SHARED_PTR(LookupTableMultiplicativeD, lsst::ip::isr::LookupTableMultiplicative<double>);
 
@@ -43,10 +46,14 @@ SWIG_SHARED_PTR(LookupTableReplaceD, lsst::ip::isr::LookupTableReplace<double>);
 
 %include "lsst/ip/isr/Isr.h"
 
+%template(CountMaskedPixelsF) lsst::ip::isr::CountMaskedPixels<float>;
+%template(CountMaskedPixelsD) lsst::ip::isr::CountMaskedPixels<double>;
+
 %template(LookupTableMultiplicativeF) lsst::ip::isr::LookupTableMultiplicative<float>;
 %template(LookupTableMultiplicativeD) lsst::ip::isr::LookupTableMultiplicative<double>;
 
 %template(LookupTableReplaceI) lsst::ip::isr::LookupTableReplace<int>;
+%template(LookupTableReplaceF) lsst::ip::isr::LookupTableReplace<float>;
 
 %template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<float, double>;
 %template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<double, double>;

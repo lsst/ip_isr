@@ -29,19 +29,8 @@ defaultFwhm: 5.
 # Metadata keyword that gives the original filename
 filenameKeyword: FILENAME
 
-# Which stages to run in the ISR
-# Implemented in IsrStages.py
-# isrStages: Linearization
-# isrStages: OverscanCorrection
-# isrStages: TrimNew
-# isrStages: SaturationCorrection
-# isrStages: MaskBadPixels
-# isrStages: BiasCorrection
-# isrStages: DarkCorrection
-# isrStages: FlatCorrection
-# isrStages: IlluminationCorrection
-# isrStages: FringeCorrection
-# isrStages: PupilCorrection
+# gain of detector
+defaultGainKeyword: 'GAIN'
 
 ########################################
 # CALIBRATION IDENTIFICATION STAGE POLICY
@@ -87,9 +76,9 @@ saturationPolicy: {
 	
 crRejectionPolicy: {
 
+ # e_per_dn:    1.0    
  # gain of detector
  gainKeyword: 'GAIN'
- # e_per_dn:    1.0    
 
  # CRs must be > this many sky-sig above sky
  min_sigma:   6.0    

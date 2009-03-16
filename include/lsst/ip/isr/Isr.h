@@ -149,6 +149,38 @@ namespace isr {
         int _max;
     };
 
+    template <typename ImageT, typename MaskT=lsst::afw::image::MaskPixel>
+    class CountMaskedPixels {
+    public:
+        typedef typename lsst::afw::image::MaskedImage<ImageT>::x_iterator x_iterator;
+        CountMaskedPixels() : 
+            _count(0) {} ;
+        virtual ~CountMaskedPixels() {};
+
+        // Clear the accumulator
+        void reset() { _count = 0; }
+
+        // Count pixels
+        void apply(lsst::afw::image::MaskedImage<ImageT> const& image,
+                   MaskT bitmask) {
+            reset();
+            for (int y = 0; y != image.getHeight(); ++y) {
+                for (x_iterator ptr = image.row_begin(y); ptr != image.row_end(y); ++ptr) {
+                    if ( ((*ptr).mask() & bitmask) == bitmask ) {
+                        _count += 1;
+                    }
+                }
+            }
+        }
+
+        // Return the total counts
+        int getCount() const { return _count; }
+        
+    private:
+        int _count;
+    };
+    
+
     template<typename ImagePixelT, typename FunctionT>
     void fitOverscanImage(
         boost::shared_ptr<lsst::afw::math::Function1<FunctionT> > &overscanFunction,
@@ -160,7 +192,7 @@ namespace isr {
     lsst::afw::image::BBox BBoxFromDatasec(
         std::string datasection
         );
-    
+
 }}} // namespace lsst::ip::isr
 	
 #endif // !defined(LSST_IP_ISR_ISR_H)
