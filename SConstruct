@@ -7,7 +7,7 @@ import lsst.SConsUtils as scons
 
 env = scons.makeEnv(
     "ip_isr",
-    r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/ip/isr/trunk/SConstruct $",
+    r"$HeadURL$",
     [
         ["boost", "boost/version.hpp", "boost_system:C++"],
         ["python", "Python.h"],
