@@ -1,5 +1,5 @@
 setupRequired(afw >= 3.3.4)
-setupRequired(meas_algorithms >= 3.3)
+setupRequired(meas_algorithms >= 3.0.1)
 
 setupOptional(gcc)
 setupOptional(afwdata)
