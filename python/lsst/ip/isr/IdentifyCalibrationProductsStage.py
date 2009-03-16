@@ -1,21 +1,23 @@
 from lsst.pex.harness.Stage import Stage
-from lsst.daf.base import DateTime
+from lsst.daf.base import DateTime, PropertySet
 
-import lsst.ip.isr.calibDatabase as cdb
+import lsst.ip.isr.calibDatabase as calibDatabase
 
 class IdentifyCalibrationProductsStage(Stage):
+    def __init__(self, stageId=-1, stagePolicy=None):
+        Stage.__init__(self, stageId, stagePolicy)
+        self.cdb = calibDatabase.CalibDB(self._policy.get("calibDbPath"))
+
     def process(self):
         self.activeClipboard = self.inputQueue.getNextDataset()
 
-        event = self.activeClipboard.get("triggerImageprocEvent0")
+        eventName = self._policy.get("eventName")
+        event = self.activeClipboard.get(eventName)
         when = DateTime(event.get("dateObs"))
         
-        if self.cdb is None:
-            self.cdb = calibDatabase.CalibDB(self._policy.get("dbPath"))
-
         expTime = event.get("expTime")
         darkPolicy = self._policy.get("darkPolicy")
-        darkCalibList = cdb.lookup(when, "dark", event.get("ccdId"),
+        darkCalibList = self.cdb.lookup(when, "dark", event.get("ccdId"),
                 event.get("ampId"), all=True)
         darkTimeList = []
         for d in darkCalibList:
@@ -38,26 +40,26 @@ class IdentifyCalibrationProductsStage(Stage):
             raise RuntimeError, "Unrecognized darkPolicy: " + str(darkPolicy)
 
 
-        biasPath = cdb.lookup(when, "bias", event.get("ccdId"),
+        biasPath = self.cdb.lookup(when, "bias", event.get("ccdId"),
                 event.get("ampId"))
-        darkPath = cdb.lookup(when, "dark", event.get("ccdId"),
+        darkPath = self.cdb.lookup(when, "dark", event.get("ccdId"),
                 event.get("ampId"), expTime=darkExpTime)
-        defectPath = cdb.lookup(when, "defect", event.get("ccdId"),
+        defectPath = self.cdb.lookup(when, "defect", event.get("ccdId"),
                 event.get("ampId"))
-        flatPath = cdb.lookup(when, "flat", event.get("ccdId"),
+        flatPath = self.cdb.lookup(when, "flat", event.get("ccdId"),
                 event.get("ampId"), filter=event.get("filter"))
-        fringePath = cdb.lookup(when, "fringe", event.get("ccdId"),
-                event.get("ampId"), filter=event.get("filter"))
-        linearizePath = cdb.lookup(when, "linearize", event.get("ccdId"),
+#         fringePath = self.cdb.lookup(when, "fringe", event.get("ccdId"),
+#                 event.get("ampId"), filter=event.get("filter"))
+        linearizePath = self.cdb.lookup(when, "linearize", event.get("ccdId"),
                 event.get("ampId"))
 
         calibData = PropertySet()
-        calibData.set("bias", biasPath)
-        calibData.set("dark", darkPath)
-        calibData.set("defect", defectPath)
-        calibData.set("flat", flatPath)
-        calibData.set("fringe", fringePath)
-        calibData.set("linearize", linearizePath)
+        calibData.set("biasPath", biasPath)
+        calibData.set("darkPath", darkPath)
+        calibData.set("defectPath", defectPath)
+        calibData.set("flatPath", flatPath)
+#         calibData.set("fringePath", fringePath)
+        calibData.set("linearizePath", linearizePath)
         self.activeClipboard.put("calibData", calibData)
 
         self.outputQueue.addDataset(self.activeClipboard)
