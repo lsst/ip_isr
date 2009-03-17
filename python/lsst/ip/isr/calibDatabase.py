@@ -8,7 +8,7 @@ import lsst.daf.base
 
 >>> calibDatabase.writeCalibValidityPaf(glob.glob("/lsst/images/repository/calib/03Am06/*-*-c00[89]-*[01].fits"),
                                         fd=open("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf", "w"),
-                                        "/lsst/images/repository/calib")
+                                        stripPrefix="/lsst/images/repository/calib")
 
 >>> when = lsst.daf.base.DateTime(2003, 07, 21, 0, 0, 0)
 >>> cdb = calibDatabase.CalibDB("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf")
