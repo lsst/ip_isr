@@ -1,5 +1,8 @@
+import os
+
 from lsst.pex.harness.Stage import Stage
 from lsst.daf.base import DateTime, PropertySet
+from lsst.daf.persistence import LogicalLocation
 
 import lsst.ip.isr.calibDatabase as calibDatabase
 
@@ -53,13 +56,14 @@ class IdentifyCalibrationProductsStage(Stage):
         linearizePath = self.cdb.lookup(when, "linearize", event.get("ccdId"),
                 event.get("ampId"))
 
+        pathPrefix = LogicalLocation(self._policy.get("pathPrefix")).locString()
         calibData = PropertySet()
-        calibData.set("biasPath", biasPath)
-        calibData.set("darkPath", darkPath)
-        calibData.set("defectPath", defectPath)
-        calibData.set("flatPath", flatPath)
+        calibData.set("biasPath", os.path.join(pathPrefix, biasPath))
+        calibData.set("darkPath", os.path.join(pathPrefix, darkPath))
+        calibData.set("defectPath", os.path.join(pathPrefix, defectPath))
+        calibData.set("flatPath", os.path.join(pathPrefix, flatPath))
 #         calibData.set("fringePath", fringePath)
-        calibData.set("linearizePath", linearizePath)
+        calibData.set("linearizePath", os.path.join(pathPrefix, linearizePath))
 
         outputKey = self._policy.get("outputKey")
         self.activeClipboard.put(outputKey, calibData)
