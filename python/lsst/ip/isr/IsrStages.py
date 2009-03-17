@@ -619,14 +619,9 @@ def TrimNew(exposure, policy,
     trimsecBBox     = isrLib.BBoxFromDatasec(trimsec)
 
     # if "True", do a deep copy
-    #print trimsecBBox.getX0(), trimsecBBox.getX1(), trimsecBBox.getY0(), trimsecBBox.getY1()
-    
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
     trimmedExposure.getMaskedImage().setXY0(0, 0)
     
-    #llc = trimsecBBox.getLLC()
-    #trimmedExposure.setXY0(llc)
-
     # common outputs
     stageSummary = 'using trimsec %s' % (trimsec)
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
