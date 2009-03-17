@@ -131,6 +131,12 @@ def writeCalibValidityPaf(exposureNameList, fd=sys.stdout, stripPrefix=None):
 #            $Revision$
 #\
 """
+    if stripPrefix:
+        print >> fd, """\
+# File prefix was %s
+#\
+""" % stripPrefix
+
     print >> fd, "calibrations: {"
 
     for ccd in sorted(calibInfo.keys()):
