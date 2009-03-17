@@ -26,8 +26,8 @@ import lsst.pex.exceptions as pexExcept
 class CalibData(object):
     """Contain what we know about calibration data"""
 
-    def __init__(self, fileName, version, validFrom, validTo, expTime=0, filter=None):
-        self.fileName = fileName
+    def __init__(self, exposureName, version, validFrom, validTo, expTime=0, filter=None):
+        self.exposureName = exposureName
         self.version = version
         self.expTime = expTime
         self.validFrom = validFrom
@@ -40,26 +40,26 @@ def needExpTime(calibType):
 def needFilter(calibType):
     return calibType in ("flat", "fringe")
 
-def writeCalibValidityPaf(fileNameList, fd=sys.stdout, stripPrefix=None):
+def writeCalibValidityPaf(exposureNameList, fd=sys.stdout, stripPrefix=None):
 
-    if isinstance(fileNameList, str):
-        fileNameList = [fileNameList]
+    if isinstance(exposureNameList, str):
+        exposureNameList = [exposureNameList]
 
     if stripPrefix:
         stripPrefix = re.sub(r"/*$", "", stripPrefix)
 
     calibInfo = {}
-    for fileName in fileNameList:
-        dirName = os.path.split(os.path.dirname(fileName))[-1]
-        basename = os.path.basename(fileName)
+    for exposureName in exposureNameList:
+        dirName = os.path.split(os.path.dirname(exposureName))[-1]
+        basename = os.path.basename(exposureName)
 
         name, suffix = os.path.splitext(basename)
-        if suffix == ".fits":
+        if suffix == "":
             calibType, extra, ccd, amp = name.split("-")
         elif suffix == ".paf":
             calibType, ccd, amp = name.split("-")
         else:
-            print >> sys.stderr, "I don't recognize %s's suffix" % fileName
+            print >> sys.stderr, "I don't recognize %s's suffix" % exposureName
             continue
 
         expTime, filter = None, None
@@ -72,19 +72,19 @@ def writeCalibValidityPaf(fileNameList, fd=sys.stdout, stripPrefix=None):
         elif calibType in ("defect"):
             pass
         else:
-            print >> sys.stderr, "I don't know what to do with %s" % (fileName)
+            print >> sys.stderr, "I don't know what to do with %s" % (exposureName)
             continue
 
         if re.search(r"^c\d+$", ccd):
             ccd = "CCD%03d" % int(ccd[1:])
         else:
-            print >> sys.stderr, "Expected cXXXX, saw %s in %s" % (ccd, fileName)
+            print >> sys.stderr, "Expected cXXXX, saw %s in %s" % (ccd, exposureName)
             continue
 
         if re.search(r"^a\d+$", amp):
             amp = "Amplifier%03d" % int(amp[1:])
         else:
-            print >> sys.stderr, "Expected cXXXX, saw %s in %s" % (amp, fileName)
+            print >> sys.stderr, "Expected cXXXX, saw %s in %s" % (amp, exposureName)
             continue
 
         if calibType == "defect":
@@ -92,7 +92,7 @@ def writeCalibValidityPaf(fileNameList, fd=sys.stdout, stripPrefix=None):
             validFrom = "1970/01/01"
             validTo = validFrom
         else:
-            meta = afwImage.readMetadata(fileName, 0)
+            meta = afwImage.readMetadata(exposureName+"_img.fits", 0)
 
             crunid = meta.get("CRUNID").strip()
             validFrom = meta.get("TVSTART")   # data validity start time
@@ -114,10 +114,10 @@ def writeCalibValidityPaf(fileNameList, fd=sys.stdout, stripPrefix=None):
             calibInfo[ccd][amp][calibType] = []
 
         if stripPrefix:
-            if os.path.commonprefix([fileName, stripPrefix]) == stripPrefix:
-                fileName = fileName[len(stripPrefix) + 1:]
+            if os.path.commonprefix([exposureName, stripPrefix]) == stripPrefix:
+                exposureName = exposureName[len(stripPrefix) + 1:]
 
-        calibInfo[ccd][amp][calibType].append(CalibData(fileName, crunid, validFrom, validTo,
+        calibInfo[ccd][amp][calibType].append(CalibData(exposureName, crunid, validFrom, validTo,
                                                         expTime=expTime, filter=filter))
     #
     # Write that out
@@ -133,11 +133,11 @@ def writeCalibValidityPaf(fileNameList, fd=sys.stdout, stripPrefix=None):
                 for calib in calibInfo[ccd][amp][calibType]:
                     print >> fd, """\
             %s: {
-                fileName:  %-25s  # Calibration file
-                version:   %-25s  # This calibration's version
-                validFrom: %-25s  # Start time of this calibration's validity
-                validTo:   %-25s  # End time of this calibration's validity
-""" % (calibType, ('"%s"' % calib.fileName), ('"%s"' % calib.version),
+                exposureName:  %-25s  # Calibration file
+                version:       %-25s  # This calibration's version
+                validFrom:     %-25s  # Start time of this calibration's validity
+                validTo:       %-25s  # End time of this calibration's validity
+""" % (calibType, ('"%s"' % calib.exposureName), ('"%s"' % calib.version),
        '"%s"' % calib.validFrom,  '"%s"' % calib.validTo),
 
                     if needExpTime(calibType):
@@ -254,13 +254,13 @@ If nothrow is true, return None if nothing is available
                             pass
 
                         returnVals.append(
-                            CalibData(calib.get("fileName"), calib.get("version"),
+                            CalibData(calib.get("exposureName"), calib.get("version"),
                                       calib.get("validFrom"), calib.get("validTo"),
                                       expTime=_expTime, filter=_filter))
                     else:
-                        fileName = calib.get("fileName")
+                        exposureName = calib.get("exposureName")
 
-                        return fileName
+                        return exposureName
 
             if all:
                 return returnVals
