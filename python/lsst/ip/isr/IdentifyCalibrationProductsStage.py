@@ -60,6 +60,8 @@ class IdentifyCalibrationProductsStage(Stage):
         calibData.set("flatPath", flatPath)
 #         calibData.set("fringePath", fringePath)
         calibData.set("linearizePath", linearizePath)
-        self.activeClipboard.put("calibData", calibData)
+
+        outputKey = self._policy.get("outputKey")
+        self.activeClipboard.put(outputKey, calibData)
 
         self.outputQueue.addDataset(self.activeClipboard)
