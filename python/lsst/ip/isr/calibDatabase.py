@@ -125,6 +125,11 @@ def writeCalibValidityPaf(exposureNameList, fd=sys.stdout, stripPrefix=None):
     #
     # Write that out
     #
+    print >> fd, """\
+#
+# Written by $HeadURL$
+#\
+"""
     print >> fd, "calibrations: {"
 
     for ccd in sorted(calibInfo.keys()):
