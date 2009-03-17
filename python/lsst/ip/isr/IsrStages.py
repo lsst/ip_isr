@@ -286,6 +286,9 @@ def MaskBadPixelsDef(exposure, policy, defectList,
     mi      = exposure.getMaskedImage()
     mask    = mi.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
+    
+    print defectList.size()
+    
     for defect in defectList:
         bbox = defect.getBBox()
         afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)    
