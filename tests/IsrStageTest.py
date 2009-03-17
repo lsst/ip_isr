@@ -19,6 +19,7 @@ import lsst.ip.isr.IsrStages as isrStages
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
 import lsst.ip.isr.IsrStages as isrStages
+import lsst.afw.display.ds9 as ds9
 
 from lsst.ctrl.dc3pipe.MetadataStages import transformMetadata
 
@@ -27,8 +28,7 @@ Verbosity = 4
 pexLog.Trace_setVerbosity('lsst.ip.isr', Verbosity)
 
 isrDataDir    = eups.productDir('isrdata')
-#inputImage    = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'raw-704893-e000-c000-a000.fits')
-inputImage    = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'raw-729982-e000-c000-a000.fits')
+inputImage    = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'raw-704893-e000-c000-a000.fits')
 isrDir        = eups.productDir('ip_isr')
 
 dc3PipeDir       = eups.productDir('ctrl_dc3pipe')
@@ -63,9 +63,9 @@ class IsrStageTestCase(unittest.TestCase):
 
         # with : calibration information
         calibData = dafBase.PropertySet()
-        biasPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000.fits')
-        darkPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000.fits')
-        flatPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000.fits')
+        biasPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000_img.fits')
+        darkPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000_img.fits')
+        flatPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000_img.fits')
         calibData.set('bias', biasPath)
         calibData.set('dark', darkPath)
         calibData.set('flat', flatPath)
@@ -76,8 +76,8 @@ class IsrStageTestCase(unittest.TestCase):
 
 
         # with : an input image
-        img      = afwImage.ImageF(inputImage)
-        clipboard.put('inputImage0', img)
+        self.img = afwImage.ImageF(inputImage)
+        clipboard.put('inputImage0', self.img)
 
         # with : calibration exposures
         biasImage    = afwImage.ImageF(biasPath)
@@ -124,7 +124,13 @@ class IsrStageTestCase(unittest.TestCase):
         clipboard = self.outQueue.getNextDataset()
         assert(clipboard.contains(self.policy.getString('calibratedExposureKey')))
         assert(clipboard.contains(self.policy.getString('sdqaRatingSetKey')))
+        calibratedExposure = clipboard.get(self.policy.getString('calibratedExposureKey'))
 
+        calibratedExposure.writeFits('/tmp/exp')
+        
+        ds9.mtv(self.img, frame=1)
+        ds9.mtv(calibratedExposure, frame=2)
+        
 def suite():
     """Returns a suite containing all the test cases in this module."""
 
@@ -140,4 +146,7 @@ def run(exit=False):
     utilsTests.run(suite(), exit)
 
 if __name__ == "__main__":
+    if len(sys.argv) == 2:
+        inputImage = sys.argv[1]
     run(True)
+        

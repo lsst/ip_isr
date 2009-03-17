@@ -250,7 +250,7 @@ def MaskBadPixelsFp(exposure, policy, fpList,
     mi      = exposure.getMaskedImage()
     mask    = mi.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
-    afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)    
+    afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
     if interpolate:
         # and interpolate over them
@@ -621,7 +621,9 @@ def TrimNew(exposure, policy,
     # if "True", do a deep copy
     #print trimsecBBox.getX0(), trimsecBBox.getX1(), trimsecBBox.getY0(), trimsecBBox.getY1()
     
-    trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox, False)
+    trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
+    trimmedExposure.getMaskedImage().setXY0(0, 0)
+    
     #llc = trimsecBBox.getLLC()
     #trimmedExposure.setXY0(llc)
 
