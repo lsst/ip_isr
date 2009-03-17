@@ -127,7 +127,8 @@ def writeCalibValidityPaf(exposureNameList, fd=sys.stdout, stripPrefix=None):
     #
     print >> fd, """\
 #
-# Written by $HeadURL$
+# Written by $HeadURL: svn+ssh://svn.lsstcorp.org/DMS/ip/isr/trunk/python/lsst/ip/isr/calibDatabase.py $
+#            $Revision$
 #\
 """
     print >> fd, "calibrations: {"
