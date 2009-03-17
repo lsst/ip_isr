@@ -35,11 +35,11 @@ class IsrStage(Stage):
         calibData           = self.activeClipboard.get(calibDataKey)
 
         # Grab the necessary calibration data products
-        biasPath             = calibData.get('bias')
-        darkPath             = calibData.get('dark')
+        bias = self.activeClipboard.get('biasExposure')
+        dark = self.activeClipboard.get('darkExposure')
+        flat = self.activeClipboard.get('flatExposure')
+        # fringeExposure       = self.activeClipboard.get('fringeExposure')
         defectPath           = calibData.get('defectPath')
-        flatPath             = calibData.get('flat')
-        fringePath           = calibData.get('fringe')
         linearizePath        = calibData.get('linearizePath')
         
         # Step 1 : create an exposure
@@ -69,21 +69,12 @@ class IsrStage(Stage):
         calibratedExposure.getMetadata().combine(inputExposure.getMetadata())
 
         # Bias correct
-        biasImage    = afwImage.ImageF(biasPath)
-        biasMetadata = afwImage.readMetadata(biasPath)
-        bias = ExposureFromInputData(biasImage, biasMetadata, makeWcs=False, policy=isrPolicy)
         BiasCorrection(calibratedExposure, bias, isrPolicy)
 
         # Dark correct
-        darkImage    = afwImage.ImageF(darkPath)
-        darkMetadata = afwImage.readMetadata(darkPath)
-        dark = ExposureFromInputData(darkImage, darkMetadata, makeWcs=False, policy=isrPolicy)
         DarkCorrection(calibratedExposure, dark, isrPolicy)
 
         # Flat field
-        flatImage    = afwImage.ImageF(flatPath)
-        flatMetadata = afwImage.readMetadata(flatPath)
-        flat = ExposureFromInputData(flatImage, flatMetadata, makeWcs=False, policy=isrPolicy)
         FlatCorrection(calibratedExposure, flat, isrPolicy)
 
         # Fringe; not for DC3a
