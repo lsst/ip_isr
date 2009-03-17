@@ -54,13 +54,16 @@ def writeCalibValidityPaf(exposureNameList, fd=sys.stdout, stripPrefix=None):
         basename = os.path.basename(exposureName)
 
         name, suffix = os.path.splitext(basename)
-        if suffix == "":
+        if suffix == ".fits":
             calibType, extra, ccd, amp = name.split("-")
+            amp = re.sub("_img", "", amp)
         elif suffix == ".paf":
             calibType, ccd, amp = name.split("-")
         else:
             print >> sys.stderr, "I don't recognize %s's suffix" % exposureName
             continue
+
+        exposureName = re.sub("_img.fits", "", exposureName)
 
         expTime, filter = None, None
         if needExpTime(calibType):
