@@ -56,13 +56,13 @@ class IsrStageTestCase(unittest.TestCase):
 
         # with : calibration information
         calibData = dafBase.PropertySet()
-        calibData.set('bias',      os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000.fits'))
-        calibData.set('dark',      os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000.fits'))
-        calibData.set('defect',    os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'defect-c000-a000.paf'))
-        calibData.set('flat',      os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000.fits'))
-        calibData.set('fringe',    os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'fringe-i-c000-a000.fits'))
+        calibData.set('bias',          os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000.fits'))
+        calibData.set('dark',          os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000.fits'))
+        calibData.set('defectPath',    os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'defect-c000-a000.paf'))
+        calibData.set('flat',          os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000.fits'))
+        calibData.set('fringe',        os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'fringe-i-c000-a000.fits'))
         # currently this is stored in IP_ISR; probably want as a function of time
-        calibData.set('linearize', os.path.join(isrDir, 'pipeline', 'linearizationLookupTable.paf'))
+        calibData.set('linearizePath', os.path.join(isrDir, 'pipeline', 'linearizationLookupTable.paf'))
         clipboard.put('calibData0', calibData)
 
         # with : an input image

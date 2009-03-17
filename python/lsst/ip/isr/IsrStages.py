@@ -1,4 +1,4 @@
-import time, re, os, math
+import time, re, os, math, pdb
 import eups
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
@@ -37,10 +37,10 @@ class IsrStage(Stage):
         # Grab the necessary calibration data products
         biasPath             = calibData.get('bias')
         darkPath             = calibData.get('dark')
-        defectPath           = calibData.get('defect')
+        defectPath           = calibData.get('defectPath')
         flatPath             = calibData.get('flat')
         fringePath           = calibData.get('fringe')
-        linearizePath        = calibData.get('linearize')
+        linearizePath        = calibData.get('linearizePath')
         
         # Step 1 : create an exposure
         inputExposure = ExposureFromInputData(inputImage, inputMetadata)
@@ -87,9 +87,9 @@ class IsrStage(Stage):
         FlatCorrection(calibratedExposure, flat, isrPolicy)
 
         # Fringe; not for DC3a
-        fringeImage    = afwImage.ImageF(fringePath)
-        fringeMetadata = afwImage.readMetadata(fringePath)
-        fringe = ExposureFromInputData(fringeImage, fringeMetadata, makeWcs=False, policy=isrPolicy)
+        # fringeImage    = afwImage.ImageF(fringePath)
+        # fringeMetadata = afwImage.readMetadata(fringePath)
+        # fringe = ExposureFromInputData(fringeImage, fringeMetadata, makeWcs=False, policy=isrPolicy)
         
         # Finally, mask bad pixels
         defectList = measDefects.policyToBadRegionList(defectPath)
@@ -100,7 +100,7 @@ class IsrStage(Stage):
 
         # Finally, produce Sdqa metrics
         sdqaRatingSet = CalculateSdqaRatings(calibratedExposure)
-            
+
         #
         # Isr Substages
         ###
@@ -121,7 +121,8 @@ class IsrStage(Stage):
 ### STAGE : Assemble Exposure from input Image
 #
 
-def CalculateSdqaRatings(exposure):
+def CalculateSdqaRatings(exposure,
+                         stageName   = 'lsst.ip.isr.calculatesdqaratings'):
     sdqaRatingSet = sdqa.SdqaRatingSet()
     counter       = isrLib.CountMaskedPixelsF()
     mi   = exposure.getMaskedImage()
@@ -130,11 +131,13 @@ def CalculateSdqaRatings(exposure):
     counter.apply( mi, bitmaskSat )
     satRating  = sdqa.SdqaRating('ip.isr.numSaturatedPixels', counter.getCount(), 0, sdqa.SdqaRating.AMP)
     sdqaRatingSet.push_back(satRating)
+    pexLog.Trace(stageName, 4, 'Found %d saturated pixels' % (counter.getCount()))
     
     bitmaskCr  = mi.getMask().getPlaneBitMask('CR')
     counter.apply( mi, bitmaskCr )
     crRating   = sdqa.SdqaRating('ip.isr.numCosmicRayPixels', counter.getCount(), 0, sdqa.SdqaRating.AMP)
     sdqaRatingSet.push_back(crRating)
+    pexLog.Trace(stageName, 4, 'Found %d pixels with cosmic rays' % (counter.getCount()))
 
     return sdqaRatingSet
 
