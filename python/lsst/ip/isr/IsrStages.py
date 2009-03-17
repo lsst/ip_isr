@@ -10,7 +10,6 @@ import lsst.pex.exceptions  as pexExcept
 import lsst.meas.algorithms.defects as measDefects
 import lsst.sdqa            as sdqa
 
-from lsst.ctrl.dc3pipe.MetadataStages import transformMetadata
 
 # relative imports
 import isrLib
@@ -25,25 +24,25 @@ class IsrStage(Stage):
     def process(self):
         self.activeClipboard = self.inputQueue.getNextDataset()
 
-        # we get suffixs of either '0' or '1'; allow for both here
-        inputImageKey       = self._policy.get('inputImageKey')
-        inputMetadataKey    = self._policy.get('inputMetadataKey')
-        calibDataKey        = self._policy.get('calibDataKey')
-
-        inputImage          = self.activeClipboard.get(inputImageKey)
-        inputMetadata       = self.activeClipboard.get(inputMetadataKey)
-        calibData           = self.activeClipboard.get(calibDataKey)
+        # We get suffixs of either '0' or '1'; allow for both here
+        inputImageKey    = self._policy.get('inputImageKey')
+        inputMetadataKey = self._policy.get('inputMetadataKey')
+        calibDataKey     = self._policy.get('calibDataKey')
+        inputImage       = self.activeClipboard.get(inputImageKey)
+        inputMetadata    = self.activeClipboard.get(inputMetadataKey)
+        calibData        = self.activeClipboard.get(calibDataKey)
 
         # Grab the necessary calibration data products
-        bias = self.activeClipboard.get('biasExposure')
-        dark = self.activeClipboard.get('darkExposure')
-        flat = self.activeClipboard.get('flatExposure')
-        # fringeExposure       = self.activeClipboard.get('fringeExposure')
-        defectPath           = calibData.get('defectPath')
-        linearizePath        = calibData.get('linearizePath')
+        bias             = self.activeClipboard.get('biasExposure')
+        dark             = self.activeClipboard.get('darkExposure')
+        flat             = self.activeClipboard.get('flatExposure')
+
+        # Finally, grab the additional information in calibDataKey
+        defectPath       = calibData.get('defectPath')
+        linearizePath    = calibData.get('linearizePath')
         
         # Step 1 : create an exposure
-        inputExposure = ExposureFromInputData(inputImage, inputMetadata)
+        inputExposure    = ExposureFromInputData(inputImage, inputMetadata)
         
         ###
         # Isr Substages
@@ -99,8 +98,9 @@ class IsrStage(Stage):
         calibratedExposureKey = self._policy.get('calibratedExposureKey')
         self.activeClipboard.put(calibratedExposureKey, calibratedExposure)
 
-        sdqaRatingSetKey = self._policy.get('sdqaRatingSetKey')
-        self.activeClipboard.put(sdqaRatingSetKey, sdqaRatingSet)
+        sdqaRatingSetKey  = self._policy.get('sdqaRatingSetKey')
+        persistableVector = sdqa.PersistableSdqaRatingVector(sdqaRatingSet)
+        self.activeClipboard.put(sdqaRatingSetKey, persistableVector)
         
         self.outputQueue.addDataset(self.activeClipboard)
 
@@ -165,7 +165,7 @@ def ExposureFromInputData(image, metadata,
     else:
         pexLog.Trace(stageName, 4, 'Using default gain=%f' % (defaultGain))
         gain = defaultGain
-
+    # Normalize by the gain
     var /= gain
 
     # makeMaskedImage() will make a MaskedImage with the same type as Image

@@ -18,6 +18,8 @@ import lsst.pex.logging as pexLog
 import lsst.ip.isr.IsrStages as isrStages
 import lsst.afw.image as afwImage
 import lsst.daf.base as dafBase
+import lsst.ip.isr.IsrStages as isrStages
+
 from lsst.ctrl.dc3pipe.MetadataStages import transformMetadata
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -31,7 +33,12 @@ isrDir        = eups.productDir('ip_isr')
 
 dc3PipeDir       = eups.productDir('ctrl_dc3pipe')
 dc3MetadataPath  = os.path.join(dc3PipeDir, 'pipeline', 'dc3MetadataPolicy.paf')
-cfhtMetadataPath = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtTypePolicy.paf')
+cfhtMetadataPath    = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtDataTypePolicy.paf')
+cfhtCalibrationPath = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtCalibrationTypePolicy.paf')
+
+dc3MetadataPolicy  = pexPolicy.Policy.createPolicy(dc3MetadataPath)
+cfhtMetadataPolicy = pexPolicy.Policy.createPolicy(cfhtMetadataPath)
+cfhtCalibrationPolicy = pexPolicy.Policy.createPolicy(cfhtCalibrationPath)
 
 class IsrStageTestCase(unittest.TestCase):
     """A test case for IsrStages.py"""
@@ -43,7 +50,7 @@ class IsrStageTestCase(unittest.TestCase):
         # PIPELINE INPUTS
         self.policy.add('inputImageKey',    'inputImage0')
         self.policy.add('inputMetadataKey', 'inputMetadata0')
-        self.policy.add('calibDataKey',     'calibData0')
+        self.policy.add('calibDataKey',     'calibData') 
         # ISR PROCESSING
         self.policy.add('isrPolicy', pexPolicy.Policy.createPolicy(os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')))
         # OUTPUTS
@@ -56,24 +63,45 @@ class IsrStageTestCase(unittest.TestCase):
 
         # with : calibration information
         calibData = dafBase.PropertySet()
-        calibData.set('bias',          os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000.fits'))
-        calibData.set('dark',          os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000.fits'))
+        biasPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000.fits')
+        darkPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000.fits')
+        flatPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000.fits')
+        calibData.set('bias', biasPath)
+        calibData.set('dark', darkPath)
+        calibData.set('flat', flatPath)
+        
         calibData.set('defectPath',    os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'defect-c000-a000.paf'))
-        calibData.set('flat',          os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000.fits'))
-        calibData.set('fringe',        os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'fringe-i-c000-a000.fits'))
-        # currently this is stored in IP_ISR; probably want as a function of time
         calibData.set('linearizePath', os.path.join(isrDir, 'pipeline', 'linearizationLookupTable.paf'))
-        clipboard.put('calibData0', calibData)
+        clipboard.put('calibData', calibData)
+
 
         # with : an input image
         img      = afwImage.ImageF(inputImage)
         clipboard.put('inputImage0', img)
 
+        # with : calibration exposures
+        biasImage    = afwImage.ImageF(biasPath)
+        biasMetadata = afwImage.readMetadata(biasPath)
+        transformMetadata(biasMetadata, cfhtCalibrationPolicy, dc3MetadataPolicy, 'Keyword')
+        bias         = isrStages.ExposureFromInputData(biasImage, biasMetadata)
+        clipboard.put('biasExposure', bias)
+        
+        darkImage    = afwImage.ImageF(darkPath)
+        darkMetadata = afwImage.readMetadata(darkPath)
+        transformMetadata(darkMetadata, cfhtCalibrationPolicy, dc3MetadataPolicy, 'Keyword')
+        dark         = isrStages.ExposureFromInputData(darkImage, darkMetadata)
+        clipboard.put('darkExposure', dark)
+
+        flatImage    = afwImage.ImageF(flatPath)
+        flatMetadata = afwImage.readMetadata(flatPath)
+        transformMetadata(flatMetadata, cfhtCalibrationPolicy, dc3MetadataPolicy, 'Keyword')
+        flat         = isrStages.ExposureFromInputData(flatImage, flatMetadata)
+        clipboard.put('flatExposure', flat)
+        
+
         # with : input (transformed) metadata
         # 
         metadata = afwImage.readMetadata(inputImage)
-        dc3MetadataPolicy  = pexPolicy.Policy.createPolicy(dc3MetadataPath)
-        cfhtMetadataPolicy = pexPolicy.Policy.createPolicy(cfhtMetadataPath)
         transformMetadata(metadata, cfhtMetadataPolicy, dc3MetadataPolicy, 'Keyword')
         clipboard.put('inputMetadata0', metadata)
         
