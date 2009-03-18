@@ -132,8 +132,9 @@ namespace isr {
                     int ind = static_cast<int>(ptr.image() + 0.5);  // Rounded pixel value
                     if (ind < 0 || ind >= _max){
                         throw LSST_EXCEPT(lsst::pex::exceptions::Exception,
-                                          (boost::format("Pixel value %g (index %d) out of range [0-%g]") %
-                                           static_cast<double>(ptr.image()) % ind % static_cast<double>(_max)).str());
+                                          (boost::format("Pixel value %g (index %d) at (%d, %d) out of range [0-%g]") %
+                                           static_cast<double>(ptr.image()) % ind %
+                                           (ptr - image.row_begin(y)) % y % static_cast<double>(_max)).str());
                     }
                     PixelT p = PixelT(_table[ind], 
                                       (*ptr).mask(), 
