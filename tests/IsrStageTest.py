@@ -63,9 +63,9 @@ class IsrStageTestCase(unittest.TestCase):
 
         # with : calibration information
         calibData = dafBase.PropertySet()
-        biasPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000_img.fits')
-        darkPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000_img.fits')
-        flatPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000_img.fits')
+        biasPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'bias-0-c000-a000')
+        darkPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'dark-300-c000-a000')
+        flatPath  = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'flat-i-c000-a000')
         calibData.set('bias', biasPath)
         calibData.set('dark', darkPath)
         calibData.set('flat', flatPath)
@@ -80,22 +80,19 @@ class IsrStageTestCase(unittest.TestCase):
         clipboard.put('inputImage0', self.img)
 
         # with : calibration exposures
-        biasImage    = afwImage.ImageF(biasPath)
-        biasMetadata = afwImage.readMetadata(biasPath)
+        bias         = afwImage.ExposureF(biasPath)
+        biasMetadata = bias.getMetadata()
         transformMetadata(biasMetadata, cfhtCalibrationPolicy, dc3MetadataPolicy, 'Keyword')
-        bias         = isrStages.ExposureFromInputData(biasImage, biasMetadata)
         clipboard.put('biasExposure', bias)
         
-        darkImage    = afwImage.ImageF(darkPath)
-        darkMetadata = afwImage.readMetadata(darkPath)
+        dark         = afwImage.ExposureF(darkPath)
+        darkMetadata = dark.getMetadata()
         transformMetadata(darkMetadata, cfhtCalibrationPolicy, dc3MetadataPolicy, 'Keyword')
-        dark         = isrStages.ExposureFromInputData(darkImage, darkMetadata)
         clipboard.put('darkExposure', dark)
 
-        flatImage    = afwImage.ImageF(flatPath)
-        flatMetadata = afwImage.readMetadata(flatPath)
+        flat         = afwImage.ExposureF(flatPath)
+        flatMetadata = flat.getMetadata()
         transformMetadata(flatMetadata, cfhtCalibrationPolicy, dc3MetadataPolicy, 'Keyword')
-        flat         = isrStages.ExposureFromInputData(flatImage, flatMetadata)
         clipboard.put('flatExposure', flat)
         
 

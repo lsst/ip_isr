@@ -347,8 +347,9 @@ def Linearization(exposure, policy,
     else:
         lookupTableName = 'provided to ipIsr.Linearization'
 
-    mi = exposure.getMaskedImage()
-    lookupTable.apply(mi)
+    gain = metadata.get('gain')
+    mi   = exposure.getMaskedImage()
+    lookupTable.apply(mi, gain)
     
     # common outputs
     stageSummary = 'using table %s' % (lookupTableName)
@@ -549,9 +550,12 @@ def FlatCorrection(exposure, flat, policy,
             flatscaling = afwMath.makeStatistics(flat.getMaskedImage().getImage(), afwMath.MEDIAN).getValue(afwMath.MEDIAN)
         else:
             raise pexExcept.LsstException, '%s : %s not implemented' % (stageName, flatscalingType)            
-        
+
     mi   = exposure.getMaskedImage()
-    mi.scaledDivides(1./flatscaling, flat.getMaskedImage())
+    fmi  = flat.getMaskedImage()
+    mi.writeFits('/tmp/mi')
+    fmi.writeFits('/tmp/fmi')
+    mi.scaledDivides(1./flatscaling, fmi)
     
     # common outputs
     stageSummary = 'using %s with %s=%.2f' % (filename, scalingKeyword, flatscaling)
