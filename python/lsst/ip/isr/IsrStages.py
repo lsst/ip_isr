@@ -553,8 +553,6 @@ def FlatCorrection(exposure, flat, policy,
 
     mi   = exposure.getMaskedImage()
     fmi  = flat.getMaskedImage()
-    mi.writeFits('/tmp/mi')
-    fmi.writeFits('/tmp/fmi')
     mi.scaledDivides(1./flatscaling, fmi)
     
     # common outputs
