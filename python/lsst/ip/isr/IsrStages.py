@@ -287,8 +287,6 @@ def MaskBadPixelsDef(exposure, policy, defectList,
     mask    = mi.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
     
-    print defectList.size()
-    
     for defect in defectList:
         bbox = defect.getBBox()
         afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)    
@@ -541,13 +539,24 @@ def FlatCorrection(exposure, flat, policy,
     filename          = fmetadata.getString(filenameKeyword)
 
     scalingKeyword    = policy.getPolicy('flatPolicy').getString('flatScaleKeyword') # e.g. MEAN
-    flatscaling       = fmetadata.get(scalingKeyword)
-
+    flatscaling = 1.0
+    if fmetadata.exists(scalingKeyword):
+        flatscaling = fmetadata.get(scalingKeyword)
+    else:
+        # Figure it out from the data
+        scalingKeyword = policy.getPolicy('flatPolicy').getString('flatScaleFitType')
+        if scalingKeyword == 'MEAN':
+            flatscaling = afwMath.makeStatistics(flat.getMaskedImage().getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
+        elif scalingKeyword == 'MEDIAN':
+            flatscaling = afwMath.makeStatistics(flat.getMaskedImage().getImage(), afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+        else:
+            raise pexExcept.LsstException, '%s : %s not implemented' % (stageName, flatscalingType)            
+        
     mi   = exposure.getMaskedImage()
     mi.scaledDivides(1./flatscaling, flat.getMaskedImage())
     
     # common outputs
-    stageSummary = 'using %s with scale=%.2f' % (filename, flatscaling)
+    stageSummary = 'using %s with %s=%.2f' % (filename, scalingKeyword, flatscaling)
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
 
@@ -617,9 +626,16 @@ def TrimNew(exposure, policy,
         pexLog.Trace(stageName, 4, '%s has already been run' % (stageSig))
         return
 
-    trimsecKeyword  = policy.getPolicy('trimPolicy').getString('trimsecKeyword')
-    trimsec         = metadata.getString(trimsecKeyword)
-    trimsecBBox     = isrLib.BBoxFromDatasec(trimsec)
+    trimsec = None
+    if metadata.exists('trimsec'):
+        trimsec = metadata.getString('trimsec')
+    else:
+        trimsecKeyword = policy.getPolicy('trimPolicy').getString('trimsecKeyword')
+        if metadata.exists(trimsecKeyword):
+            trimsec = metadata.getString(trimsecKeyword)
+    if trimsec == None:
+        raise pexExcept.LsstException, '%s : cannot find trimsec' % (stageName)        
+    trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
     # if "True", do a deep copy
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
@@ -649,9 +665,16 @@ def OverscanCorrection(exposure, policy,
         return
 
     mi = exposure.getMaskedImage()
-    
-    overscanKeyword = policy.getPolicy('overscanPolicy').getString('overscanKeyword')
-    overscan        = metadata.getString(overscanKeyword)
+
+    overscan = None
+    if metadata.exists('overscan'):
+        overscan = metadata.getString('overscan')
+    else:
+        overscanKeyword = policy.getPolicy('overscanPolicy').getString('overscanKeyword')
+        if metadata.exists(overscanKeyword):
+            overscan = metadata.getString(overscanKeyword) 
+    if overscan == None:
+        raise pexExcept.LsstException, '%s : cannot find overscan region' % (stageName)     
     overscanBBox    = isrLib.BBoxFromDatasec(overscan)
 
     # if "True", do a deep copy

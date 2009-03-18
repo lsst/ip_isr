@@ -163,6 +163,10 @@ flatPolicy: {
  # E.g. CCDMEAN
  flatScaleKeyword: IMMODE
 
+ # If the keyword does not exist, normalize the flat by this statistic
+ # e.g. MEAN, MEDIAN
+ flatScaleFitType: MEDIAN
+
 }
 
 ######################################
