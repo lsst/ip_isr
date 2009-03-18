@@ -702,7 +702,7 @@ def OverscanCorrection(exposure, policy,
         raise pexExcept.LsstException, '%s : %s an invalid overscan type' % (stageName, overscanFitType)
 
     # remove overscan from metadata
-    mi.getMetadata().remove(overscanKeyword)
+    exposure.getMetadata().remove(overscanKeyword)
 
     # common outputs
     stageSummary = 'using overscan section %s with %s=%f' % (overscan, overscanFitType, offset)
