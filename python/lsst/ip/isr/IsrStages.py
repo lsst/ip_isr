@@ -371,7 +371,8 @@ def CrRejection(exposure, policy,
         return
 
     crPolicy    = policy.getPolicy('crRejectionPolicy')
-    gainKeyword = crPolicy.getString('gainKeyword')
+    # gain is LSST norm
+    gainKeyword = 'gain' 
     gain        = metadata.get(gainKeyword)
     # needed for CR
     crPolicy.set('e_per_dn', gain)
@@ -478,9 +479,7 @@ def BiasCorrection(exposure, bias, policy,
         return
 
     bmetadata         = bias.getMetadata()
-    
-    filenameKeyword   = policy.getString('filenameKeyword')
-    filename          = bmetadata.getString(filenameKeyword)
+    filename          = bmetadata.getString('filename')
 
     mi  = exposure.getMaskedImage()
     bmi = bias.getMaskedImage()
@@ -503,10 +502,10 @@ def DarkCorrection(exposure, dark, policy,
         return
 
     dmetadata         = dark.getMetadata()
-    filenameKeyword   = policy.getString('filenameKeyword')
-    filename          = dmetadata.getString(filenameKeyword)
+    filename          = dmetadata.getString('filename')
 
-    scalingKeyword    = policy.getPolicy('darkPolicy').getString('darkScaleKeyword') # e.g. EXPTIME
+    # expTime is LSST norm
+    scalingKeyword    = 'expTime'
     expscaling        = metadata.get(scalingKeyword)
     darkscaling       = dmetadata.get(scalingKeyword)
     scale             = expscaling / darkscaling
@@ -535,8 +534,7 @@ def FlatCorrection(exposure, flat, policy,
         return
 
     fmetadata         = flat.getMetadata()
-    filenameKeyword   = policy.getString('filenameKeyword')
-    filename          = fmetadata.getString(filenameKeyword)
+    filename          = fmetadata.getString('filename')
 
     scalingKeyword    = policy.getPolicy('flatPolicy').getString('flatScaleKeyword') # e.g. MEAN
     flatscaling = 1.0
@@ -572,8 +570,7 @@ def IlluminationCorrection(exposure, illum, policy,
         return
 
     imetadata         = illum.getMetadata()
-    filenameKeyword   = policy.getString('filenameKeyword')
-    filename          = imetadata.getString(filenameKeyword)
+    filename          = imetadata.getString('filename')
 
     scalingKeyword    = policy.getPolicy('illuminationPolicy').getString('illumScaleKeyword')
     illumscaling      = imetadata.get(scalingKeyword)
