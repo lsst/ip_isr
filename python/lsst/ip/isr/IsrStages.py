@@ -628,7 +628,8 @@ def TrimNew(exposure, policy,
 
     trimsec = None
     if metadata.exists('trimsec'):
-        trimsec = metadata.getString('trimsec')
+        trimsecKeyword = 'trimsec'
+        trimsec = metadata.getString(trimsecKeyword)
     else:
         trimsecKeyword = policy.getPolicy('trimPolicy').getString('trimsecKeyword')
         if metadata.exists(trimsecKeyword):
@@ -640,6 +641,11 @@ def TrimNew(exposure, policy,
     # if "True", do a deep copy
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
     trimmedExposure.getMaskedImage().setXY0(0, 0)
+
+    # remove trimsec from metadata
+    trimmedExposure.getMetadata().remove(trimsecKeyword)
+    # n.b. what other changes are needed here?
+    # e.g. wcs info, overscan, etc
     
     # common outputs
     stageSummary = 'using trimsec %s' % (trimsec)
@@ -668,7 +674,8 @@ def OverscanCorrection(exposure, policy,
 
     overscan = None
     if metadata.exists('overscan'):
-        overscan = metadata.getString('overscan')
+        overscanKeyword = 'overscan'
+        overscan = metadata.getString(overscanKeyword)
     else:
         overscanKeyword = policy.getPolicy('overscanPolicy').getString('overscanKeyword')
         if metadata.exists(overscanKeyword):
@@ -693,6 +700,9 @@ def OverscanCorrection(exposure, policy,
         raise pexExcept.LsstException, '%s : %s not implemented' % (stageName, overscanFitType)
     else:
         raise pexExcept.LsstException, '%s : %s an invalid overscan type' % (stageName, overscanFitType)
+
+    # remove overscan from metadata
+    mi.getMetadata().remove(overscanKeyword)
 
     # common outputs
     stageSummary = 'using overscan section %s with %s=%f' % (overscan, overscanFitType, offset)
