@@ -74,10 +74,15 @@ class IsrStageTestCase(unittest.TestCase):
         calibData.set('linearizePath', os.path.join(isrDir, 'pipeline', 'linearizationLookupTable.paf'))
         clipboard.put('calibData', calibData)
 
-
         # with : an input image
         self.img = afwImage.ImageF(inputImage)
         clipboard.put('inputImage0', self.img)
+
+        # with : an amp BBox
+        ampBBox = afwImage.BBox(afwImage.PointI(0,0),
+                                self.img.getWidth(),
+                                self.img.getHeight())
+        clipboard.put('ampBBox', ampBBox)
 
         # with : calibration exposures
         bias         = afwImage.ExposureF(biasPath)

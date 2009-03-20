@@ -36,12 +36,16 @@ class IsrStage(Stage):
         dark             = self.activeClipboard.get('darkExposure')
         flat             = self.activeClipboard.get('flatExposure')
 
+        # Get the image's (e.g. Amp's) origin on the master (e.g. CCD)
+        # image.  
+        ampBBox          = self.activeClipboard.get('ampBBox')
+
         # Finally, grab the additional information in calibDataKey
         defectPath       = calibData.get('defectPath')
         linearizePath    = calibData.get('linearizePath')
         
         # Step 1 : create an exposure
-        inputExposure    = ExposureFromInputData(inputImage, inputMetadata)
+        inputExposure    = ExposureFromInputData(inputImage, inputMetadata, ampBBox)
         
         ###
         # Isr Substages
@@ -135,25 +139,18 @@ def CalculateSdqaRatings(exposure,
 ### STAGE : Assemble Exposure from input Image
 #
 
-def ExposureFromInputData(image, metadata,
+def ExposureFromInputData(image, metadata, ampBBox,
                           makeWcs     = True,
                           policy      = None,
                           defaultGain = 1.0,
                           stageName   = 'lsst.ip.isr.exposurefrominputdata'):
 
-    # Get the image's (e.g. Amp's) origin on the master (e.g. CCD)
-    # image.  We will explicitly set the mask and variance to have the
-    # same origin.  
-    xyOrigin = image.getXY0()
-    
     # Generate an empty mask
     mask = afwImage.MaskU(image.getDimensions())
     mask.set(0)
-    mask.setXY0(xyOrigin)
 
     # Generate a variance from the image pixels and gain
     var  = afwImage.ImageF(image, True)
-    var.setXY0(xyOrigin)
     
     if metadata.exists('gain'):
         gain = metadata.get('gain')
@@ -178,6 +175,7 @@ def ExposureFromInputData(image, metadata,
 
     # makeMaskedImage() will make a MaskedImage with the same type as Image
     mi   = afwImage.makeMaskedImage(image, mask, var)
+    mi.setXY0(ampBBox.getX0(), ampBBox.getY0())
 
     if makeWcs:
         # Extract the Wcs info from the input metadata
@@ -645,7 +643,10 @@ def TrimNew(exposure, policy,
         raise pexExcept.LsstException, '%s : cannot find trimsec' % (stageName)        
     trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
-    # if "True", do a deep copy
+    # When I grab a subexposure from the exposure, the default
+    # behavior is to modify x0 and y0.  HOWEVER, in this particular
+    # case the trimmed pixels are not science pixels, and I have to
+    # undo the default behavior.
     xyOrigin        = exposure.getMaskedImage().getXY0()
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
     trimmedExposure.getMaskedImage().setXY0(xyOrigin)

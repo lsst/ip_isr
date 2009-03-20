@@ -92,7 +92,7 @@ class IsrTestCases(unittest.TestCase):
                 else:
                     self.assertEqual(mi.getImage().get(i,j), 8)
 
-    def testTrimY(self):
+    def testTrimY0(self):
         mi = afwImage.MaskedImageF(10,13)
         mi.set(10, 0x0, 1)
 
@@ -117,7 +117,40 @@ class IsrTestCases(unittest.TestCase):
             for i in range(width):
                 self.assertEqual(mi2.getImage().get(i,j), 10)
 
-    def testTrimX(self):
+        xyOrigin = mi2.getXY0()
+        self.assertEqual(xyOrigin[0], 0)
+        self.assertEqual(xyOrigin[1], 0)
+
+    def testTrimY1(self):
+        mi = afwImage.MaskedImageF(10,13)
+        mi.set(10, 0x0, 1)
+
+        # these should be functionally equivalent
+        bbox     = afwImage.BBox(afwImage.PointI(0,0),
+                                 afwImage.PointI(9,2))
+        trimsec  = '[1:10,4:13]'
+        
+        trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        metadata = exposure.getMetadata()
+        metadata.setString(trimsecKeyword, trimsec)
+
+        exposure2 = ipIsr.TrimNew(exposure, self.policy)
+        mi2       = exposure2.getMaskedImage()
+
+        height        = mi2.getHeight()
+        width         = mi2.getWidth()
+        self.assertEqual(height, 10)
+        self.assertEqual(width,  10)
+        for j in range(height):
+            for i in range(width):
+                self.assertEqual(mi2.getImage().get(i,j), 10)
+
+        xyOrigin = mi2.getXY0()
+        self.assertEqual(xyOrigin[0], 0)
+        self.assertEqual(xyOrigin[1], 0)
+
+    def testTrimX0(self):
         mi = afwImage.MaskedImageF(13,10)
         mi.set(10, 0x0, 1)
 
@@ -141,7 +174,39 @@ class IsrTestCases(unittest.TestCase):
         for j in range(height):
             for i in range(width):
                 self.assertEqual(mi2.getImage().get(i,j), 10)
-    
+
+        xyOrigin = mi2.getXY0()
+        self.assertEqual(xyOrigin[0], 0)
+        self.assertEqual(xyOrigin[1], 0)
+
+    def testTrimX1(self):
+        mi = afwImage.MaskedImageF(13,10)
+        mi.set(10, 0x0, 1)
+
+        # these should be functionally equivalent
+        bbox     = afwImage.BBox(afwImage.PointI(0,0),
+                                 afwImage.PointI(2,9))
+        trimsec  = '[4:13,1:10]'
+        
+        trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        metadata = exposure.getMetadata()
+        metadata.setString(trimsecKeyword, trimsec)
+
+        exposure2 = ipIsr.TrimNew(exposure, self.policy)
+        mi2       = exposure2.getMaskedImage()
+
+        height        = mi2.getHeight()
+        width         = mi2.getWidth()
+        self.assertEqual(height, 10)
+        self.assertEqual(width,  10)
+        for j in range(height):
+            for i in range(width):
+                self.assertEqual(mi2.getImage().get(i,j), 10)
+
+        xyOrigin = mi2.getXY0()
+        self.assertEqual(xyOrigin[0], 0)
+        self.assertEqual(xyOrigin[1], 0)
 #####
         
 def suite():
