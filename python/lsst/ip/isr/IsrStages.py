@@ -10,7 +10,6 @@ import lsst.pex.exceptions  as pexExcept
 import lsst.meas.algorithms.defects as measDefects
 import lsst.sdqa            as sdqa
 
-
 # relative imports
 import isrLib
 
@@ -141,12 +140,21 @@ def ExposureFromInputData(image, metadata,
                           policy      = None,
                           defaultGain = 1.0,
                           stageName   = 'lsst.ip.isr.exposurefrominputdata'):
+
+    # Get the image's (e.g. Amp's) origin on the master (e.g. CCD)
+    # image.  We will explicitly set the mask and variance to have the
+    # same origin.  
+    xyOrigin = image.getXY0()
+    
     # Generate an empty mask
     mask = afwImage.MaskU(image.getDimensions())
     mask.set(0)
+    mask.setXY0(xyOrigin)
 
     # Generate a variance from the image pixels and gain
     var  = afwImage.ImageF(image, True)
+    var.setXY0(xyOrigin)
+    
     if metadata.exists('gain'):
         gain = metadata.get('gain')
     elif policy:
@@ -638,8 +646,9 @@ def TrimNew(exposure, policy,
     trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
     # if "True", do a deep copy
+    xyOrigin        = exposure.getMaskedImage().getXY0()
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
-    trimmedExposure.getMaskedImage().setXY0(0, 0)
+    trimmedExposure.getMaskedImage().setXY0(xyOrigin)
 
     # remove trimsec from metadata
     trimmedExposure.getMetadata().remove(trimsecKeyword)

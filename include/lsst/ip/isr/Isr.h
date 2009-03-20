@@ -87,7 +87,7 @@ namespace isr {
             _table(table), _max(table.size()) {};
         virtual ~LookupTableMultiplicative() {};
 
-        void apply(lsst::afw::image::MaskedImage<ImageT> &image) {
+        void apply(lsst::afw::image::MaskedImage<ImageT> &image, float gain=1.0) {
 
             for (int y = 0; y != image.getHeight(); ++y) {
                 for (x_iterator ptr = image.row_begin(y), end = image.row_end(y); ptr != end; ++ptr) {
@@ -125,7 +125,7 @@ namespace isr {
             _table(table), _max(table.size()) {};
         virtual ~LookupTableReplace() {};
 
-        void apply(lsst::afw::image::MaskedImage<ImageT> &image, double gain=1.0) {
+        void apply(lsst::afw::image::MaskedImage<ImageT> &image, float gain=1.0) {
             double igain = 1.0 / gain;
             for (int y = 0; y != image.getHeight(); ++y) {
                 for (x_iterator ptr = image.row_begin(y), end = image.row_end(y); ptr != end; ++ptr) {

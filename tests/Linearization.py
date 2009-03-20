@@ -9,6 +9,7 @@ import lsst.afw.image as afwImage
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.pex.logging as logging
+import lsst.daf.base as dafBase
 
 Verbosity = 4
 logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
@@ -50,8 +51,13 @@ class IsrTestCases(unittest.TestCase):
         lookupPolicy.add('value', 7)
         lookupPolicy.add('value', 7)
         lookupPolicy.add('value', 9)
-        mi       = afwImage.MaskedImageI(10,10)
-        exposure = afwImage.ExposureI(mi)
+        mi       = afwImage.MaskedImageF(10,10)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+
+        # needed for lookup table application
+        metadata = exposure.getMetadata()
+        metadata.set('gain', 1.0)
+        
         for i in range(10):
             for j in range(10):
                 exposure.getMaskedImage().getImage().set(i, j, i)
@@ -87,6 +93,11 @@ class IsrTestCases(unittest.TestCase):
         lookupPolicy.add('value', 1.)
         mi       = afwImage.MaskedImageF(10,10)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+
+        # needed for lookup table application
+        metadata = exposure.getMetadata()
+        metadata.set('gain', 1.0)
+        
         for i in range(10):
             for j in range(10):
                 exposure.getMaskedImage().getImage().set(i, j, i)

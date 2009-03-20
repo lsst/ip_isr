@@ -62,7 +62,7 @@ class IsrTestCases(unittest.TestCase):
                 self.assertEqual(mi.getImage().get(i,j), 9)
 
     def doDark(self, scaling):
-        darkScaleKeyword = self.policy.getString('darkPolicy.darkScaleKeyword')
+        darkScaleKeyword = 'expTime'
         filenameKeyword  = self.policy.getString('filenameKeyword')
         
         mi = afwImage.MaskedImageF(10,10)

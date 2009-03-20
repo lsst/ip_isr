@@ -27,7 +27,7 @@ run: DR
 defaultFwhm: 5.
 
 # Metadata keyword that gives the original filename
-filenameKeyword: FILENAME
+filenameKeyword: filename
 
 # gain of detector
 defaultGainKeyword: 'GAIN'

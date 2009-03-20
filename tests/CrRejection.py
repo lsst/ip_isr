@@ -46,10 +46,8 @@ class IsrTestCases(unittest.TestCase):
         mi.set(100, 0x0, 1)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
-
-        gainKeyword = self.policy.getPolicy('crRejectionPolicy').getString('gainKeyword')
-        metadata.setDouble(gainKeyword, 1.0)
-
+        metadata.set('gain', 1.0)
+        
         mi.set(7, 7, (1000, 0x0, 1))
 
         ipIsr.CrRejection(exposure, self.policy)
@@ -74,9 +72,7 @@ class IsrTestCases(unittest.TestCase):
         mi.set(100, 0x0, 0)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
-
-        gainKeyword = self.policy.getPolicy('crRejectionPolicy').getString('gainKeyword')
-        metadata.setDouble(gainKeyword, 1.0)
+        metadata.set('gain', 1.0)
 
         mi.set(7, 7, (1000, 0x0, 0))
 
