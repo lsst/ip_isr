@@ -10,6 +10,8 @@ import lsst.pex.exceptions  as pexExcept
 import lsst.meas.algorithms.defects as measDefects
 import lsst.sdqa            as sdqa
 
+import lsst.afw.display.ds9 as ds9
+
 # relative imports
 import isrLib
 
@@ -66,7 +68,7 @@ class IsrStage(Stage):
         OverscanCorrection(inputExposure, isrPolicy)
         
         # Trim; yields new exposure
-        calibratedExposure = TrimNew(inputExposure, isrPolicy)
+        calibratedExposure = TrimNew(inputExposure, isrPolicy, ampBBox)
         # Merge the metadata
         calibratedExposure.getMetadata().combine(inputExposure.getMetadata())
 
@@ -86,6 +88,13 @@ class IsrStage(Stage):
         
         # Finally, mask bad pixels
         defectList = measDefects.policyToBadRegionList(defectPath)
+        #
+        # The defects file is in amp coordinates, and we need to shift to the CCD frame
+        #
+        dx, dy = calibratedExposure.getMaskedImage().getXY0()
+        for defect in defectList:
+            defect.shift(dx, dy)
+
         MaskBadPixelsDef(calibratedExposure, isrPolicy, defectList)
 
         # And cosmic rays
@@ -616,7 +625,7 @@ def IlluminationCorrection(exposure, illum, policy,
 #                         endRow-startRow)
 #    return bbox
 
-def TrimNew(exposure, policy,
+def TrimNew(exposure, policy, ampBBox,
             stageSig  = isrLib.ISR_TRIM,
             stageName = 'lsst.ip.isr.trim'):
     """
@@ -643,13 +652,10 @@ def TrimNew(exposure, policy,
         raise pexExcept.LsstException, '%s : cannot find trimsec' % (stageName)        
     trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
-    # When I grab a subexposure from the exposure, the default
-    # behavior is to modify x0 and y0.  HOWEVER, in this particular
-    # case the trimmed pixels are not science pixels, and I have to
-    # undo the default behavior.
-    xyOrigin        = exposure.getMaskedImage().getXY0()
+    assert (trimsecBBox.getDimensions() == ampBBox.getDimensions())
+
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
-    trimmedExposure.getMaskedImage().setXY0(xyOrigin)
+    trimmedExposure.getMaskedImage().setXY0(ampBBox.getLLC())
 
     # remove trimsec from metadata
     trimmedExposure.getMetadata().remove(trimsecKeyword)
