@@ -14,10 +14,14 @@ class CcdInfo(object):
     """Information about the layout of a CCD"""
     
     def __init__(self):
+        self.nCcd = 0                   # Number of CCDs (0-indexed)
         self.nAmp = 0                   # Number of amplifiers (0-indexed)
         self.ampBBox = {}               # BBox for usable pixels for given amplifier; whole-CCD trimmed coords
         self.trimSecBBox = {}           # BBox for usable pixels for given amplifier; whole-CCD UN-trimmed coords
 
+    def ccdList(self):
+        """Return a list of all the CCDs"""
+        return range(0, self.nCcd)
         
     def ampList(self):
         """Return a list of all the amplifiers"""
@@ -41,6 +45,7 @@ class CfhtCcdInfo(CcdInfo):
     def __init__(self, ampPolicy="cfhtAmpBBoxPolicy.paf"):
         CcdInfo.__init__(self)          # Is this the best way to do this?
         
+        self.nCcd = 36                  # Number of CCDs (0-indexed)
         self.nAmp = 8                   # Number of amplifiers (0-indexed)
 
         ampBBoxDb = Policy(ampPolicy)
@@ -52,8 +57,7 @@ class CfhtCcdInfo(CcdInfo):
             
         for amp in self.ampList():      # Build by hand
             bbox = self.getAmpBBox(amp)
-            if amp < 4:                 # on left of CCD
-                bbox.shift(32, 0)
+            bbox.shift(32, 0)           # Allow for overclock
         
             self.trimSecBBox[amp] = bbox
 

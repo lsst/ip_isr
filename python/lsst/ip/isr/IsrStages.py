@@ -406,6 +406,8 @@ def CrRejection(exposure, policy,
         backobj = afwMath.makeBackground(im, bctrl)
         im     -= backobj.getImageF()
 
+    import lsst.afw.display.ds9 as ds9; ds9.mtv(im, frame=0)
+
     # NOTE - this background issue needs to be resolved
     bg = 0.
     
