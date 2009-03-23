@@ -127,9 +127,8 @@ class IsrStageTestCase(unittest.TestCase):
         assert(clipboard.contains(self.policy.getString('calibratedExposureKey')))
         assert(clipboard.contains(self.policy.getString('sdqaRatingSetKey')))
 
-        if True:
+        if False:
             calibratedExposure = clipboard.get(self.policy.getString('calibratedExposureKey'))
-            calibratedExposure.writeFits('/tmp/exp')
             ds9.mtv(self.img, frame=1)
             ds9.mtv(calibratedExposure, frame=2)
         
