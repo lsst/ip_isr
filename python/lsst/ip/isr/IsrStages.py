@@ -48,7 +48,7 @@ class IsrStage(Stage):
         
         # Step 1 : create an exposure
         inputExposure    = ExposureFromInputData(inputImage, inputMetadata, ampBBox)
-        
+
         ###
         # Isr Substages
         #
@@ -63,10 +63,10 @@ class IsrStage(Stage):
 
         # Saturation correction
         SaturationCorrection(inputExposure, isrPolicy)
-
+        
         # Overscan correction
         OverscanCorrection(inputExposure, isrPolicy)
-        
+
         # Trim; yields new exposure
         calibratedExposure = TrimNew(inputExposure, isrPolicy, ampBBox)
         # Merge the metadata
@@ -255,6 +255,8 @@ def MaskBadPixelsFp(exposure, policy, fpList,
                     stageSig    = isrLib.ISR_BADP,
                     stageName   = 'lsst.ip.isr.maskbadpixels'):
                   
+    raise RuntimeError, "Do not call me; use MaskBadPixelsDef.  Talk to RHL if you disagree"
+
     # common input test
     metadata   = exposure.getMetadata()
     if metadata.exists(stageSig):
@@ -310,7 +312,10 @@ def MaskBadPixelsDef(exposure, policy, defectList,
         # and interpolate over them
         defaultFwhm = policy.get('defaultFwhm')
         psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
-        algorithms.interpolateOverDefects(mi, psf, defectList)
+
+        fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
+
+        algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
 
         stageSummary = 'with interpolation'
     else:
