@@ -100,13 +100,14 @@ class IsrTestCases(unittest.TestCase):
         bbox     = afwImage.BBox(afwImage.PointI(0,10),
                                  afwImage.PointI(9,12))
         trimsec  = '[1:10,1:10]'
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy)
+        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -126,16 +127,17 @@ class IsrTestCases(unittest.TestCase):
         mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
-        bbox     = afwImage.BBox(afwImage.PointI(0,0),
-                                 afwImage.PointI(9,2))
+        bbox     = afwImage.BBox(afwImage.PointI(0,3),
+                                 afwImage.PointI(3,12))
         trimsec  = '[1:10,4:13]'
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy)
+        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -158,13 +160,14 @@ class IsrTestCases(unittest.TestCase):
         bbox     = afwImage.BBox(afwImage.PointI(10,0),
                                  afwImage.PointI(12,9))
         trimsec  = '[1:10,1:10]'
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy)
+        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -187,13 +190,14 @@ class IsrTestCases(unittest.TestCase):
         bbox     = afwImage.BBox(afwImage.PointI(0,0),
                                  afwImage.PointI(2,9))
         trimsec  = '[4:13,1:10]'
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy)
+        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
