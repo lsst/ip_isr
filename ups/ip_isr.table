@@ -1,11 +1,10 @@
-setupRequired(afw >= 3.3.4)
-setupRequired(meas_algorithms >= 3.0.0)
+setupRequired(afw >= 3.3.11)
+setupRequired(meas_algorithms >= 3.0.2)
 
 
 setupOptional(gcc)
 setupOptional(sdqa)
 setupOptional(pex_harness)
-setupOptional(ctrl_dc3pipe)
 setupOptional(isrdata)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
