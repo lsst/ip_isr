@@ -41,6 +41,7 @@ def needFilter(calibType):
     return calibType in ("flat", "fringe")
 
 def writeCalibValidityPaf(exposureNameList, fd=sys.stdout, stripPrefix=None):
+    """Write a calib DB for the CFHT data.   Needs to move into its own file!"""
 
     if isinstance(exposureNameList, str):
         exposureNameList = [exposureNameList]
@@ -121,6 +122,131 @@ def writeCalibValidityPaf(exposureNameList, fd=sys.stdout, stripPrefix=None):
                 exposureName = exposureName[len(stripPrefix) + 1:]
 
         calibInfo[ccd][amp][calibType].append(CalibData(exposureName, crunid, validFrom, validTo,
+                                                        expTime=expTime, filter=filter))
+    #
+    # Write that out
+    #
+    print >> fd, """\
+#
+# Written by $HeadURL: svn+ssh://svn.lsstcorp.org/DMS/ip/isr/trunk/python/lsst/ip/isr/calibDatabase.py $
+#            $Revision$
+#\
+"""
+    if stripPrefix:
+        print >> fd, """\
+# File prefix was %s
+#\
+""" % stripPrefix
+
+    print >> fd, "calibrations: {"
+
+    for ccd in sorted(calibInfo.keys()):
+        print >> fd, "    %s: {" % ccd
+
+        for amp in sorted(calibInfo[ccd].keys()):
+            print >> fd, "        %s: {" % amp
+            for calibType in sorted(calibInfo[ccd][amp].keys()):
+                for calib in calibInfo[ccd][amp][calibType]:
+                    print >> fd, """\
+            %s: {
+                exposureName:  %-25s  # Calibration file
+                version:       %-25s  # This calibration's version
+                validFrom:     %-25s  # Start time of this calibration's validity
+                validTo:       %-25s  # End time of this calibration's validity
+""" % (calibType, ('"%s"' % calib.exposureName), ('"%s"' % calib.version),
+       '"%s"' % calib.validFrom,  '"%s"' % calib.validTo),
+
+                    if needExpTime(calibType):
+                        print >> fd, "                expTime:   %4s                       # Exposure time" % calib.expTime
+
+                    if needFilter(calibType):
+                        print >> fd, "                filter:    \"%s\"                        # Filter" % calib.filter
+                    
+                    print >> fd, "            }"
+
+
+            print >> fd, "        }"
+
+        print >> fd, "    }"
+
+    print >> fd, "}"
+    
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+def writeCalibValidityPafSim(exposureNameList, fd=sys.stdout, stripPrefix=None):
+    """Write a calib DB for the sims.   Needs to move into its own file!"""
+
+    if isinstance(exposureNameList, str):
+        exposureNameList = [exposureNameList]
+
+    if stripPrefix:
+        stripPrefix = re.sub(r"/*$", "", stripPrefix)
+
+    calibInfo = {}
+    for exposureName in exposureNameList:
+        dirName = os.path.split(os.path.dirname(exposureName))[-1]
+        basename = os.path.basename(exposureName)
+
+        name, suffix = os.path.splitext(basename)
+        if suffix == ".fits":
+            if re.search(r"_(msk|var)$", name):
+                continue
+            
+            calibType, extra, ccd, amp = name.split("-")
+            amp = re.sub("_img", "", amp)
+        elif suffix == ".paf":
+            calibType, ccd, amp = name.split("-")
+        else:
+            print >> sys.stderr, "I don't recognize %s's suffix" % exposureName
+            continue
+
+        exposureName = re.sub("_img.fits", "", exposureName)
+
+        expTime, filter = None, None
+        if needExpTime(calibType):
+            expTime = extra
+        elif needFilter(calibType):
+            filter = extra
+        elif calibType in ("scatter"):
+            continue;                   # ignoring scattered light frames
+        elif calibType in ("defect"):
+            pass
+        else:
+            print >> sys.stderr, "I don't know what to do with %s" % (exposureName)
+            continue
+
+        if re.search(r"^c\d+$", ccd):
+            ccd = "CCD%03d" % int(ccd[1:])
+        else:
+            print >> sys.stderr, "Expected cXXXX, saw %s in %s" % (ccd, exposureName)
+            continue
+
+        if re.search(r"^a\d+$", amp):
+            amp = "Amplifier%03d" % int(amp[1:])
+        else:
+            print >> sys.stderr, "Expected cXXXX, saw %s in %s" % (amp, exposureName)
+            continue
+
+        validFrom = "1970/01/01"
+        validTo = validFrom
+        #
+        # Reformat YYYY/MM/DD dates to ISO
+        #
+        validFrom = "%4d-%02d-%02dT00:00:00.00Z" % tuple([int(x) for x in validFrom.split("/")])
+        validTo = "%4d-%02d-%02dT00:00:00.00Z" %  tuple([int(x) for x in validTo.split("/")])
+
+        if not calibInfo.has_key(ccd):
+            calibInfo[ccd] = {}
+        if not calibInfo[ccd].has_key(amp):
+            calibInfo[ccd][amp] = {}
+        if not calibInfo[ccd][amp].has_key(calibType):
+            calibInfo[ccd][amp][calibType] = []
+
+        if stripPrefix:
+            if os.path.commonprefix([exposureName, stripPrefix]) == stripPrefix:
+                exposureName = exposureName[len(stripPrefix) + 1:]
+
+        calibInfo[ccd][amp][calibType].append(CalibData(exposureName, "", validFrom, validTo,
                                                         expTime=expTime, filter=filter))
     #
     # Write that out
