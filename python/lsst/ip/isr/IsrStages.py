@@ -1,5 +1,5 @@
 import time, re, os, math, pdb
-import eups
+import lsst.utils           as utils
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
 import lsst.afw.math        as afwMath
@@ -353,7 +353,7 @@ def Linearization(exposure, policy,
                   lookupTable = None,
                   stageSig    = isrLib.ISR_LIN,
                   stageName   = 'lsst.ip.isr.linearization',
-                  policyPath  = os.path.join(eups.productDir('ip_isr'), 'pipeline')):
+                  policyPath  = os.path.join(utils.productDir('ip_isr'), 'pipeline')):
 
     # common input test
     metadata   = exposure.getMetadata()
