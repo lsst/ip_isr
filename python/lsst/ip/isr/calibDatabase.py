@@ -14,6 +14,18 @@ import lsst.daf.base
 >>> cdb = calibDatabase.CalibDB("/home/rhl/LSST/ip/isr/pipeline/calibDatabase.paf")
 >>> print cdb.lookup(when, "bias", "CCD009", 1)
 
+Final command for sims:
+>>> calibDatabase.writeCalibValidityPafSim(glob.glob("/lsst/images/repository/calib/Sim*/*-*-c*-a*_img.fits") +
+                                           glob.glob("/lsst/images/repository/calib/Sim*/*paf"),
+                                           fd=open("/lsst/images/repository/calib/calibDatabaseSim2.paf", "w"),
+                                           stripPrefix="/lsst/images/repository/calib")
+
+Final command for CFHT:
+>>> calibDatabase.writeCalibValidityPaf(glob.glob("/lsst/images/repository/calib/0*/*-*-c*-a*_img.fits") +
+                                        glob.glob("/lsst/images/repository/calib/*-N/*paf"),
+                                        fd=open("/lsst/images/repository/calib/calibDatabase4.paf", "w"),
+                                        stripPrefix="/lsst/images/repository/calib")
+                                                                                
 (N.b. CCDs may be named as 11 or "CCD011", amplifiers as 1 or "Amplifier001")
 """
 
