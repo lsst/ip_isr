@@ -1,22 +1,50 @@
 // -*- lsst-c++ -*-
 
-#include <lsst/ip/isr/Isr.h>
+#include <lsst/pex/logging/Trace.h>
 #include <lsst/afw/math.h>
 #include <lsst/afw/math/Statistics.h>
+#include <lsst/ip/isr/Isr.h>
 
-namespace isr   = lsst::ip::isr;
-namespace image = lsst::afw::image;
-namespace math  = lsst::afw::math;
+namespace pexLog = lsst::pex::logging;
+namespace afwImage = lsst::afw::image;
+namespace afwMath = lsst::afw::math;
+namespace ipIsr = lsst::ip::isr;
 
 // Functions
+template <typename ImageT>
+void ipIsr::LookupTableReplace<ImageT>::apply(afwImage::MaskedImage<ImageT> &image, float gain) const {
+    double igain = 1.0 / gain;
+    int nPixTooHigh = 0;
+    int nPixTooLow = 0;
+    for (int y = 0; y != image.getHeight(); ++y) {
+        for (x_iterator ptr = image.row_begin(y), end = image.row_end(y); ptr != end; ++ptr) {
+            int ind = static_cast<int>(ptr.image() + 0.5);  // Rounded pixel value
+            if (ind < 0) {
+                ind = 0;
+                ++nPixTooLow;
+            } else if (ind >= _max) {
+                ind = _max - 1;
+                ++nPixTooHigh;
+            }
+            PixelT p = PixelT(_table[ind],  (*ptr).mask(), _table[ind] * igain);
+            *ptr = p;
+        }
+    }
+    if ((nPixTooHigh > 0) || (nPixTooLow > 0)) {
+        // log message
+        pexLog::TTrace<1>("lsst.ip.isr.LookupTableReplace.apply", 
+            "Data truncated; %d pixels were < 0; %d pixels were >= %d", nPixTooLow, nPixTooHigh, _max);
+    }
+}
+
 template<typename ImagePixelT, typename FunctionT>
-void isr::fitOverscanImage(
-    boost::shared_ptr<math::Function1<FunctionT> > &overscanFunction,
-    image::MaskedImage<ImagePixelT> const& overscan,
+void ipIsr::fitOverscanImage(
+    boost::shared_ptr<afwMath::Function1<FunctionT> > &overscanFunction,
+    afwImage::MaskedImage<ImagePixelT> const& overscan,
     double ssize,
     int sigma
 ) {
-    typedef image::MaskedImage<ImagePixelT> MaskedImage;
+    typedef afwImage::MaskedImage<ImagePixelT> MaskedImage;
 
 
     const int height = overscan.getHeight();
@@ -29,17 +57,17 @@ void isr::fitOverscanImage(
     std::vector<double> stepsize(overscanFunction->getNParameters(), ssize);
     
     for (int y = 0; y < height; ++y) {
-        image::BBox bbox       = image::BBox( image::PointI(0, y),
-                                              image::PointI(0, width) );
+        afwImage::BBox bbox       = afwImage::BBox( afwImage::PointI(0, y),
+                                              afwImage::PointI(0, width) );
         MaskedImage mi         = MaskedImage(overscan, bbox);
-        math::Statistics stats = math::makeStatistics(*(mi.getImage()), math::MEAN | math::STDEV);
+        afwMath::Statistics stats = afwMath::makeStatistics(*(mi.getImage()), afwMath::MEAN | afwMath::STDEV);
 
-        values[y]    = stats.getValue(math::MEAN);
-        errors[y]    = stats.getValue(math::STDEV);
+        values[y]    = stats.getValue(afwMath::MEAN);
+        errors[y]    = stats.getValue(afwMath::STDEV);
         positions[y] = y;
      
     }
-    lsst::afw::math::FitResults fitResults = math::minimize(
+    afwMath::FitResults fitResults = afwMath::minimize(
         *overscanFunction,
         parameters,
         stepsize,
@@ -67,7 +95,7 @@ std::string between(std::string &s, char ldelim, char rdelim) {
     return result;
 }
 
-image::BBox isr::BBoxFromDatasec(std::string datasection) { 
+afwImage::BBox ipIsr::BBoxFromDatasec(std::string datasection) { 
     
     const char begin('[');
     const char end(']');
@@ -79,18 +107,18 @@ image::BBox isr::BBoxFromDatasec(std::string datasection) {
     
     // NOTE: atoi() needs to be passed a c_str() to get the int out
     // ALSO: note the fits convention requires an adjustment by 1
-    image::PointI startPt(
+    afwImage::PointI startPt(
         atoi(between(datasection, begin, delim1).c_str()) - 1,
         atoi(between(datasection, delim2, delim1).c_str()) - 1);
     //std::cout << "start = " << startPt.getX() << ", " << startPt.getY() << std::endl;
     
     
-    image::PointI endPt(
+    afwImage::PointI endPt(
         atoi(between(datasection, delim1, delim2).c_str()) - 1,
         atoi(temp.substr(colonPos + 1).c_str()) - 1);
     //std::cout << "end = " << endPt.getX() << ", " << endPt.getY() << std::endl;
 
-    image::BBox bbox = image::BBox(startPt, endPt);
+    afwImage::BBox bbox = afwImage::BBox(startPt, endPt);
     return bbox;
 }
 
@@ -99,28 +127,28 @@ image::BBox isr::BBoxFromDatasec(std::string datasection) {
 // Explicit instantiations
 
 template
-void isr::fitOverscanImage(
-     boost::shared_ptr<math::Function1<double> > &overscanFunction, 
-    image::MaskedImage<float> const& overscan,
+void ipIsr::fitOverscanImage(
+     boost::shared_ptr<afwMath::Function1<double> > &overscanFunction, 
+    afwImage::MaskedImage<float> const& overscan,
     double ssize,
     int sigma);
 
 template
-void isr::fitOverscanImage(
-     boost::shared_ptr<math::Function1<double> > &overscanFunction,
-    image::MaskedImage<double> const& overscan,
+void ipIsr::fitOverscanImage(
+     boost::shared_ptr<afwMath::Function1<double> > &overscanFunction,
+    afwImage::MaskedImage<double> const& overscan,
     double ssize,
     int sigma);
 
-template class isr::CountMaskedPixels<float>;
-template class isr::CountMaskedPixels<double>;
+template class ipIsr::CountMaskedPixels<float>;
+template class ipIsr::CountMaskedPixels<double>;
 
 // Integer classes make no sense for multiplicative table
 //   unless you change the image type
-template class isr::LookupTableMultiplicative<float>;
-template class isr::LookupTableMultiplicative<double>;
+template class ipIsr::LookupTableMultiplicative<float>;
+template class ipIsr::LookupTableMultiplicative<double>;
 
 // Only integer images make sense for a replacement table
-template class isr::LookupTableReplace<int>;
+template class ipIsr::LookupTableReplace<int>;
 // But we turn our images into floats immediately, so use it
-template class isr::LookupTableReplace<float>;
+template class ipIsr::LookupTableReplace<float>;
