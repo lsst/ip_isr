@@ -35,10 +35,12 @@ dc3PipeDir       = eups.productDir('ctrl_dc3pipe')
 dc3MetadataPath  = os.path.join(dc3PipeDir, 'pipeline', 'dc3MetadataPolicy.paf')
 cfhtMetadataPath    = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtDataTypePolicy.paf')
 cfhtCalibrationPath = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtCalibrationTypePolicy.paf')
+ampPolicyPath = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtAmpBBoxPolicy.paf')
 
 dc3MetadataPolicy  = pexPolicy.Policy.createPolicy(dc3MetadataPath)
 cfhtMetadataPolicy = pexPolicy.Policy.createPolicy(cfhtMetadataPath)
 cfhtCalibrationPolicy = pexPolicy.Policy.createPolicy(cfhtCalibrationPath)
+ampPolicy = pexPolicy.Policy.createPolicy(ampPolicyPath)
 
 class IsrStageTestCase(unittest.TestCase):
     """A test case for IsrStages.py"""
@@ -78,11 +80,12 @@ class IsrStageTestCase(unittest.TestCase):
         self.img = afwImage.ImageF(inputImage)
         clipboard.put('inputImage0', self.img)
 
-        # with : an amp BBox
-        ampBBox = afwImage.BBox(afwImage.PointI(0,0),
-                                self.img.getWidth(),
-                                self.img.getHeight())
-        clipboard.put('ampBBox', ampBBox)
+
+        # with : input (transformed) metadata
+        # 
+        metadata = afwImage.readMetadata(inputImage)
+        transformMetadata(metadata, cfhtMetadataPolicy, dc3MetadataPolicy, 'Keyword')
+        clipboard.put('inputMetadata0', metadata)
 
         # with : calibration exposures
         bias         = afwImage.ExposureF(biasPath)
@@ -100,12 +103,15 @@ class IsrStageTestCase(unittest.TestCase):
         transformMetadata(flatMetadata, cfhtCalibrationPolicy, dc3MetadataPolicy, 'Keyword')
         clipboard.put('flatExposure', flat)
         
+        # with : an amp BBox
+        ampstr  = "CcdBBox.Amp"+str(metadata.get("ampId"))
+        ampheight  = ampPolicy.getInt(ampstr+".height")
+        ampwidth   = ampPolicy.getInt(ampstr+".width")
+        ampBBox = afwImage.BBox(afwImage.PointI(0,0),
+                                ampwidth,
+                                ampheight)
+        clipboard.put('ampBBox', ampBBox)
 
-        # with : input (transformed) metadata
-        # 
-        metadata = afwImage.readMetadata(inputImage)
-        transformMetadata(metadata, cfhtMetadataPolicy, dc3MetadataPolicy, 'Keyword')
-        clipboard.put('inputMetadata0', metadata)
         
         inQueue = pexQueue.Queue()
         inQueue.addDataset(clipboard)
