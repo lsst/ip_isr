@@ -25,7 +25,7 @@ class IsrStage(Stage):
     def process(self):
         self.activeClipboard = self.inputQueue.getNextDataset()
 
-        # We get suffixs of either '0' or '1'; allow for both here
+        # 
         inputImageKey    = self._policy.get('inputImageKey')
         inputMetadataKey = self._policy.get('inputMetadataKey')
         calibDataKey     = self._policy.get('calibDataKey')
@@ -40,14 +40,10 @@ class IsrStage(Stage):
 
         # Get the image's (e.g. Amp's) origin on the master (e.g. CCD)
         # image.  
-        ampBBox          = self.activeClipboard.get('ampBBox')
+        #ampBBox          = self.activeClipboard.get('ampBBox')
 
-        # Finally, grab the additional information in calibDataKey
-        defectPath       = calibData.get('defectPath')
-        linearizePath    = calibData.get('linearizePath')
-        
         # Step 1 : create an exposure
-        inputExposure    = ExposureFromInputData(inputImage, inputMetadata, ampBBox)
+        inputExposure    = ExposureFromInputData(inputImage, inputMetadata)
 
         ###
         # Isr Substages
@@ -57,29 +53,38 @@ class IsrStage(Stage):
         
         # Linearize
         # Note - a replacement lookup table requires an integer image
-        linearityPolicy = pexPolicy.Policy.createPolicy(linearizePath)
-        linearityTable  = LookupTableFromPolicy(linearityPolicy)
-        Linearization(inputExposure, isrPolicy, linearityTable)
+
+        if keyIsSet('linearize', isrPolicy):
+            linearizePath    = calibData.get('linearizePath')
+            linearityPolicy = pexPolicy.Policy.createPolicy(linearizePath)
+            linearityTable  = LookupTableFromPolicy(linearityPolicy)
+            Linearization(inputExposure, isrPolicy, linearityTable)
 
         # Saturation correction
-        SaturationCorrection(inputExposure, isrPolicy)
+        if keyIsSet('saturationCorrection', isrPolicy):
+            SaturationCorrection(inputExposure, isrPolicy)
         
         # Overscan correction
-        OverscanCorrection(inputExposure, isrPolicy)
+        if keyIsSet('overscanCorrection', isrPolicy):
+            OverscanCorrection(inputExposure, isrPolicy)
 
         # Trim; yields new exposure
-        calibratedExposure = TrimNew(inputExposure, isrPolicy, ampBBox)
+        if keyIsSet('trim', isrPolicy):
+            calibratedExposure = TrimNew(inputExposure, isrPolicy)
         # Merge the metadata
         calibratedExposure.getMetadata().combine(inputExposure.getMetadata())
 
         # Bias correct
-        BiasCorrection(calibratedExposure, bias, isrPolicy)
+        if keyIsSet('biasCorrection', isrPolicy):
+            BiasCorrection(calibratedExposure, bias, isrPolicy)
 
         # Dark correct
-        DarkCorrection(calibratedExposure, dark, isrPolicy)
+        if keyIsSet('darkCorrection', isrPolicy):
+            DarkCorrection(calibratedExposure, dark, isrPolicy)
 
         # Flat field
-        FlatCorrection(calibratedExposure, flat, isrPolicy)
+        if keyIsSet('flatCorrection', isrPolicy):
+            FlatCorrection(calibratedExposure, flat, isrPolicy)
 
         # Fringe; not for DC3a
         # fringeImage    = afwImage.ImageF(fringePath)
@@ -87,21 +92,22 @@ class IsrStage(Stage):
         # fringe = ExposureFromInputData(fringeImage, fringeMetadata, makeWcs=False, policy=isrPolicy)
         
         # Finally, mask bad pixels
-        defectList = measDefects.policyToBadRegionList(defectPath)
-        #
-        # The defects file is in amp coordinates, and we need to shift to the CCD frame
-        #
-        dx, dy = calibratedExposure.getMaskedImage().getXY0()
-        for defect in defectList:
-            defect.shift(dx, dy)
+        # Finally, grab the additional information in calibDataKey
+        if keyIsSet('maskBadPixels', isrPolicy):
+            defectPath       = calibData.get('defectPath')
+            defectList = measDefects.policyToBadRegionList(defectPath)
+            #
+            # The defects file is in amp coordinates, and we need to shift to the CCD frame
+            #
+            dx, dy = calibratedExposure.getMaskedImage().getXY0()
+            for defect in defectList:
+                defect.shift(dx, dy)
 
-        MaskBadPixelsDef(calibratedExposure, isrPolicy, defectList)
+            MaskBadPixelsDef(calibratedExposure, isrPolicy, defectList)
 
         # And cosmic rays
-        CrRejection(calibratedExposure, isrPolicy)
-
-        # Finally, produce Sdqa metrics
-        sdqaRatingSet = CalculateSdqaRatings(calibratedExposure)
+        if keyIsSet('cosmicRayCorrection', isrPolicy):
+            CrRejection(calibratedExposure, isrPolicy)
 
         #
         # Isr Substages
@@ -109,11 +115,6 @@ class IsrStage(Stage):
         
         calibratedExposureKey = self._policy.get('calibratedExposureKey')
         self.activeClipboard.put(calibratedExposureKey, calibratedExposure)
-
-        sdqaRatingSetKey  = self._policy.get('sdqaRatingSetKey')
-        persistableVector = sdqa.PersistableSdqaRatingVector(sdqaRatingSet)
-        self.activeClipboard.put(sdqaRatingSetKey, persistableVector)
-        
         self.outputQueue.addDataset(self.activeClipboard)
 
         
@@ -148,7 +149,7 @@ def CalculateSdqaRatings(exposure,
 ### STAGE : Assemble Exposure from input Image
 #
 
-def ExposureFromInputData(image, metadata, ampBBox,
+def ExposureFromInputData(image, metadata,
                           makeWcs     = True,
                           policy      = None,
                           defaultGain = 1.0,
@@ -184,7 +185,7 @@ def ExposureFromInputData(image, metadata, ampBBox,
 
     # makeMaskedImage() will make a MaskedImage with the same type as Image
     mi   = afwImage.makeMaskedImage(image, mask, var)
-    mi.setXY0(ampBBox.getX0(), ampBBox.getY0())
+#    mi.setXY0(ampBBox.getX0(), ampBBox.getY0())
 
     if makeWcs:
         # Extract the Wcs info from the input metadata
@@ -500,9 +501,11 @@ def BiasCorrection(exposure, bias, policy,
         return
 
     bmetadata         = bias.getMetadata()
-    filename          = bmetadata.getString('filename')
-
+#    filename          = bmetadata.getString('filename')
+# TEMPORARY 
+    filename = 'Zero'
     mi  = exposure.getMaskedImage()
+
     bmi = bias.getMaskedImage()
     mi -= bmi
 
@@ -555,7 +558,9 @@ def FlatCorrection(exposure, flat, policy,
         return
 
     fmetadata         = flat.getMetadata()
-    filename          = fmetadata.getString('filename')
+#    filename          = fmetadata.getString('filename')
+# TEMPORARY 
+    filename = 'Flat'
 
     scalingKeyword    = policy.getPolicy('flatPolicy').getString('flatScaleKeyword') # e.g. MEAN
     flatscaling = 1.0
@@ -630,7 +635,7 @@ def IlluminationCorrection(exposure, illum, policy,
 #                         endRow-startRow)
 #    return bbox
 
-def TrimNew(exposure, policy, ampBBox,
+def TrimNew(exposure, policy,
             stageSig  = isrLib.ISR_TRIM,
             stageName = 'lsst.ip.isr.trim'):
     """
@@ -657,10 +662,7 @@ def TrimNew(exposure, policy, ampBBox,
         raise pexExcept.LsstException, '%s : cannot find trimsec' % (stageName)        
     trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
-    assert (trimsecBBox.getDimensions() == ampBBox.getDimensions())
-
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
-    trimmedExposure.getMaskedImage().setXY0(ampBBox.getLLC())
 
     # remove trimsec from metadata
     trimmedExposure.getMetadata().remove(trimsecKeyword)
@@ -751,3 +753,9 @@ def PupilCorrection(exposure, fringe, policy,
                     stageName = 'lsst.ip.isr.pupilcorrection'):
 
     raise pexExcept.LsstException, '%s not implemented' % (stageName)
+
+def keyIsSet(key, policy):
+    if not policy.exists(key):
+        return False
+    
+    return(policy.getBool(key))
