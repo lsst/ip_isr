@@ -21,6 +21,7 @@
 	
 #include <string>
 #include <vector>
+#include <sstream>
 
 #include <boost/shared_ptr.hpp>
 
@@ -175,6 +176,10 @@ namespace isr {
     
     lsst::afw::image::BBox BBoxFromDatasec(
         std::string datasection
+        );
+
+    std::string DatasecFromBBox(
+        lsst::afw::image::BBox bbox
         );
 
 }}} // namespace lsst::ip::isr

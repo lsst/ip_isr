@@ -122,6 +122,18 @@ afwImage::BBox ipIsr::BBoxFromDatasec(std::string datasection) {
     return bbox;
 }
 
+std::string ipIsr::DatasecFromBBox(afwImage::BBox bbox) {
+    int x0 = bbox.getX0();
+    int y0 = bbox.getY0();
+    int x1 = bbox.getX1();
+    int y1 = bbox.getY1();
+    
+    std::ostringstream dataSec;
+
+    dataSec << '[' << x0 + 1 << ':' << x1 + 1 << ',' << y0 +1 << ':' << y1 + 1 << ']';
+
+    return dataSec.str();
+}
 
 
 // Explicit instantiations

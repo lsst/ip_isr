@@ -513,7 +513,9 @@ def BiasCorrection(exposure, bias, policy,
     stageSummary = 'using %s' % (filename)
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
-    
+#
+# should be removing BIASSEC here.   Where did we use it?  Did we ignore it?
+#  
 
 def DarkCorrection(exposure, dark, policy,
                    stageSig  = isrLib.ISR_DARK,
@@ -665,9 +667,30 @@ def TrimNew(exposure, policy,
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
 
     # remove trimsec from metadata
-    trimmedExposure.getMetadata().remove(trimsecKeyword)
-    # n.b. what other changes are needed here?
-    # e.g. wcs info, overscan, etc
+    metadata.remove(trimsecKeyword)
+
+    # shift datasec to be relative to trimsec, which defines new origin
+    # remove biassec
+
+    datasec = None
+    if metadata.exists('datasec'):
+        datasecKeyword = 'datasec'
+        datasec = metadata.getString(datasecKeyword)
+    else:
+        datasecKeyword = policy.getPolicy('trimPolicy').getString('datasecKeyword')
+        if metadata.exists(datasecKeyword):
+            datasec = metadata.getString(datasecKeyword)
+    if datasec == None:
+        raise pexExcept.LsstException, '%s : cannot find datasec' % (stageName)        
+    datasecBBox = isrLib.BBoxFromDatasec(datasec)
+
+    datasecBBox.shift(-trimsecBBox.getX0(), -trimsecBBox.getY0())
+
+    datasec = isrLib.DatasecFromBBox(datasecBBox)
+
+    metadata.set(datasecKeyword, datasec)
+
+    # Any changes needed for wcs??
     
     # common outputs
     stageSummary = 'using trimsec %s' % (trimsec)
