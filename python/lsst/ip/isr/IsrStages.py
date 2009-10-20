@@ -5,6 +5,7 @@ import lsst.afw.image       as afwImage
 import lsst.afw.math        as afwMath
 import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
+from lsst.pex.logging import Log
 import lsst.pex.policy      as pexPolicy
 import lsst.pex.exceptions  as pexExcept
 import lsst.meas.algorithms.defects as measDefects
@@ -21,6 +22,13 @@ import isrLib
 from lsst.pex.harness.Stage import Stage
 
 class IsrStage(Stage):
+
+    def __init__(self, stageId = -1, policy = None):
+        # call base constructor
+        Stage.__init__(self,stageId, policy)
+        # initialize a log
+        self.log = Log(Log.getDefaultLog(), 
+                "lsst.ip.isr.IsrStages")
 
     def process(self):
         self.activeClipboard = self.inputQueue.getNextDataset()
@@ -43,7 +51,9 @@ class IsrStage(Stage):
         #ampBBox          = self.activeClipboard.get('ampBBox')
 
         # Step 1 : create an exposure
-        inputExposure    = ExposureFromInputData(inputImage, inputMetadata)
+        inputExposure    = ExposureFromInputData(inputImage, inputMetadata, False)
+        mi      = inputExposure.getMaskedImage()
+        self.log.log(Log.DEBUG, "Input MaskedImage X0, Y0: %d %d" % (mi.getX0(), mi.getY0()))
 
         ###
         # Isr Substages
@@ -71,8 +81,16 @@ class IsrStage(Stage):
         # Trim; yields new exposure
         if keyIsSet('trim', isrPolicy):
             calibratedExposure = TrimNew(inputExposure, isrPolicy)
+
+        mi      =  calibratedExposure.getMaskedImage()
+        self.log.log(Log.DEBUG, "Trimmed MaskedImage X0, Y0: %d %d" % (mi.getX0(), mi.getY0()))
+        
         # Merge the metadata
         calibratedExposure.getMetadata().combine(inputExposure.getMetadata())
+
+        mi      =  calibratedExposure.getMaskedImage()
+        self.log.log(Log.DEBUG, "md combined MaskedImage X0, Y0: %d %d" % (mi.getX0(), mi.getY0()))
+        
 
         # Bias correct
         if keyIsSet('biasCorrection', isrPolicy):
@@ -108,16 +126,19 @@ class IsrStage(Stage):
         # And cosmic rays
         if keyIsSet('cosmicRayCorrection', isrPolicy):
             CrRejection(calibratedExposure, isrPolicy)
-
-        #
-        # Isr Substages
-        ###
+        mi      =  calibratedExposure.getMaskedImage()
+        self.log.log(Log.DEBUG, "Output MaskedImage X0, Y0: %d %d" % (mi.getX0(), mi.getY0()))
         
         calibratedExposureKey = self._policy.get('calibratedExposureKey')
         self.activeClipboard.put(calibratedExposureKey, calibratedExposure)
         self.outputQueue.addDataset(self.activeClipboard)
 
         
+
+        #
+        # Isr Substages
+        ###
+
 
     
 
@@ -664,7 +685,14 @@ def TrimNew(exposure, policy,
         raise pexExcept.LsstException, '%s : cannot find trimsec' % (stageName)        
     trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
+    #
+    # In this case, we do NOT want the X0, Y0 of exposure to be adjusted, so save it and restore it
+    #
+    saveXY0 = exposure.getMaskedImage().getXY0()
+
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
+
+    trimmedExposure.getMaskedImage().setXY0(saveXY0)
 
     # remove trimsec from metadata
     metadata.remove(trimsecKeyword)
