@@ -50,8 +50,15 @@ class IsrStage(Stage):
         # image.  
         #ampBBox          = self.activeClipboard.get('ampBBox')
 
+        isrPolicy = self._policy.get('isrPolicy')
+        ampBBoxKey       = isrPolicy.get('ampBBoxKey')
+        
         # Step 1 : create an exposure
-        inputExposure    = ExposureFromInputData(inputImage, inputMetadata, False)
+        (inputExposure, ampBBox)    = ExposureFromInputData(inputImage, inputMetadata, isrPolicy)
+        self.log.log(Log.INFO, "ampBBoxKey: %s" % ampBBoxKey)
+
+        self.activeClipboard.put(ampBBoxKey, ampBBox)
+
         mi      = inputExposure.getMaskedImage()
         self.log.log(Log.DEBUG, "Input MaskedImage X0, Y0: %d %d" % (mi.getX0(), mi.getY0()))
 
@@ -59,8 +66,6 @@ class IsrStage(Stage):
         # Isr Substages
         #
 
-        isrPolicy = self._policy.get('isrPolicy')
-        
         # Linearize
         # Note - a replacement lookup table requires an integer image
 
@@ -170,9 +175,8 @@ def CalculateSdqaRatings(exposure,
 ### STAGE : Assemble Exposure from input Image
 #
 
-def ExposureFromInputData(image, metadata,
+def ExposureFromInputData(image, metadata, policy,
                           makeWcs     = True,
-                          policy      = None,
                           defaultGain = 1.0,
                           stageName   = 'lsst.ip.isr.exposurefrominputdata'):
 
@@ -180,33 +184,39 @@ def ExposureFromInputData(image, metadata,
     mask = afwImage.MaskU(image.getDimensions())
     mask.set(0)
 
+    # get needed policy parameters
+
+    stagePolicy = policy.getPolicy('exposurePolicy')
+
+    if stagePolicy and stagePolicy.exists('GainKeyword'):
+        gainKeyword = stagePolicy.get('GainKeyword')
+        if metadata.exists(gainKeyword):
+            gain = metadata.get(gainKeyword)
+        else:
+            pexLog.Trace(stageName, 4, '%s keyword does not exist.  Using default gain=%f' % (gainKeyword, defaultGain))
+            gain = defaultGain
+    else:
+        pexLog.Trace(stageName, 4, 'Gain not set by policy. Using default gain=%f' % (defaultGain))
+        gain = defaultGain
+
+    ampBBox = None
+    if stagePolicy and stagePolicy.exists('ampBBoxKeyword'):
+        ampBBoxKeyword = stagePolicy.get('ampBBoxKeyword')
+        if metadata.exists(ampBBoxKeyword):
+            ampBBoxString = metadata.get(ampBBoxKeyword)
+            ampBBox = isrLib.BBoxFromDatasec(ampBBoxString)
+
+
     # Generate a variance from the image pixels and gain
     var  = afwImage.ImageF(image, True)
     
-    if metadata.exists('gain'):
-        gain = metadata.get('gain')
-    elif policy:
-        filenameKeyword = policy.get('filenameKeyword')
-        filename        = metadata.get(filenameKeyword)
-        if policy.exists('defaultGainKeyword'):
-            gainKeyword = policy.get('defaultGainKeyword')
-            if metadata.exists(gainKeyword):
-                gain = metadata.get(gainKeyword)
-            else:
-                pexLog.Trace(stageName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
-                gain = defaultGain
-        else:
-            pexLog.Trace(stageName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
-            gain = defaultGain
-    else:
-        pexLog.Trace(stageName, 4, 'Using default gain=%f' % (defaultGain))
-        gain = defaultGain
     # Normalize by the gain
     var /= gain
 
     # makeMaskedImage() will make a MaskedImage with the same type as Image
     mi   = afwImage.makeMaskedImage(image, mask, var)
-#    mi.setXY0(ampBBox.getX0(), ampBBox.getY0())
+    if ampBBox:
+        mi.setXY0(ampBBox.getLLC())
 
     if makeWcs:
         # Extract the Wcs info from the input metadata
@@ -218,7 +228,7 @@ def ExposureFromInputData(image, metadata,
     exposure = afwImage.makeExposure(mi, wcs)
     exposure.setMetadata(metadata)
 
-    return exposure
+    return (exposure, ampBBox)
 
 #
 ### STAGE : Validation of the image sizes, contents, etc.
