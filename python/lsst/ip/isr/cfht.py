@@ -81,7 +81,7 @@ class CfhtCcdInfo(CcdInfo):
             subMask = mask.Factory(mask, self.getTrimSecBBox(amp))
             subMask.setXY0(afwImage.PointI(0, 0)) # we'll use per-amp coordinates
 
-            ds = afwDetection.makeDetectionSet(subMask, afwDetection.Threshold(0.5), "INTRP")
+            ds = afwDetection.makeFootprintSet(subMask, afwDetection.Threshold(0.5), "INTRP")
 
             if False:
                 ds9.setDefaultFrame(amp)

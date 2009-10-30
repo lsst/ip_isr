@@ -1,0 +1,37 @@
+#<?cfg paf policy ?>
+#
+# For DC3a, all input data must have these keywords (validated) and
+# types (not validated)
+
+# Information needed for event generation 
+visitId    : int
+exposureId : int
+ccdId      : int
+ampId      : int
+datasetId  : string
+filter     : string
+expTime    : float
+ra         : double
+decl       : double
+EQUINOX    : double
+airmass    : double
+dateObs    : double
+filename   : string
+
+# Information needed for ISR
+gain       : float
+saturation : float
+trimsec    : string
+overscan   : string
+
+# calibration data only
+# meancounts : float
+# darkscale  : float
+# flatscale  : float
+# illumscale : float
+
+# fringe frames; not for dc3a
+# fringesky  : float
+# fringeamp  : float
+
+# Information needed for your particular stage

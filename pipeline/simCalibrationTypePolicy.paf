@@ -1,0 +1,28 @@
+#<?cfg paf policy ?>
+
+# Policy configuration for Simulated DC3a data
+
+# Unique visit ID
+visitIdKeyword: OBSID
+
+# CCD Id
+ccdIdKeyword: CCDID
+
+# Amp Id
+ampIdKeyword: LSSTAMP
+
+# Time of mid-observation in TAI
+dateObsKeyword: MJD-OBS
+
+# Exposure time in seconds
+expTimeKeyword: EXPTIME
+
+# Filter
+filterKeyword: FILTER
+
+# Airmass of mid-exposure
+datasetIdKeyword: DATASET
+
+# File name
+filenameKeyword: FILENAME
+

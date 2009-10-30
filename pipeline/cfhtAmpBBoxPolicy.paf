@@ -1,0 +1,59 @@
+CcdBBox: {
+  # Bounding box of each Amp image in master CCD image
+
+  Amp0: {
+    x0: 0
+    y0: 0
+    width: 1024
+    height: 1153
+  }
+
+  Amp1: {
+    x0: 0
+    y0: 1153
+    width: 1024
+    height: 1153
+  }
+
+  Amp2: {
+    x0: 0
+    y0: 2306
+    width: 1024
+    height: 1153
+  }
+
+  Amp3: {
+    x0: 0
+    y0: 3459
+    width: 1024
+    height: 1153
+  }
+  Amp4: {
+    x0: 1024
+    y0: 0
+    width: 1024
+    height: 1153
+  }
+
+  Amp5: {
+    x0: 1024
+    y0: 1153
+    width: 1024
+    height: 1153
+  }
+
+  Amp6: {
+    x0: 1024
+    y0: 2306
+    width: 1024
+    height: 1153
+  }
+
+  Amp7: {
+    x0: 1024
+    y0: 3459
+    width: 1024
+    height: 1153
+  }
+
+}

@@ -21,7 +21,7 @@ import lsst.daf.base as dafBase
 import lsst.ip.isr.IsrStages as isrStages
 import lsst.afw.display.ds9 as ds9
 
-from lsst.ctrl.dc3pipe.MetadataStages import transformMetadata
+from lsst.ip.isr.MetadataStages import transformMetadata
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 Verbosity = 4
@@ -31,14 +31,16 @@ isrDataDir    = eups.productDir('isrdata')
 inputImage    = os.path.join(isrDataDir, 'SimDeep/dc3a', 'raw-e000001-c011-a000.fits')
 isrDir        = eups.productDir('ip_isr')
 
-dc3PipeDir       = eups.productDir('ctrl_dc3pipe')
-dc3MetadataPath  = os.path.join(dc3PipeDir, 'pipeline', 'dc3MetadataPolicy.paf')
-simMetadataPath    = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'simDataTypePolicy.paf')
-simCalibrationPath = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'simCalibrationTypePolicy.paf')
+policyDir = isrDir+'/pipeline'
+dc3MetadataPath  = os.path.join(policyDir, 'dc3MetadataPolicy.paf')
+simMetadataPath    = os.path.join(policyDir, 'simDataTypePolicy.paf')
+simCalibrationPath = os.path.join(policyDir, 'simCalibrationTypePolicy.paf')
+simAmpPolicyPath = os.path.join(policyDir, 'simAmpBBoxPolicy.paf')
 
 dc3MetadataPolicy  = pexPolicy.Policy.createPolicy(dc3MetadataPath)
 simMetadataPolicy = pexPolicy.Policy.createPolicy(simMetadataPath)
 simCalibrationPolicy = pexPolicy.Policy.createPolicy(simCalibrationPath)
+ampPolicy = pexPolicy.Policy.createPolicy(simAmpPolicyPath)
 
 class IsrStageTestCase(unittest.TestCase):
     """A test case for IsrStages.py"""
@@ -79,11 +81,6 @@ class IsrStageTestCase(unittest.TestCase):
         self.img = afwImage.ImageF(inputImage)
         clipboard.put('inputImage0', self.img)
 
-        # with : an amp BBox
-        ampBBox = afwImage.BBox(afwImage.PointI(0,0),
-                                self.img.getWidth(),
-                                self.img.getHeight())
-        clipboard.put('ampBBox', ampBBox)
 
         # with : calibration exposures
         bias         = afwImage.ExposureF(biasPath)
@@ -104,8 +101,19 @@ class IsrStageTestCase(unittest.TestCase):
         # with : input (transformed) metadata
         # 
         metadata = afwImage.readMetadata(inputImage)
+        #This is needed because the test images do not have saturation right now.  Should fix this.
+        metadata.set('SATURATE','65535');
+        metadata.set('FILENAME', inputImage);
         transformMetadata(metadata, simMetadataPolicy, dc3MetadataPolicy, 'Keyword')
         clipboard.put('inputMetadata0', metadata)
+        # with : an amp BBox
+        ampstr  = "CcdBBox.Amp"+str(metadata.get("ampId"))
+        ampheight  = ampPolicy.getInt(ampstr+".height")
+        ampwidth   = ampPolicy.getInt(ampstr+".width")
+        ampBBox = afwImage.BBox(afwImage.PointI(0,0),
+                                ampwidth,
+                                ampheight)
+        clipboard.put('ampBBox', ampBBox)
         
         inQueue = pexQueue.Queue()
         inQueue.addDataset(clipboard)

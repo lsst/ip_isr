@@ -96,6 +96,8 @@ class IsrStage(Stage):
             defect.shift(dx, dy)
 
         MaskBadPixelsDef(calibratedExposure, isrPolicy, defectList)
+        # Background subtract
+        BackgroundSubtraction(calibratedExposure, isrPolicy)
 
         # And cosmic rays
         CrRejection(calibratedExposure, isrPolicy)
@@ -243,7 +245,7 @@ def DefectsFromCfhtImage(fitsfile):
 
     # find bad regions
     thresh    = afwDetection.Threshold(-0.5)
-    ds        = afwDetection.DetectionSetF(mi, thresh)
+    ds        = afwDetection.FootprintSetF(mi, thresh)
     fpList    = ds.getFootprints()
 
     return fpList
@@ -376,14 +378,51 @@ def Linearization(exposure, policy,
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
 
+def BackgroundSubtraction(exposure, policy,
+                          stageSig  = isrLib.ISR_BACKSUB,
+                          stageName = 'lsst.ip.isr.backsub'):
+
+    metadata = exposure.getMetadata()
+    if metadata.exists(stageSig):
+        pexLog.Trace(stageName, 4, '%s has already been run' % (stageSig))
+        return
+    mi = exposure.getMaskedImage()
+    gridsize   = policy.getPolicy('backgroundPolicy').getInt('backgroundGridsize')
+    interptype = policy.getPolicy('backgroundPolicy').get('fitType')
+    nsigma     = policy.getPolicy('backgroundPolicy').getDouble('nSigma')
+    niter      = policy.getPolicy('backgroundPolicy').getInt('numberIterations')
+    bctrl = None
+    try:
+        bctrl = {
+            'LINEAR'               : afwMath.BackgroundControl(afwMath.LINEAR), 
+            'NATURAL_SPLINE'       : afwMath.BackgroundControl(afwMath.NATURAL_SPLINE), 
+            'CUBIC_SPLINE'         : afwMath.BackgroundControl(afwMath.CUBIC_SPLINE), 
+            'CUBIC_SPLINE_PERIODIC': afwMath.BackgroundControl(afwMath.CUBIC_SPLINE_PERIODIC), 
+            'AKIMA_SPLINE'         : afwMath.BackgroundControl(afwMath.AKIMA_SPLINE), 
+            'AKIMA_SPLINE_PERIODIC': afwMath.BackgroundControl(afwMath.CUBIC_SPLINE_PERIODIC) 
+        }[interptype]
+    except:
+        bctrl = afwMath.BackgroundControl(afwMath.AKIMA_SPLINE)
+    bctrl.setNxSample(max(2, int(mi.getWidth()/gridsize) + 1))
+    bctrl.setNySample(max(2, int(mi.getHeight()/gridsize) + 1))
+    bctrl.sctrl.setNumSigmaClip(nsigma)
+    bctrl.sctrl.setNumIter(niter)
+    im      = mi.getImage()
+    backobj = afwMath.makeBackground(im, bctrl)
+    im     -= backobj.getImageF()
+
+    # common outputs
+    stageSummary = 'Background subtracted with nsigma=%f, backgroundgrid=%f, and numiter=%f' % (nsigma,gridsize,niter)
+    pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
+    metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
+    
 #
 ### STAGE : Cosmic Ray Rejection
 #
 
 def CrRejection(exposure, policy,
                 stageSig      = isrLib.ISR_CRREJ,
-                stageName     = 'lsst.ip.isr.crreject',
-                subBackground = True):
+                stageName     = 'lsst.ip.isr.crreject'):
     
     # common input test
     metadata   = exposure.getMetadata()
@@ -399,17 +438,6 @@ def CrRejection(exposure, policy,
     crPolicy.set('e_per_dn', gain)
 
     mi = exposure.getMaskedImage()
-    if subBackground:
-        # how much of this do we put in policy?
-        bctrl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
-        bctrl.setNxSample(max(2, int(mi.getWidth()/256) + 1))
-        bctrl.setNySample(max(2, int(mi.getHeight()/256) + 1))
-        bctrl.sctrl.setNumSigmaClip(3)
-        bctrl.sctrl.setNumIter(3)
-        
-        im      = mi.getImage()
-        backobj = afwMath.makeBackground(im, bctrl)
-        im     -= backobj.getImageF()
 
     # NOTE - this background issue needs to be resolved
     bg = 0.
@@ -418,12 +446,9 @@ def CrRejection(exposure, policy,
     psf         = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
     crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
     
-    if subBackground:
-        im     += backobj.getImageF() 
     
     # common outputs
-    stageSummary = 'with background subtraction = %s; found %d CRs' % (str(subBackground),
-                                                                       len(crs))
+    stageSummary = 'Found %d CRs' % (len(crs))
     pexLog.Trace(stageName, 4, '%s %s' % (stageSig, stageSummary))    
     metadata.setString(stageSig, '%s; %s' % (stageSummary, time.asctime()))
 
@@ -456,7 +481,7 @@ def SaturationCorrection(exposure, policy,
 
     # find saturated regions
     thresh     = afwDetection.Threshold(saturation)
-    ds         = afwDetection.DetectionSetF(mi, thresh)
+    ds         = afwDetection.FootprintSetF(mi, thresh)
     fpList     = ds.getFootprints()
     # we will turn them into defects for interpolating
     defectList = algorithms.DefectListT()

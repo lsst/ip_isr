@@ -21,7 +21,7 @@ import lsst.daf.base as dafBase
 import lsst.ip.isr.IsrStages as isrStages
 import lsst.afw.display.ds9 as ds9
 
-from lsst.ctrl.dc3pipe.MetadataStages import transformMetadata
+from lsst.ip.isr.MetadataStages import transformMetadata
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 Verbosity = 4
@@ -31,11 +31,12 @@ isrDataDir    = eups.productDir('isrdata')
 inputImage    = os.path.join(isrDataDir, 'CFHT/D4/dc3a', 'raw-704893-e000-c000-a000.fits')
 isrDir        = eups.productDir('ip_isr')
 
-dc3PipeDir       = eups.productDir('ctrl_dc3pipe')
-dc3MetadataPath  = os.path.join(dc3PipeDir, 'pipeline', 'dc3MetadataPolicy.paf')
-cfhtMetadataPath    = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtDataTypePolicy.paf')
-cfhtCalibrationPath = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtCalibrationTypePolicy.paf')
-ampPolicyPath = os.path.join(dc3PipeDir, 'pipeline/datatypePolicy', 'cfhtAmpBBoxPolicy.paf')
+# For these tests, we need the policy files in ip_isr...
+policyDir = isrDir+'/pipeline'
+dc3MetadataPath  = os.path.join(policyDir, 'dc3MetadataPolicy.paf')
+cfhtMetadataPath    = os.path.join(policyDir, 'cfhtDataTypePolicy.paf')
+cfhtCalibrationPath = os.path.join(policyDir, 'cfhtCalibrationTypePolicy.paf')
+ampPolicyPath = os.path.join(policyDir, 'cfhtAmpBBoxPolicy.paf')
 
 dc3MetadataPolicy  = pexPolicy.Policy.createPolicy(dc3MetadataPath)
 cfhtMetadataPolicy = pexPolicy.Policy.createPolicy(cfhtMetadataPath)
