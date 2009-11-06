@@ -12,6 +12,7 @@ env = scons.makeEnv(
         ["boost", "boost/version.hpp", "boost_system:C++"],
         ["python", "Python.h"],
         ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"],
+        ["eigen", "Eigen/Core.h"],
         ["wcslib", "wcslib/wcs.h", "m wcs"], # remove m once SConsUtils bug fixed
         ["minuit", "Minuit/FCNBase.h", "lcg_Minuit:C++"],
         ["pex_exceptions", "lsst/pex/exceptions.h", "pex_exceptions:C++"],
