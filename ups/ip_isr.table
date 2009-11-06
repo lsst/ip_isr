@@ -1,5 +1,6 @@
 setupRequired(afw >= 3.3.17)
 setupRequired(meas_algorithms >= 3.0.10)
+setupRequired(pex_harness == 3.3.5)
 
 
 setupOptional(gcc)
