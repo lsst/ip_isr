@@ -1,0 +1,48 @@
+#<?cfg paf policy ?>
+
+# Policy configuration for Simulated DC3a data
+
+# Unique visit ID
+visitIdKeyword: OBSID
+
+# CCD Id
+ccdIdKeyword: CCDID
+
+# Amp Id
+ampIdKeyword: LSSTAMP
+
+# Exposure Id
+exposureIdKeyword: EXPID
+
+# Time of mid-observation in TAI
+dateObsKeyword: MJD-OBS
+
+# Exposure time in seconds
+expTimeKeyword: EXPTIME
+
+# Filter
+filterKeyword: FILTER
+
+# Pointing Ra and Decl
+raKeyword: RA_DEG
+declKeyword: DEC_DEG
+# equinoxKeyword: EQUINOX
+
+# Airmass of mid-exposure
+airmassKeyword: AIRMASS
+
+# Airmass of mid-exposure
+datasetIdKeyword: DATASET
+
+# Persisted name of file
+filenameKeyword: FILENAME
+
+# Gain
+gainKeyword: GAIN
+
+# Trim section
+saturationKeyword: SATURATE
+trimsecKeyword: DATASEC
+overscanKeyword: BIASSEC
+
+convertVisitIdToInt: true

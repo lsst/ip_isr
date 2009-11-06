@@ -1,0 +1,78 @@
+#<?cfg paf policy ?>
+
+# Policy configuration for Cfht data
+
+####
+# TO GENERATE THE EVENT
+
+# Unique visit ID
+visitIdKeyword: OBSID
+
+# CCD Id
+ccdIdKeyword: EXTVER
+
+# Amp Id
+ampIdKeyword: LSSTAMP
+
+# Exposure Id
+exposureIdKeyword: EXPID
+
+# Time of mid-observation in TAI
+dateObsKeyword: MJD-OBS
+
+# Exposure time in seconds
+expTimeKeyword: EXPTIME
+
+# Filter
+filterKeyword: FILTER
+
+# Pointing Ra and Decl
+raKeyword: RA_DEG
+declKeyword: DEC_DEG
+# equinoxKeyword: EQUINOX
+
+# Airmass of mid-exposure
+airmassKeyword: AIRMASS
+
+# Airmass of mid-exposure
+datasetIdKeyword: OBJECT
+
+# Persisted name of file
+filenameKeyword: FILENAME
+
+
+# ANY DATA CONVERSIONS BELOW
+
+# Convert the time?
+# True if information is in UTC
+# False if information is in TAI
+convertDateobsToTai: true
+
+# Shift the Dateobs?
+# True if information is for the start of the exposure
+# False if information is for the middle of the exposure
+convertDateobsToMidExposure: true
+
+# Trim the filter name?
+# True if the filter name contains extra information after a "."
+# False if the filter name is OK as is
+trimFilterName: true
+
+####
+# FOR THE ISR
+
+# For all data
+gainKeyword: GAIN
+saturationKeyword: SATURATE
+trimsecKeyword: DATASEC
+overscanKeyword: BIASSEC
+
+# For calibration data
+# meancountsKeyword: IMMODE
+# darkscaleKeyword: EXPTIME
+# flatscaleKeyword: IMMODE
+# illumscaleKeyword: IMMODE
+
+# Not use in DC3a
+# fringeskyKeyword: FRNG_SKY
+# fringeampKeyword: FRNG_RNG

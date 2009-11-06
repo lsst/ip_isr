@@ -42,14 +42,16 @@ class IsrTestCases(unittest.TestCase):
 
         # RHL debiases the interpolation; is off by a small factor
         # when all the pixel values are equal and the bias is non-zero
-        mi       = afwImage.MaskedImageF(20,20)
+        mi       = afwImage.MaskedImageF(400,400)
         mi.set(100, 0x0, 1)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.set('gain', 1.0)
         
         mi.set(7, 7, (1000, 0x0, 1))
+        mi.set(370, 370, (1000, 0x0, 1))
 
+        ipIsr.BackgroundSubtraction(exposure, self.policy)
         ipIsr.CrRejection(exposure, self.policy)
 
         bitmaskCr     = mi.getMask().getPlaneBitMask('CR')
@@ -59,23 +61,25 @@ class IsrTestCases(unittest.TestCase):
 
         for j in range(height):
             for i in range(width):
-                if i == 7 and j == 7:
+                if (i == 7 and j == 7) or (i == 370 and j == 370):
                     self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
                     self.assertEqual(mi.getMask().get(i,j) & bitmaskCr, bitmaskCr)
-                    self.assertAlmostEqual(mi.getImage().get(i,j)/100., 1, 1)
+                    self.assertAlmostEqual(mi.getImage().get(i,j)/100., 0, 1)
                 else:
                     self.assertEqual(mi.getMask().get(i,j), 0)
-                    self.assertEqual(mi.getImage().get(i,j), 100)
+                    self.assertEqual(mi.getImage().get(i,j), 0)
 
     def testCrRejectionNoVariance(self):
-        mi       = afwImage.MaskedImageF(20,20)
+        mi       = afwImage.MaskedImageF(400,400)
         mi.set(100, 0x0, 0)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.set('gain', 1.0)
 
         mi.set(7, 7, (1000, 0x0, 0))
+        mi.set(370, 370, (1000, 0x0, 0))
 
+        ipIsr.BackgroundSubtraction(exposure, self.policy)
         ipIsr.CrRejection(exposure, self.policy)
 
         bitmaskCr     = mi.getMask().getPlaneBitMask('CR')
@@ -85,13 +89,14 @@ class IsrTestCases(unittest.TestCase):
 
         for j in range(height):
             for i in range(width):
-                if i == 7 and j == 7:
+                if (i == 7 and j == 7) or (i == 370 and j == 370):
+                    self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
                     self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
                     self.assertEqual(mi.getMask().get(i,j) & bitmaskCr, bitmaskCr)
-                    self.assertEqual(mi.getImage().get(i,j), 100)
+                    self.assertEqual(mi.getImage().get(i,j), 0)
                 else:
                     self.assertEqual(mi.getMask().get(i,j), 0)
-                    self.assertEqual(mi.getImage().get(i,j), 100)
+                    self.assertEqual(mi.getImage().get(i,j), 0)
 #####
         
 def suite():

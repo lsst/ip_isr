@@ -72,6 +72,24 @@ saturationPolicy: {
 }
 
 ########################################
+# BACKGROUND SUBTRACTION STAGE POLICY	
+	
+backgroundPolicy: {
+
+ # Value for background grid size in pixels
+ backgroundGridsize: 128
+
+ # Type of fit: LINEAR, NATURAL_SPLINE, CUBIC_SPLINE, CUBIC_SPLINE_PERIODIC, AKIMA_SPLINE, AKIMA_SPLINE_PERIODIC
+ fitType: 'NATURAL_SPLINE'
+
+ # Number of sigma to clip
+ nSigma: 3.
+
+ # Number of iterations in backgrounding
+ numberIterations: 3
+}
+
+########################################
 # COSMIC RAY CORRECTION STAGE POLICY	
 	
 crRejectionPolicy: {
