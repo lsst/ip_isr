@@ -28,7 +28,10 @@ Verbosity = 4
 pexLog.Trace_setVerbosity('lsst.ip.isr', Verbosity)
 
 isrDataDir    = eups.productDir('isrdata')
-inputImage    = os.path.join(isrDataDir, 'SimDeep/dc3a', 'raw-e000001-c011-a000.fits')
+if isrDataDir:
+    inputImage    = os.path.join(isrDataDir, 'SimDeep/dc3a', 'raw-e000001-c011-a000.fits')
+else:
+    print >> sys.stderr, "Skipping tests as isrdata is not setup"
 isrDir        = eups.productDir('ip_isr')
 
 policyDir = isrDir+'/pipeline'
@@ -146,7 +149,8 @@ def suite():
     utilsTests.init()
 
     suites = []
-    suites += unittest.makeSuite(IsrStageTestCase)
+    if isrDataDir:
+        suites += unittest.makeSuite(IsrStageTestCase)
     suites += unittest.makeSuite(utilsTests.MemoryTestCase)
     return unittest.TestSuite(suites)
 
