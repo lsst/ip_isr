@@ -2,7 +2,7 @@
 from isrLib import *
 
 # python code
-from IsrStages import *
+from Isr import *
 
 # metadata code
-from MetadataStages import *
+from Metadata import *
