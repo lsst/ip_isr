@@ -16,16 +16,8 @@ import lsst.afw.display.ds9 as ds9
 Verbosity = 4
 logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
 
-isrDataDir = eups.productDir('isrdata')
 isrDir     = eups.productDir('ip_isr')
 
-# The Chunk Exposure to be calibrated
-#InputExposure  = os.path.join(isrDataDir, 'CFHT/D4', 'raw-53535-i-797722_1')
-
-# Master Calibration Image Names
-#InputBias      = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.bias.0.36.00_1')    
-#InputFlat      = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.flat.i.36.01_1')
-#InputFringe    = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.fringe.i.36.00_1')
 
 # Policy file
 InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
@@ -43,19 +35,19 @@ class IsrTestCases(unittest.TestCase):
         
         saturationKeyword = self.policy.getString('saturationPolicy.saturationKeyword')
         growSaturated     = self.policy.getInt('saturationPolicy.growSaturated')
+        defaultFwhm = self.policy.getDouble('defaultFwhm')
 
         mi       = afwImage.MaskedImageF(20,20)
         mi.set(100, 0x0, 1)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
-        metadata = exposure.getMetadata()
-        metadata.setDouble(saturationKeyword, saturation)
         
         bbox     = afwImage.BBox(afwImage.PointI(9,5),
                                  afwImage.PointI(9,15))
         submi    = afwImage.MaskedImageF(mi, bbox)
-        submi.set(saturation)
+        submi.set(saturation, 0x0, 1)
 
-        ipIsr.SaturationCorrection(exposure, self.policy)
+        ipIsr.saturationCorrection(exposure, saturation, defaultFwhm, growSaturated =
+                growSaturated)
 
         bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')
         bitmaskSat    = mi.getMask().getPlaneBitMask('SAT')

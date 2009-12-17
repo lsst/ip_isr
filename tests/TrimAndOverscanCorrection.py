@@ -16,16 +16,8 @@ import lsst.afw.display.ds9 as ds9
 Verbosity = 4
 logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
 
-isrDataDir = eups.productDir('isrdata')
 isrDir     = eups.productDir('ip_isr')
 
-# The Chunk Exposure to be calibrated
-#InputExposure  = os.path.join(isrDataDir, 'CFHT/D4', 'raw-53535-i-797722_1')
-
-# Master Calibration Image Names
-#InputBias      = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.bias.0.36.00_1')    
-#InputFlat      = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.flat.i.36.01_1')
-#InputFringe    = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.fringe.i.36.00_1')
 
 # Policy file
 InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
@@ -50,11 +42,14 @@ class IsrTestCases(unittest.TestCase):
         overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
+        fitType = self.policy.getPolicy('overscanPolicy').getString('overscanFitType')
+
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(overscanKeyword, biassec)
 
-        ipIsr.OverscanCorrection(exposure, self.policy)
+        ipIsr.overscanCorrection(exposure, ipIsr.BBoxFromDatasec(biassec),
+                fitType, overscanKeyword)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -77,11 +72,13 @@ class IsrTestCases(unittest.TestCase):
         overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
+        fitType = self.policy.getPolicy('overscanPolicy').getString('overscanFitType')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(overscanKeyword, biassec)
 
-        ipIsr.OverscanCorrection(exposure, self.policy)
+        ipIsr.overscanCorrection(exposure, ipIsr.BBoxFromDatasec(biassec),
+                fitType, overscanKeyword)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -101,13 +98,14 @@ class IsrTestCases(unittest.TestCase):
                                  afwImage.PointI(9,12))
         trimsec  = '[1:10,1:10]'
         ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
-        
+
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
+        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
+                ampBBox, trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -137,7 +135,8 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
+        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
+                ampBBox, trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -167,7 +166,8 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
+        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
+                ampBBox, trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -197,7 +197,8 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.TrimNew(exposure, self.policy, ampBBox)
+        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
+                ampBBox, trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
