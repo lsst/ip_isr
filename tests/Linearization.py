@@ -14,16 +14,7 @@ import lsst.daf.base as dafBase
 Verbosity = 4
 logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
 
-isrDataDir = eups.productDir('isrdata')
 isrDir     = eups.productDir('ip_isr')
-
-# The Chunk Exposure to be calibrated
-#InputExposure  = os.path.join(isrDataDir, 'CFHT/D4', 'raw-53535-i-797722_1')
-
-# Master Calibration Image Names
-#InputBias      = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.bias.0.36.00_1')    
-#InputFlat      = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.flat.i.36.01_1')
-#InputFringe    = os.path.join(isrDataDir, 'CFHT/D4', '05Am05.fringe.i.36.00_1')
 
 # Policy file
 InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
@@ -63,8 +54,8 @@ class IsrTestCases(unittest.TestCase):
                 exposure.getMaskedImage().getImage().set(i, j, i)
                 exposure.getMaskedImage().getVariance().set(i, j, i)
 
-        lookupTable = ipIsr.LookupTableFromPolicy(lookupPolicy)
-        ipIsr.Linearization(exposure, self.policy, lookupTable=lookupTable)
+        lookupTable = ipIsr.lookupTableFromPolicy(lookupPolicy)
+        ipIsr.linearization(exposure, lookupTable=lookupTable)
 
         mi = exposure.getMaskedImage()
         for i in range(10):
@@ -103,8 +94,8 @@ class IsrTestCases(unittest.TestCase):
                 exposure.getMaskedImage().getImage().set(i, j, i)
                 exposure.getMaskedImage().getVariance().set(i, j, i)
 
-        lookupTable = ipIsr.LookupTableFromPolicy(lookupPolicy)
-        ipIsr.Linearization(exposure, self.policy, lookupTable=lookupTable)
+        lookupTable = ipIsr.lookupTableFromPolicy(lookupPolicy)
+        ipIsr.linearization(exposure, lookupTable=lookupTable)
 
         mi = exposure.getMaskedImage()
         for i in range(10):
