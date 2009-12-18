@@ -1,5 +1,5 @@
-setupRequired(meas_algorithms >= 3.0.10)
-setupRequired(pex_harness == 3.3.5)
+setupRequired(meas_algorithms)
+setupRequired(pex_harness == 3.4)
 
 
 setupOptional(gcc)
