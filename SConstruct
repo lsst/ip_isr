@@ -2,7 +2,8 @@
 #
 # Setup our environment
 #
-import glob, os.path
+import glob
+import os.path
 import lsst.SConsUtils as scons
 
 env = scons.makeEnv(
@@ -12,12 +13,11 @@ env = scons.makeEnv(
         ["boost", "boost/version.hpp", "boost_system:C++"],
         ["boost", "boost/version.hpp", "boost_filesystem:C++"],
         ["boost", "boost/regex.hpp", "boost_regex:C++"],
-        ["boost", "boost/filesystem.hpp", "boost_system:C++"],
         ["boost", "boost/serialization/base_object.hpp", "boost_serialization:C++"],
         ["boost", "boost/test/unit_test.hpp", "boost_unit_test_framework:C++"],
         ["python", "Python.h"],
         ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"],
-        ["wcslib", "wcslib/wcs.h", "m wcs"], # remove m once SConsUtils bug fixed
+        ["wcslib", "wcslib/wcs.h", "m wcs"],
         ["xpa", "xpa.h", "xpa", "XPAPuts"],
         ["minuit2", "Minuit2/FCNBase.h", "Minuit2:C++"],
         ["gsl", "gsl/gsl_rng.h", "gslcblas gsl"],
@@ -36,12 +36,13 @@ env = scons.makeEnv(
 )
 env.libs["ip_isr"] = env.getlibs("boost wcslib cfitsio minuit2 gsl utils daf_base daf_data daf_persistence") \
     + env.getlibs("pex_exceptions pex_logging pex_policy security afw meas_algorithms") \
-    + env.libs["ip_isr"]
+    + env.libs["ip_isr"] # why is this necessary? it is not needed for most packages
+        # but tests fail with ip_isr symbols not found if it is omitted
 
 #
 # Build/install things
 #
-for d in Split("doc include/lsst/ip/isr lib python/lsst/ip/isr tests examples"):
+for d in Split("doc examples lib python/lsst/ip/isr tests"):
     SConscript(os.path.join(d, "SConscript"))
 
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"
@@ -57,7 +58,7 @@ Alias("install", [
     env.InstallEups(env['prefix'] + "/ups"),
 ])
 
-scons.CleanTree(r"*~ core *.so *.os *.o")
+scons.CleanTree(r"*~ core *.so *.os *.o *.pyc")
 
 files = scons.filesToTag()
 if files:
@@ -67,4 +68,3 @@ env.Declare()
 env.Help("""
 LSST Instrument Signature Removal package
 """)
-
