@@ -1,10 +1,8 @@
-setupRequired(meas_algorithms)
-setupRequired(pex_harness == 3.4)
-
+setupRequired(meas_algorithms > 3.0.6)
+setupRequired(pex_harness >= 3.4)
 
 setupOptional(gcc)
 setupOptional(sdqa)
-setupOptional(pex_harness)
 setupOptional(isrdata)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)

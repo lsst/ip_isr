@@ -10,11 +10,17 @@ env = scons.makeEnv(
     r"$HeadURL$",
     [
         ["boost", "boost/version.hpp", "boost_system:C++"],
+        ["boost", "boost/version.hpp", "boost_filesystem:C++"],
+        ["boost", "boost/regex.hpp", "boost_regex:C++"],
+        ["boost", "boost/filesystem.hpp", "boost_system:C++"],
+        ["boost", "boost/serialization/base_object.hpp", "boost_serialization:C++"],
+        ["boost", "boost/test/unit_test.hpp", "boost_unit_test_framework:C++"],
         ["python", "Python.h"],
         ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"],
-        ["eigen", "Eigen/Core.h"],
         ["wcslib", "wcslib/wcs.h", "m wcs"], # remove m once SConsUtils bug fixed
-        ["minuit", "Minuit/FCNBase.h", "lcg_Minuit:C++"],
+        ["xpa", "xpa.h", "xpa", "XPAPuts"],
+        ["minuit2", "Minuit2/FCNBase.h", "Minuit2:C++"],
+        ["gsl", "gsl/gsl_rng.h", "gslcblas gsl"],
         ["pex_exceptions", "lsst/pex/exceptions.h", "pex_exceptions:C++"],
         ["utils", "lsst/utils/Utils.h", "utils:C++"],
         ["daf_base", "lsst/daf/base.h", "daf_base:C++"],
@@ -28,8 +34,8 @@ env = scons.makeEnv(
         ["meas_algorithms", "lsst/meas/algorithms/Interp.h", "meas_algorithms:C++"],
     ],
 )
-env.libs["ip_isr"] = env.getlibs("boost wcslib cfitsio minuit utils daf_base daf_data daf_persistence") \
-    + env.getlibs("pex_exceptions pex_logging pex_policy security minuit afw meas_algorithms") \
+env.libs["ip_isr"] = env.getlibs("boost wcslib cfitsio minuit2 gsl utils daf_base daf_data daf_persistence") \
+    + env.getlibs("pex_exceptions pex_logging pex_policy security afw meas_algorithms") \
     + env.libs["ip_isr"]
 
 #
@@ -41,12 +47,14 @@ for d in Split("doc include/lsst/ip/isr lib python/lsst/ip/isr tests examples"):
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"
 
 Alias("install", [
-    env.Install(env['prefix'], "python"),
+    env.InstallAs(os.path.join(env['prefix'], "doc", "doxygen"), os.path.join("doc", "htmlDir")),
+    env.Install(env['prefix'], "examples"),
     env.Install(env['prefix'], "include"),
     env.Install(env['prefix'], "lib"),
-    env.InstallAs(os.path.join(env['prefix'], "doc", "doxygen"), os.path.join("doc", "htmlDir")),
-    env.InstallEups(os.path.join(env['prefix'], "ups"), glob.glob(os.path.join("ups", "*.table"))),
     env.Install(env['prefix'], "pipeline"),
+    env.Install(env['prefix'], "python"),
+    env.Install(env['prefix'], "tests"),
+    env.InstallEups(env['prefix'] + "/ups"),
 ])
 
 scons.CleanTree(r"*~ core *.so *.os *.o")
