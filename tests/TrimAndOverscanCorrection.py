@@ -104,8 +104,8 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
-                ampBBox, trimsecKeyword)
+        exposure2 = ipIsr.trimNew(exposure, 
+                ampBBox, trimsecKeyword = trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -135,8 +135,8 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
-                ampBBox, trimsecKeyword)
+        exposure2 = ipIsr.trimNew(exposure,
+                ampBBox, trimsecKeyword=trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -166,8 +166,8 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
-                ampBBox, trimsecKeyword)
+        exposure2 = ipIsr.trimNew(exposure,
+                ampBBox, trimsecKeyword=trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()
@@ -197,8 +197,8 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(trimsecKeyword, trimsec)
 
-        exposure2 = ipIsr.trimNew(exposure, ipIsr.BBoxFromDatasec(trimsec),
-                ampBBox, trimsecKeyword)
+        exposure2 = ipIsr.trimNew(exposure,
+                ampBBox, trimsecKeyword = trimsecKeyword)
         mi2       = exposure2.getMaskedImage()
 
         height        = mi2.getHeight()

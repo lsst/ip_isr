@@ -35,6 +35,7 @@ def exposureFromInputData(image, metadata, ampBBox,
                           makeWcs     = True,
                           policy      = None,
                           defaultGain = 1.0):
+    taskName = "isr.exposureFromInputData"
 
     # Generate an empty mask
     mask = afwImage.MaskU(image.getDimensions())
@@ -53,13 +54,13 @@ def exposureFromInputData(image, metadata, ampBBox,
             if metadata.exists(gainKeyword):
                 gain = metadata.get(gainKeyword)
             else:
-                pexLog.Trace(stageName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
+                pexLog.Trace(taskName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
                 gain = defaultGain
         else:
-            pexLog.Trace(stageName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
+            pexLog.Trace(taskName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
             gain = defaultGain
     else:
-        pexLog.Trace(stageName, 4, 'Using default gain=%f' % (defaultGain))
+        pexLog.Trace(taskName, 4, 'Using default gain=%f' % (defaultGain))
         gain = defaultGain
     # Normalize by the gain
     var /= gain
@@ -170,7 +171,7 @@ def maskBadPixelsDef(exposure, defectList, fwhm,
 
     if interpolate:
         # and interpolate over them
-        psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
+        psf = algorithms.createPSF('DoubleGaussian', 0, 0, fwhm/(2*math.sqrt(2*math.log(2))))
         fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
         algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
 
@@ -330,7 +331,7 @@ def illuminationCorrection(exposure, illum, illumscaling):
     
 
 
-def trimNew(exposure, trimsecBBox, ampBBox, trimsecKeyword = 'trimsec'):
+def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
     """
     This returns a new Exposure that is a subsection of the input exposure.
     
@@ -339,17 +340,30 @@ def trimNew(exposure, trimsecBBox, ampBBox, trimsecKeyword = 'trimsec'):
     
     # common input test
 
+    metadata   = exposure.getMetadata()
+
+    if metadata.exists(trimsecKeyword) and trimsec==None:
+        trimsec = metadata.getString(trimsecKeyword)
+
+
+    if trimsec == None:
+        raise pexExcept.LsstException, '%s : cannot find trimsec' % (stageName)        
+
+    trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
+
     assert (trimsecBBox.getDimensions() == ampBBox.getDimensions())
 
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
     trimmedExposure.getMaskedImage().setXY0(ampBBox.getLLC())
 
     # remove trimsec from metadata
-    exposure.getMetadata().remove(trimsecKeyword)
+    trimmedExposure.getMetadata().remove(trimsecKeyword)
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
     
+
     return trimmedExposure
+
 
 
 def overscanCorrection(exposure, overscanBBox, fittype, overscanKeyword =
@@ -382,7 +396,7 @@ def overscanCorrection(exposure, overscanBBox, fittype, overscanKeyword =
 
 def fringeCorrection(exposure, fringe):
 
-    raise pexExcept.LsstException, '%s not implemented' % (stageName)
+    raise pexExcept.LsstException, '%s not implemented' % ("ipIsr.fringCorrection")
 
 
 def pupilCorrection(exposure, pupil):
