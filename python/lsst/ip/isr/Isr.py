@@ -13,36 +13,44 @@ import lsst.sdqa            as sdqa
 import isrLib
 
 def calculateSdqaRatings(exposure):
-    sdqaRatingSet = sdqa.SdqaRatingSet()
-    counter       = isrLib.CountMaskedPixelsF()
-    mi   = exposure.getMaskedImage()
+    metrics = {}
+    '''
+    mi      = exposure.getMaskedImage()
+    mask    = mi.getMask()
+    badbitmask = mask.getPlaneBitMask('BAD')
+    satbitmask = mask.getPlaneBitMask('SAT')
+    intrpbitmask = mask.getPlaneBitMask('INTRP')
+    #Assuming this means all pixels marked bad
+    nBadCalibPix
+    nSaturatePix
+    overscanMean
+    overscanStdDev
+    overscanMedian
+    imageMedian
+    imageClippedMean  #
+    imageMin
+    imageMax
+    imageGradientX
+    imageGradientY
+    amplFringe = None
+    '''
 
-    bitmaskSat = mi.getMask().getPlaneBitMask('SAT')
-    counter.apply( mi, bitmaskSat )
-    satRating  = sdqa.SdqaRating('ip.isr.numSaturatedPixels', counter.getCount(), 0, sdqa.SdqaRating.AMP)
-    sdqaRatingSet.push_back(satRating)
-    pexLog.Trace(stageName, 4, 'Found %d saturated pixels' % (counter.getCount()))
-    
-    bitmaskCr  = mi.getMask().getPlaneBitMask('CR')
-    counter.apply( mi, bitmaskCr )
-    crRating   = sdqa.SdqaRating('ip.isr.numCosmicRayPixels', counter.getCount(), 0, sdqa.SdqaRating.AMP)
-    sdqaRatingSet.push_back(crRating)
-    pexLog.Trace(stageName, 4, 'Found %d pixels with cosmic rays' % (counter.getCount()))
-
-    return sdqaRatingSet
+    return metrics
 
 def exposureFromInputData(image, metadata, ampBBox,
                           makeWcs     = True,
                           policy      = None,
-                          defaultGain = 1.0):
-    taskName = "isr.exposureFromInputData"
+                          defaultGain = 1.0,
+                          imageSource = afwImage.ImageF):
+    methodName = "isr.exposureFromInputData"
 
     # Generate an empty mask
     mask = afwImage.MaskU(image.getDimensions())
     mask.set(0)
 
     # Generate a variance from the image pixels and gain
-    var  = afwImage.ImageF(image, True)
+    #var  = afwImage.ImageF(image, True)
+    var = afwImage.ImageF(image)
     
     if metadata.exists('gain'):
         gain = metadata.get('gain')
@@ -54,13 +62,13 @@ def exposureFromInputData(image, metadata, ampBBox,
             if metadata.exists(gainKeyword):
                 gain = metadata.get(gainKeyword)
             else:
-                pexLog.Trace(taskName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
+                pexLog.Trace(methodName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
                 gain = defaultGain
         else:
-            pexLog.Trace(taskName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
+            pexLog.Trace(methodName, 4, 'Using default gain=%f for %s' % (defaultGain, filename))
             gain = defaultGain
     else:
-        pexLog.Trace(taskName, 4, 'Using default gain=%f' % (defaultGain))
+        pexLog.Trace(methodName, 4, 'Using default gain=%f' % (defaultGain))
         gain = defaultGain
     # Normalize by the gain
     var /= gain
@@ -71,7 +79,7 @@ def exposureFromInputData(image, metadata, ampBBox,
 
     if makeWcs:
         # Extract the Wcs info from the input metadata
-        wcs      = afwImage.Wcs(metadata)
+        wcs      = afwImage.makeWcs(metadata)
     else:
         wcs      = afwImage.Wcs()
         
@@ -202,27 +210,30 @@ def linearization(exposure, lookupTable):
     mi   = exposure.getMaskedImage()
     lookupTable.apply(mi, gain)
     
-
-def backgroundSubtraction(exposure, policy):
+#Get rid of this: SIMON
+def backgroundSubtraction(exposure, gridsize="32",
+        interptype="AKIMA_SPLINE", nsigma=3.0, niter=3.0):
 
     metadata = exposure.getMetadata()
     mi = exposure.getMaskedImage()
-    gridsize   = policy.getPolicy('backgroundPolicy').getInt('backgroundGridsize')
-    interptype = policy.getPolicy('backgroundPolicy').get('fitType')
-    nsigma     = policy.getPolicy('backgroundPolicy').getDouble('nSigma')
-    niter      = policy.getPolicy('backgroundPolicy').getInt('numberIterations')
     bctrl = None
     try:
         bctrl = {
-            'LINEAR'               : afwMath.BackgroundControl(afwMath.LINEAR), 
-            'NATURAL_SPLINE'       : afwMath.BackgroundControl(afwMath.NATURAL_SPLINE), 
-            'CUBIC_SPLINE'         : afwMath.BackgroundControl(afwMath.CUBIC_SPLINE), 
-            'CUBIC_SPLINE_PERIODIC': afwMath.BackgroundControl(afwMath.CUBIC_SPLINE_PERIODIC), 
-            'AKIMA_SPLINE'         : afwMath.BackgroundControl(afwMath.AKIMA_SPLINE), 
-            'AKIMA_SPLINE_PERIODIC': afwMath.BackgroundControl(afwMath.CUBIC_SPLINE_PERIODIC) 
+            'LINEAR'               :
+            afwMath.BackgroundControl(afwMath.Interpolate.LINEAR), 
+            'NATURAL_SPLINE'       :
+            afwMath.BackgroundControl(afwMath.Interpolate.NATURAL_SPLINE), 
+            'CUBIC_SPLINE'         :
+            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE), 
+            'CUBIC_SPLINE_PERIODIC':
+            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC), 
+            'AKIMA_SPLINE'         :
+            afwMath.BackgroundControl(afwMath.Interpolate.AKIMA_SPLINE), 
+            'AKIMA_SPLINE_PERIODIC':
+            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC) 
         }[interptype]
     except:
-        bctrl = afwMath.BackgroundControl(afwMath.AKIMA_SPLINE)
+        bctrl = afwMath.BackgroundControl(afwMath.Interpolate.AKIMA_SPLINE)
     bctrl.setNxSample(max(2, int(mi.getWidth()/gridsize) + 1))
     bctrl.setNySample(max(2, int(mi.getHeight()/gridsize) + 1))
     bctrl.sctrl.setNumSigmaClip(nsigma)
@@ -283,7 +294,7 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
 
     # interpolate over them
     if interpolate:
-        mask.addMaskPlane('INTERP')
+        mask.addMaskPlane('INTRP')
         psf = algorithms.createPSF('DoubleGaussian', 0, 0, fwhm/(2*math.sqrt(2*math.log(2))))
         algorithms.interpolateOverDefects(mi, psf, defectList)
     
@@ -337,6 +348,7 @@ def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
     
     NOTE : do we need to deal with the WCS in any way, shape, or form?
     """
+    methodName = 'trimNew'
     
     # common input test
 
@@ -347,11 +359,13 @@ def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
 
 
     if trimsec == None:
-        raise pexExcept.LsstException, '%s : cannot find trimsec' % (stageName)        
+        raise pexExcept.LsstException, '%s : cannot find trimsec' % (methodName)        
 
     trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
-    assert (trimsecBBox.getDimensions() == ampBBox.getDimensions())
+    if not (trimsecBBox.getDimensions() == ampBBox.getDimensions()):
+        raise pexException.LsstException, '%s : amp bounding box not same as\
+        trim section'%(methodName)
 
     trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
     trimmedExposure.getMaskedImage().setXY0(ampBBox.getLLC())
