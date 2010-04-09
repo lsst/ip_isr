@@ -7,7 +7,6 @@ import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
 import lsst.pex.policy      as pexPolicy
 import lsst.pex.exceptions  as pexExcept
-import lsst.sdqa            as sdqa
 
 # relative imports
 import isrLib
