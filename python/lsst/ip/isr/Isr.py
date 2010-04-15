@@ -11,7 +11,15 @@ import lsst.pex.exceptions  as pexExcept
 # relative imports
 import isrLib
 
-def calculateSdqaRatings(exposure):
+def convertImageForIsr(exposure):
+    newexposure = afwImage.ExposureF()
+    mi = exposure.getMaskedImage()
+    fimage = mi.getImage().convertFloat()
+    nmi = afwImage.makeMaskedImage(fimage)
+    exposure.setMaskedImage(nmi)
+    return exposure
+
+def calculateSdqaRatings(exposure, ):
     metrics = {}
     '''
     mi      = exposure.getMaskedImage()
@@ -20,6 +28,7 @@ def calculateSdqaRatings(exposure):
     satbitmask = mask.getPlaneBitMask('SAT')
     intrpbitmask = mask.getPlaneBitMask('INTRP')
     #Assuming this means all pixels marked bad
+    imageClippedMean = afwMath.makeStatistics(mi, afwMath.MEANCLIP).getValue(afwMath.MEANCLIP)
     nBadCalibPix
     nSaturatePix
     overscanMean
@@ -272,10 +281,13 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
     mi         = exposure.getMaskedImage()
     mask       = mi.getMask()
     bitmask    = mask.getPlaneBitMask(maskName)
+    if False:
+        ds9.mtv(mi, frame=0)
+    
 
     # find saturated regions
     thresh     = afwDetection.Threshold(saturation)
-    ds         = afwDetection.FootprintSetF(mi, thresh)
+    ds         = afwDetection.makeFootprintSet(mi, thresh)
     fpList     = ds.getFootprints()
     # we will turn them into defects for interpolating
     defectList = algorithms.DefectListT()
@@ -391,6 +403,7 @@ def overscanCorrection(exposure, overscanBBox, fittype, overscanKeyword =
     overscanData    = afwImage.ImageF(exposure.getMaskedImage().getImage(), overscanBBox, False)
 
     # what type of overscan modeling?
+    offset = 0
     if fittype == 'MEAN':
         offset = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
         mi    -= offset
@@ -402,8 +415,6 @@ def overscanCorrection(exposure, overscanBBox, fittype, overscanKeyword =
     else:
         raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fittype)
 
-    # remove overscan from metadata
-    exposure.getMetadata().remove(overscanKeyword)
     return 
 
 
