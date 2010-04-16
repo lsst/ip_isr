@@ -1,3 +1,4 @@
+import os
 import re
 import lsst.pex.policy as pexPolicy
 import lsst.afw.geom as afwGeom
@@ -23,8 +24,12 @@ class ccdImageFactory(cameraGeomUtils.GetCcdImage):
             raftId = "R%s%s" % (mat.group(1), mat.group(2))
             sensorId = "S%s%s" % (mat.group(3), mat.group(4))
 
-        fileName = "../../afwdata/ImSim/imsim_%08d_%s_%s_C%02d_E000.fits.gz" % (self.frameId, raftId, sensorId,
-                                                       int(amp.getId().getSerial()))
+        ampTuple = amp.getId().getIndex()
+        ampName = "C%d%d" % (ampTuple[1], ampTuple[0])
+
+        fileName = "%s/ImSim/processed/imsim_%08d_%s_%s_%s_E000.fits" % (
+                os.environ['AFWDATA_DIR'],
+                self.frameId, raftId, sensorId, ampName)
 
         return fileName
 
@@ -76,7 +81,7 @@ def showAmps(camera, ccdId, perFile=False):
     for a in ccd:
         print "%-10s %s" % (a.getId(), a.getDataSec(False))
 
-def foo(frameId=85751839, ccdName="R:2,3 S:1,1", geomPolicyFile="Full_STA_geom.paf",
+def foo(frameId=85751839, ccdName="R:2,3 S:1,1", geomPolicyFile="tests/Full_STA_geom.paf",
         isTrimmed=False, display=True):
     cif = ccdImageFactory(frameId)
     camera = getCamera(geomPolicyFile)
@@ -97,4 +102,4 @@ def foo(frameId=85751839, ccdName="R:2,3 S:1,1", geomPolicyFile="Full_STA_geom.p
     return ccd, ccdImage
 
 if __name__ == "__main__":
-    foo()
+    foo(display=False)
