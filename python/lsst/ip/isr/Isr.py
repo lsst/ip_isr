@@ -2,6 +2,7 @@ import time, os, math
 import lsst.utils           as utils
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
+import lsst.afw.cameraGeom  as cameraGeom
 import lsst.afw.math        as afwMath
 import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
@@ -12,12 +13,19 @@ import lsst.pex.exceptions  as pexExcept
 import isrLib
 
 def convertImageForIsr(exposure):
-    newexposure = afwImage.ExposureF()
-    mi = exposure.getMaskedImage()
-    fimage = mi.getImage().convertFloat()
-    nmi = afwImage.makeMaskedImage(fimage)
-    exposure.setMaskedImage(nmi)
-    return exposure
+    if not isinstance(exposure, afwImage.ExposureU):
+        raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
+                %s."%(exposure.__repr__()))
+    newexposure = exposure.convertF()
+    amp = cameraGeom.cast_Amp(exposure.getDetector())
+    mi = newexposure.getMaskedImage()
+    var = afwImage.ImageF(mi.getImage(), True)
+    ep = amp.getElectronicParams()
+    var /= ep.getGain()
+    mask = afwImage.MaskU(newexposure.getWidth(), newexposure.getHeight())
+    mask.set(0)
+    newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
+    return newexposure
 
 def calculateSdqaRatings(exposure, ):
     metrics = {}
@@ -316,7 +324,6 @@ def biasCorrection(exposure, bias):
     bmi = bias.getMaskedImage()
     mi -= bmi
 
-
 def darkCorrection(exposure, dark, expscaling, darkscaling):
     
     scale             = expscaling / darkscaling
@@ -337,7 +344,6 @@ def flatCorrection(exposure, flat, scalingtype, scaling = 1.0):
         flatscaling = scaling
     else:
         raise pexExcept.LsstException, '%s : %s not implemented' % ("flatCorrection", scalingtype)            
-
     mi   = exposure.getMaskedImage()
     fmi  = flat.getMaskedImage()
     mi.scaledDivides(1./flatscaling, fmi)
