@@ -27,7 +27,7 @@ class ccdImageFactory(cameraGeomUtils.GetCcdImage):
         ampTuple = amp.getId().getIndex()
         ampName = "C%d%d" % (ampTuple[1], ampTuple[0])
 
-        fileName = "%s/ImSim/processed/imsim_%08d_%s_%s_%s_E000.fits" % (
+        fileName = "%s/ImSim/postISR/v%08d-fr/s0/%s-%s-%s.fits" % (
                 os.environ['AFWDATA_DIR'],
                 self.frameId, raftId, sensorId, ampName)
 
