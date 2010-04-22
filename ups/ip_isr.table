@@ -1,5 +1,4 @@
 setupRequired(meas_algorithms > 3.0.6)
-setupRequired(pex_harness >= 3.4)
 
 setupOptional(gcc)
 setupOptional(sdqa)
