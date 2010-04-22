@@ -42,7 +42,7 @@ env.libs["ip_isr"] = env.getlibs("boost wcslib cfitsio minuit2 gsl utils daf_bas
 #
 # Build/install things
 #
-for d in Split("doc examples lib python/lsst/ip/isr tests"):
+for d in Split("doc lib python/lsst/ip/isr tests"):
     SConscript(os.path.join(d, "SConscript"))
 
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"
