@@ -46,7 +46,7 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     metadata = exposures[0].getMetadata()
     metadata.remove("BIASSEC")
     metadata.remove("DATASEC")
-    detector = exposures[0].getDetector()
+    detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
 
     lif = listImageFactory(exposures)
     lmf = listMaskFactory(exposures)
@@ -55,13 +55,10 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
             isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
     ccdVariance = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lvf,
             isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
-    ccdMask = afwImage.MaskU(ccdImage.getWidth(), ccdImage.getHeight())
-    ccdMask.set(0)
-    #For now, will return empty mask.  This may, in fact be the way to go
-    #since ?all? masking will be done in the postIsr Ccd images.
-    #ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
-    #        isTrimmed = isTrimmed, imageFactory = afwImage.MaskU)
-
+    #ccdMask = afwImage.MaskU(ccdImage.getWidth(), ccdImage.getHeight())
+    #ccdMask.set(0)
+    ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
+            isTrimmed = isTrimmed, imageFactory = afwImage.MaskU)
     ccdExposure = afwImage.makeExposure(afwImage.makeMaskedImage(ccdImage,
         ccdMask, ccdVariance), wcs)
     ccdExposure.setWcs(wcs)
