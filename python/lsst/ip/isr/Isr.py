@@ -4,6 +4,7 @@ import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
 import lsst.afw.cameraGeom  as cameraGeom
 import lsst.afw.math        as afwMath
+import lsst.afw.coord       as afwCoord
 import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
 import lsst.pex.policy      as pexPolicy
@@ -12,10 +13,27 @@ import lsst.pex.exceptions  as pexExcept
 # relative imports
 import isrLib
 
-def convertImageForIsr(exposure):
+class Bbox(object):
+    def __init__(self, x0, y0, dx, dy):
+        self.x0 = x0
+	self.y0 = y0
+	self.width = dx
+	self.height = dy
+	self.x1 = self.x0 + self.width - 1
+	self.y1 = self.y0 + self.height - 1
+    def shift(self, dx, dy):
+	self.x0 += dx
+	self.x1 += dx
+	self.y0 += dy
+	self.y1 += dy
+    def __str__(self):
+        return "(%i,%i) -- (%i,%i)"%(self.x0,self.y0,self.x1,self.y1)
+
+def convertImageForIsr(exposure, imsim=False):
     if not isinstance(exposure, afwImage.ExposureU):
         raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
                 %s."%(exposure.__repr__()))
+
     newexposure = exposure.convertF()
     amp = cameraGeom.cast_Amp(exposure.getDetector())
     mi = newexposure.getMaskedImage()
@@ -25,7 +43,21 @@ def convertImageForIsr(exposure):
     mask = afwImage.MaskU(newexposure.getWidth(), newexposure.getHeight())
     mask.set(0)
     newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
+    if imsim:
+        pexLog.Trace("ipIsr.convertImageForIsr", 4, 'Doing sim specific mods')
+        #do precession of crvals
+        wcs = exposure.getWcs()
+        origin = wcs.getSkyOrigin()
+        metadata = exposure.getMetadata()
+        refcoord = afwCoord.Fk5Coord(origin[0], origin[1],\
+            metadata.getFloat("date_obs"))
+        nrefcoord = refcoord.precess(2000.)
+        wcs.setSkyOrigin(nrefcoord.getRa(afwCoord.DEGREES),
+                nrefcoord.getDec(afwCoord.DEGREES))
+        newexposure.setWcs(wcs)
     return newexposure
+
+
 
 def calculateSdqaRatings(exposure, ):
     metrics = {}
@@ -188,7 +220,6 @@ def maskBadPixelsDef(exposure, defectList, fwhm,
     mi      = exposure.getMaskedImage()
     mask    = mi.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
-    
     for defect in defectList:
         bbox = defect.getBBox()
         afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)    
@@ -281,6 +312,66 @@ def crRejection(exposure, policy):
     crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
     
     
+def saturationDetection(exposure, saturation, growSaturated = 1,
+                         maskName = 'SAT'):
+
+    mi         = exposure.getMaskedImage()
+    mask       = mi.getMask()
+    bitmask    = mask.getPlaneBitMask(maskName)
+    if False:
+        ds9.mtv(mi, frame=0)
+    
+
+    # find saturated regions
+    thresh     = afwDetection.Threshold(saturation)
+    ds         = afwDetection.makeFootprintSet(mi, thresh)
+    fpList     = ds.getFootprints()
+    # we will turn them into defects for interpolating
+    defectList = algorithms.DefectListT()
+    
+    # grow them
+    bboxes = []
+    for fp in fpList:
+        # if "True", growing requires a convolution
+        # if "False", its faster
+        fpGrow = afwDetection.growFootprint(fp, growSaturated, False)
+        afwDetection.setMaskFromFootprint(mask, fpGrow, bitmask)
+        for bbox in afwDetection.footprintToBBoxList(fp):
+            bboxes.append(Bbox(bbox.getX0(), bbox.getY0(), bbox.getWidth(),
+                bbox.getHeight()))
+    return bboxes
+
+def saturationInterpolation(exposure, fwhm, bboxes, maskName = 'SAT'):
+    mi = exposure.getMaskedImage()
+    mask = mi.getMask()
+    '''
+    satmask = afwImage.MaskU(mask, True)
+    satmask &= mask.getPlaneBitMask(maskName)
+    thresh = afwDetection.Threshold(0.5)
+    #TODO convert directly from MaskU to ImageF
+    maskImg = afwImage.ImageF(satmask.getWidth(), satmask.getHeight())
+    for i in range(satmask.getWidth()):
+        for j in range(satmask.getHeight()):
+            maskImg.set(i,j,satmask.get(i,j))
+
+    ds = afwDetection.makeFootprintSet(maskImg, thresh)
+    fpList = ds.getFootprints()
+    for fp in fpList:
+        for bbox in afwDetection.footprintToBBoxList(fp):
+            defect = algorithms.Defect(bbox)
+            satDefectList.push_back(defect)
+    '''
+    satDefectList = algorithms.DefectListT()
+    for bbox in bboxes:
+        defect = algorithms.Defect(afwImage.BBox(afwImage.PointI(bbox.x0,
+            bbox.y0), bbox.width, bbox.height))
+        satDefectList.push_back(defect)
+    if 'INTRP' not in mask.getMaskPlaneDict().keys():
+        mask.addMaskPlane('INTRP')
+    psf = algorithms.createPSF('DoubleGaussian', 0, 0,
+            fwhm/(2*math.sqrt(2*math.log(2))))
+    algorithms.interpolateOverDefects(mi, psf, satDefectList)
+
 
 def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
                          interpolate = True,
@@ -308,8 +399,9 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
         afwDetection.setMaskFromFootprint(mask, fpGrow, bitmask)
 
         if interpolate:
-            defect = algorithms.Defect(fpGrow.getBBox())
-            defectList.push_back(defect)
+            for bbox in afwDetection.footprintToBBoxList(fpGrow):
+                defect = algorithms.Defect(bbox)
+                defectList.push_back(defect)
 
     # interpolate over them
     if interpolate:
