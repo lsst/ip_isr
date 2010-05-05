@@ -45,9 +45,12 @@ class IsrTestCases(unittest.TestCase):
                                  afwImage.PointI(9,15))
         submi    = afwImage.MaskedImageF(mi, bbox)
         submi.set(saturation, 0x0, 1)
-
-        ipIsr.saturationCorrection(exposure, saturation, defaultFwhm, growSaturated =
-                growSaturated)
+        exposure.writeFits('hack1.fits')
+        
+        ipIsr.saturationDetection(exposure, saturation, growSaturated =
+                growSaturated, doMask = True, maskName='SAT')
+        ipIsr.saturationInterpolation(exposure, defaultFwhm, maskName = 'SAT')
+        exposure.writeFits('hack2.fits')
 
         bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')
         bitmaskSat    = mi.getMask().getPlaneBitMask('SAT')
@@ -59,7 +62,11 @@ class IsrTestCases(unittest.TestCase):
             for i in range(width):
                 # Grown saturation mask; one around the mask at 9
                 if i >= 8 and i <= 10:
-                    if (j == 4 or j == 16) and (i == 8 or i == 10):
+                    if (i,j) in [(8,4),(8,16),(10,4),(10,16)]:
+                        #Should not be saturated or interpolated at all
+                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, 0)
+                        self.assertEqual(mi.getMask().get(i,j) & bitmaskSat, 0)
+                    elif (j == 4 or j == 16) and (i == 8 or i == 10):
                         # Not saturated but interpolated over
                         self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
                     elif (j == 4 or j == 16):
