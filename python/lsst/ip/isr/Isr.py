@@ -312,7 +312,7 @@ def crRejection(exposure, policy):
     crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
     
     
-def saturationDetection(exposure, saturation, growSaturated = 1, doMask = True,
+def saturationDetection(exposure, saturation, doMask = True,
                          maskName = 'SAT'):
 
     mi         = exposure.getMaskedImage()
@@ -330,19 +330,16 @@ def saturationDetection(exposure, saturation, growSaturated = 1, doMask = True,
     # grow them
     bboxes = []
     for fp in fpList:
-        # if "True", growing requires a convolution
-        # if "False", its faster
-        fpGrow = afwDetection.growFootprint(fp, growSaturated, False)
         if doMask:
             mask       = mi.getMask()
             bitmask    = mask.getPlaneBitMask(maskName)
-            afwDetection.setMaskFromFootprint(mask, fpGrow, bitmask)
+            afwDetection.setMaskFromFootprint(mask, fp, bitmask)
         for bbox in afwDetection.footprintToBBoxList(fp):
             bboxes.append(Bbox(bbox.getX0(), bbox.getY0(), bbox.getWidth(),
                 bbox.getHeight()))
     return bboxes
 
-def saturationInterpolation(exposure, fwhm, maskName = 'SAT'):
+def saturationInterpolation(exposure, fwhm, growFootprints = 1, maskName = 'SAT'):
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
     satmask = afwImage.MaskU(mask, True)
@@ -354,7 +351,13 @@ def saturationInterpolation(exposure, fwhm, maskName = 'SAT'):
     fpList = ds.getFootprints()
     satDefectList = algorithms.DefectListT()
     for fp in fpList:
-        for bbox in afwDetection.footprintToBBoxList(fp):
+        if growFootprints > 0:
+            # if "True", growing requires a convolution
+            # if "False", its faster
+            fpGrow = afwDetection.growFootprint(fp, growFootprints, False)
+        else:
+            fpGrow = fp
+        for bbox in afwDetection.footprintToBBoxList(fpGrow):
             defect = algorithms.Defect(bbox)
             satDefectList.push_back(defect)
     if 'INTRP' not in mask.getMaskPlaneDict().keys():

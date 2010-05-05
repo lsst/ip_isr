@@ -45,12 +45,11 @@ class IsrTestCases(unittest.TestCase):
                                  afwImage.PointI(9,15))
         submi    = afwImage.MaskedImageF(mi, bbox)
         submi.set(saturation, 0x0, 1)
-        exposure.writeFits('hack1.fits')
         
-        ipIsr.saturationDetection(exposure, saturation, growSaturated =
-                growSaturated, doMask = True, maskName='SAT')
-        ipIsr.saturationInterpolation(exposure, defaultFwhm, maskName = 'SAT')
-        exposure.writeFits('hack2.fits')
+        ipIsr.saturationDetection(exposure, saturation,
+                doMask = True, maskName='SAT')
+        ipIsr.saturationInterpolation(exposure, defaultFwhm, growFootprints =
+                growSaturated, maskName = 'SAT')
 
         bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')
         bitmaskSat    = mi.getMask().getPlaneBitMask('SAT')
@@ -66,14 +65,13 @@ class IsrTestCases(unittest.TestCase):
                         #Should not be saturated or interpolated at all
                         self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, 0)
                         self.assertEqual(mi.getMask().get(i,j) & bitmaskSat, 0)
-                    elif (j == 4 or j == 16) and (i == 8 or i == 10):
+                    elif (j >4 and j < 16) and (i == 8 or i == 10):
                         # Not saturated but interpolated over
                         self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
                     elif (j == 4 or j == 16):
-                        # Both saturated and interpolated over; bottom/top
+                        # Interpolated over; bottom/top
                         self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskSat,    bitmaskSat)
-                    elif (j > 4 and j < 16):
+                    elif (j > 4 and j < 16 and i == 9):
                         # Both saturated and interpolated over; guts of it
                         self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
                         self.assertEqual(mi.getMask().get(i,j) & bitmaskSat,    bitmaskSat)
