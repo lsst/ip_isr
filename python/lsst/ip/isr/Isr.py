@@ -312,12 +312,10 @@ def crRejection(exposure, policy):
     crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
     
     
-def saturationDetection(exposure, saturation, growSaturated = 1,
+def saturationDetection(exposure, saturation, growSaturated = 1, doMask = True,
                          maskName = 'SAT'):
 
     mi         = exposure.getMaskedImage()
-    mask       = mi.getMask()
-    bitmask    = mask.getPlaneBitMask(maskName)
     if False:
         ds9.mtv(mi, frame=0)
     
@@ -335,37 +333,30 @@ def saturationDetection(exposure, saturation, growSaturated = 1,
         # if "True", growing requires a convolution
         # if "False", its faster
         fpGrow = afwDetection.growFootprint(fp, growSaturated, False)
-        afwDetection.setMaskFromFootprint(mask, fpGrow, bitmask)
+        if doMask:
+            mask       = mi.getMask()
+            bitmask    = mask.getPlaneBitMask(maskName)
+            afwDetection.setMaskFromFootprint(mask, fpGrow, bitmask)
         for bbox in afwDetection.footprintToBBoxList(fp):
             bboxes.append(Bbox(bbox.getX0(), bbox.getY0(), bbox.getWidth(),
                 bbox.getHeight()))
     return bboxes
 
-def saturationInterpolation(exposure, fwhm, bboxes, maskName = 'SAT'):
+def saturationInterpolation(exposure, fwhm, maskName = 'SAT'):
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
-    '''
     satmask = afwImage.MaskU(mask, True)
     satmask &= mask.getPlaneBitMask(maskName)
     thresh = afwDetection.Threshold(0.5)
-    #TODO convert directly from MaskU to ImageF
-    maskImg = afwImage.ImageF(satmask.getWidth(), satmask.getHeight())
-    for i in range(satmask.getWidth()):
-        for j in range(satmask.getHeight()):
-            maskImg.set(i,j,satmask.get(i,j))
-
-    ds = afwDetection.makeFootprintSet(maskImg, thresh)
+    maskimg = afwImage.ImageU(satmask.getDimensions())
+    maskimg <<= satmask
+    ds = afwDetection.makeFootprintSet(maskimg, thresh)
     fpList = ds.getFootprints()
+    satDefectList = algorithms.DefectListT()
     for fp in fpList:
         for bbox in afwDetection.footprintToBBoxList(fp):
             defect = algorithms.Defect(bbox)
             satDefectList.push_back(defect)
-    '''
-    satDefectList = algorithms.DefectListT()
-    for bbox in bboxes:
-        defect = algorithms.Defect(afwImage.BBox(afwImage.PointI(bbox.x0,
-            bbox.y0), bbox.width, bbox.height))
-        satDefectList.push_back(defect)
     if 'INTRP' not in mask.getMaskPlaneDict().keys():
         mask.addMaskPlane('INTRP')
     psf = algorithms.createPSF('DoubleGaussian', 0, 0,
