@@ -361,11 +361,11 @@ def saturationDetection(exposure, saturation, doMask = True,
                 bbox.getHeight()))
     return bboxes
 
-def saturationInterpolation(exposure, fwhm, growFootprints = 1, satMaskName = 'SAT', badMaskName = 'BAD'):
+def saturationInterpolation(exposure, fwhm, growFootprints = 1, maskName = 'SAT', badMaskName = 'BAD'):
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
     satmask = afwImage.MaskU(mask, True)
-    satmask &= (mask.getPlaneBitMask(satMaskName) | mask.getPlaneBitMask(badMaskName))
+    satmask &= (mask.getPlaneBitMask(maskName) | mask.getPlaneBitMask(badMaskName))
     thresh = afwDetection.Threshold(0.5)
     maskimg = afwImage.ImageU(satmask.getDimensions())
     maskimg <<= satmask
