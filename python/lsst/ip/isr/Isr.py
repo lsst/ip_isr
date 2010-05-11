@@ -59,31 +59,53 @@ def convertImageForIsr(exposure, imsim=False):
 
 
 
-def calculateSdqaRatings(exposure, ):
+def calculateSdqaCcdRatings(exposure):
     metrics = {}
-    '''
-    mi      = exposure.getMaskedImage()
-    mask    = mi.getMask()
+    metrics['nSaturatePix'] = None
+    metrics['nBadCalibPix'] = None
+    metrics['imageClipMean4Sig3Pass'] = None
+    metrics['imageSigma'] = None
+    metrics['imageMedian'] = None
+    metrics['imageMin'] = None
+    metrics['imageMax'] = None
+    mi = exposure.getMaskedImage()
+    mask = mi.getMask()
     badbitmask = mask.getPlaneBitMask('BAD')
     satbitmask = mask.getPlaneBitMask('SAT')
     intrpbitmask = mask.getPlaneBitMask('INTRP')
     #Assuming this means all pixels marked bad
     imageClippedMean = afwMath.makeStatistics(mi, afwMath.MEANCLIP).getValue(afwMath.MEANCLIP)
-    nBadCalibPix
-    nSaturatePix
-    overscanMean
-    overscanStdDev
-    overscanMedian
-    imageMedian
-    imageClippedMean  #
-    imageMin
-    imageMax
-    imageGradientX
-    imageGradientY
-    amplFringe = None
-    '''
 
-    return metrics
+def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
+    metrics = {}
+    metrics['nSaturatePix'] = 0
+    metrics['overscanMean'] = None
+    metrics['overscanStdDev'] = None
+    metrics['overscanMedian'] = None
+    metrics['overscanMin'] = None
+    metrics['overscanMax'] = None
+    mi = exposure.getMaskedImage()
+    metadata = exposure.getMetadata()
+    trimmi = afwImage.MaskedImageF(mi, dataBBox)
+    biasmi = afwImage.MaskedImageF(mi, biasBBox)
+    mask = mi.getMask()
+    satbitmask = mask.getPlaneBitMask('SAT')
+    satmask = trimmi.getMask()
+    satmask &= satbitmask
+    satmaskim = afwImage.ImageU(satmask.getDimensions())
+    satmaskim <<= satmask
+    thresh = afwDetection.Threshold(0.5)
+    fs = afwDetection.makeFootprintSet(satmaskim, thresh)
+    for f in fs.getFootprints():
+        metrics['nSaturatePix'] += f.getNpix()
+    sctrl = afwMath.StatisticsControl()
+    metrics['overscanMean'] = afwMath.makeStatistics(biasmi, afwMath.MEAN, sctl).getValue() 
+    metrics['overscanStdDev'] = afwMath.makeStatistics(biasmi, afwMath.STDEV, sctl).getValue() 
+    metrics['overscanMedian'] = afwMath.makeStatistics(biasmi, afwMath.MEDIAN, sctl).getValue() 
+    metrics['overscanMin'] = afwMath.makeStatistics(biasmi, afwMath.MIN, sctl).getValue() 
+    metrics['overscanMax'] = afwMath.makeStatistics(biasmi, afwMath.MAX, sctl).getValue() 
+    for k in metrics.keys():
+        metadata.set(k, metrics[k])
 
 def exposureFromInputData(image, metadata, ampBBox,
                           makeWcs     = True,
@@ -339,11 +361,11 @@ def saturationDetection(exposure, saturation, doMask = True,
                 bbox.getHeight()))
     return bboxes
 
-def saturationInterpolation(exposure, fwhm, growFootprints = 1, maskName = 'SAT'):
+def saturationInterpolation(exposure, fwhm, growFootprints = 1, satMaskName = 'SAT', badMaskName = 'BAD'):
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
     satmask = afwImage.MaskU(mask, True)
-    satmask &= mask.getPlaneBitMask(maskName)
+    satmask &= (mask.getPlaneBitMask(satMaskName) | mask.getPlaneBitMask(badMaskName))
     thresh = afwDetection.Threshold(0.5)
     maskimg = afwImage.ImageU(satmask.getDimensions())
     maskimg <<= satmask
