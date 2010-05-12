@@ -27,6 +27,7 @@
 #include <lsst/afw/math.h>
 #include <lsst/afw/math/Statistics.h>
 #include <lsst/afw/image.h>
+#include <lsst/utils/ieee.h>
 #include <lsst/pex/exceptions/Exception.h>
 
 /** \brief Remove all non-astronomical counts from the Chunk Exposure's pixels.
@@ -165,7 +166,40 @@ namespace isr {
     private:
         int _count;
     };
+
     
+    template <typename PixelT>
+    class UnmaskedNanCounter {
+    public:
+        typedef boost::shared_ptr<UnmaskedNanCounter> Ptr;
+        typedef typename lsst::afw::image::MaskedImage<PixelT>::x_iterator x_iterator;
+
+        UnmaskedNanCounter() :
+        _npix(0),
+        _bpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("BAD"))
+        {};
+
+        virtual ~UnmaskedNanCounter() {};
+
+        void reset() {_npix = 0;}
+
+        void apply(lsst::afw::image::MaskedImage<PixelT> const& mi) {
+            reset();
+            for (int y = 0; y != mi.getHeight(); ++y) {
+                for (x_iterator ptr = mi.row_begin(y), end = mi.row_end(y); ptr != end; ++ptr) {
+                    if (!(((*ptr).mask() & _bpMask)) && !(lsst::utils::lsst_isfinite((*ptr).image()))) {
+                        _npix += 1;
+                        (ptr).mask() |= _bpMask;
+                    }
+                }
+            }
+        }
+        int getNpix() const { return _npix; }
+
+    private:
+        int    _npix;
+        lsst::afw::image::MaskPixel _bpMask;
+    }; 
 
     template<typename ImagePixelT, typename FunctionT>
     void fitOverscanImage(

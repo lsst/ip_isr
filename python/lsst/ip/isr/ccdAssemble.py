@@ -55,8 +55,6 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
             isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
     ccdVariance = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lvf,
             isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
-    #ccdMask = afwImage.MaskU(ccdImage.getWidth(), ccdImage.getHeight())
-    #ccdMask.set(0)
     ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
             isTrimmed = isTrimmed, imageFactory = afwImage.MaskU)
     ccdExposure = afwImage.makeExposure(afwImage.makeMaskedImage(ccdImage,

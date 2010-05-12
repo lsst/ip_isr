@@ -152,3 +152,9 @@ template class ipIsr::LookupTableMultiplicative<double>;
 template class ipIsr::LookupTableReplace<int>;
 // But we turn our images into floats immediately, so use it
 template class ipIsr::LookupTableReplace<float>;
+// Functor to count unmasked nan in a masked image.  It also masks the nans it
+// finds.
+template class ipIsr::UnmaskedNanCounter<float>;
+template class ipIsr::UnmaskedNanCounter<double>; 
+template class ipIsr::UnmaskedNanCounter<int>; 
+template class ipIsr::UnmaskedNanCounter<boost::uint16_t>; 

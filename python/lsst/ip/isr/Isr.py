@@ -232,7 +232,13 @@ def maskBadPixelsFp(exposure, policy, fpList,
             algorithms.interpolateOverDefects(mi, psf, defect)
 
         
-
+def interpolateDefectList(exposure, defectList, fwhm, fallbackValue=None):
+    mi = exposure.getMaskedImage()
+    psf = algorithms.createPSF('DoubleGaussian', 0, 0, fwhm/(2*math.sqrt(2*math.log(2))))
+    if fallbackValue is None:
+        fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
+    algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
+    
 
 def maskBadPixelsDef(exposure, defectList, fwhm,
                      interpolate = True,
@@ -361,11 +367,36 @@ def saturationDetection(exposure, saturation, doMask = True,
                 bbox.getHeight()))
     return bboxes
 
-def saturationInterpolation(exposure, fwhm, growFootprints = 1, maskName = 'SAT', badMaskName = 'BAD'):
+def defectListFromMask(exposure, growFootprints = 1, maskName = 'SAT'):
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
     satmask = afwImage.MaskU(mask, True)
-    satmask &= (mask.getPlaneBitMask(maskName) | mask.getPlaneBitMask(badMaskName))
+    satmask &= mask.getPlaneBitMask(maskName)
+    thresh = afwDetection.Threshold(0.5)
+    maskimg = afwImage.ImageU(satmask.getDimensions())
+    maskimg <<= satmask
+    ds = afwDetection.makeFootprintSet(maskimg, thresh)
+    fpList = ds.getFootprints()
+    satDefectList = algorithms.DefectListT()
+    for fp in fpList:
+        if growFootprints > 0:
+            # if "True", growing requires a convolution
+            # if "False", its faster
+            fpGrow = afwDetection.growFootprint(fp, growFootprints, False)
+        else:
+            fpGrow = fp
+        for bbox in afwDetection.footprintToBBoxList(fpGrow):
+            defect = algorithms.Defect(bbox)
+            satDefectList.push_back(defect)
+    if 'INTRP' not in mask.getMaskPlaneDict().keys():
+        mask.addMaskPlane('INTRP')
+    return satDefectList
+
+def saturationInterpolation(exposure, fwhm, growFootprints = 1, maskName = 'SAT'):
+    mi = exposure.getMaskedImage()
+    mask = mi.getMask()
+    satmask = afwImage.MaskU(mask, True)
+    satmask &= mask.getPlaneBitMask(maskName)
     thresh = afwDetection.Threshold(0.5)
     maskimg = afwImage.ImageU(satmask.getDimensions())
     maskimg <<= satmask
