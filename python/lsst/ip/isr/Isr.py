@@ -37,9 +37,12 @@ def convertImageForIsr(exposure, imsim=False):
     newexposure = exposure.convertF()
     amp = cameraGeom.cast_Amp(exposure.getDetector())
     mi = newexposure.getMaskedImage()
+    var = afwImage.ImageF(mi.getDimensions())
+    """
     var = afwImage.ImageF(mi.getImage(), True)
     ep = amp.getElectronicParams()
     var /= ep.getGain()
+    """
     mask = afwImage.MaskU(newexposure.getWidth(), newexposure.getHeight())
     mask.set(0)
     newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
@@ -119,8 +122,8 @@ def exposureFromInputData(image, metadata, ampBBox,
     mask.set(0)
 
     # Generate a variance from the image pixels and gain
-    #var  = afwImage.ImageF(image, True)
-    var = afwImage.ImageF(image)
+    var  = afwImage.ImageF(image, True)
+    #var = afwImage.ImageF(image)
     
     if metadata.exists('gain'):
         gain = metadata.get('gain')
@@ -318,28 +321,6 @@ def backgroundSubtraction(exposure, gridsize="32",
     im     -= backobj.getImageF()
 
     
-def crRejection(exposure, policy):
-    
-    # common input test
-    metadata   = exposure.getMetadata()
-
-    crPolicy    = policy.getPolicy('crRejectionPolicy')
-    # gain is LSST norm
-    gainKeyword = 'gain' 
-    gain        = metadata.get(gainKeyword)
-    # needed for CR
-    crPolicy.set('e_per_dn', gain)
-
-    mi = exposure.getMaskedImage()
-
-    # NOTE - this background issue needs to be resolved
-    bg = 0.
-    
-    defaultFwhm = policy.get('defaultFwhm')
-    psf         = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
-    crs         = algorithms.findCosmicRays(mi, psf, bg, crPolicy, False)    
-    
-    
 def saturationDetection(exposure, saturation, doMask = True,
                          maskName = 'SAT'):
 
@@ -469,6 +450,18 @@ def darkCorrection(exposure, dark, expscaling, darkscaling):
     mi  = exposure.getMaskedImage()
     mi.scaledMinus(scale, dark.getMaskedImage())
 
+def updateVariance(exposure):
+    mi = exposure.getMaskedImage()
+    var = afwImage.ImageF(mi.getImage(), True)
+    amp = cameraGeom.cast_Amp(exposure.getDetector())
+    ep = amp.getElectronicParams()
+    gain = ep.getGain()
+    var /= gain
+    mi = afwImage.makeMaskedImage(mi.getImage(), mi.getMask(), var)
+    exposure.setMaskedImage(mi)
+    #stdev = afwMath.makeStatistics(mi, afwMath.STDEVCLIP).getValue()
+    #varmean = afwMath.makeStatistics(var, afwMath.MEANCLIP).getValue()
+    
     
                    
 def flatCorrection(exposure, flat, scalingtype, scaling = 1.0):
