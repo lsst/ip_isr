@@ -12,7 +12,6 @@ import lsst.pex.exceptions  as pexExcept
 
 # relative imports
 import isrLib
-
 class Bbox(object):
     def __init__(self, x0, y0, dx, dy):
         self.x0 = x0
@@ -28,6 +27,15 @@ class Bbox(object):
 	self.y1 += dy
     def __str__(self):
         return "(%i,%i) -- (%i,%i)"%(self.x0,self.y0,self.x1,self.y1)
+
+def calcEffectiveGain(exposure):
+    mi = exposure.getMaskedImage()
+    im = afwImage.ImageF(mi.getImage(), True)
+    var = mi.getVariance()
+    im /= var
+    medgain = afwMath.makeStatistics(im, afwMath.MEDAIN).getValue()
+    meangain = afwMath.makeStatistics(im, afwMath.MEANCLIP).getValue()
+    return medgain, meangain
 
 def convertImageForIsr(exposure, imsim=False):
     if not isinstance(exposure, afwImage.ExposureU):
@@ -60,12 +68,10 @@ def convertImageForIsr(exposure, imsim=False):
         newexposure.setWcs(wcs)
     return newexposure
 
-
-
 def calculateSdqaCcdRatings(exposure):
     metrics = {}
-    metrics['nSaturatePix'] = None
-    metrics['nBadCalibPix'] = None
+    metrics['nSaturatePix'] = 0
+    metrics['nBadCalibPix'] = 0
     metrics['imageClipMean4Sig3Pass'] = None
     metrics['imageSigma'] = None
     metrics['imageMedian'] = None
@@ -76,8 +82,31 @@ def calculateSdqaCcdRatings(exposure):
     badbitmask = mask.getPlaneBitMask('BAD')
     satbitmask = mask.getPlaneBitMask('SAT')
     intrpbitmask = mask.getPlaneBitMask('INTRP')
-    #Assuming this means all pixels marked bad
-    imageClippedMean = afwMath.makeStatistics(mi, afwMath.MEANCLIP).getValue(afwMath.MEANCLIP)
+    sctrl = afwMath.StatisticsControl()
+    sctrl.setNumIter(4)
+    sctrl.setNumSigmaClip(3)
+    satmask = afwImage.MaskU(mask, True)
+    badmask = afwImage.MaskU(mask, True)
+    satmask &= satbitmask
+    badmask &= badbitmask
+    satmaskim = afwImage.ImageU(satmask.getDimensions())
+    satmaskim <<= satmask
+    badmaskim = afwImage.ImageU(badmask.getDimensions())
+    badmaskim <<= badmask
+    thresh = afwDetection.Threshold(0.5)
+    fs = afwDetection.makeFootprintSet(satmaskim, thresh)
+    for f in fs.getFootprints():
+        metrics['nSaturatePix'] += f.getNpix()
+    fs = afwDetection.makeFootprintSet(badmaskim, thresh)
+    for f in fs.getFootprints():
+        metrics['nBadCalibPix'] += f.getNpix()
+    metrics['imageClipMean4Sig3Pass'] = afwMath.makeStatistics(mi, afwMath.MEANCLIP, sctrl).getValue()
+    metrics['imageSigma'] = afwMath.makeStatistics(mi, afwMath.STDEVCLIP, sctrl).getValue()
+    metrics['imageMedian'] = afwMath.makeStatistics(mi, afwMath.MEDIAN, sctrl).getValue()
+    metrics['imageMin'] = afwMath.makeStatistics(mi, afwMath.MIN, sctrl).getValue()
+    metrics['imageMax'] = afwMath.makeStatistics(mi, afwMath.MAX, sctrl).getValue()
+    for k in metrics.keys():
+        metadata.set(k, metrics[k])
 
 def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     metrics = {}

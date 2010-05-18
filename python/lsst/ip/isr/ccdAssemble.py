@@ -46,6 +46,7 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     metadata = exposures[0].getMetadata()
     metadata.remove("BIASSEC")
     metadata.remove("DATASEC")
+    metadata.remove("GAIN")
     detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
 
     lif = listImageFactory(exposures)
@@ -63,5 +64,7 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
     ccdExposure.setDetector(detector)
+    (medgain, meangain) = ipIsr.calcEffectiveGain(ccdExposure)
+    metadata.update("GAINEFF")
     
     return ccdExposure
