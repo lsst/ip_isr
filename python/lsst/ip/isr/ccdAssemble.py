@@ -10,6 +10,8 @@ import os,sys,eups
 class listImageFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
+    def isRaw():
+        return True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -21,6 +23,8 @@ class listImageFactory(cameraGeomUtils.GetCcdImage):
 class listMaskFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
+    def isRaw():
+        return True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -32,6 +36,8 @@ class listMaskFactory(cameraGeomUtils.GetCcdImage):
 class listVarianceFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
+    def isRaw():
+        return True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -47,7 +53,13 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     metadata.remove("BIASSEC")
     metadata.remove("DATASEC")
     detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
-
+    dl = detector.getDefects()
+    for d in dl:
+        print d.getBBox()
+    gain = 0
+    for a in detector:
+        gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
+    gain /= 16.
     lif = listImageFactory(exposures)
     lmf = listMaskFactory(exposures)
     lvf = listVarianceFactory(exposures)
@@ -57,8 +69,11 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
             isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
     ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
             isTrimmed = isTrimmed, imageFactory = afwImage.MaskU)
-    ccdExposure = afwImage.makeExposure(afwImage.makeMaskedImage(ccdImage,
-        ccdMask, ccdVariance), wcs)
+    mi = afwImage.makeMaskedImage(ccdImage,
+        ccdMask, ccdVariance)
+    mi *= gain
+    metadata.set("GAIN", 1.0)
+    ccdExposure = afwImage.makeExposure(mi, wcs)
     ccdExposure.setWcs(wcs)
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
