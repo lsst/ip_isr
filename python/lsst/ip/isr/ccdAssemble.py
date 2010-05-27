@@ -10,8 +10,7 @@ import os,sys,eups
 class listImageFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
-    def isRaw():
-        return True
+        self.isRaw = True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -23,8 +22,7 @@ class listImageFactory(cameraGeomUtils.GetCcdImage):
 class listMaskFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
-    def isRaw():
-        return True
+        self.isRaw = True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -36,8 +34,7 @@ class listMaskFactory(cameraGeomUtils.GetCcdImage):
 class listVarianceFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
-    def isRaw():
-        return True
+        self.isRaw = True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -54,8 +51,6 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     metadata.remove("DATASEC")
     detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
     dl = detector.getDefects()
-    for d in dl:
-        print d.getBBox()
     gain = 0
     for a in detector:
         gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
