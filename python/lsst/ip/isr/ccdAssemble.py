@@ -5,11 +5,13 @@ import lsst.afw.math as afwMath
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.display.ds9 as ds9
+import Isr
 import os,sys,eups
 
 class listImageFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
+        self.isRaw = True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -21,6 +23,7 @@ class listImageFactory(cameraGeomUtils.GetCcdImage):
 class listMaskFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
+        self.isRaw = True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -32,6 +35,7 @@ class listMaskFactory(cameraGeomUtils.GetCcdImage):
 class listVarianceFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
         self.exposures = exposures
+        self.isRaw = True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
@@ -53,18 +57,20 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     lmf = listMaskFactory(exposures)
     lvf = listVarianceFactory(exposures)
     ccdImage = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lif,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
+            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
     ccdVariance = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lvf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
+            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
     ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.MaskU)
+            isTrimmed = isTrimmed, imageFactory = afwImage.MaskU, bin=False)
     ccdExposure = afwImage.makeExposure(afwImage.makeMaskedImage(ccdImage,
         ccdMask, ccdVariance), wcs)
     ccdExposure.setWcs(wcs)
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
     ccdExposure.setDetector(detector)
-    (medgain, meangain) = ipIsr.calcEffectiveGain(ccdExposure)
-    metadata.update("GAINEFF")
+    (medgain, meangain) = Isr.calcEffectiveGain(ccdExposure)
+    metadata.add("MEDGAIN", medgain)
+    metadata.add("MEANGAIN", meangain)
+    metadata.add("GAINEFF", medgain)
     
     return ccdExposure

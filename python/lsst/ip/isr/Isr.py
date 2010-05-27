@@ -33,7 +33,7 @@ def calcEffectiveGain(exposure):
     im = afwImage.ImageF(mi.getImage(), True)
     var = mi.getVariance()
     im /= var
-    medgain = afwMath.makeStatistics(im, afwMath.MEDAIN).getValue()
+    medgain = afwMath.makeStatistics(im, afwMath.MEDIAN).getValue()
     meangain = afwMath.makeStatistics(im, afwMath.MEANCLIP).getValue()
     return medgain, meangain
 
@@ -61,8 +61,10 @@ def convertImageForIsr(exposure, imsim=False):
         origin = wcs.getSkyOrigin()
         metadata = exposure.getMetadata()
         refcoord = afwCoord.Fk5Coord(origin[0], origin[1],\
-            metadata.getFloat("date_obs"))
+            float(metadata.get("MJD-OBS")))
+        print refcoord.getRa(afwCoord.DEGREES), refcoord.getDec(afwCoord.DEGREES)
         nrefcoord = refcoord.precess(2000.)
+        print nrefcoord.getRa(afwCoord.DEGREES), nrefcoord.getDec(afwCoord.DEGREES)
         wcs.setSkyOrigin(nrefcoord.getRa(afwCoord.DEGREES),
                 nrefcoord.getDec(afwCoord.DEGREES))
         newexposure.setWcs(wcs)
@@ -77,6 +79,7 @@ def calculateSdqaCcdRatings(exposure):
     metrics['imageMedian'] = None
     metrics['imageMin'] = None
     metrics['imageMax'] = None
+    metadata = exposure.getMetadata()
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
     badbitmask = mask.getPlaneBitMask('BAD')
@@ -130,7 +133,7 @@ def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     fs = afwDetection.makeFootprintSet(satmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nSaturatePix'] += f.getNpix()
-    sctrl = afwMath.StatisticsControl()
+    sctl = afwMath.StatisticsControl()
     metrics['overscanMean'] = afwMath.makeStatistics(biasmi, afwMath.MEAN, sctl).getValue() 
     metrics['overscanStdDev'] = afwMath.makeStatistics(biasmi, afwMath.STDEV, sctl).getValue() 
     metrics['overscanMedian'] = afwMath.makeStatistics(biasmi, afwMath.MEDIAN, sctl).getValue() 
