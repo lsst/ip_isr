@@ -2,6 +2,7 @@ import time, os, math
 import lsst.utils           as utils
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
+import lsst.afw.geom        as afwGeom
 import lsst.afw.cameraGeom  as cameraGeom
 import lsst.afw.math        as afwMath
 import lsst.afw.coord       as afwCoord
@@ -9,6 +10,7 @@ import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
 import lsst.pex.policy      as pexPolicy
 import lsst.pex.exceptions  as pexExcept
+import lsst.daf.base        as dafBase
 
 # relative imports
 import isrLib
@@ -46,11 +48,6 @@ def convertImageForIsr(exposure, imsim=False):
     amp = cameraGeom.cast_Amp(exposure.getDetector())
     mi = newexposure.getMaskedImage()
     var = afwImage.ImageF(mi.getDimensions())
-    """
-    var = afwImage.ImageF(mi.getImage(), True)
-    ep = amp.getElectronicParams()
-    var /= ep.getGain()
-    """
     mask = afwImage.MaskU(newexposure.getWidth(), newexposure.getHeight())
     mask.set(0)
     newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
@@ -60,14 +57,16 @@ def convertImageForIsr(exposure, imsim=False):
         wcs = exposure.getWcs()
         origin = wcs.getSkyOrigin()
         metadata = exposure.getMetadata()
+        mjd = metadata.get("MJD-OBS")
+        epoch = dafBase.DateTime(mjd, dafBase.DateTime.MJD, dafBase.DateTime.UTC).get(dafBase.DateTime.EPOCH)
         refcoord = afwCoord.Fk5Coord(origin[0], origin[1],\
-            float(metadata.get("MJD-OBS")))
-        print refcoord.getRa(afwCoord.DEGREES), refcoord.getDec(afwCoord.DEGREES)
+            epoch)
         nrefcoord = refcoord.precess(2000.)
-        print nrefcoord.getRa(afwCoord.DEGREES), nrefcoord.getDec(afwCoord.DEGREES)
-        wcs.setSkyOrigin(nrefcoord.getRa(afwCoord.DEGREES),
-                nrefcoord.getDec(afwCoord.DEGREES))
-        newexposure.setWcs(wcs)
+        crval = afwGeom.PointD()
+        crval.setX(nrefcoord.getRa(afwCoord.DEGREES))
+        crval.setY(nrefcoord.getDec(afwCoord.DEGREES))
+        newwcs = afwImage.Wcs(crval, wcs.getPixelOrigin(), wcs.getCDMatrix())
+        newexposure.setWcs(newwcs)
     return newexposure
 
 def calculateSdqaCcdRatings(exposure):
