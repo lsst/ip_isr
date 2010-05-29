@@ -5,6 +5,7 @@ import lsst.afw.math as afwMath
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.display.ds9 as ds9
+import Isr
 import os,sys,eups
 
 class listImageFactory(cameraGeomUtils.GetCcdImage):
@@ -49,6 +50,7 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     metadata = exposures[0].getMetadata()
     metadata.remove("BIASSEC")
     metadata.remove("DATASEC")
+    metadata.remove("GAIN")
     detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
     dl = detector.getDefects()
     gain = 0
@@ -59,11 +61,11 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     lmf = listMaskFactory(exposures)
     lvf = listVarianceFactory(exposures)
     ccdImage = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lif,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
+            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
     ccdVariance = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lvf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF)
+            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
     ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.MaskU)
+            isTrimmed = isTrimmed, imageFactory = afwImage.MaskU, bin=False)
     mi = afwImage.makeMaskedImage(ccdImage,
         ccdMask, ccdVariance)
     mi *= gain
@@ -73,5 +75,9 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
     ccdExposure.setDetector(detector)
+    (medgain, meangain) = Isr.calcEffectiveGain(ccdExposure)
+    metadata.add("MEDGAIN", medgain)
+    metadata.add("MEANGAIN", meangain)
+    metadata.add("GAINEFF", medgain)
     
     return ccdExposure

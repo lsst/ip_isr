@@ -2,6 +2,7 @@ import time, os, math
 import lsst.utils           as utils
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
+import lsst.afw.geom        as afwGeom
 import lsst.afw.cameraGeom  as cameraGeom
 import lsst.afw.math        as afwMath
 import lsst.afw.coord       as afwCoord
@@ -9,10 +10,10 @@ import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
 import lsst.pex.policy      as pexPolicy
 import lsst.pex.exceptions  as pexExcept
+import lsst.daf.base        as dafBase
 
 # relative imports
 import isrLib
-
 class Bbox(object):
     def __init__(self, x0, y0, dx, dy):
         self.x0 = x0
@@ -29,6 +30,15 @@ class Bbox(object):
     def __str__(self):
         return "(%i,%i) -- (%i,%i)"%(self.x0,self.y0,self.x1,self.y1)
 
+def calcEffectiveGain(exposure):
+    mi = exposure.getMaskedImage()
+    im = afwImage.ImageF(mi.getImage(), True)
+    var = mi.getVariance()
+    im /= var
+    medgain = afwMath.makeStatistics(im, afwMath.MEDIAN).getValue()
+    meangain = afwMath.makeStatistics(im, afwMath.MEANCLIP).getValue()
+    return medgain, meangain
+
 def convertImageForIsr(exposure, imsim=False):
     if not isinstance(exposure, afwImage.ExposureU):
         raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
@@ -38,11 +48,6 @@ def convertImageForIsr(exposure, imsim=False):
     amp = cameraGeom.cast_Amp(exposure.getDetector())
     mi = newexposure.getMaskedImage()
     var = afwImage.ImageF(mi.getDimensions())
-    """
-    var = afwImage.ImageF(mi.getImage(), True)
-    ep = amp.getElectronicParams()
-    var /= ep.getGain()
-    """
     mask = afwImage.MaskU(newexposure.getWidth(), newexposure.getHeight())
     mask.set(0)
     newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
@@ -52,32 +57,58 @@ def convertImageForIsr(exposure, imsim=False):
         wcs = exposure.getWcs()
         origin = wcs.getSkyOrigin()
         metadata = exposure.getMetadata()
+        mjd = metadata.get("MJD-OBS")
+        epoch = dafBase.DateTime(mjd, dafBase.DateTime.MJD, dafBase.DateTime.UTC).get(dafBase.DateTime.EPOCH)
         refcoord = afwCoord.Fk5Coord(origin[0], origin[1],\
-            metadata.getFloat("date_obs"))
+            epoch)
         nrefcoord = refcoord.precess(2000.)
-        wcs.setSkyOrigin(nrefcoord.getRa(afwCoord.DEGREES),
-                nrefcoord.getDec(afwCoord.DEGREES))
-        newexposure.setWcs(wcs)
+        crval = afwGeom.PointD()
+        crval.setX(nrefcoord.getRa(afwCoord.DEGREES))
+        crval.setY(nrefcoord.getDec(afwCoord.DEGREES))
+        newwcs = afwImage.Wcs(crval, wcs.getPixelOrigin(), wcs.getCDMatrix())
+        newexposure.setWcs(newwcs)
     return newexposure
-
-
 
 def calculateSdqaCcdRatings(exposure):
     metrics = {}
-    metrics['nSaturatePix'] = None
-    metrics['nBadCalibPix'] = None
+    metrics['nSaturatePix'] = 0
+    metrics['nBadCalibPix'] = 0
     metrics['imageClipMean4Sig3Pass'] = None
     metrics['imageSigma'] = None
     metrics['imageMedian'] = None
     metrics['imageMin'] = None
     metrics['imageMax'] = None
+    metadata = exposure.getMetadata()
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
     badbitmask = mask.getPlaneBitMask('BAD')
     satbitmask = mask.getPlaneBitMask('SAT')
     intrpbitmask = mask.getPlaneBitMask('INTRP')
-    #Assuming this means all pixels marked bad
-    imageClippedMean = afwMath.makeStatistics(mi, afwMath.MEANCLIP).getValue(afwMath.MEANCLIP)
+    sctrl = afwMath.StatisticsControl()
+    sctrl.setNumIter(4)
+    sctrl.setNumSigmaClip(3)
+    satmask = afwImage.MaskU(mask, True)
+    badmask = afwImage.MaskU(mask, True)
+    satmask &= satbitmask
+    badmask &= badbitmask
+    satmaskim = afwImage.ImageU(satmask.getDimensions())
+    satmaskim <<= satmask
+    badmaskim = afwImage.ImageU(badmask.getDimensions())
+    badmaskim <<= badmask
+    thresh = afwDetection.Threshold(0.5)
+    fs = afwDetection.makeFootprintSet(satmaskim, thresh)
+    for f in fs.getFootprints():
+        metrics['nSaturatePix'] += f.getNpix()
+    fs = afwDetection.makeFootprintSet(badmaskim, thresh)
+    for f in fs.getFootprints():
+        metrics['nBadCalibPix'] += f.getNpix()
+    metrics['imageClipMean4Sig3Pass'] = afwMath.makeStatistics(mi, afwMath.MEANCLIP, sctrl).getValue()
+    metrics['imageSigma'] = afwMath.makeStatistics(mi, afwMath.STDEVCLIP, sctrl).getValue()
+    metrics['imageMedian'] = afwMath.makeStatistics(mi, afwMath.MEDIAN, sctrl).getValue()
+    metrics['imageMin'] = afwMath.makeStatistics(mi, afwMath.MIN, sctrl).getValue()
+    metrics['imageMax'] = afwMath.makeStatistics(mi, afwMath.MAX, sctrl).getValue()
+    for k in metrics.keys():
+        metadata.set(k, metrics[k])
 
 def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     metrics = {}
@@ -101,7 +132,7 @@ def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     fs = afwDetection.makeFootprintSet(satmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nSaturatePix'] += f.getNpix()
-    sctrl = afwMath.StatisticsControl()
+    sctl = afwMath.StatisticsControl()
     metrics['overscanMean'] = afwMath.makeStatistics(biasmi, afwMath.MEAN, sctl).getValue() 
     metrics['overscanStdDev'] = afwMath.makeStatistics(biasmi, afwMath.STDEV, sctl).getValue() 
     metrics['overscanMedian'] = afwMath.makeStatistics(biasmi, afwMath.MEDIAN, sctl).getValue() 
