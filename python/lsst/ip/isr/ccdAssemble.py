@@ -52,7 +52,11 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
     metadata.remove("DATASEC")
     metadata.remove("GAIN")
     detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
-
+    dl = detector.getDefects()
+    gain = 0
+    for a in detector:
+        gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
+    gain /= 16.
     lif = listImageFactory(exposures)
     lmf = listMaskFactory(exposures)
     lvf = listVarianceFactory(exposures)
@@ -62,8 +66,11 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
             isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
     ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
             isTrimmed = isTrimmed, imageFactory = afwImage.MaskU, bin=False)
-    ccdExposure = afwImage.makeExposure(afwImage.makeMaskedImage(ccdImage,
-        ccdMask, ccdVariance), wcs)
+    mi = afwImage.makeMaskedImage(ccdImage,
+        ccdMask, ccdVariance)
+    mi *= gain
+    metadata.set("GAIN", 1.0)
+    ccdExposure = afwImage.makeExposure(mi, wcs)
     ccdExposure.setWcs(wcs)
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
