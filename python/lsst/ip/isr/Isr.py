@@ -39,7 +39,7 @@ def calcEffectiveGain(exposure):
     meangain = afwMath.makeStatistics(im, afwMath.MEANCLIP).getValue()
     return medgain, meangain
 
-def convertImageForIsr(exposure, imsim=False):
+def convertImageForIsr(exposure):
     if not isinstance(exposure, afwImage.ExposureU):
         raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
                 %s."%(exposure.__repr__()))
@@ -51,22 +51,6 @@ def convertImageForIsr(exposure, imsim=False):
     mask = afwImage.MaskU(newexposure.getWidth(), newexposure.getHeight())
     mask.set(0)
     newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
-    if imsim:
-        pexLog.Trace("ipIsr.convertImageForIsr", 4, 'Doing sim specific mods')
-        #do precession of crvals
-        wcs = exposure.getWcs()
-        origin = wcs.getSkyOrigin()
-        metadata = exposure.getMetadata()
-        mjd = metadata.get("MJD-OBS")
-        epoch = dafBase.DateTime(mjd, dafBase.DateTime.MJD, dafBase.DateTime.UTC).get(dafBase.DateTime.EPOCH)
-        refcoord = afwCoord.Fk5Coord(origin[0], origin[1],\
-            epoch)
-        nrefcoord = refcoord.precess(2000.)
-        crval = afwGeom.PointD()
-        crval.setX(nrefcoord.getRa(afwCoord.DEGREES))
-        crval.setY(nrefcoord.getDec(afwCoord.DEGREES))
-        newwcs = afwImage.Wcs(crval, wcs.getPixelOrigin(), wcs.getCDMatrix())
-        newexposure.setWcs(newwcs)
     return newexposure
 
 def calculateSdqaCcdRatings(exposure):

@@ -44,19 +44,21 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
               return img
         return None
 
-def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True):
+def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True, keysToRemove = []):
     wcs = exposures[0].getWcs()
     filter = exposures[0].getFilter()
     metadata = exposures[0].getMetadata()
-    metadata.remove("BIASSEC")
-    metadata.remove("DATASEC")
-    metadata.remove("GAIN")
+    for k in keysToRemove:
+        if metadata.exists(k):
+            metadata.remove(k)
     detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
     dl = detector.getDefects()
     gain = 0
+    namps = 0
     for a in detector:
         gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
-    gain /= 16.
+        namps += 1.
+    gain /= namps
     lif = listImageFactory(exposures)
     lmf = listMaskFactory(exposures)
     lvf = listVarianceFactory(exposures)
