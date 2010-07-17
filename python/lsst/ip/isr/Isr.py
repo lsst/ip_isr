@@ -52,6 +52,11 @@ class Bbox(object):
     def __str__(self):
         return "(%i,%i) -- (%i,%i)"%(self.x0,self.y0,self.x1,self.y1)
 
+def createPsf(fwhm):
+    """Make a PSF"""
+    ksize = 4*int(fwhm) + 1
+    return afwDetection.createPsf('DoubleGaussian', ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
+
 def calcEffectiveGain(exposure):
     mi = exposure.getMaskedImage()
     im = afwImage.ImageF(mi.getImage(), True)
@@ -265,8 +270,8 @@ def maskBadPixelsFp(exposure, policy, fpList,
 
     if interpolate:
         # and interpolate over them
-        defaultFwhm = policy.get('defaultFwhm')
-        psf = algorithms.createPSF('DoubleGaussian', 0, 0, defaultFwhm/(2*math.sqrt(2*math.log(2))))
+        psf = createPsf(policy.get('defaultFwhm'))
+
         for fp in fpList:
             defect = afwDetection.Defect(fp.getBBox())
             algorithms.interpolateOverDefects(mi, psf, defect)
@@ -274,7 +279,7 @@ def maskBadPixelsFp(exposure, policy, fpList,
         
 def interpolateDefectList(exposure, defectList, fwhm, fallbackValue=None):
     mi = exposure.getMaskedImage()
-    psf = algorithms.createPSF('DoubleGaussian', 0, 0, fwhm/(2*math.sqrt(2*math.log(2))))
+    psf = createPsf(fwhm)
     if fallbackValue is None:
         fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
     algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
@@ -294,7 +299,7 @@ def maskBadPixelsDef(exposure, defectList, fwhm,
 
     if interpolate:
         # and interpolate over them
-        psf = algorithms.createPSF('DoubleGaussian', 0, 0, fwhm/(2*math.sqrt(2*math.log(2))))
+        psf = createPsf(fwhm)
         fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
         algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
 
@@ -433,8 +438,8 @@ def saturationInterpolation(exposure, fwhm, growFootprints = 1, maskName = 'SAT'
             satDefectList.push_back(defect)
     if 'INTRP' not in mask.getMaskPlaneDict().keys():
         mask.addMaskPlane('INTRP')
-    psf = algorithms.createPSF('DoubleGaussian', 0, 0,
-            fwhm/(2*math.sqrt(2*math.log(2))))
+    psf = createPsf(fwhm)
+
     algorithms.interpolateOverDefects(mi, psf, satDefectList)
 
 
@@ -471,7 +476,7 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
     # interpolate over them
     if interpolate:
         mask.addMaskPlane('INTRP')
-        psf = algorithms.createPSF('DoubleGaussian', 0, 0, fwhm/(2*math.sqrt(2*math.log(2))))
+        psf = createPsf(fwhm)
         algorithms.interpolateOverDefects(mi, psf, defectList)
     
 
