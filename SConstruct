@@ -16,6 +16,7 @@ env = scons.makeEnv(
         ["boost", "boost/serialization/base_object.hpp", "boost_serialization:C++"],
         ["boost", "boost/test/unit_test.hpp", "boost_unit_test_framework:C++"],
         ["python", "Python.h"],
+        ["base", "lsst/base.h"],
         ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"],
         ["wcslib", "wcslib/wcs.h", "m wcs"],
         ["xpa", "xpa.h", "xpa", "XPAPuts"],
