@@ -96,8 +96,8 @@ def calculateSdqaCcdRatings(exposure):
     satbitmask = mask.getPlaneBitMask('SAT')
     intrpbitmask = mask.getPlaneBitMask('INTRP')
     sctrl = afwMath.StatisticsControl()
-    sctrl.setNumIter(4)
-    sctrl.setNumSigmaClip(3)
+    sctrl.setNumIter(3)
+    sctrl.setNumSigmaClip(4)
     satmask = afwImage.MaskU(mask, True)
     badmask = afwImage.MaskU(mask, True)
     satmask &= satbitmask
@@ -113,11 +113,14 @@ def calculateSdqaCcdRatings(exposure):
     fs = afwDetection.makeFootprintSet(badmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nBadCalibPix'] += f.getNpix()
-    metrics['imageClipMean4Sig3Pass'] = afwMath.makeStatistics(mi, afwMath.MEANCLIP, sctrl).getValue()
-    metrics['imageSigma'] = afwMath.makeStatistics(mi, afwMath.STDEVCLIP, sctrl).getValue()
-    metrics['imageMedian'] = afwMath.makeStatistics(mi, afwMath.MEDIAN, sctrl).getValue()
-    metrics['imageMin'] = afwMath.makeStatistics(mi, afwMath.MIN, sctrl).getValue()
-    metrics['imageMax'] = afwMath.makeStatistics(mi, afwMath.MAX, sctrl).getValue()
+    stats = afwMath.makeStatistics(mi, afwMath.MEANCLIP | \
+            afwMath.STDEVCLIP | afwMath.MEDIAN | afwMath.MIN |\
+            afwMath.MAX)
+    metrics['imageClipMean4Sig3Pass'] = stats.getValue(afwMath.MEANCLIP)
+    metrics['imageSigma'] = stats.getValue(afwMath.STDEVCLIP)
+    metrics['imageMedian'] = stats.getValue(afwMath.MEDIAN)
+    metrics['imageMin'] = stats.getValue(afwMath.MIN)
+    metrics['imageMax'] = stats.getValue(afwMath.MAX)
     for k in metrics.keys():
         metadata.set(k, metrics[k])
 
@@ -143,12 +146,15 @@ def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     fs = afwDetection.makeFootprintSet(satmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nSaturatePix'] += f.getNpix()
-    sctl = afwMath.StatisticsControl()
-    metrics['overscanMean'] = afwMath.makeStatistics(biasmi, afwMath.MEAN, sctl).getValue() 
-    metrics['overscanStdDev'] = afwMath.makeStatistics(biasmi, afwMath.STDEV, sctl).getValue() 
-    metrics['overscanMedian'] = afwMath.makeStatistics(biasmi, afwMath.MEDIAN, sctl).getValue() 
-    metrics['overscanMin'] = afwMath.makeStatistics(biasmi, afwMath.MIN, sctl).getValue() 
-    metrics['overscanMax'] = afwMath.makeStatistics(biasmi, afwMath.MAX, sctl).getValue() 
+    sctrl = afwMath.StatisticsControl()
+    stats = afwMath.makeStatistics(biasmi, afwMath.MEAN | \
+            afwMath.STDEV | afwMath.MEDIAN | afwMath.MIN |\
+            afwMath.MAX, sctrl)
+    metrics['overscanMean'] = stats.getValue(afwMath.MEAN)
+    metrics['overscanStdDev'] = stats.getValue(afwMath.STDEV)
+    metrics['overscanMedian'] = stats.getValue(afwMath.MEDIAN)
+    metrics['overscanMin'] = stats.getValue(afwMath.MIN)
+    metrics['overscanMax'] = stats.getValue(afwMath.MAX)
     for k in metrics.keys():
         metadata.set(k, metrics[k])
 

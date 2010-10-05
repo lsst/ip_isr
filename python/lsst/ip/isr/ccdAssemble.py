@@ -70,6 +70,7 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True, keysToRemove 
     wcs = exposures[0].getWcs()
     filter = exposures[0].getFilter()
     metadata = exposures[0].getMetadata()
+    calib = exposures[0].getCalib()
     for k in keysToRemove:
         if metadata.exists(k):
             metadata.remove(k)
@@ -99,6 +100,8 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True, keysToRemove 
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
     ccdExposure.setDetector(detector)
+    ccdExposure.getCalib().setExptime(calib.getExptime())
+    ccdExposure.getCalib().setMidTime(calib.getMidTime())
     (medgain, meangain) = Isr.calcEffectiveGain(ccdExposure)
     metadata.add("MEDGAIN", medgain)
     metadata.add("MEANGAIN", meangain)
