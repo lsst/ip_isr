@@ -98,6 +98,7 @@ def calculateSdqaCcdRatings(exposure):
     sctrl = afwMath.StatisticsControl()
     sctrl.setNumIter(3)
     sctrl.setNumSigmaClip(4)
+    sctrl.setAndMask(satbitmask | badbitmask | intrpbitmask)
     satmask = afwImage.MaskU(mask, True)
     badmask = afwImage.MaskU(mask, True)
     satmask &= satbitmask
@@ -115,7 +116,7 @@ def calculateSdqaCcdRatings(exposure):
         metrics['nBadCalibPix'] += f.getNpix()
     stats = afwMath.makeStatistics(mi, afwMath.MEANCLIP | \
             afwMath.STDEVCLIP | afwMath.MEDIAN | afwMath.MIN |\
-            afwMath.MAX)
+            afwMath.MAX, sctrl)
     metrics['imageClipMean4Sig3Pass'] = stats.getValue(afwMath.MEANCLIP)
     metrics['imageSigma'] = stats.getValue(afwMath.STDEVCLIP)
     metrics['imageMedian'] = stats.getValue(afwMath.MEDIAN)
