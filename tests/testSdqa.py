@@ -26,12 +26,6 @@ class IsrSdqaTestCases(unittest.TestCase):
         badbmask = mask.getPlaneBitMask('BAD')
         img = afwImage.ImageF(mi.getImage(), self.dbox)
         oscan = afwImage.ImageF(mi.getImage(), self.bbox)
-        for i in range(10):
-            satmask.set(int(i*satmask.getWidth()/10.), int(i*satmask.getHeight()/10.), satbmask)
-            badmask.set(badmask.getWidth() - 1 - int(i*badmask.getWidth()/10.),
-                    badmask.getHeight() - 1 - int(i*badmask.getHeight()/10.), badbmask)
-        mask |= satmask
-        mask |= badmask
         for i in range(img.getWidth()):
             for j in range(img.getHeight()):
                 img.set(i,j,i*img.getWidth() + j)
@@ -39,6 +33,12 @@ class IsrSdqaTestCases(unittest.TestCase):
         for i in range(oscan.getWidth()):
             for j in range(oscan.getHeight()):
                 oscan.set(i,j,100)
+        for i in range(10):
+            satmask.set(int(i*satmask.getWidth()/10.), int(i*satmask.getHeight()/10.), satbmask)
+            badmask.set(badmask.getWidth() - 1 - int(i*badmask.getWidth()/10.),
+                    badmask.getHeight() - 1 - int(i*badmask.getHeight()/10.), badbmask)
+        mask |= satmask
+        mask |= badmask
         img2 = mi.getImage()
         self.mi = mi
         self.darr = numpy.asarray(darr)
@@ -62,13 +62,16 @@ class IsrSdqaTestCases(unittest.TestCase):
     def testCcdSdqa(self):
         nsat = 0
         exposure = afwImage.ExposureF(afwImage.MaskedImageF(self.mi, self.dbox))
+        im = exposure.getMaskedImage().getImage()
         ipIsr.calculateSdqaCcdRatings(exposure)
         metadata = exposure.getMetadata()
         self.assertEqual(metadata.get('imageClipMean4Sig3Pass'), 40.5)
         self.assertEqual(metadata.get('imageMedian'), 40.5)
-        self.assertEqual(metadata.get('imageMin'), 0.)
-        self.assertAlmostEqual(metadata.get('imageSigma'), 23.54591, 5)
-        self.assertEqual(metadata.get('imageMax'), 81.0)
+        #Since values 0 and 1 are masked min is 2.
+        self.assertEqual(metadata.get('imageMin'), 2.)
+        self.assertAlmostEqual(metadata.get('imageSigma'), 22.93223, 5)
+        #Same here 80 and 81 are masked so max is 79
+        self.assertEqual(metadata.get('imageMax'), 79.0)
         self.assertEqual(metadata.get('nSaturatePix'), 10)
         self.assertEqual(metadata.get('nBadCalibPix'), 10)
 
