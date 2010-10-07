@@ -199,7 +199,8 @@ namespace isr {
 
         UnmaskedNanCounter() :
         _npix(0),
-        _bpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("BAD"))
+        _bpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("BAD")),
+        _unpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("UNMASKEDNAN"))
         {};
 
         virtual ~UnmaskedNanCounter() {};
@@ -212,6 +213,7 @@ namespace isr {
                 for (x_iterator ptr = mi.row_begin(y), end = mi.row_end(y); ptr != end; ++ptr) {
                     if (!(((*ptr).mask() & _bpMask)) && !(lsst::utils::lsst_isfinite((*ptr).image()))) {
                         _npix += 1;
+                        (ptr).mask() |= _unpMask;
                         (ptr).mask() |= _bpMask;
                     }
                 }
@@ -222,6 +224,7 @@ namespace isr {
     private:
         int    _npix;
         lsst::afw::image::MaskPixel _bpMask;
+        lsst::afw::image::MaskPixel _unpMask;
     }; 
 
     template<typename ImagePixelT, typename FunctionT>

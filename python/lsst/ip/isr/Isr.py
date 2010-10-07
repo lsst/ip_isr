@@ -139,6 +139,8 @@ def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     biasmi = afwImage.MaskedImageF(mi, biasBBox)
     mask = mi.getMask()
     satbitmask = mask.getPlaneBitMask('SAT')
+    sctrl = afwMath.StatisticsControl()
+    sctrl.setAndMask(satbitmask)
     satmask = trimmi.getMask()
     satmask &= satbitmask
     satmaskim = afwImage.ImageU(satmask.getDimensions())
@@ -147,10 +149,9 @@ def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     fs = afwDetection.makeFootprintSet(satmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nSaturatePix'] += f.getNpix()
-    sctrl = afwMath.StatisticsControl()
     stats = afwMath.makeStatistics(biasmi, afwMath.MEAN | \
             afwMath.STDEV | afwMath.MEDIAN | afwMath.MIN |\
-            afwMath.MAX, sctrl)
+            afwMath.MAX,sctrl)
     metrics['overscanMean'] = stats.getValue(afwMath.MEAN)
     metrics['overscanStdDev'] = stats.getValue(afwMath.STDEV)
     metrics['overscanMedian'] = stats.getValue(afwMath.MEDIAN)
