@@ -1,7 +1,7 @@
-# 
+#
 # LSST Data Management System
 # Copyright 2008, 2009, 2010 LSST Corporation.
-# 
+#
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
 #
@@ -9,14 +9,14 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
-# You should have received a copy of the LSST License Statement and 
-# the GNU General Public License along with this program.  If not, 
+#
+# You should have received a copy of the LSST License Statement and
+# the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
@@ -39,16 +39,16 @@ import isrLib
 class Bbox(object):
     def __init__(self, x0, y0, dx, dy):
         self.x0 = x0
-	self.y0 = y0
-	self.width = dx
-	self.height = dy
-	self.x1 = self.x0 + self.width - 1
-	self.y1 = self.y0 + self.height - 1
+        self.y0 = y0
+        self.width = dx
+        self.height = dy
+        self.x1 = self.x0 + self.width - 1
+        self.y1 = self.y0 + self.height - 1
     def shift(self, dx, dy):
-	self.x0 += dx
-	self.x1 += dx
-	self.y0 += dy
-	self.y1 += dy
+        self.x0 += dx
+        self.x1 += dx
+        self.y0 += dy
+        self.y1 += dy
     def __str__(self):
         return "(%i,%i) -- (%i,%i)"%(self.x0,self.y0,self.x1,self.y1)
 
@@ -174,7 +174,7 @@ def exposureFromInputData(image, metadata, ampBBox,
     # Generate a variance from the image pixels and gain
     var  = afwImage.ImageF(image, True)
     #var = afwImage.ImageF(image)
-    
+
     if metadata.exists('gain'):
         gain = metadata.get('gain')
     elif policy:
@@ -205,7 +205,7 @@ def exposureFromInputData(image, metadata, ampBBox,
         wcs      = afwImage.makeWcs(metadata)
     else:
         wcs      = afwImage.Wcs()
-        
+
     # makeExposure will make an Exposure with the same type as MaskedImage
     exposure = afwImage.makeExposure(mi, wcs)
     exposure.setMetadata(metadata)
@@ -225,7 +225,7 @@ def validateCalibration(exposure, calibration, policy):
      * Through the same filter (dome flat)
      * Appropriate for the date range (anything time variable; dflats, etc)
     """
-    
+
     pass
 
 
@@ -239,7 +239,7 @@ def maskFromDefects(dimensions, fpList):
     afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
     return mask
-    
+
 
 def defectsFromBoolImage(fitsfile, invert=False):
     # input bad pixel image
@@ -250,7 +250,7 @@ def defectsFromBoolImage(fitsfile, invert=False):
         thresh = afwDetection.Threshold(-0.5)
     else:
         thresh = afwDetection.Threshold(0.5)
-   
+
     # turn into masked image for detection
     mi = afwImage.MaskedImageF(image)
 
@@ -264,7 +264,7 @@ def defectsFromBoolImage(fitsfile, invert=False):
 def maskBadPixelsFp(exposure, policy, fpList,
                     interpolate = True,
                     maskName    = 'BAD'):
-                  
+
     raise RuntimeError, "Do not call me; use MaskBadPixelsDef.  Talk to RHL if you disagree"
 
     # common input test
@@ -284,26 +284,26 @@ def maskBadPixelsFp(exposure, policy, fpList,
             defect = afwDetection.Defect(fp.getBBox())
             algorithms.interpolateOverDefects(mi, psf, defect)
 
-        
+
 def interpolateDefectList(exposure, defectList, fwhm, fallbackValue=None):
     mi = exposure.getMaskedImage()
     psf = createPsf(fwhm)
     if fallbackValue is None:
         fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
     algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
-    
+
 
 def maskBadPixelsDef(exposure, defectList, fwhm,
                      interpolate = True,
                      maskName    = 'BAD'):
-                  
+
     # mask bad pixels
     mi      = exposure.getMaskedImage()
     mask    = mi.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
     for defect in defectList:
         bbox = defect.getBBox()
-        afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)    
+        afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)
 
     if interpolate:
         # and interpolate over them
@@ -311,7 +311,7 @@ def maskBadPixelsDef(exposure, defectList, fwhm,
         fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
         algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
 
-        
+
 
 def lookupTableFromPolicy(tablePolicy):
     tableType   = tablePolicy.getString('type')
@@ -326,7 +326,7 @@ def lookupTableFromPolicy(tablePolicy):
         lookupTable = isrLib.LookupTableMultiplicativeF(tableValues)
     else:
         return None
-    
+
     return lookupTable
 
 
@@ -337,7 +337,7 @@ def linearization(exposure, lookupTable):
     gain = metadata.get('gain')
     mi   = exposure.getMaskedImage()
     lookupTable.apply(mi, gain)
-    
+
 #Get rid of this: SIMON
 def backgroundSubtraction(exposure, gridsize="32",
         interptype="AKIMA_SPLINE", nsigma=3.0, niter=3.0):
@@ -348,17 +348,17 @@ def backgroundSubtraction(exposure, gridsize="32",
     try:
         bctrl = {
             'LINEAR'               :
-            afwMath.BackgroundControl(afwMath.Interpolate.LINEAR), 
+            afwMath.BackgroundControl(afwMath.Interpolate.LINEAR),
             'NATURAL_SPLINE'       :
-            afwMath.BackgroundControl(afwMath.Interpolate.NATURAL_SPLINE), 
+            afwMath.BackgroundControl(afwMath.Interpolate.NATURAL_SPLINE),
             'CUBIC_SPLINE'         :
-            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE), 
+            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE),
             'CUBIC_SPLINE_PERIODIC':
-            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC), 
+            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC),
             'AKIMA_SPLINE'         :
-            afwMath.BackgroundControl(afwMath.Interpolate.AKIMA_SPLINE), 
+            afwMath.BackgroundControl(afwMath.Interpolate.AKIMA_SPLINE),
             'AKIMA_SPLINE_PERIODIC':
-            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC) 
+            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC)
         }[interptype]
     except:
         bctrl = afwMath.BackgroundControl(afwMath.Interpolate.AKIMA_SPLINE)
@@ -370,14 +370,14 @@ def backgroundSubtraction(exposure, gridsize="32",
     backobj = afwMath.makeBackground(im, bctrl)
     im     -= backobj.getImageF()
 
-    
+
 def saturationDetection(exposure, saturation, doMask = True,
                          maskName = 'SAT'):
 
     mi         = exposure.getMaskedImage()
     if False:
         ds9.mtv(mi, frame=0)
-    
+
 
     # find saturated regions
     thresh     = afwDetection.Threshold(saturation)
@@ -385,7 +385,7 @@ def saturationDetection(exposure, saturation, doMask = True,
     fpList     = ds.getFootprints()
     # we will turn them into defects for interpolating
     defectList = algorithms.DefectListT()
-    
+
     # grow them
     bboxes = []
     for fp in fpList:
@@ -460,7 +460,7 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
     bitmask    = mask.getPlaneBitMask(maskName)
     if False:
         ds9.mtv(mi, frame=0)
-    
+
 
     # find saturated regions
     thresh     = afwDetection.Threshold(saturation)
@@ -468,7 +468,7 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
     fpList     = ds.getFootprints()
     # we will turn them into defects for interpolating
     defectList = algorithms.DefectListT()
-    
+
     # grow them
     for fp in fpList:
         # if "True", growing requires a convolution
@@ -486,7 +486,7 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
         mask.addMaskPlane('INTRP')
         psf = createPsf(fwhm)
         algorithms.interpolateOverDefects(mi, psf, defectList)
-    
+
 
 def biasCorrection(exposure, bias):
 
@@ -495,7 +495,7 @@ def biasCorrection(exposure, bias):
     mi -= bmi
 
 def darkCorrection(exposure, dark, expscaling, darkscaling):
-    
+
     scale             = expscaling / darkscaling
     mi  = exposure.getMaskedImage()
     mi.scaledMinus(scale, dark.getMaskedImage())
@@ -511,9 +511,9 @@ def updateVariance(exposure):
     exposure.setMaskedImage(mi)
     #stdev = afwMath.makeStatistics(mi, afwMath.STDEVCLIP).getValue()
     #varmean = afwMath.makeStatistics(var, afwMath.MEANCLIP).getValue()
-    
-    
-                   
+
+
+
 def flatCorrection(exposure, flat, scalingtype, scaling = 1.0):
 
     flatscaling = 1.0
@@ -525,11 +525,11 @@ def flatCorrection(exposure, flat, scalingtype, scaling = 1.0):
     elif scalingtype == 'USER':
         flatscaling = scaling
     else:
-        raise pexExcept.LsstException, '%s : %s not implemented' % ("flatCorrection", scalingtype)            
+        raise pexExcept.LsstException, '%s : %s not implemented' % ("flatCorrection", scalingtype)
     mi   = exposure.getMaskedImage()
     fmi  = flat.getMaskedImage()
     mi.scaledDivides(1./flatscaling, fmi)
-    
+
 
 
 def illuminationCorrection(exposure, illum, illumscaling):
@@ -538,17 +538,17 @@ def illuminationCorrection(exposure, illum, illumscaling):
 
     mi   = exposure.getMaskedImage()
     mi.scaledDivides(1./illumscaling, illum.getMaskedImage())
-    
+
 
 
 def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
     """
     This returns a new Exposure that is a subsection of the input exposure.
-    
+
     NOTE : do we need to deal with the WCS in any way, shape, or form?
     """
     methodName = 'trimNew'
-    
+
     # common input test
 
     metadata   = exposure.getMetadata()
@@ -558,7 +558,7 @@ def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
 
 
     if trimsec == None:
-        raise pexExcept.LsstException, '%s : cannot find trimsec' % (methodName)        
+        raise pexExcept.LsstException, '%s : cannot find trimsec' % (methodName)
 
     trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
 
@@ -573,7 +573,7 @@ def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
     trimmedExposure.getMetadata().remove(trimsecKeyword)
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
-    
+
 
     return trimmedExposure
 
@@ -603,7 +603,7 @@ def overscanCorrection(exposure, overscanBBox, fittype, overscanKeyword =
     else:
         raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fittype)
 
-    return 
+    return
 
 
 def fringeCorrection(exposure, fringe):
