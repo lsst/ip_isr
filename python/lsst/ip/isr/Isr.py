@@ -307,9 +307,7 @@ def maskBadPixelsDef(exposure, defectList, fwhm,
 
     if interpolate:
         # and interpolate over them
-        psf = createPsf(fwhm)
-        fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
-        algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
+        interpolateDefectList(exposure, defectList, fwhm)
 
 
 
