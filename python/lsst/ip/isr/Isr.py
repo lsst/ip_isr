@@ -293,7 +293,7 @@ def interpolateDefectList(exposure, defectList, fwhm, fallbackValue=None):
     algorithms.interpolateOverDefects(mi, psf, defectList, fallbackValue)
 
 
-def maskBadPixelsDef(exposure, defectList, fwhm,
+def maskBadPixelsDef(exposure, defectList, fwhm=None,
                      interpolate = True,
                      maskName    = 'BAD'):
 
@@ -307,6 +307,7 @@ def maskBadPixelsDef(exposure, defectList, fwhm,
 
     if interpolate:
         # and interpolate over them
+        assert fwhm and fwhm > 0, "FWHM not provided for interpolation"
         interpolateDefectList(exposure, defectList, fwhm)
 
 
