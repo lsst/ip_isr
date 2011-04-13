@@ -27,7 +27,7 @@ import lsst.afw.math as afwMath
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.display.ds9 as ds9
-import Isr
+import isr
 import os,sys,eups
 
 class listImageFactory(cameraGeomUtils.GetCcdImage):
@@ -102,7 +102,7 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True, keysToRemove 
     ccdExposure.setDetector(detector)
     ccdExposure.getCalib().setExptime(calib.getExptime())
     ccdExposure.getCalib().setMidTime(calib.getMidTime())
-    (medgain, meangain) = Isr.calcEffectiveGain(ccdExposure)
+    (medgain, meangain) = isr.calcEffectiveGain(ccdExposure)
     metadata.add("MEDGAIN", medgain)
     metadata.add("MEANGAIN", meangain)
     metadata.add("GAINEFF", medgain)

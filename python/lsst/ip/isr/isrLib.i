@@ -56,7 +56,7 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %lsst_exceptions();
 
 %{
-#include "lsst/ip/isr/Isr.h"
+#include "lsst/ip/isr.h"
 %}
 
 SWIG_SHARED_PTR(CountMaskedPixelsF, lsst::ip::isr::CountMaskedPixels<float>);
@@ -68,7 +68,7 @@ SWIG_SHARED_PTR(LookupTableMultiplicativeD, lsst::ip::isr::LookupTableMultiplica
 SWIG_SHARED_PTR(LookupTableReplaceF, lsst::ip::isr::LookupTableReplace<float>);
 SWIG_SHARED_PTR(LookupTableReplaceD, lsst::ip::isr::LookupTableReplace<double>);
 
-%include "lsst/ip/isr/Isr.h"
+%include "lsst/ip/isr.h"
 
 %template(CountMaskedPixelsF) lsst::ip::isr::CountMaskedPixels<float>;
 %template(CountMaskedPixelsD) lsst::ip::isr::CountMaskedPixels<double>;

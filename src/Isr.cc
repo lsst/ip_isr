@@ -23,10 +23,10 @@
  */
  
 
-#include <lsst/pex/logging/Trace.h>
-#include <lsst/afw/math.h>
-#include <lsst/afw/math/Statistics.h>
-#include <lsst/ip/isr/Isr.h>
+#include "lsst/pex/logging/Trace.h"
+#include "lsst/afw/math.h"
+#include "lsst/afw/math/Statistics.h"
+#include "lsst/ip/isr.h"
 
 namespace pexLog = lsst::pex::logging;
 namespace afwImage = lsst::afw::image;
