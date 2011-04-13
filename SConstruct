@@ -26,8 +26,7 @@ if True:
 #
 # Build/install things
 #
-for d in Split("doc examples lib src tests") + \
-        Split("include/lsst/ip/isr python/lsst/ip/isr"):
+for d in Split("doc examples lib src tests python/lsst/ip/isr"):
     SConscript(os.path.join(d, "SConscript"))
 
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"
