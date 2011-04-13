@@ -29,6 +29,7 @@ import lsst.utils.tests as tests
 
 import eups
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.pex.logging as logging
@@ -46,9 +47,15 @@ class IsrTestCases(unittest.TestCase):
     
     def setUp(self):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
+	self.pmin = afwGeom.Point2I(1,1)
+	self.pmax = afwGeom.Point2I(10,10)
+	self.bbox = afwGeom.Box2I(self.pmin, self.pmax)
         
     def tearDown(self):
         del self.policy
+	del self.pmin
+	del self.pmax
+	del self.bbox
 
     def testLinearizationReplace(self):
         # create a basic lookup table
@@ -65,15 +72,15 @@ class IsrTestCases(unittest.TestCase):
         lookupPolicy.add('value', 7)
         lookupPolicy.add('value', 7)
         lookupPolicy.add('value', 9)
-        mi       = afwImage.MaskedImageF(10,10)
+        mi       = afwImage.MaskedImageF(self.bbox)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
 
         # needed for lookup table application
         metadata = exposure.getMetadata()
         metadata.set('gain', 1.0)
         
-        for i in range(10):
-            for j in range(10):
+        for i in range(self.bbox.getWidth()):
+            for j in range(self.bbox.getHeight()):
                 exposure.getMaskedImage().getImage().set(i, j, i)
                 exposure.getMaskedImage().getVariance().set(i, j, i)
 
@@ -81,8 +88,8 @@ class IsrTestCases(unittest.TestCase):
         ipIsr.linearization(exposure, lookupTable=lookupTable)
 
         mi = exposure.getMaskedImage()
-        for i in range(10):
-            for j in range(10):
+        for i in range(self.bbox.getWidth()):
+            for j in range(self.bbox.getHeight()):
                 if (i != 6) and (i != 8):
                     self.assertEqual(mi.getImage().get(i,j), i)
                     self.assertEqual(mi.getVariance().get(i,j), i)
@@ -105,15 +112,15 @@ class IsrTestCases(unittest.TestCase):
         lookupPolicy.add('value', 1.1)
         lookupPolicy.add('value', 1.2)
         lookupPolicy.add('value', 1.)
-        mi       = afwImage.MaskedImageF(10,10)
+        mi       = afwImage.MaskedImageF(self.bbox)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
 
         # needed for lookup table application
         metadata = exposure.getMetadata()
         metadata.set('gain', 1.0)
         
-        for i in range(10):
-            for j in range(10):
+        for i in range(self.bbox.getWidth()):
+            for j in range(self.bbox.getHeight()):
                 exposure.getMaskedImage().getImage().set(i, j, i)
                 exposure.getMaskedImage().getVariance().set(i, j, i)
 
@@ -121,8 +128,8 @@ class IsrTestCases(unittest.TestCase):
         ipIsr.linearization(exposure, lookupTable=lookupTable)
 
         mi = exposure.getMaskedImage()
-        for i in range(10):
-            for j in range(10):
+        for i in range(self.bbox.getWidth()):
+            for j in range(self.bbox.getHeight()):
                 if (i == 7):
                     self.assertAlmostEqual(mi.getImage().get(i,j),    i * 1.1,    5)
                     self.assertAlmostEqual(mi.getVariance().get(i,j), i * 1.1**2, 5)

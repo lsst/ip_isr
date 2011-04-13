@@ -38,7 +38,7 @@ class listImageFactory(cameraGeomUtils.GetCcdImage):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
               img = imageFactory(e.getMaskedImage().getImage(),
-                      amp.getDiskDataSec())
+                      amp.getDiskDataSec(), afwImage.LOCAL)
               return img
         return None
 
@@ -50,7 +50,7 @@ class listMaskFactory(cameraGeomUtils.GetCcdImage):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
               img = imageFactory(e.getMaskedImage().getMask(),
-                      amp.getDiskDataSec())
+                      amp.getDiskDataSec(), afwImage.LOCAL)
               return img
         return None
 
@@ -62,7 +62,7 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
               img = imageFactory(e.getMaskedImage().getVariance(),
-                      amp.getDiskDataSec())
+                      amp.getDiskDataSec(), afwImage.LOCAL)
               return img
         return None
 

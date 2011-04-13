@@ -2,70 +2,59 @@
 #
 # Setup our environment
 #
-import glob
-import os.path
+import glob, os.path, re, os
 import lsst.SConsUtils as scons
 
-env = scons.makeEnv(
-    "ip_isr",
-    r"$HeadURL$",
-    [
-        ["boost", "boost/version.hpp", "boost_system:C++"],
-        ["boost", "boost/version.hpp", "boost_filesystem:C++"],
-        ["boost", "boost/regex.hpp", "boost_regex:C++"],
-        ["boost", "boost/serialization/base_object.hpp", "boost_serialization:C++"],
-        ["boost", "boost/test/unit_test.hpp", "boost_unit_test_framework:C++"],
-        ["python", "Python.h"],
-        ["base", "lsst/base.h"],
-        ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"],
-        ["wcslib", "wcslib/wcs.h", "m wcs"],
-        ["xpa", "xpa.h", "xpa", "XPAPuts"],
-        ["minuit2", "Minuit2/FCNBase.h", "Minuit2:C++"],
-        ["gsl", "gsl/gsl_rng.h", "gslcblas gsl"],
-        ["pex_exceptions", "lsst/pex/exceptions.h", "pex_exceptions:C++"],
-        ["utils", "lsst/utils/Utils.h", "utils:C++"],
-        ["daf_base", "lsst/daf/base.h", "daf_base:C++"],
-        ["pex_logging", "lsst/pex/logging/Trace.h", "pex_logging:C++"],
-        ["security", "lsst/security/Security.h", "security:C++"],
-        ["pex_policy", "lsst/pex/policy/Policy.h", "pex_policy:C++"],
-        ["daf_persistence", "lsst/daf/persistence.h", "daf_persistence:C++"],
-        ["daf_data", "lsst/daf/data.h", "daf_data:C++"],
-        ["eigen", "Eigen/Core.h"],
-        ["afw", "lsst/afw.h", "afw:C++"],
-        ["meas_algorithms", "lsst/meas/algorithms/Interp.h", "meas_algorithms:C++"],
-    ],
-)
-env.libs["ip_isr"] = env.getlibs("boost wcslib cfitsio minuit2 gsl utils daf_base daf_data daf_persistence") \
-    + env.getlibs("pex_exceptions pex_logging pex_policy security afw meas_algorithms") \
-    + env.libs["ip_isr"] # why is this necessary? it is not needed for most packages
-        # but tests fail with ip_isr symbols not found if it is omitted
+try:
+    scons.ConfigureDependentProducts
+except AttributeError:
+    import lsst.afw.SconsUtils
+    scons.ConfigureDependentProducts = lsst.afw.SconsUtils.ConfigureDependentProducts
 
+env = scons.makeEnv("ip_isr",
+                    r"$HeadURL$",
+                    scons.ConfigureDependentProducts("ip_isr"))
+
+env.libs["ip_isr"] += env.getlibs("daf_base daf_data daf_persistence pex_logging pex_exceptions " +
+    "pex_policy security ndarray afw boost minuit2 utils wcslib")
+if True:
+    #
+    # Workaround SConsUtils failure to find numpy .h files. Fixed in sconsUtils >= 3.3.2
+    #
+    import numpy
+    env.Append(CCFLAGS = ["-I", numpy.get_include()])
 #
 # Build/install things
 #
-for d in Split("doc lib python/lsst/ip/isr tests"):
+for d in Split("doc examples lib src tests") + \
+        Split("include/lsst/ip/isr python/lsst/ip/isr"):
     SConscript(os.path.join(d, "SConscript"))
 
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"
 
 Alias("install", [
-    env.InstallAs(os.path.join(env['prefix'], "doc", "doxygen"), os.path.join("doc", "htmlDir")),
+    env.Install(env['prefix'], "doc"),
+    env.Install(env['prefix'], "etc"),
     env.Install(env['prefix'], "examples"),
     env.Install(env['prefix'], "include"),
     env.Install(env['prefix'], "lib"),
-    env.Install(env['prefix'], "pipeline"),
+    env.Install(env['prefix'], "policy"),
     env.Install(env['prefix'], "python"),
+    env.Install(env['prefix'], "src"),
     env.Install(env['prefix'], "tests"),
-    env.InstallEups(env['prefix'] + "/ups"),
+    env.InstallEups(os.path.join(env['prefix'], "ups")),
 ])
 
-scons.CleanTree(r"*~ core *.so *.os *.o *.pyc")
-
+scons.CleanTree(r"*~ core *.so *.os *.o")
+#
+# Build TAGS files
+#
 files = scons.filesToTag()
 if files:
     env.Command("TAGS", files, "etags -o $TARGET $SOURCES")
 
 env.Declare()
 env.Help("""
-LSST Instrument Signature Removal package
+LSST Instrument Signature Removal routines.
 """)
+

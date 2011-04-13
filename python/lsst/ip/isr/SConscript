@@ -5,5 +5,5 @@ Import("env")
 # (which should generally be all of them), separated by spaces.
 env.CheckSwig("python", ilang="c++",
     includedProducts="utils daf_base pex_exceptions pex_logging pex_policy " + \
-        "daf_persistence daf_data security afw meas_algorithms")
+        "daf_persistence daf_data security ndarray afw meas_algorithms")
 env.LoadableModuleIncomplete("_isrLib", "isrLib.i", LIBS=env.getlibs("ip_isr"))

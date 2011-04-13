@@ -30,6 +30,7 @@ import lsst.utils.tests as tests
 import eups
 import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.pex.logging as logging
@@ -48,19 +49,23 @@ class IsrTestCases(unittest.TestCase):
     
     def setUp(self):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
+        self.pmin = afwGeom.Point2I(1,1)
+        self.pmax = afwGeom.Point2I(10,10)
         
     def tearDown(self):
         del self.policy
+	del self.pmin
+	del self.pmax
 
     def doFlat(self, scaling):
         flatScaleKeyword = self.policy.getString('flatPolicy.flatScaleKeyword')
         filenameKeyword  = self.policy.getString('filenameKeyword')
         
-        mi = afwImage.MaskedImageF(10,10)
+        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin,self.pmax))
         mi.getImage().set(10)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         
-        flat = afwImage.MaskedImageF(10,10)
+        flat = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         flat.getImage().set(1)
         flatexposure = afwImage.ExposureF(flat, afwImage.Wcs())
         dmetadata = flatexposure.getMetadata()
@@ -87,11 +92,11 @@ class IsrTestCases(unittest.TestCase):
         flatScaleKeyword = self.policy.getString('flatPolicy.flatScaleKeyword')
         filenameKeyword  = self.policy.getString('filenameKeyword')
         
-        mi = afwImage.MaskedImageF(10,10)
+        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         mi.getImage().set(10)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         
-        illum = afwImage.MaskedImageF(10,10)
+        illum = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         illum.getImage().set(1)
         illumexposure = afwImage.ExposureF(illum, afwImage.Wcs())
         dmetadata = illumexposure.getMetadata()

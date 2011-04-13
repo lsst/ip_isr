@@ -30,6 +30,7 @@ import lsst.utils.tests as tests
 import eups
 import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.pex.logging as logging
@@ -59,20 +60,20 @@ class IsrTestCases(unittest.TestCase):
         saturationKeyword = self.policy.getString('saturationPolicy.saturationKeyword')
         growSaturated     = self.policy.getInt('saturationPolicy.growSaturated')
         defaultFwhm = self.policy.getDouble('defaultFwhm')
-
-        mi       = afwImage.MaskedImageF(20,20)
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(19,19))
+        mi       = afwImage.MaskedImageF(bbox)
         mi.set(100, 0x0, 1)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         
-        bbox     = afwImage.BBox(afwImage.PointI(9,5),
-                                 afwImage.PointI(9,15))
-        submi    = afwImage.MaskedImageF(mi, bbox)
+        bbox     = afwGeom.Box2I(afwGeom.Point2I(9,5),
+                                 afwGeom.Point2I(9,15))
+        submi    = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT, False)
         submi.set(saturation, 0x0, 1)
         
         ipIsr.saturationDetection(exposure, saturation,
                 doMask = True, maskName='SAT')
         ipIsr.saturationInterpolation(exposure, defaultFwhm, growFootprints =
-                growSaturated, maskName = 'SAT')
+			growSaturated, maskName = 'SAT')
 
         bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')
         bitmaskSat    = mi.getMask().getPlaneBitMask('SAT')

@@ -30,6 +30,7 @@ import lsst.utils.tests as tests
 import eups
 import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.pex.logging as logging
@@ -49,19 +50,22 @@ class IsrTestCases(unittest.TestCase):
     
     def setUp(self):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
+        self.pmin = afwGeom.Point2I(1,1)
+        self.pmax = afwGeom.Point2I(10,10)
         
     def tearDown(self):
         del self.policy
+        del self.pmin
+        del self.pmax
 
     def testBias(self):
         meanCountsKeyword = self.policy.getString('biasPolicy.meanCountsKeyword')
         filenameKeyword   = self.policy.getString('filenameKeyword')
-        
-        mi = afwImage.MaskedImageF(10,10)
+        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         mi.getImage().set(10)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
 
-        bias = afwImage.MaskedImageF(10,10)
+        bias = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         bias.getImage().set(1)
         biasexposure = afwImage.ExposureF(bias, afwImage.Wcs())
         bmetadata = biasexposure.getMetadata()
@@ -79,12 +83,12 @@ class IsrTestCases(unittest.TestCase):
     def doDark(self, scaling):
         filenameKeyword  = self.policy.getString('filenameKeyword')
         
-        mi = afwImage.MaskedImageF(10,10)
+        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         mi.getImage().set(10)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
         metadata = exposure.getMetadata()
         
-        dark = afwImage.MaskedImageF(10,10)
+        dark = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         dark.getImage().set(1)
         darkexposure = afwImage.ExposureF(dark, afwImage.Wcs())
         dmetadata = darkexposure.getMetadata()
