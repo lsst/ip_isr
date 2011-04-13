@@ -20,7 +20,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
-import time, os, math
+import time, os, math, re
 import lsst.utils           as utils
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
@@ -38,8 +38,7 @@ import lsst.daf.base        as dafBase
 import isrLib
 
 def BBoxFromDatasec(datasec):
-    x1,x2,y1,y2 = datasec.replace(' ', '').replace('[', '').replace(']',\
-            '').replace(',',':').split(":")
+    jnk,x1,x2,y1,y2,jnk = re.split('[\[\],:]', datasec.replace(' ',''))
     return afwGeom.Box2I(afwGeom.Point2I(int(x1)-1,int(y1)-1),
             afwGeom.Point2I(int(x2)-1,int(y2)-1))
 
