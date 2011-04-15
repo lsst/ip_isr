@@ -7,6 +7,7 @@ import lsst.utils.tests as tests
 
 import eups
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
 import lsst.ip.isr as ipIsr
 import numpy
@@ -15,17 +16,17 @@ import lsst.afw.display.ds9 as ds9
 class IsrSdqaTestCases(unittest.TestCase):
     def setUp(self):
         darr = []
-        mi = afwImage.MaskedImageF(10,10)
+        mi = afwImage.MaskedImageF(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(9,9)))
         mi.set(110, 0x0, 1)
-        self.bbox = afwImage.BBox(afwImage.PointI(0,0), 1, 10)
-        self.dbox = afwImage.BBox(afwImage.PointI(1,0), 9, 10)
-        mask = afwImage.MaskU(mi.getMask(), self.dbox)
-        satmask = afwImage.MaskU(mask.getDimensions(),0x0)
-        badmask = afwImage.MaskU(mask.getDimensions(),0x0)
+        self.bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(0,9))
+        self.dbox = afwGeom.Box2I(afwGeom.Point2I(1,0), afwGeom.Point2I(9, 9))
+        mask = afwImage.MaskU(mi.getMask(), self.dbox, afwImage.PARENT)
+        satmask = afwImage.MaskU(mask.getBBox(afwImage.PARENT),0x0)
+        badmask = afwImage.MaskU(mask.getBBox(afwImage.PARENT),0x0)
         satbmask = mask.getPlaneBitMask('SAT')
         badbmask = mask.getPlaneBitMask('BAD')
-        img = afwImage.ImageF(mi.getImage(), self.dbox)
-        oscan = afwImage.ImageF(mi.getImage(), self.bbox)
+        img = afwImage.ImageF(mi.getImage(), self.dbox, afwImage.PARENT)
+        oscan = afwImage.ImageF(mi.getImage(), self.bbox, afwImage.PARENT)
         for i in range(img.getWidth()):
             for j in range(img.getHeight()):
                 img.set(i,j,i*img.getWidth() + j)
@@ -61,7 +62,8 @@ class IsrSdqaTestCases(unittest.TestCase):
 
     def testCcdSdqa(self):
         nsat = 0
-        exposure = afwImage.ExposureF(afwImage.MaskedImageF(self.mi, self.dbox))
+        exposure = afwImage.ExposureF(afwImage.MaskedImageF(self.mi,
+            self.dbox, afwImage.PARENT))
         im = exposure.getMaskedImage().getImage()
         ipIsr.calculateSdqaCcdRatings(exposure)
         metadata = exposure.getMetadata()

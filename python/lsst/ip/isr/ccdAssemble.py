@@ -27,8 +27,8 @@ import lsst.afw.math as afwMath
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.display.ds9 as ds9
-import Isr
-import os,sys,eups
+import isr
+import os,sys,eups,math
 
 class listImageFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures):
@@ -38,7 +38,7 @@ class listImageFactory(cameraGeomUtils.GetCcdImage):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
               img = imageFactory(e.getMaskedImage().getImage(),
-                      amp.getDiskDataSec())
+                      amp.getDiskDataSec(), afwImage.PARENT)
               return img
         return None
 
@@ -50,7 +50,7 @@ class listMaskFactory(cameraGeomUtils.GetCcdImage):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
               img = imageFactory(e.getMaskedImage().getMask(),
-                      amp.getDiskDataSec())
+                      amp.getDiskDataSec(), afwImage.PARENT)
               return img
         return None
 
@@ -62,12 +62,15 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
               img = imageFactory(e.getMaskedImage().getVariance(),
-                      amp.getDiskDataSec())
+                      amp.getDiskDataSec(), afwImage.PARENT)
               return img
         return None
 
-def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True, keysToRemove = []):
-    wcs = exposures[0].getWcs()
+def assembleCcd(exposures, ccd, reNorm = True, isOnDisk = True, keysToRemove = []):
+    if exposures[0].hasWcs():
+        wcs = exposures[0].getWcs()
+    else:
+        wcs = False
     filter = exposures[0].getFilter()
     metadata = exposures[0].getMetadata()
     calib = exposures[0].getCalib()
@@ -86,25 +89,30 @@ def assembleCcd(exposures, ccd, isTrimmed = True, isOnDisk = True, keysToRemove 
     lmf = listMaskFactory(exposures)
     lvf = listVarianceFactory(exposures)
     ccdImage = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lif,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
+            isTrimmed = True, imageFactory = afwImage.ImageF, bin=False)
     ccdVariance = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lvf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
+            isTrimmed = True, imageFactory = afwImage.ImageF, bin=False)
     ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.MaskU, bin=False)
+            isTrimmed = True, imageFactory = afwImage.MaskU, bin=False)
     mi = afwImage.makeMaskedImage(ccdImage,
         ccdMask, ccdVariance)
-    mi *= gain
-    metadata.set("GAIN", 1.0)
-    ccdExposure = afwImage.makeExposure(mi, wcs)
-    ccdExposure.setWcs(wcs)
+    if reNorm:
+        mi *= gain
+        metadata.set("GAIN", 1.0)
+    ccdExposure = afwImage.makeExposure(mi)
+    if wcs is not False:
+        print "WCS: ",wcs
+        ccdExposure.setWcs(wcs)
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
     ccdExposure.setDetector(detector)
     ccdExposure.getCalib().setExptime(calib.getExptime())
     ccdExposure.getCalib().setMidTime(calib.getMidTime())
-    (medgain, meangain) = Isr.calcEffectiveGain(ccdExposure)
-    metadata.add("MEDGAIN", medgain)
-    metadata.add("MEANGAIN", meangain)
-    metadata.add("GAINEFF", medgain)
+    if not ccdVariance.getArray().max() == 0:
+        (medgain, meangain) = isr.calcEffectiveGain(ccdExposure)
+        metadata.add("MEDGAIN", medgain)
+        metadata.add("GAINEFF", medgain)
+        metadata.add("MEDGAIN", meangain)
+        metadata.add("GAINEFF", meangain)
     
     return ccdExposure

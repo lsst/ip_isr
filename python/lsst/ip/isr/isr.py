@@ -20,7 +20,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
-import time, os, math
+import time, os, math, re
 import lsst.utils           as utils
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
@@ -36,21 +36,11 @@ import lsst.daf.base        as dafBase
 
 # relative imports
 import isrLib
-class Bbox(object):
-    def __init__(self, x0, y0, dx, dy):
-        self.x0 = x0
-        self.y0 = y0
-        self.width = dx
-        self.height = dy
-        self.x1 = self.x0 + self.width - 1
-        self.y1 = self.y0 + self.height - 1
-    def shift(self, dx, dy):
-        self.x0 += dx
-        self.x1 += dx
-        self.y0 += dy
-        self.y1 += dy
-    def __str__(self):
-        return "(%i,%i) -- (%i,%i)"%(self.x0,self.y0,self.x1,self.y1)
+
+def BBoxFromDatasec(datasec):
+    jnk,x1,x2,y1,y2,jnk = re.split('[\[\],:]', datasec.replace(' ',''))
+    return afwGeom.Box2I(afwGeom.Point2I(int(x1)-1,int(y1)-1),
+            afwGeom.Point2I(int(x2)-1,int(y2)-1))
 
 def createPsf(fwhm):
     """Make a PSF"""
@@ -74,8 +64,8 @@ def convertImageForIsr(exposure):
     newexposure = exposure.convertF()
     amp = cameraGeom.cast_Amp(exposure.getDetector())
     mi = newexposure.getMaskedImage()
-    var = afwImage.ImageF(mi.getDimensions())
-    mask = afwImage.MaskU(newexposure.getWidth(), newexposure.getHeight())
+    var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
+    mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
     mask.set(0)
     newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
     return newexposure
@@ -103,9 +93,9 @@ def calculateSdqaCcdRatings(exposure):
     badmask = afwImage.MaskU(mask, True)
     satmask &= satbitmask
     badmask &= badbitmask
-    satmaskim = afwImage.ImageU(satmask.getDimensions())
+    satmaskim = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
     satmaskim <<= satmask
-    badmaskim = afwImage.ImageU(badmask.getDimensions())
+    badmaskim = afwImage.ImageU(badmask.getBBox(afwImage.PARENT))
     badmaskim <<= badmask
     thresh = afwDetection.Threshold(0.5)
     fs = afwDetection.makeFootprintSet(satmaskim, thresh)
@@ -135,15 +125,15 @@ def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
     metrics['overscanMax'] = None
     mi = exposure.getMaskedImage()
     metadata = exposure.getMetadata()
-    trimmi = afwImage.MaskedImageF(mi, dataBBox)
-    biasmi = afwImage.MaskedImageF(mi, biasBBox)
+    trimmi = afwImage.MaskedImageF(mi, dataBBox, False)
+    biasmi = afwImage.MaskedImageF(mi, biasBBox, False)
     mask = mi.getMask()
     satbitmask = mask.getPlaneBitMask('SAT')
     sctrl = afwMath.StatisticsControl()
     sctrl.setAndMask(satbitmask)
     satmask = trimmi.getMask()
     satmask &= satbitmask
-    satmaskim = afwImage.ImageU(satmask.getDimensions())
+    satmaskim = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
     satmaskim <<= satmask
     thresh = afwDetection.Threshold(0.5)
     fs = afwDetection.makeFootprintSet(satmaskim, thresh)
@@ -168,7 +158,7 @@ def exposureFromInputData(image, metadata, ampBBox,
     methodName = "isr.exposureFromInputData"
 
     # Generate an empty mask
-    mask = afwImage.MaskU(image.getDimensions())
+    mask = afwImage.MaskU(image.getBBox(afwImage.PARENT))
     mask.set(0)
 
     # Generate a variance from the image pixels and gain
@@ -198,7 +188,7 @@ def exposureFromInputData(image, metadata, ampBBox,
 
     # makeMaskedImage() will make a MaskedImage with the same type as Image
     mi   = afwImage.makeMaskedImage(image, mask, var)
-    mi.setXY0(ampBBox.getX0(), ampBBox.getY0())
+    mi.setXY0(ampBBox.getMin().getX(), ampBBox.getMin().getY())
 
     if makeWcs:
         # Extract the Wcs info from the input metadata
@@ -231,7 +221,9 @@ def validateCalibration(exposure, calibration, policy):
 
 def maskFromDefects(dimensions, fpList):
     # the output LSST Mask image
-    mask = afwImage.MaskU(dimensions)
+    minpt = afwGeom.Point2I(0,0)
+    maxpt = afwGeom.Point2I(dimensions[0], dimensions[1])
+    mask = afwImage.MaskU(afwGeom.Box2I(minpt, maxpt), afwImage.LOCAL)
     mask.set(0)
     bitmask = mask.getPlaneBitMask('BAD')
 
@@ -337,38 +329,6 @@ def linearization(exposure, lookupTable):
     mi   = exposure.getMaskedImage()
     lookupTable.apply(mi, gain)
 
-#Get rid of this: SIMON
-def backgroundSubtraction(exposure, gridsize="32",
-        interptype="AKIMA_SPLINE", nsigma=3.0, niter=3.0):
-
-    metadata = exposure.getMetadata()
-    mi = exposure.getMaskedImage()
-    bctrl = None
-    try:
-        bctrl = {
-            'LINEAR'               :
-            afwMath.BackgroundControl(afwMath.Interpolate.LINEAR),
-            'NATURAL_SPLINE'       :
-            afwMath.BackgroundControl(afwMath.Interpolate.NATURAL_SPLINE),
-            'CUBIC_SPLINE'         :
-            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE),
-            'CUBIC_SPLINE_PERIODIC':
-            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC),
-            'AKIMA_SPLINE'         :
-            afwMath.BackgroundControl(afwMath.Interpolate.AKIMA_SPLINE),
-            'AKIMA_SPLINE_PERIODIC':
-            afwMath.BackgroundControl(afwMath.Interpolate.CUBIC_SPLINE_PERIODIC)
-        }[interptype]
-    except:
-        bctrl = afwMath.BackgroundControl(afwMath.Interpolate.AKIMA_SPLINE)
-    bctrl.setNxSample(max(2, int(mi.getWidth()/gridsize) + 1))
-    bctrl.setNySample(max(2, int(mi.getHeight()/gridsize) + 1))
-    bctrl.sctrl.setNumSigmaClip(nsigma)
-    bctrl.sctrl.setNumIter(niter)
-    im      = mi.getImage()
-    backobj = afwMath.makeBackground(im, bctrl)
-    im     -= backobj.getImageF()
-
 
 def saturationDetection(exposure, saturation, doMask = True,
                          maskName = 'SAT'):
@@ -392,9 +352,7 @@ def saturationDetection(exposure, saturation, doMask = True,
             mask       = mi.getMask()
             bitmask    = mask.getPlaneBitMask(maskName)
             afwDetection.setMaskFromFootprint(mask, fp, bitmask)
-        for bbox in afwDetection.footprintToBBoxList(fp):
-            bboxes.append(Bbox(bbox.getX0(), bbox.getY0(), bbox.getWidth(),
-                bbox.getHeight()))
+        bboxes.append(afwDetection.footprintToBBoxList(fp))
     return bboxes
 
 def defectListFromMask(exposure, growFootprints = 1, maskName = 'SAT'):
@@ -403,7 +361,7 @@ def defectListFromMask(exposure, growFootprints = 1, maskName = 'SAT'):
     satmask = afwImage.MaskU(mask, True)
     satmask &= mask.getPlaneBitMask(maskName)
     thresh = afwDetection.Threshold(0.5)
-    maskimg = afwImage.ImageU(satmask.getDimensions())
+    maskimg = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
     maskimg <<= satmask
     ds = afwDetection.makeFootprintSet(maskimg, thresh)
     fpList = ds.getFootprints()
@@ -428,7 +386,7 @@ def saturationInterpolation(exposure, fwhm, growFootprints = 1, maskName = 'SAT'
     satmask = afwImage.MaskU(mask, True)
     satmask &= mask.getPlaneBitMask(maskName)
     thresh = afwDetection.Threshold(0.5)
-    maskimg = afwImage.ImageU(satmask.getDimensions())
+    maskimg = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
     maskimg <<= satmask
     ds = afwDetection.makeFootprintSet(maskimg, thresh)
     fpList = ds.getFootprints()
@@ -559,14 +517,14 @@ def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
     if trimsec == None:
         raise pexExcept.LsstException, '%s : cannot find trimsec' % (methodName)
 
-    trimsecBBox = isrLib.BBoxFromDatasec(trimsec)
+    trimsecBBox = BBoxFromDatasec(trimsec)
 
     if not (trimsecBBox.getDimensions() == ampBBox.getDimensions()):
         raise pexException.LsstException, '%s : amp bounding box not same as\
         trim section'%(methodName)
 
-    trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox)
-    trimmedExposure.getMaskedImage().setXY0(ampBBox.getLLC())
+    trimmedExposure = afwImage.ExposureF(exposure, trimsecBBox, False)
+    trimmedExposure.getMaskedImage().setXY0(ampBBox.getMin())
 
     # remove trimsec from metadata
     trimmedExposure.getMetadata().remove(trimsecKeyword)
@@ -575,6 +533,7 @@ def trimNew(exposure, ampBBox, trimsec=None, trimsecKeyword='trimsec'):
 
 
     return trimmedExposure
+
 
 
 

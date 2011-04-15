@@ -24,10 +24,8 @@
 from isrLib import *
 
 # python code
-from Isr import *
+from isr import *
 
 # ccdAssembly
 from ccdAssemble import *
 
-# metadata code
-from Metadata import *

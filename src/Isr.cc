@@ -23,13 +23,14 @@
  */
  
 
-#include <lsst/pex/logging/Trace.h>
-#include <lsst/afw/math.h>
-#include <lsst/afw/math/Statistics.h>
-#include <lsst/ip/isr/Isr.h>
+#include "lsst/pex/logging/Trace.h"
+#include "lsst/afw/math.h"
+#include "lsst/afw/math/Statistics.h"
+#include "lsst/ip/isr.h"
 
 namespace pexLog = lsst::pex::logging;
 namespace afwImage = lsst::afw::image;
+namespace afwGeom = lsst::afw::geom;
 namespace afwMath = lsst::afw::math;
 namespace ipIsr = lsst::ip::isr;
 
@@ -80,9 +81,14 @@ void ipIsr::fitOverscanImage(
     std::vector<double> stepsize(overscanFunction->getNParameters(), ssize);
     
     for (int y = 0; y < height; ++y) {
-        afwImage::BBox bbox       = afwImage::BBox( afwImage::PointI(0, y),
-                                              afwImage::PointI(0, width) );
-        MaskedImage mi         = MaskedImage(overscan, bbox);
+        /**
+        afwGeom::Box2I bbox       = afwGeom::Box2I( afwGeom::Point2I(0, y),
+                                              afwGeom::Point2I(0, width) );
+        The above was how this was defined before ticket #1556.  As I understand it
+        the following is the new way to do this
+        **/
+        afwGeom::Box2I bbox = afwGeom::Box2I(afwGeom::Point2I(0,y), afwGeom::Point2I(width,y));
+        MaskedImage mi         = MaskedImage(overscan, bbox, afwImage::PARENT);
         afwMath::Statistics stats = afwMath::makeStatistics(*(mi.getImage()), afwMath::MEAN | afwMath::STDEV);
 
         values[y]    = stats.getValue(afwMath::MEAN);
@@ -117,35 +123,6 @@ std::string between(std::string &s, char ldelim, char rdelim) {
     
     return result;
 }
-
-afwImage::BBox ipIsr::BBoxFromDatasec(std::string datasection) { 
-    
-    const char begin('[');
-    const char end(']');
-    const char delim1(':');
-    const char delim2(',');
-    
-    std::string temp(between(datasection, delim2, end));
-    std::size_t colonPos = temp.find(":");
-    
-    // NOTE: atoi() needs to be passed a c_str() to get the int out
-    // ALSO: note the fits convention requires an adjustment by 1
-    afwImage::PointI startPt(
-        atoi(between(datasection, begin, delim1).c_str()) - 1,
-        atoi(between(datasection, delim2, delim1).c_str()) - 1);
-    //std::cout << "start = " << startPt.getX() << ", " << startPt.getY() << std::endl;
-    
-    
-    afwImage::PointI endPt(
-        atoi(between(datasection, delim1, delim2).c_str()) - 1,
-        atoi(temp.substr(colonPos + 1).c_str()) - 1);
-    //std::cout << "end = " << endPt.getX() << ", " << endPt.getY() << std::endl;
-
-    afwImage::BBox bbox = afwImage::BBox(startPt, endPt);
-    return bbox;
-}
-
-
 
 // Explicit instantiations
 

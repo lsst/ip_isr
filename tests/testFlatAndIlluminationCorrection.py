@@ -30,6 +30,7 @@ import lsst.utils.tests as tests
 import eups
 import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.pex.logging as logging
@@ -41,7 +42,6 @@ logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
 
 isrDir     = eups.productDir('ip_isr')
 
-
 # Policy file
 InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
 
@@ -49,63 +49,75 @@ class IsrTestCases(unittest.TestCase):
     
     def setUp(self):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
+        self.pmin = afwGeom.Point2I(1,1)
+        self.pmax = afwGeom.Point2I(10,10)
         
     def tearDown(self):
         del self.policy
+	del self.pmin
+	del self.pmax
 
-    def testBias(self):
-        meanCountsKeyword = self.policy.getString('biasPolicy.meanCountsKeyword')
-        filenameKeyword   = self.policy.getString('filenameKeyword')
-        
-        mi = afwImage.MaskedImageF(10,10)
-        mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
-
-        bias = afwImage.MaskedImageF(10,10)
-        bias.getImage().set(1)
-        biasexposure = afwImage.ExposureF(bias, afwImage.Wcs())
-        bmetadata = biasexposure.getMetadata()
-        bmetadata.setDouble(meanCountsKeyword, 1.)
-        bmetadata.setString(filenameKeyword, 'Unittest Bias')
-
-        ipIsr.biasCorrection(exposure, biasexposure)
-
-        height        = mi.getHeight()
-        width         = mi.getWidth()
-        for j in range(height):
-            for i in range(width):
-                self.assertEqual(mi.getImage().get(i,j), 9)
-
-    def doDark(self, scaling):
+    def doFlat(self, scaling):
+        flatScaleKeyword = self.policy.getString('flatPolicy.flatScaleKeyword')
         filenameKeyword  = self.policy.getString('filenameKeyword')
         
-        mi = afwImage.MaskedImageF(10,10)
+        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin,self.pmax))
         mi.getImage().set(10)
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
-        metadata = exposure.getMetadata()
         
-        dark = afwImage.MaskedImageF(10,10)
-        dark.getImage().set(1)
-        darkexposure = afwImage.ExposureF(dark, afwImage.Wcs())
-        dmetadata = darkexposure.getMetadata()
-        dmetadata.setString(filenameKeyword, 'Unittest Dark')
+        flat = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        flat.getImage().set(1)
+        flatexposure = afwImage.ExposureF(flat, afwImage.Wcs())
+        dmetadata = flatexposure.getMetadata()
+        dmetadata.setString(filenameKeyword, 'Unittest Flat')
 
-        ipIsr.darkCorrection(exposure, darkexposure, 1., scaling)
+        ipIsr.flatCorrection(exposure, flatexposure, 'USER', scaling)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(mi.getImage().get(i,j), 10 - 1./scaling, 5)
+                self.assertAlmostEqual(mi.getImage().get(i,j), 10 / (1./scaling), 5)
 
-    def testDark1(self):
-        self.doDark(scaling=10)
+    def testFlat1(self):
+        self.doFlat(scaling=10)
 
-    def testDark2(self):
-        self.doDark(scaling=0.1)
+    def testFlat2(self):
+        self.doFlat(scaling=0.1)
 
-    def testDark3(self):
-        self.doDark(scaling=3.7)
+    def testFlat3(self):
+        self.doFlat(scaling=3.7)
+
+    def doIllum(self, scaling):
+        flatScaleKeyword = self.policy.getString('flatPolicy.flatScaleKeyword')
+        filenameKeyword  = self.policy.getString('filenameKeyword')
+        
+        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        mi.getImage().set(10)
+        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        
+        illum = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        illum.getImage().set(1)
+        illumexposure = afwImage.ExposureF(illum, afwImage.Wcs())
+        dmetadata = illumexposure.getMetadata()
+        dmetadata.setString(filenameKeyword, 'Unittest Illum')
+
+        ipIsr.illuminationCorrection(exposure, illumexposure, scaling)
+
+        height        = mi.getHeight()
+        width         = mi.getWidth()
+        for j in range(height):
+            for i in range(width):
+                self.assertAlmostEqual(mi.getImage().get(i,j), 10 / (1./scaling), 5)
+
+    def testIllum1(self):
+        self.doIllum(scaling=10)
+
+    def testIllum2(self):
+        self.doIllum(scaling=0.1)
+
+    def testIllum3(self):
+        self.doIllum(scaling=3.7)
     
 #####
         

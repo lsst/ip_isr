@@ -30,6 +30,7 @@ import lsst.utils.tests as tests
 import eups
 import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
 import lsst.ip.isr as ipIsr
 import lsst.pex.logging as logging
@@ -54,14 +55,16 @@ class IsrTestCases(unittest.TestCase):
         del self.policy
 
     def testOverscanCorrectionY(self):
-        mi = afwImage.MaskedImageF(10,13)
+	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
+			    afwGeom.Point2I(9,12))
+        mi = afwImage.MaskedImageF(bbox)
         mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
-        bbox     = afwImage.BBox(afwImage.PointI(0,10),
-                                 afwImage.PointI(9,12))
+        bbox     = afwGeom.Box2I(afwGeom.Point2I(0,10),
+                                 afwGeom.Point2I(9,12))
         biassec  = '[1:10,11:13]'
-        overscan = afwImage.MaskedImageF(mi, bbox)
+        overscan = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
@@ -84,14 +87,16 @@ class IsrTestCases(unittest.TestCase):
                     self.assertEqual(mi.getImage().get(i,j), 8)
 
     def testOverscanCorrectionX(self):
-        mi = afwImage.MaskedImageF(13,10)
+	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
+			    afwGeom.Point2I(12,9))
+        mi = afwImage.MaskedImageF(bbox)
         mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
-        bbox     = afwImage.BBox(afwImage.PointI(10,0),
-                                 afwImage.PointI(12,9))
+        bbox     = afwGeom.Box2I(afwGeom.Point2I(10,0),
+                                 afwGeom.Point2I(12,9))
         biassec  = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(mi, bbox)
+        overscan = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         
         overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
@@ -113,14 +118,17 @@ class IsrTestCases(unittest.TestCase):
                     self.assertEqual(mi.getImage().get(i,j), 8)
 
     def testTrimY0(self):
-        mi = afwImage.MaskedImageF(10,13)
+	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(9,12))
+        mi = afwImage.MaskedImageF(bbox)
         mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
-        bbox     = afwImage.BBox(afwImage.PointI(0,10),
-                                 afwImage.PointI(9,12))
+        bbox     = afwGeom.Box2I(afwGeom.Point2I(0,10),
+                                 afwGeom.Point2I(9,12))
         trimsec  = '[1:10,1:10]'
-        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec)
+        ampBBox.shift(afwGeom.Extent2I(-ampBBox.getMin().getX(),
+            -ampBBox.getMin().getY()))
 
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
@@ -144,14 +152,17 @@ class IsrTestCases(unittest.TestCase):
         self.assertEqual(xyOrigin[1], 0)
 
     def testTrimY1(self):
-        mi = afwImage.MaskedImageF(10,13)
+	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(9,12))
+        mi = afwImage.MaskedImageF(bbox)
         mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
-        bbox     = afwImage.BBox(afwImage.PointI(0,3),
-                                 afwImage.PointI(3,12))
+        bbox     = afwGeom.Box2I(afwGeom.Point2I(0,3),
+                                 afwGeom.Point2I(9,12))
         trimsec  = '[1:10,4:13]'
-        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec)
+        ampBBox.shift(afwGeom.Extent2I(-ampBBox.getMin().getX(),
+            -ampBBox.getMin().getY()))
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
@@ -175,14 +186,17 @@ class IsrTestCases(unittest.TestCase):
         self.assertEqual(xyOrigin[1], 0)
 
     def testTrimX0(self):
-        mi = afwImage.MaskedImageF(13,10)
+	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(12,9))
+        mi = afwImage.MaskedImageF(bbox)
         mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
-        bbox     = afwImage.BBox(afwImage.PointI(10,0),
-                                 afwImage.PointI(12,9))
+        bbox     = afwGeom.Box2I(afwGeom.Point2I(10,0),
+                                 afwGeom.Point2I(12,9))
         trimsec  = '[1:10,1:10]'
-        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec)
+        ampBBox.shift(afwGeom.Extent2I(-ampBBox.getMin().getX(),
+            -ampBBox.getMin().getY()))
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
@@ -206,14 +220,17 @@ class IsrTestCases(unittest.TestCase):
         self.assertEqual(xyOrigin[1], 0)
 
     def testTrimX1(self):
-        mi = afwImage.MaskedImageF(13,10)
+	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(12,9))
+        mi = afwImage.MaskedImageF(bbox)
         mi.set(10, 0x0, 1)
 
         # these should be functionally equivalent
-        bbox     = afwImage.BBox(afwImage.PointI(0,0),
-                                 afwImage.PointI(2,9))
+        bbox     = afwGeom.Box2I(afwGeom.Point2I(0,0),
+                                 afwGeom.Point2I(2,9))
         trimsec  = '[4:13,1:10]'
-        ampBBox = ipIsr.BBoxFromDatasec(trimsec); ampBBox.shift(-ampBBox.getX0(), -ampBBox.getY0())
+        ampBBox = ipIsr.BBoxFromDatasec(trimsec)
+        ampBBox.shift(afwGeom.Extent2I(-ampBBox.getMin().getX(),
+            -ampBBox.getMin().getY()))
         
         trimsecKeyword = self.policy.getString('trimPolicy.trimsecKeyword')
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
