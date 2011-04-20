@@ -111,8 +111,11 @@ def assembleCcd(exposures, ccd, reNorm = True, isOnDisk = True, keysToRemove = [
     if not ccdVariance.getArray().max() == 0:
         (medgain, meangain) = isr.calcEffectiveGain(ccdExposure)
         metadata.add("MEDGAIN", medgain)
+        metadata.add("MEANGAIN", meangain)
         metadata.add("GAINEFF", medgain)
-        metadata.add("MEDGAIN", meangain)
-        metadata.add("GAINEFF", meangain)
+    else:
+        metadata.add("MEDGAIN", 0.)
+        metadata.add("MEANGAIN", 0.)
+        metadata.add("GAINEFF", 0.)
     
     return ccdExposure
