@@ -101,7 +101,6 @@ def assembleCcd(exposures, ccd, reNorm = True, isOnDisk = True, keysToRemove = [
         metadata.set("GAIN", 1.0)
     ccdExposure = afwImage.makeExposure(mi)
     if wcs is not False:
-        print "WCS: ",wcs
         ccdExposure.setWcs(wcs)
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
