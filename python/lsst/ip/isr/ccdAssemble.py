@@ -19,6 +19,7 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+import lsstDebug
 
 import lsst.pex.policy as pexPolicy
 import lsst.afw.geom as afwGeom
@@ -67,6 +68,8 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
         return None
 
 def assembleCcd(exposures, ccd, reNorm = True, isOnDisk = True, keysToRemove = []):
+    display = lsstDebug.Info(__name__).display 
+
     if exposures[0].hasWcs():
         wcs = exposures[0].getWcs()
     else:
@@ -116,5 +119,8 @@ def assembleCcd(exposures, ccd, reNorm = True, isOnDisk = True, keysToRemove = [
         metadata.add("MEDGAIN", 0.)
         metadata.add("MEANGAIN", 0.)
         metadata.add("GAINEFF", 0.)
+
+    if display:
+        ds9.mtv(ccdExposure)
     
     return ccdExposure

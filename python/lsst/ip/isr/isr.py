@@ -21,6 +21,7 @@
 #
 
 import time, os, math, re
+import lsstDebug
 import lsst.utils           as utils
 import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
@@ -28,6 +29,7 @@ import lsst.afw.geom        as afwGeom
 import lsst.afw.cameraGeom  as cameraGeom
 import lsst.afw.math        as afwMath
 import lsst.afw.coord       as afwCoord
+import lsst.afw.display.ds9 as ds9
 import lsst.meas.algorithms as algorithms
 import lsst.pex.logging     as pexLog
 import lsst.pex.policy      as pexPolicy
@@ -472,6 +474,7 @@ def updateVariance(exposure):
 
 
 def flatCorrection(exposure, flat, scalingtype, scaling = 1.0):
+    displayFlattenedAmp = lsstDebug.Info(__name__).displayFlattenedAmp
 
     flatscaling = 1.0
     # Figure out scaling from the data
@@ -485,9 +488,11 @@ def flatCorrection(exposure, flat, scalingtype, scaling = 1.0):
         raise pexExcept.LsstException, '%s : %s not implemented' % ("flatCorrection", scalingtype)
     mi   = exposure.getMaskedImage()
     fmi  = flat.getMaskedImage()
+    
     mi.scaledDivides(1./flatscaling, fmi)
 
-
+    if displayFlattenedAmp:
+        ds9.mtv(mi, title="Flattened")
 
 def illuminationCorrection(exposure, illum, illumscaling):
 
