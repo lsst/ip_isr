@@ -32,57 +32,64 @@ import isr
 import os,sys,eups,math
 
 class listImageFactory(cameraGeomUtils.GetCcdImage):
-    def __init__(self, exposures):
+    def __init__(self, exposures, isTrimmed=True, inCcs=False):
         self.exposures = exposures
         self.isRaw = True
-    def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF,
-            isTrimmed=True):
+    def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
-              if isTrimmed:
-                img = imageFactory(e.getMaskedImage().getImage(),
-                        amp.getDiskDataSec(), afwImage.PARENT)
-              else:
-                img = imageFactory(e.getMaskedImage().getImage(),
-                        amp.getDiskAllPixels(), afwImage.PARENT)
-              return img
+                if isTrimmed:
+                    img = imageFactory(e.getMaskedImage().getImage(),
+                            amp.getElectronicDataSec(), afwImage.PARENT)
+                else:
+                    img = imageFactory(e.getMaskedImage().getImage(),
+                            amp.getElectronicAllPixels(), afwImage.PARENT)
+                if inCcs:
+                    return img
+                else:
+                    return amp.prepareAmpData(img)
         return None
 
 class listMaskFactory(cameraGeomUtils.GetCcdImage):
-    def __init__(self, exposures):
+    def __init__(self, exposures, isTrimmed=True, inCcs=False):
         self.exposures = exposures
         self.isRaw = True
-    def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF, 
-            isTrimmed=True):
+    def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
-              if isTrimmed:
-                img = imageFactory(e.getMaskedImage().getMask(),
-                        amp.getDiskDataSec(), afwImage.PARENT)
-              else:
-                img = imageFactory(e.getMaskedImage().getMask(),
-                        amp.getDiskAllPixels(), afwImage.PARENT)
-              return img
+                if isTrimmed:
+                    img = imageFactory(e.getMaskedImage().getMask(),
+                            amp.getElectronicDataSec(), afwImage.PARENT)
+                else:
+                    img = imageFactory(e.getMaskedImage().getMask(),
+                            amp.getElectronicAllPixels(), afwImage.PARENT)
+                if inCcs:
+                    return img
+                else:
+                    return amp.prepareAmpData(img)
         return None
 
 class listVarianceFactory(cameraGeomUtils.GetCcdImage):
-    def __init__(self, exposures):
+    def __init__(self, exposures, isTrimmed=True, inCcs=False):
         self.exposures = exposures
         self.isRaw = True
     def getImage(self, ccd, amp, expType=None, imageFactory=afwImage.ImageF,
             isTrimmed=True):
         for e in self.exposures:             
             if e.getDetector().getId() == amp.getId():
-              if isTrimmed:
-                img = imageFactory(e.getMaskedImage().getVariance(),
-                        amp.getDiskDataSec(), afwImage.PARENT)
-              else:
-                img = imageFactory(e.getMaskedImage().getVariance(),
-                        amp.getDiskAllPixels(), afwImage.PARENT)
-              return img
+                if isTrimmed:
+                    img = imageFactory(e.getMaskedImage().getVariance(),
+                            amp.getElectronicDataSec(), afwImage.PARENT)
+                else:
+                    img = imageFactory(e.getMaskedImage().getVariance(),
+                            amp.getElectronicAllPixels(), afwImage.PARENT)
+                if inCcs:
+                    return img
+                else:
+                    return amp.prepareAmpData(img)
         return None
 
-def assembleCcd(exposures, ccd, reNorm=True, isOnDisk=True, isTrimmed=True, keysToRemove=[]):
+def assembleCcd(exposures, ccd, reNorm=True, inCcs=False, isTrimmed=True, keysToRemove=[]):
     display = lsstDebug.Info(__name__).display 
 
     if exposures[0].hasWcs():
@@ -103,15 +110,15 @@ def assembleCcd(exposures, ccd, reNorm=True, isOnDisk=True, isTrimmed=True, keys
         gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
         namps += 1.
     gain /= namps
-    lif = listImageFactory(exposures)
-    lmf = listMaskFactory(exposures)
-    lvf = listVarianceFactory(exposures)
+    lif = listImageFactory(exposures, isTrimmed=isTrimmed, inCcs=inCcs)
+    lmf = listMaskFactory(exposures, isTrimmed=isTrimmed, inCcs=inCcs)
+    lvf = listVarianceFactory(exposures, isTrimmed=isTrimmed, inCcs=inCcs)
     ccdImage = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lif,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
+            imageFactory = afwImage.ImageF, bin=False)
     ccdVariance = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lvf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.ImageF, bin=False)
+            imageFactory = afwImage.ImageF, bin=False)
     ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
-            isTrimmed = isTrimmed, imageFactory = afwImage.MaskU, bin=False)
+            imageFactory = afwImage.MaskU, bin=False)
     mi = afwImage.makeMaskedImage(ccdImage,
         ccdMask, ccdVariance)
     if reNorm:

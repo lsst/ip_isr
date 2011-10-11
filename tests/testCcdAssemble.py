@@ -75,7 +75,8 @@ class IsrTestCases(unittest.TestCase):
             exp.setFilter(afwImage.Filter("g"))
             exp.getCalib().setExptime(15)
             exposureList.append(exp)
-        aexp = ipIsr.assembleCcd(exposureList, ccd, reNorm = False)
+        aexp = ipIsr.assembleCcd(exposureList, ccd, reNorm = False,
+                isTrimmed=True, inCcs=False)
         xpos = [50,150]
         ypos = [25,76,137,188]
         ind = 0
