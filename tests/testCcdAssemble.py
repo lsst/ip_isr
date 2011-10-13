@@ -67,7 +67,7 @@ class IsrTestCases(unittest.TestCase):
                 cameraGeom.Id(1234))
         exposureList = []
         for n,a in enumerate(ccd):
-            mi = afwImage.MaskedImageF(a.getAllPixels())
+            mi = afwImage.MaskedImageF(a.getElectronicAllPixels())
             mi.getImage().set(n)
             mi.getVariance().set(n)
             exp  = afwImage.ExposureF(mi)
