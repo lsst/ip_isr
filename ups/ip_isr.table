@@ -1,4 +1,4 @@
-setupRequired(meas_algorithms >= 4.3.1.0)
+setupRequired(meas_algorithms >= 4.6.0.0)
 
 setupOptional(gcc)
 setupOptional(sdqa)
