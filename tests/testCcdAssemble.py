@@ -67,7 +67,7 @@ class IsrTestCases(unittest.TestCase):
                 cameraGeom.Id(1234))
         exposureList = []
         for n,a in enumerate(ccd):
-            mi = afwImage.MaskedImageF(a.getAllPixels())
+            mi = afwImage.MaskedImageF(a.getDiskAllPixels())
             mi.getImage().set(n)
             mi.getVariance().set(n)
             exp  = afwImage.ExposureF(mi)
@@ -75,7 +75,8 @@ class IsrTestCases(unittest.TestCase):
             exp.setFilter(afwImage.Filter("g"))
             exp.getCalib().setExptime(15)
             exposureList.append(exp)
-        aexp = ipIsr.assembleCcd(exposureList, ccd, reNorm = False)
+        aexp = ipIsr.assembleCcd(exposureList, ccd, reNorm = False,
+                isTrimmed=True)
         xpos = [50,150]
         ypos = [25,76,137,188]
         ind = 0
