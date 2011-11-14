@@ -28,15 +28,11 @@
 #include "lsst/afw/math/Statistics.h"
 #include "lsst/ip/isr.h"
 
-namespace pexLog = lsst::pex::logging;
-namespace afwImage = lsst::afw::image;
-namespace afwGeom = lsst::afw::geom;
-namespace afwMath = lsst::afw::math;
-namespace ipIsr = lsst::ip::isr;
+namespace lsst { namespace ip { namespace isr {
 
 // Functions
 template <typename ImageT>
-void ipIsr::LookupTableReplace<ImageT>::apply(afwImage::MaskedImage<ImageT> &image, float gain) const {
+void LookupTableReplace<ImageT>::apply(afw::image::MaskedImage<ImageT> &image, float gain) const {
     double igain = 1.0 / gain;
     int nPixTooHigh = 0;
     int nPixTooLow = 0;
@@ -56,19 +52,19 @@ void ipIsr::LookupTableReplace<ImageT>::apply(afwImage::MaskedImage<ImageT> &ima
     }
     if ((nPixTooHigh > 0) || (nPixTooLow > 0)) {
         // log message
-        pexLog::TTrace<1>("lsst.ip.isr.LookupTableReplace.apply", 
+        pex::logging::TTrace<1>("lsst.ip.isr.LookupTableReplace.apply", 
             "Data truncated; %d pixels were < 0; %d pixels were >= %d", nPixTooLow, nPixTooHigh, _max);
     }
 }
 
 template<typename ImagePixelT, typename FunctionT>
-void ipIsr::fitOverscanImage(
-    boost::shared_ptr<afwMath::Function1<FunctionT> > &overscanFunction,
-    afwImage::MaskedImage<ImagePixelT> const& overscan,
+void fitOverscanImage(
+    boost::shared_ptr< afw::math::Function1<FunctionT> > &overscanFunction,
+    afw::image::MaskedImage<ImagePixelT> const& overscan,
     double ssize,
     int sigma
 ) {
-    typedef afwImage::MaskedImage<ImagePixelT> MaskedImage;
+    typedef afw::image::MaskedImage<ImagePixelT> MaskedImage;
 
 
     const int height = overscan.getHeight();
@@ -82,21 +78,21 @@ void ipIsr::fitOverscanImage(
     
     for (int y = 0; y < height; ++y) {
         /**
-        afwGeom::Box2I bbox       = afwGeom::Box2I( afwGeom::Point2I(0, y),
-                                              afwGeom::Point2I(0, width) );
+        afw::geom::Box2I bbox       = afw::geom::Box2I( afw::geom::Point2I(0, y),
+                                              afw::geom::Point2I(0, width) );
         The above was how this was defined before ticket #1556.  As I understand it
         the following is the new way to do this
         **/
-        afwGeom::Box2I bbox = afwGeom::Box2I(afwGeom::Point2I(0,y), afwGeom::Point2I(width,y));
-        MaskedImage mi         = MaskedImage(overscan, bbox, afwImage::PARENT);
-        afwMath::Statistics stats = afwMath::makeStatistics(*(mi.getImage()), afwMath::MEAN | afwMath::STDEV);
+        afw::geom::Box2I bbox = afw::geom::Box2I(afw::geom::Point2I(0,y), afw::geom::Point2I(width,y));
+        MaskedImage mi         = MaskedImage(overscan, bbox, afw::image::PARENT);
+        afw::math::Statistics stats = afw::math::makeStatistics(*(mi.getImage()), afw::math::MEAN | afw::math::STDEV);
 
-        values[y]    = stats.getValue(afwMath::MEAN);
-        errors[y]    = stats.getValue(afwMath::STDEV);
+        values[y]    = stats.getValue(afw::math::MEAN);
+        errors[y]    = stats.getValue(afw::math::STDEV);
         positions[y] = y;
      
     }
-    afwMath::FitResults fitResults = afwMath::minimize(
+    afw::math::FitResults fitResults = afw::math::minimize(
         *overscanFunction,
         parameters,
         stepsize,
@@ -127,34 +123,36 @@ std::string between(std::string &s, char ldelim, char rdelim) {
 // Explicit instantiations
 
 template
-void ipIsr::fitOverscanImage(
-     boost::shared_ptr<afwMath::Function1<double> > &overscanFunction, 
-    afwImage::MaskedImage<float> const& overscan,
+void fitOverscanImage(
+     boost::shared_ptr<afw::math::Function1<double> > &overscanFunction, 
+    afw::image::MaskedImage<float> const& overscan,
     double ssize,
     int sigma);
 
 template
-void ipIsr::fitOverscanImage(
-     boost::shared_ptr<afwMath::Function1<double> > &overscanFunction,
-    afwImage::MaskedImage<double> const& overscan,
+void fitOverscanImage(
+     boost::shared_ptr<afw::math::Function1<double> > &overscanFunction,
+    afw::image::MaskedImage<double> const& overscan,
     double ssize,
     int sigma);
 
-template class ipIsr::CountMaskedPixels<float>;
-template class ipIsr::CountMaskedPixels<double>;
+template class CountMaskedPixels<float>;
+template class CountMaskedPixels<double>;
 
 // Integer classes make no sense for multiplicative table
 //   unless you change the image type
-template class ipIsr::LookupTableMultiplicative<float>;
-template class ipIsr::LookupTableMultiplicative<double>;
+template class LookupTableMultiplicative<float>;
+template class LookupTableMultiplicative<double>;
 
 // Only integer images make sense for a replacement table
-template class ipIsr::LookupTableReplace<int>;
+template class LookupTableReplace<int>;
 // But we turn our images into floats immediately, so use it
-template class ipIsr::LookupTableReplace<float>;
+template class LookupTableReplace<float>;
 // Functor to count unmasked nan in a masked image.  It also masks the nans it
 // finds.
-template class ipIsr::UnmaskedNanCounter<float>;
-template class ipIsr::UnmaskedNanCounter<double>; 
-template class ipIsr::UnmaskedNanCounter<int>; 
-template class ipIsr::UnmaskedNanCounter<boost::uint16_t>; 
+template class UnmaskedNanCounter<float>;
+template class UnmaskedNanCounter<double>; 
+template class UnmaskedNanCounter<int>; 
+template class UnmaskedNanCounter<boost::uint16_t>; 
+
+}}} // namespace lsst::ip::isr
