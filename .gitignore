@@ -1,0 +1,28 @@
+
+# /
+/config.log
+/.sconsign.dblite
+/.sconf_temp
+
+# /doc/
+/doc/htmlDir
+
+# /lib/
+/lib/*.so
+/lib/*.dylib
+
+# /python/lsst/ip/
+/python/lsst/ip/*.pyc
+
+# /python/lsst/ip/isr/
+/python/lsst/ip/isr/isrLib_wrap.*
+/python/lsst/ip/isr/isrLib.py
+/python/lsst/ip/isr/*.so
+/python/lsst/ip/isr/*.pyc
+
+# /src/
+/src/*.os
+
+# /tests/
+/tests/.tests
+/tests/*.pyc
