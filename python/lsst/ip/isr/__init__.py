@@ -20,6 +20,8 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
+from .version import *
+
 # c wrapper
 from isrLib import *
 
