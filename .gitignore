@@ -1,28 +1,17 @@
-
-# /
-/config.log
-/.sconsign.dblite
-/.sconf_temp
-
-# /doc/
-/doc/htmlDir
-
-# /lib/
-/lib/*.so
-/lib/*.dylib
-
-# /python/lsst/ip/
-/python/lsst/ip/*.pyc
-
-# /python/lsst/ip/isr/
-/python/lsst/ip/isr/isrLib_wrap.*
-/python/lsst/ip/isr/isrLib.py
-/python/lsst/ip/isr/*.so
-/python/lsst/ip/isr/*.pyc
-
-# /src/
-/src/*.os
-
-# /tests/
-/tests/.tests
-/tests/*.pyc
+.sconsign.dblite
+config.log
+.sconf_temp
+*.dylib
+*.o
+*.os
+*.so
+*.cfgc
+*.pyc
+*_wrap.cc
+*Lib.py
+doc/html
+doc/*.tag
+doc/*.inc
+doc/doxygen.conf
+tests/.tests
+version.py
