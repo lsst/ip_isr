@@ -39,15 +39,15 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %{
 #include <boost/shared_ptr.hpp>
 
-#include <lsst/afw/image.h>
-#include <lsst/afw/math.h>
-#include <lsst/afw/math/Statistics.h>
-
 #include "lsst/pex/exceptions.h"
-#include "lsst/pex/logging/Trace.h"
-#include "lsst/pex/policy/Policy.h"
+#include "lsst/pex/logging.h"
 #include "lsst/afw/detection.h"
-#include "lsst/afw/geom.h" // work around ticket #1121
+#include "lsst/afw/math.h"
+#include "lsst/afw/geom.h" 
+#include "lsst/afw/image.h"
+#include "lsst/afw/cameraGeom.h"
+
+#include "lsst/ip/isr.h"
 %}
 
 %include "lsst/p_lsstSwig.i"
@@ -55,18 +55,14 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %import  "lsst/afw/math/mathLib.i" 
 %lsst_exceptions();
 
-%{
-#include "lsst/ip/isr.h"
-%}
+%shared_ptr(lsst::ip::isr::CountMaskedPixels<float>);
+%shared_ptr(lsst::ip::isr::CountMaskedPixels<double>);
 
-SWIG_SHARED_PTR(CountMaskedPixelsF, lsst::ip::isr::CountMaskedPixels<float>);
-SWIG_SHARED_PTR(CountMaskedPixelsD, lsst::ip::isr::CountMaskedPixels<double>);
+%shared_ptr(lsst::ip::isr::LookupTableMultiplicative<float>);
+%shared_ptr(lsst::ip::isr::LookupTableMultiplicative<double>);
 
-SWIG_SHARED_PTR(LookupTableMultiplicativeF, lsst::ip::isr::LookupTableMultiplicative<float>);
-SWIG_SHARED_PTR(LookupTableMultiplicativeD, lsst::ip::isr::LookupTableMultiplicative<double>);
-
-SWIG_SHARED_PTR(LookupTableReplaceF, lsst::ip::isr::LookupTableReplace<float>);
-SWIG_SHARED_PTR(LookupTableReplaceD, lsst::ip::isr::LookupTableReplace<double>);
+%shared_ptr(lsst::ip::isr::LookupTableReplace<float>);
+%shared_ptr(lsst::ip::isr::LookupTableReplace<double>);
 
 %include "lsst/ip/isr.h"
 
