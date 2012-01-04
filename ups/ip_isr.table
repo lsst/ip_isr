@@ -1,6 +1,5 @@
 setupRequired(meas_algorithms >= 4.7.3.0)
 
-setupOptional(gcc)
 setupOptional(sdqa >= 4.6.0.0)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
