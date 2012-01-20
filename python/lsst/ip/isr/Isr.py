@@ -21,6 +21,8 @@
 #
 
 import math, re
+import lsst.afw.image as afwImage
+
 class Isr(object):
     def createPsf(fwhm):
         """Make a PSF"""
