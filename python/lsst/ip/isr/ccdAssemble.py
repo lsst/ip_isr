@@ -28,7 +28,7 @@ import lsst.afw.math as afwMath
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.display.ds9 as ds9
-import isr
+import Isr
 import os,sys,eups,math
 
 class listImageFactory(cameraGeomUtils.GetCcdImage):
