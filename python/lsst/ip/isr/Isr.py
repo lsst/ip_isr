@@ -80,10 +80,10 @@ class Isr(object):
         thresh = afwDetection.Threshold(0.5)
         fs = afwDetection.makeFootprintSet(satmaskim, thresh)
         for f in fs.getFootprints():
-        metrics['nSaturatePix'] += f.getNpix()
+            metrics['nSaturatePix'] += f.getNpix()
         fs = afwDetection.makeFootprintSet(badmaskim, thresh)
         for f in fs.getFootprints():
-        metrics['nBadCalibPix'] += f.getNpix()
+            metrics['nBadCalibPix'] += f.getNpix()
         stats = afwMath.makeStatistics(mi, afwMath.MEANCLIP | \
             afwMath.STDEVCLIP | afwMath.MEDIAN | afwMath.MIN |\
             afwMath.MAX, sctrl)
@@ -93,7 +93,7 @@ class Isr(object):
         metrics['imageMin'] = stats.getValue(afwMath.MIN)
         metrics['imageMax'] = stats.getValue(afwMath.MAX)
         for k in metrics.keys():
-        metadata.set(k, metrics[k])
+            metadata.set(k, metrics[k])
 
     def calculateSdqaAmpRatings(exposure, biasBBox, dataBBox):
         metrics = {}
@@ -118,7 +118,7 @@ class Isr(object):
         thresh = afwDetection.Threshold(0.5)
         fs = afwDetection.makeFootprintSet(satmaskim, thresh)
         for f in fs.getFootprints():
-        metrics['nSaturatePix'] += f.getNpix()
+            metrics['nSaturatePix'] += f.getNpix()
         stats = afwMath.makeStatistics(biasmi, afwMath.MEAN | \
             afwMath.STDEV | afwMath.MEDIAN | afwMath.MIN |\
             afwMath.MAX,sctrl)
@@ -128,7 +128,7 @@ class Isr(object):
         metrics['overscanMin'] = stats.getValue(afwMath.MIN)
         metrics['overscanMax'] = stats.getValue(afwMath.MAX)
         for k in metrics.keys():
-        metadata.set(k, metrics[k])
+            metadata.set(k, metrics[k])
 
 
 
@@ -182,8 +182,8 @@ class Isr(object):
         mask = mi.getMask()
         bitmask = mask.getPlaneBitMask(maskName)
         for defect in defectList:
-        bbox = defect.getBBox()
-        afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)
+            bbox = defect.getBBox()
+            afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)
 
         if interpolate:
             # and interpolate over them
@@ -344,15 +344,15 @@ class Isr(object):
         # what type of overscan modeling?
         offset = 0
         if fittype == 'MEAN':
-        offset = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
-        mi    -= offset
+            offset = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
+            mi    -= offset
         elif fittype == 'MEDIAN':
-        offset = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
-        mi    -= offset
+            offset = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+            mi    -= offset
         elif fittype == 'POLY':
-        raise pexExcept.LsstException, '%s : %s not implemented' % ("overscanCorrection", fittype)
+            raise pexExcept.LsstException, '%s : %s not implemented' % ("overscanCorrection", fittype)
         else:
-        raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fittype)
+            raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fittype)
 
     def fringeCorrection(exposure, fringe):
 
