@@ -26,7 +26,7 @@ from .version import *
 from isrLib import *
 
 # python code
-from isr import *
+from Isr import *
 
 # ccdAssembly
 from ccdAssemble import *
