@@ -296,7 +296,7 @@ class Isr(object):
         elif scalingtype == 'MEDIAN':
             flatscaling = afwMath.makeStatistics(flat.getMaskedImage().getImage(), afwMath.MEDIAN).getValue(afwMath.MEDIAN)
         elif scalingtype == 'USER':
-             flatscaling = scaling
+            flatscaling = scaling
         else:
             raise pexExcept.LsstException, '%s : %s not implemented' % ("flatCorrection", scalingtype)
         mi   = exposure.getMaskedImage()
@@ -362,3 +362,13 @@ class Isr(object):
     def pupilCorrection(exposure, pupil):
 
         raise pexExcept.LsstException, '%s not implemented' % (stageName)
+
+class Linearization(object):
+    def __init__(self, linearityFile):
+    
+    def apply(self, exposure):
+        mi = exposure.getMaskedImage()
+        	
+    def readFile(self):
+    def writeFile(self):
+    

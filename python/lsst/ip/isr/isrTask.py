@@ -20,33 +20,77 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
-import math, re
-import lsst.afw.detection   as afwDetection
 import lsst.afw.image       as afwImage
-import lsst.afw.geom        as afwGeom
 import lsst.afw.cameraGeom  as cameraGeom
-import lsst.afw.math        as afwMath
-import lsst.afw.display.ds9 as ds9
-import lsst.meas.algorithms as algorithms
-import lsst.pex.logging     as pexLog
-import lsst.pex.exceptions  as pexExcept
 from copy import deep_copy
-
-# relative imports
-import isrLib
-
-import lsst.pex.policy as pexPolicy
+import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
+from .isr import Linearization
+from .isr import Isr
+
+import isrLib
+class IsrConfig(pexConfig.Config):
+    fwhm = pexConfig.Field(
+        dtype = float,
+        doc = "FWHM of PSF (arcsec)",
+        default = 1.0,
+    )
+    #This is needed for both the detection and correction aspects
+    saturatedMaskName = pexConfig.Field(
+        dtype = str,
+        doc = "Name of mask plane to use in saturation detection",
+        default = "SAT",
+    )
+    flatScalingType = pexConfig.ChoiceField(
+        dtype = str,
+        doc = "The method for scaling the flat on the fly.",
+        default = 'USER',
+        allowed = {"USER": "User defined scaling",
+            "MEAN": "Scale by the inverse of the mean",
+            "MEDIAN": "Scale by the inverse of the median",
+        },
+    )
+    flatScalingValue = pexConfig.Field(
+        dtype = float,
+        doc = "If scaling type is USER, a value for the scaling must be provided",
+        default = 1.0,
+    )
+    nGrowSaturated = pexConfig.Field(
+        dtype = int,
+        doc = "Number of pixels by which to grow the saturated footprints",
+        default = 1,
+    )
+    growSaturationFootprints = pexConfig.Field(
+        dtype = bool,
+        doc = "Should the saturated footprints be grown?",
+        default = True,
+    )
+    methodList = pexConfig.ListField(
+        dtype = float,
+        doc = "The list of ISR corrections to apply in the order they should be applied",
+        default = ["doSaturationDetection", "doLinearization", "doOverscanCorrection", "doBiasSubtraction", \
+                   "doDarkCorrection", "doFlatCorrection"],
+    )
+    
 class IsrTask(pipeBase.Task):
-    def __init__(self, **keyArgs):
-        pipeBase.Task.__init__(self, **keyArgs)
+    ConfigClass = IsrConfig
+    def __init__(self, *args, **kwargs):
+        pipeBase.Task.__init__(self, *args, **kwargs)
         self.isr = Isr()
         self.methodList = []
-        self.lookupTable = lookupTable
-        for methodname in policy.getArray("methodList"):
+        for methodname in config.methodList:
             self.methodList.append(getattr(self, methodname))
 
     def run(self, exposure, calibSet):
+        """Do instrument signature removal on an exposure: saturation, bias, overscan, dark, flat, fringe correction
+
+        @param exposure Apply ISR to this Exposure
+        @param calibSet Dictionary of calibration products (bias/zero, dark, flat, fringe, linearization information)
+        @return a pipeBase.Struct with fields:
+        - postIsrExposure: the exposure after application of ISR
+        - metadata: metadata about the ISR process
+        """
+
         #The ISR routines operate in place.  A copy of the original exposure
         #will be made and the reduced exposure will be returned.
         workingExposure = deep_copy(exposure)
@@ -54,33 +98,45 @@ class IsrTask(pipeBase.Task):
             workingExposure = m(workingExposure, calibSet)
         return workingExposure #I guess this should be a struct instead...
 
-    @staticmethod    
-    def getPolicy():
-        policy = pexPolicy.Policy()
-        policy.set("Fwhm", 4.) #In pixels
-        policy.set("GrowSatruationFootprints", True)
-        policy.set("SatruatedMaskName", "SAT")
-        policy.set("FlatScalingType", "USER")
-        policy.set("scalingValue", 1.)
-        policy.set("methodList", ["doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", \
-                   "doDarkCorrection", "doFlatCorrection"])
-        return policy
-    
     def doCrosstalkCorrection(self, exposure, calibSet):
         pass
+
+    def doSaturationCorrection(self, exposure, calibSet):
+        amp = cameraGeom.cast_Amp(exposure.getDetector())
+        ep = amp.getElectronicParams()
+        satvalue = ep.getSaturationLevel()
+        fwhm = self.config.fwhm
+        grow = self.config.growSatruationFootprints
+        maskname = self.config.saturatedMaskName
+        if grow:
+            grow = self.config.nGrowSaturated
+        else:
+            grow = 0
+        self.isr.saturationCorrection(exposure, satvalue, fwhm, growFootprints=grow, maskName=maskname)
+        return exposure
 
     def doSaturationDetection(self, exposure, calibSet):
         amp = cameraGeom.cast_Amp(exposure.getDetector())
         ep = amp.getElectronicParams()
         satvalue = ep.getSaturationLevel()
-        fwhm = self.policy.get("Fwhm")
-        grow = self.policy.get("GrowSatruationFootprints")
-        maskname = self.policy.get("SaturatedMaskName")
+        maskname = self.config.saturatedMaskName
         self.isr.saturationDetection(exposure, satvalue, doMask=True, maskName=maskname)
         return exposure
 
+    def doSaturationInterpolation(self, exposure, calibSet):
+        maskname = self.config.saturatedMaskName
+        fwhm = self.config.fwhm
+        grow = self.config.growSatruationFootprints
+        if grow:
+            grow = self.config.nGrowSaturated
+        else:
+            grow = 0
+        self.isr.saturationInterpolation(exposure, fwhm, growFootprints=grow, maskName=maskname)
+        return exposure
+
     def doLinearization(self, exposure, calibSet):
-        self.isr.linearization(exposure, self.lookupTable)
+        linearizer = Linearization(calibSet['linearityFile'])
+        linearizer.apply(exposure)
         return exposure
 
     def doOverscanCorrection(self, exposure, calibSet):
@@ -106,8 +162,8 @@ class IsrTask(pipeBase.Task):
 
     def doFlatCorrection(self, exposure, calibSet):
         flat = calibSet['flat']
-        scalingtype = self.policy.get("flatScalingType")
-        scalingvalue = self.policy.get("scalingValue")
+        scalingtype = self.config.flatScalingType
+        scalingvalue = self.config.flatScalingValue
         self.isr.flatCorrection(exposure, flat, scalingtype, scaling = scalingvalue)   
         return exposure
 

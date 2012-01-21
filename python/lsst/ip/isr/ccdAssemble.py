@@ -88,6 +88,7 @@ def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[]):
     ccd.setTrimmed(isTrimmed)
     if exposures[0].hasWcs():
         wcs = exposures[0].getWcs()
+        amp.prepareWcsData(wcs)
     else:
         wcs = False
     filter = exposures[0].getFilter()
