@@ -126,13 +126,33 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
                 return amp.prepareAmpData(img)
         return None
 
+def getFixedWcs(exposures, ccd):
+    for amp in ccd:
+        amp = cameraGeom.cast_Amp(amp)
+        origin = amp.getDataSec()
+        #look for lower left amp.
+        if origin.getMinX() == 0 and origin.getMinY() == 0:
+            break
+    if len(exposures) > 1:
+        for exp in exposures:
+            if exp.getDetector().getId() == amp.getId():
+                if exp.hasWcs():
+                    wcs = exp.getWcs()
+                    amp.prepareWcsData(wcs)
+                else:
+                    wcs = None
+    else:
+        if exposures[0].hasWcs():
+            wcs = exposures[0].getWcs()
+            amp.prepareWcsData(wcs)
+        else:
+            wcs = None
+    return wcs
+
 def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], imageFactory=afwImage.ImageF):
     display = lsstDebug.Info(__name__).display 
     ccd.setTrimmed(isTrimmed)
-    if exposures[0].hasWcs():
-        wcs = exposures[0].getWcs()
-    else:
-        wcs = False
+    wcs = getFixedWcs(exposures, ccd)
     filter = exposures[0].getFilter()
     metadata = exposures[0].getMetadata()
     calib = exposures[0].getCalib()
@@ -168,7 +188,7 @@ def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], im
         mi *= gain
         metadata.set("GAIN", 1.0)
     ccdExposure = afwImage.makeExposure(mi)
-    if wcs is not False:
+    if wcs is not None:
         ccdExposure.setWcs(wcs)
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
