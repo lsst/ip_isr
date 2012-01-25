@@ -126,13 +126,7 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
                 return amp.prepareAmpData(img)
         return None
 
-def getFixedWcs(exposures, ccd):
-    for amp in ccd:
-        amp = cameraGeom.cast_Amp(amp)
-        origin = amp.getDataSec()
-        #look for lower left amp.
-        if origin.getMinX() == 0 and origin.getMinY() == 0:
-            break
+def getFixedWcs(exposures, amp):
     if len(exposures) > 1:
         for exp in exposures:
             if exp.getDetector().getId() == amp.getId():
@@ -147,12 +141,16 @@ def getFixedWcs(exposures, ccd):
             amp.prepareWcsData(wcs)
         else:
             wcs = None
+    origin = amp.getDataSec()
+    #shift the reference pixel to account for the location of the amp in the 
+    #ccd.
+    wcs.shiftReferencePixel(origin.getMinX(), origin.getMinY())
     return wcs
 
 def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], imageFactory=afwImage.ImageF):
     display = lsstDebug.Info(__name__).display 
     ccd.setTrimmed(isTrimmed)
-    wcs = getFixedWcs(exposures, ccd)
+    wcs = getFixedWcs(exposures, cameraGeom.cast_Amp(ccd[15]))
     filter = exposures[0].getFilter()
     metadata = exposures[0].getMetadata()
     calib = exposures[0].getCalib()
