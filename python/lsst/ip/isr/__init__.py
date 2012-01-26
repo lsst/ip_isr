@@ -31,3 +31,6 @@ from isr import *
 # ccdAssembly
 from ccdAssemble import *
 
+#IsrTask
+from isrTask import *
+

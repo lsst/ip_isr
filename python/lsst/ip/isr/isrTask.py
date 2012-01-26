@@ -22,13 +22,12 @@
 
 import lsst.afw.image       as afwImage
 import lsst.afw.cameraGeom  as cameraGeom
-from copy import deep_copy
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
-from .isr import Linearization
+#from .isr import Linearization
 from .isr import Isr
+from . import isrLib
 
-import isrLib
 class IsrConfig(pexConfig.Config):
     fwhm = pexConfig.Field(
         dtype = float,
@@ -55,21 +54,29 @@ class IsrConfig(pexConfig.Config):
         doc = "If scaling type is USER, a value for the scaling must be provided",
         default = 1.0,
     )
-    nGrowSaturated = pexConfig.Field(
+    overscanFitType = pexConfig.ChoiceField(
+        dtype = str,
+        doc = "The method for fitting the overscan bias level.",
+        default = 'MEDIAN',
+        allowed = {"POLY": "Fit polynomial to the longest axis of the overscan region",
+            "MEAN": "Correct using the mean of the overscan region",
+            "MEDIAN": "Correct using the median of the overscan region",
+        },
+    )
+    overscanPolyOrder = pexConfig.Field(
         dtype = int,
-        doc = "Number of pixels by which to grow the saturated footprints",
+        doc = "Order of polynomial to fit if overscan fit type is POLY",
         default = 1,
     )
-    growSaturationFootprints = pexConfig.Field(
-        dtype = bool,
-        doc = "Should the saturated footprints be grown?",
-        default = True,
+    growSaturationFootprintSize = pexConfig.Field(
+        dtype = int,
+        doc = "Number of pixels by which to grow the saturation footprints",
+        default = 1,
     )
     methodList = pexConfig.ListField(
-        dtype = float,
+        itemType = str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
-        default = ["doSaturationDetection", "doLinearization", "doOverscanCorrection", "doBiasSubtraction", \
-                   "doDarkCorrection", "doFlatCorrection"],
+        default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doDarkCorrection", "doFlatCorrection"],
     )
     
 class IsrTask(pipeBase.Task):
@@ -78,7 +85,8 @@ class IsrTask(pipeBase.Task):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.isr = Isr()
         self.methodList = []
-        for methodname in config.methodList:
+        self.metadata = {}
+        for methodname in self.config.methodList:
             self.methodList.append(getattr(self, methodname))
 
     def run(self, exposure, calibSet):
@@ -93,10 +101,29 @@ class IsrTask(pipeBase.Task):
 
         #The ISR routines operate in place.  A copy of the original exposure
         #will be made and the reduced exposure will be returned.
-        workingExposure = deep_copy(exposure)
+        workingExposure = exposure.Factory(exposure, True)
         for m in self.methodList:
             workingExposure = m(workingExposure, calibSet)
-        return workingExposure #I guess this should be a struct instead...
+        return pipeBase.Struct(posIsrExposure=workingExposure, metadata=self.metadata)
+
+    def runButler(self, butler, dataid):
+        """Run the ISR given a butler
+        @param butler Butler describing the data repository
+        @param dataid A data identifier of the amp to process
+        @return a pieBase.Struct see self.run for returned fields
+        """
+        calibSet = self.makeCalibDict(butler, dataid)
+        output = self.run(butler.get("raw", dataid), calibSet)
+        butler.put(output.posIsrExposure, "postISR", dataId=dataid)
+        
+    def makeCalibDict(self, butler, dataId):
+        ret = {}
+        for name in ("flat", "bias", "dark"):
+            ret[name] = butler.get(name, dataId)
+        return ret
+
+    def doConversionForIsr(self, exposure, calibSet):
+        return self.isr.convertImageForIsr(exposure)
 
     def doCrosstalkCorrection(self, exposure, calibSet):
         pass
@@ -106,12 +133,8 @@ class IsrTask(pipeBase.Task):
         ep = amp.getElectronicParams()
         satvalue = ep.getSaturationLevel()
         fwhm = self.config.fwhm
-        grow = self.config.growSatruationFootprints
+        grow = self.config.growSaturationFootprintSize
         maskname = self.config.saturatedMaskName
-        if grow:
-            grow = self.config.nGrowSaturated
-        else:
-            grow = 0
         self.isr.saturationCorrection(exposure, satvalue, fwhm, growFootprints=grow, maskName=maskname)
         return exposure
 
@@ -120,29 +143,27 @@ class IsrTask(pipeBase.Task):
         ep = amp.getElectronicParams()
         satvalue = ep.getSaturationLevel()
         maskname = self.config.saturatedMaskName
-        self.isr.saturationDetection(exposure, satvalue, doMask=True, maskName=maskname)
+        self.isr.saturationDetection(exposure, satvalue, maskName=maskname)
         return exposure
 
     def doSaturationInterpolation(self, exposure, calibSet):
         maskname = self.config.saturatedMaskName
         fwhm = self.config.fwhm
         grow = self.config.growSatruationFootprints
-        if grow:
-            grow = self.config.nGrowSaturated
-        else:
-            grow = 0
         self.isr.saturationInterpolation(exposure, fwhm, growFootprints=grow, maskName=maskname)
         return exposure
-
+    '''
     def doLinearization(self, exposure, calibSet):
         linearizer = Linearization(calibSet['linearityFile'])
         linearizer.apply(exposure)
         return exposure
-
+    '''
     def doOverscanCorrection(self, exposure, calibSet):
+        fittype = self.config.overscanFitType
+        polyorder = self.config.overscanPolyOrder
         amp = cameraGeom.cast_Amp(exposure.getDetector())
         overscanBbox = amp.getDiskBiasSec()
-        self.isr.overscanCorrection(exposure, overscanBBox, fittype=fittype, polyorder, imageFactory=afwImage.ImageF)
+        self.isr.overscanCorrection(exposure, overscanBbox, fittype=fittype, polyorder=polyorder, imageFactory=afwImage.ImageF)
         return exposure
 
     def doBiasSubtraction(self, exposure, calibSet):
@@ -151,10 +172,10 @@ class IsrTask(pipeBase.Task):
         return exposure 
 
     def doDarkCorrection(self, exposure, calibSet):
-        dark = calibSet['dark']
+        darkexposure = calibSet['dark']
         darkscaling = darkexposure.getCalib().getExptime()
         expscaling = exposure.getCalib().getExptime()
-        self.isr.darkCorrection(exposure, dark, expscaling, darkscaling)
+        self.isr.darkCorrection(exposure, darkexposure, expscaling, darkscaling)
         return exposure
 
     def doFringeCorrection(self, exposure, calibSet):
