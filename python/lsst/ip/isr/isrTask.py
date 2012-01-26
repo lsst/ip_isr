@@ -118,8 +118,14 @@ class IsrTask(pipeBase.Task):
         
     def makeCalibDict(self, butler, dataId):
         ret = {}
-        for name in ("flat", "bias", "dark"):
-            ret[name] = butler.get(name, dataId)
+        required = {"doBiasSubtraction": "bias",
+                    "doDarkCorrection": "dark",
+                    "doFlatCorrection": "flat",
+                    }
+        for method in required.keys():
+            if method in self.config.methodList:
+                calib = required[method]
+                ret[calib] = butler.get(calib, dataId)
         return ret
 
     def doConversionForIsr(self, exposure, calibSet):
