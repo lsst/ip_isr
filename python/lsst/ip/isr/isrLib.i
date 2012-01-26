@@ -44,10 +44,11 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 #include <lsst/afw/math/Statistics.h>
 
 #include "lsst/pex/exceptions.h"
-#include "lsst/pex/logging/Trace.h"
+#include "lsst/pex/logging.h"
 #include "lsst/pex/policy/Policy.h"
 #include "lsst/afw/detection.h"
 #include "lsst/afw/geom.h" // work around ticket #1121
+#include "lsst/afw/cameraGeom.h"
 %}
 
 %include "lsst/p_lsstSwig.i"

@@ -26,11 +26,11 @@ from .version import *
 from isrLib import *
 
 # python code
-from isr import *
+from .isr import *
 
 # ccdAssembly
-from ccdAssemble import *
+from .ccdAssemble import *
 
 #IsrTask
-from isrTask import *
+from .isrTask import *
 
