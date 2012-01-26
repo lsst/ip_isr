@@ -29,6 +29,7 @@ from .isr import Isr
 from . import isrLib
 
 class IsrConfig(pexConfig.Config):
+    doWrite = pexConfig.Field(dtype=bool, doc="Write output?", default=True)
     fwhm = pexConfig.Field(
         dtype = float,
         doc = "FWHM of PSF (arcsec)",
@@ -114,7 +115,9 @@ class IsrTask(pipeBase.Task):
         """
         calibSet = self.makeCalibDict(butler, dataid)
         output = self.run(butler.get("raw", dataid), calibSet)
-        butler.put(output.postIsrExposure, "postISR", dataId=dataid)
+        if self.config.doWrite:
+            butler.put(output.postIsrExposure, "postISR", dataId=dataid)
+        return output
         
     def makeCalibDict(self, butler, dataId):
         ret = {}
