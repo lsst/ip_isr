@@ -29,6 +29,7 @@ import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.display.ds9 as ds9
 import os,sys,eups,math
+from .isr import Isr
 
 class listImageFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures, isTrimmed=True):
@@ -83,6 +84,7 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
         return None
 
 def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[]):
+    isr = Isr()
     display = lsstDebug.Info(__name__).display 
     ccd.setTrimmed(isTrimmed)
     if exposures[0].hasWcs():

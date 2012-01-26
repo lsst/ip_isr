@@ -32,7 +32,7 @@ import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as ipIsr
+from lsst.ip.isr import Isr
 import lsst.pex.logging as logging
 
 import lsst.afw.display.ds9 as ds9
@@ -51,11 +51,13 @@ class IsrTestCases(unittest.TestCase):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
         self.pmin = afwGeom.Point2I(1,1)
         self.pmax = afwGeom.Point2I(10,10)
+        self.isr = Isr()
         
     def tearDown(self):
         del self.policy
 	del self.pmin
 	del self.pmax
+        del self.isr
 
     def doFlat(self, scaling):
         flatScaleKeyword = self.policy.getString('flatPolicy.flatScaleKeyword')
@@ -71,7 +73,7 @@ class IsrTestCases(unittest.TestCase):
         dmetadata = flatexposure.getMetadata()
         dmetadata.setString(filenameKeyword, 'Unittest Flat')
 
-        ipIsr.flatCorrection(exposure, flatexposure, 'USER', scaling)
+        self.isr.flatCorrection(exposure, flatexposure, 'USER', scaling)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -102,7 +104,7 @@ class IsrTestCases(unittest.TestCase):
         dmetadata = illumexposure.getMetadata()
         dmetadata.setString(filenameKeyword, 'Unittest Illum')
 
-        ipIsr.illuminationCorrection(exposure, illumexposure, scaling)
+        self.isr.illuminationCorrection(exposure, illumexposure, scaling)
 
         height        = mi.getHeight()
         width         = mi.getWidth()

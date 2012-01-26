@@ -32,7 +32,7 @@ import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as ipIsr
+from lsst.ip.isr import Isr
 import lsst.pex.logging as logging
 
 import lsst.afw.display.ds9 as ds9
@@ -52,11 +52,13 @@ class IsrTestCases(unittest.TestCase):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
         self.pmin = afwGeom.Point2I(1,1)
         self.pmax = afwGeom.Point2I(10,10)
+        self.isr = Isr()
         
     def tearDown(self):
         del self.policy
         del self.pmin
         del self.pmax
+        del self.isr
 
     def testBias(self):
         meanCountsKeyword = self.policy.getString('biasPolicy.meanCountsKeyword')
@@ -72,7 +74,7 @@ class IsrTestCases(unittest.TestCase):
         bmetadata.setDouble(meanCountsKeyword, 1.)
         bmetadata.setString(filenameKeyword, 'Unittest Bias')
 
-        ipIsr.biasCorrection(exposure, biasexposure)
+        self.isr.biasCorrection(exposure, biasexposure)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -94,7 +96,7 @@ class IsrTestCases(unittest.TestCase):
         dmetadata = darkexposure.getMetadata()
         dmetadata.setString(filenameKeyword, 'Unittest Dark')
 
-        ipIsr.darkCorrection(exposure, darkexposure, 1., scaling)
+        self.isr.darkCorrection(exposure, darkexposure, 1., scaling)
 
         height        = mi.getHeight()
         width         = mi.getWidth()

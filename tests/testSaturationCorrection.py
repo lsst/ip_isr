@@ -32,7 +32,7 @@ import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as ipIsr
+from lsst.ip.isr import Isr
 import lsst.pex.logging as logging
 
 import lsst.afw.display.ds9 as ds9
@@ -50,9 +50,11 @@ class IsrTestCases(unittest.TestCase):
     
     def setUp(self):
         self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
+        self.isr = Isr()
         
     def tearDown(self):
         del self.policy
+        del self.isr
 
     def testSaturation(self):
         saturation = 1000
@@ -70,9 +72,9 @@ class IsrTestCases(unittest.TestCase):
         submi    = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT, False)
         submi.set(saturation, 0x0, 1)
         
-        ipIsr.saturationDetection(exposure, saturation,
+        self.isr.saturationDetection(exposure, saturation,
                 doMask = True, maskName='SAT')
-        ipIsr.saturationInterpolation(exposure, defaultFwhm, growFootprints =
+        self.isr.saturationInterpolation(exposure, defaultFwhm, growFootprints =
 			growSaturated, maskName = 'SAT')
 
         bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')

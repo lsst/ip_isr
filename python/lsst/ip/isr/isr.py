@@ -21,6 +21,7 @@
 #
 
 import math, re
+import numpy
 import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
@@ -170,7 +171,7 @@ class Isr(object):
 
     def interpolateDefectList(self, exposure, defectList, fwhm, fallbackValue=None):
         mi = exposure.getMaskedImage()
-        psf = createPsf(fwhm)
+        psf = self.createPsf(fwhm)
         if fallbackValue is None:
             fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
         measAlg.interpolateOverDefects(mi, psf, defectList, fallbackValue)
@@ -247,7 +248,7 @@ class Isr(object):
                 satDefectList.push_back(defect)
         if 'INTRP' not in mask.getMaskPlaneDict().keys():
             mask.addMaskPlane('INTRP')
-        psf = createPsf(fwhm)
+        psf = self.createPsf(fwhm)
 
         measAlg.interpolateOverDefects(mi, psf, satDefectList)
 
@@ -332,10 +333,10 @@ class Isr(object):
         # n.b. what other changes are needed here?
         # e.g. wcs info, overscan, etc
 
-
     def overscanCorrection(self, exposure, overscanBBox, fittype='MEDIAN', polyorder=1, imageFactory=afwImage.ImageF):
         """
         """
+        typemap = {afwImage.ImageU:numpy.uint16, afwImage.ImageI:numpy.int32, afwImage.ImageF:numpy.float32, afwImage.ImageD:numpy.float64}
 
         # common input test
         mi = exposure.getMaskedImage()
@@ -352,7 +353,27 @@ class Isr(object):
             offset = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
             mi    -= offset
         elif fittype == 'POLY':
-            raise pexExcept.LsstException, '%s : %s not implemented' % ("overscanCorrection", fittype)
+            biasArray = overscanData.getArray()
+            #Assume we want to fit along the long axis
+            aind = numpy.argmin(biasArray.shape)
+            find = numpy.argmin(biasArray.shape)
+            fitarr = numpy.median(biasArray, axis=aind)
+            coeffs = numpy.polyfit(range(len(fitarr)), fitarr, deg=polyorder)
+            offsets = numpy.polyval(coeffs, range(len(fitarr)))
+            width, height = mi.getDimensions()
+            offarr = numpy.zeros((height, width), dtype = typemap[imageFactory])
+            if aind == 1:
+                for i in range(len(offsets)):
+                    offarr[i] = offsets[i]
+            elif aind == 0:
+                offarr = offarr.T
+                for i in range(len(offsets)):
+                    offarr[i] = offsets[i]
+                offarr = offarr.T
+            else:
+                raise pexExcept.LsstException, "Non-2D array returned from MaskedImage.getArray()"
+            im = afwImage.makeImageFromArray(offarr)
+            mi -= im 
         else:
             raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fittype)
 
