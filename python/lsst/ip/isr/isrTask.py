@@ -74,7 +74,7 @@ class IsrConfig(pexConfig.Config):
         default = 1,
     )
     methodList = pexConfig.ListField(
-        itemType = str,   
+        dtype = str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
         default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doDarkCorrection", "doFlatCorrection"],
     )
@@ -104,7 +104,7 @@ class IsrTask(pipeBase.Task):
         workingExposure = exposure.Factory(exposure, True)
         for m in self.methodList:
             workingExposure = m(workingExposure, calibSet)
-        return pipeBase.Struct(posIsrExposure=workingExposure, metadata=self.metadata)
+        return pipeBase.Struct(postIsrExposure=workingExposure, metadata=self.metadata)
 
     def runButler(self, butler, dataid):
         """Run the ISR given a butler
@@ -114,7 +114,7 @@ class IsrTask(pipeBase.Task):
         """
         calibSet = self.makeCalibDict(butler, dataid)
         output = self.run(butler.get("raw", dataid), calibSet)
-        butler.put(output.posIsrExposure, "postISR", dataId=dataid)
+        butler.put(output.postIsrExposure, "postISR", dataId=dataid)
         
     def makeCalibDict(self, butler, dataId):
         ret = {}
