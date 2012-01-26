@@ -144,12 +144,25 @@ class IsrTask(pipeBase.Task):
         self.isr.saturationCorrection(exposure, satvalue, fwhm, growFootprints=grow, maskName=maskname)
         return exposure
 
-    def doSaturationDetection(self, exposure, calibSet):
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
+    def _saturationDetection(self, exposure, amp):
         ep = amp.getElectronicParams()
         satvalue = ep.getSaturationLevel()
         maskname = self.config.saturatedMaskName
         self.isr.saturationDetection(exposure, satvalue, maskName=maskname)
+
+
+    def doSaturationDetection(self, exposure, calibSet):
+        amp = cameraGeom.cast_Amp(exposure.getDetector())
+        if amp is not None:
+            self._saturationDetection(exposure, amp)
+        else:
+            ccd = cameraGeom.cast_Ccd(exposure.getDetector())
+            assert ccd is not None
+            for amp in ccd:
+                amp = cameraGeom.cast_Amp(amp)
+                datasec = amp.getDiskDataSec()
+                exp = exposure.Factory(exposure, datasec)
+                self._saturationDetection(exp, amp)
         return exposure
 
     def doSaturationInterpolation(self, exposure, calibSet):
@@ -164,12 +177,25 @@ class IsrTask(pipeBase.Task):
         linearizer.apply(exposure)
         return exposure
     '''
-    def doOverscanCorrection(self, exposure, calibSet):
+
+    def _overscanCorrection(self, exposure, amp):
         fittype = self.config.overscanFitType
         polyorder = self.config.overscanPolyOrder
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
         overscanBbox = amp.getDiskBiasSec()
-        self.isr.overscanCorrection(exposure, overscanBbox, fittype=fittype, polyorder=polyorder, imageFactory=afwImage.ImageF)
+        self.isr.overscanCorrection(exposure, overscanBbox, fittype=fittype, polyorder=polyorder,
+                                    imageFactory=afwImage.ImageF)
+
+    
+    def doOverscanCorrection(self, exposure, calibSet):
+        amp = cameraGeom.cast_Amp(exposure.getDetector())
+        if amp is not None:
+            self._overscanCorrection(exposure, amp)
+        else:
+            ccd = cameraGeom.cast_Ccd(exposure.getDetector())
+            assert ccd is not None
+            for amp in ccd:
+                amp = cameraGeom.cast_Amp(amp)
+                self._overscanCorrection(exposure, amp)
         return exposure
 
     def doBiasSubtraction(self, exposure, calibSet):
