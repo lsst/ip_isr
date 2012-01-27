@@ -26,9 +26,10 @@ import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 #from .isr import Linearization
 from .isr import Isr
+from .ccdAssembler import CcdAssembler
 from . import isrLib
 
-class IsrConfig(pexConfig.Config):
+class IsrTaskConfig(pexConfig.Config):
     doWrite = pexConfig.Field(dtype=bool, doc="Write output?", default=True)
     fwhm = pexConfig.Field(
         dtype = float,
@@ -74,6 +75,21 @@ class IsrConfig(pexConfig.Config):
         doc = "Number of pixels by which to grow the saturation footprints",
         default = 1,
     )
+    setGainAssembledCcd = pexConfig.Field(
+        dtype = bool,
+        doc = "update exposure metadata in the assembled ccd to reflect the effective gain of the assembled chip",
+        default = True,
+    )
+    keysToRemoveFromAssembledCcd = pexConfig.ListField(
+        str,
+        doc = "fields to remove from the metadata of the assembled ccd.",
+        default = [],
+    )
+    reNormAssembledCcd = pexConfig.Field(
+        dtype = bool,
+        doc = "renormalize the assembled chips to have unity gain.  False if setGain is False",
+        default = True,
+    )
     methodList = pexConfig.ListField(
         str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
@@ -81,7 +97,7 @@ class IsrConfig(pexConfig.Config):
     )
     
 class IsrTask(pipeBase.Task):
-    ConfigClass = IsrConfig
+    ConfigClass = IsrTaskConfig
     def __init__(self, *args, **kwargs):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.isr = Isr()
@@ -155,7 +171,7 @@ class IsrTask(pipeBase.Task):
             ep = amp.getElectronicParams()
             satvalue = ep.getSaturationLevel()
             maskname = self.config.saturatedMaskName
-            self.isr.saturationDetection(exp, satvalue, maskName=maskname)
+            self.isr.makeThresholdMask(exp, satvalue, growFootprints=0, maskName=maskname)
         return exposure
 
     def doSaturationInterpolation(self, exposure, calibSet):
@@ -247,3 +263,10 @@ class IsrTask(pipeBase.Task):
         pass
 
     def doCcdAssembly(self, exposure, calibSet):
+        if cameraGeom.cast_Amp(exposure.getDetector()) is not None:
+            raise RuntimeError("For ccd assembly to work, exposure must be at the sensor level")
+        renorm = self.config.reNormAssembledCcd
+        setgain = self.config.setGainAssembledCcd
+        k2rm = self.config.keysToRemoveFromAssembledCcd
+        assembler = CcdAssembler(exopsure, exposure.getDetector(), reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
+        return assembler.assembleCcd()
