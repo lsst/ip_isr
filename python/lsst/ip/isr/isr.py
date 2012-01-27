@@ -136,106 +136,15 @@ class Isr(object):
         for k in metrics.keys():
             metadata.set(k, metrics[k])
 
-    def maskFromDefects(self, dimensions, fpList):
-        # the output LSST Mask image
-        minpt = afwGeom.Point2I(0,0)
-        maxpt = afwGeom.Point2I(dimensions[0], dimensions[1])
-        mask = afwImage.MaskU(afwGeom.Box2I(minpt, maxpt), afwImage.LOCAL)
-        mask.set(0)
-        bitmask = mask.getPlaneBitMask('BAD')
-
-        # set the bits
-        afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
-
-        return mask
-
-
-    def defectsFromBoolImage(self, fitsfile, invert=False):
-        # input bad pixel image
-        # This assumes an image with ones and zeros
-        image = afwImage.ImageF(fitsfile)
-        if invert:
-            image *= -1
-            thresh = afwDetection.Threshold(-0.5)
-        else:
-            thresh = afwDetection.Threshold(0.5)
-
-        # turn into masked image for detection
-        mi = afwImage.MaskedImageF(image)
-
-        # find bad regions
-        ds = afwDetection.FootprintSetF(mi, thresh)
-        fpList = ds.getFootprints()
-
-        return fpList
-
     def interpolateDefectList(self, exposure, defectList, fwhm, fallbackValue=None):
         mi = exposure.getMaskedImage()
         psf = self.createPsf(fwhm)
         if fallbackValue is None:
             fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
         measAlg.interpolateOverDefects(mi, psf, defectList, fallbackValue)
-
-    def maskBadPixelsDef(self, exposure, defectList, fwhm=None,
-                 interpolate=True,
-                 maskName='BAD'):
-
-        # mask bad pixels
-        mi = exposure.getMaskedImage()
-        mask = mi.getMask()
-        bitmask = mask.getPlaneBitMask(maskName)
-        for defect in defectList:
-            bbox = defect.getBBox()
-            afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)
-
-        if interpolate:
-            # and interpolate over them
-            assert fwhm and fwhm > 0, "FWHM not provided for interpolation"
-            interpolateDefectList(exposure, defectList, fwhm)
-
-    def linearization(self, exposure, lookupTable):
-
-        # common input test
-        metadata   = exposure.getMetadata()
-        gain = metadata.get('gain')
-        mi   = exposure.getMaskedImage()
-        lookupTable.apply(mi, gain)
-
-    def saturationDetection(self, exposure, saturation, doMask = True, maskName = 'SAT'):
-
-        mi = exposure.getMaskedImage()
-        if self.display:
-            ds9.mtv(mi, frame=0)
-
-
-        # find saturated regions
-        thresh = afwDetection.Threshold(saturation)
-        ds = afwDetection.makeFootprintSet(mi, thresh)
-        fpList = ds.getFootprints()
-        # we will turn them into defects for interpolating
+ 
+    def defectListFromFootprintList(self, fpList, growFootprints=1):
         defectList = measAlg.DefectListT()
-
-        # grow them
-        bboxes = []
-        for fp in fpList:
-            if doMask:
-                mask = mi.getMask()
-                bitmask = mask.getPlaneBitMask(maskName)
-                afwDetection.setMaskFromFootprint(mask, fp, bitmask)
-            bboxes.append(afwDetection.footprintToBBoxList(fp))
-        return bboxes
-
-    def saturationInterpolation(self, exposure, fwhm, growFootprints = 1, maskName = 'SAT'):
-        mi = exposure.getMaskedImage()
-        mask = mi.getMask()
-        satmask = afwImage.MaskU(mask, True)
-        satmask &= mask.getPlaneBitMask(maskName)
-        thresh = afwDetection.Threshold(0.5)
-        maskimg = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
-        maskimg <<= satmask
-        ds = afwDetection.makeFootprintSet(maskimg, thresh)
-        fpList = ds.getFootprints()
-        satDefectList = measAlg.DefectListT()
         for fp in fpList:
             if growFootprints > 0:
                 # if "True", growing requires a convolution
@@ -245,22 +154,68 @@ class Isr(object):
                 fpGrow = fp
             for bbox in afwDetection.footprintToBBoxList(fpGrow):
                 defect = measAlg.Defect(bbox)
-                satDefectList.push_back(defect)
-        if 'INTRP' not in mask.getMaskPlaneDict().keys():
-            mask.addMaskPlane('INTRP')
+                defectList.push_back(defect)
+        return defectList
+   
+    def maskPixelsFromDefectList(self, exposure, defectList, maskName='BAD'):
+        # mask bad pixels
+        mi = exposure.getMaskedImage()
+        mask = mi.getMask()
+        bitmask = mask.getPlaneBitMask(maskName)
+        for defect in defectList:
+            bbox = defect.getBBox()
+            afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)
+
+    def linearization(self, exposure, lookupTable):
+        # common input test
+        metadata   = exposure.getMetadata()
+        gain = metadata.get('gain')
+        mi   = exposure.getMaskedImage()
+        lookupTable.apply(mi, gain)
+
+    def getDefectListFromMask(self, maskedImage, maskName, growFootprints=1):
+        mask = maskedImage.getMask()
+        workmask = afwImage.MaskU(mask, True)
+        workmask &= mask.getPlaneBitMask(maskName)
+        thresh = afwDetection.Threshold(0.5)
+        maskimg = afwImage.ImageU(workmask.getBBox(afwImage.PARENT))
+        maskimg <<= workmask
+        ds = afwDetection.makeFootprintSet(maskimg, thresh)
+        fpList = ds.getFootprints()
+        return self.defectListFromFootprintList(fpList, growFootprints)
+
+    def makeThresholdMask(self, exposure, threshold, growFootprints=1, maskName = 'SAT'):
+        mi = exposure.getMaskedImage()
+        if self.display:
+            ds9.mtv(mi, frame=0)
+
+        # find saturated regions
+        thresh = afwDetection.Threshold(threshold)
+        ds = afwDetection.makeFootprintSet(mi, thresh)
+        fpList = ds.getFootprints()
+        # set mask
+        mask = mi.getMask()
+        bitmask = mask.getPlaneBitMask(maskName)
+        if growFootprints > 0:
+            for fp in fpList:
+                fp = afwDetection.growFootprint(fp, growFootprints)
+        afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
+
+        return self.defectListFromFootprintList(fpList, growFootprints=0)
+
+    def interpolateFromMask(self, exposure, fwhm, growFootprints = 1, maskName = 'SAT'):
+        mi = exposure.getMaskedImage()
+        defectList = self.getDefectListFromMask(mi, maskName, growFootprints)
+        if 'INTRP' not in mi.getMask().getMaskPlaneDict().keys():
+            mi.getMask.addMaskPlane('INTRP')
         psf = self.createPsf(fwhm)
+        measAlg.interpolateOverDefects(mi, psf, defectList)
 
-        measAlg.interpolateOverDefects(mi, psf, satDefectList)
 
-
-    def saturationCorrection(self, exposure, saturation, fwhm, growFootprints=1,
-                 interpolate = True,
-                 maskName    = 'SAT'):
-        #This will be slower than necessary.  Should write another method that does detection and interpolation at the same time.
-
-        saturationDetection(exposure, saturation, doMask=True, maskName=maskName)
+    def saturationCorrection(self, exposure, saturation, fwhm, growFootprints=1, interpolate = True, maskName = 'SAT'):
+        defectList = self.makeThresholdMask(exposure, saturation, grwoFootprints=growFootprints, maskName=maskName)
         if interpolate:
-            saturationInterpolation(exposure, fwhm, growFootprints=growFootprints, maskName=maskName)
+            measAlg.interpolateOverDefects(exposure.getMaskedImage(), self.createPsf(fwhm), defectList)
         if self.display:
             ds9.mtv(exposure.getmaskedImage(), frame=0)
 
@@ -286,8 +241,6 @@ class Isr(object):
         var /= gain
         mi = afwImage.makeMaskedImage(mi.getImage(), mi.getMask(), var)
         exposure.setMaskedImage(mi)
-
-
 
     def flatCorrection(self, exposure, flat, scalingtype, scaling = 1.0):
 
@@ -385,14 +338,24 @@ class Isr(object):
     def pupilCorrection(self, exposure, pupil):
 
         raise pexExcept.LsstException, '%s not implemented' % (stageName)
-
 '''
 class Linearization(object):
-    def __init__(self, linearityFile):
-    
+    def __init__(self, linearityFile=None):
+        if linearityFile is not None:
+            self.readFile(linearityFile)
+        else:
+            self.makeLinearReplace()
+    def getImageFactoryFromExposure(self, exposure):
+        return exposure.getMaskedImage().getImage().Factory
     def apply(self, exposure):
+        self.getImageFactoryFromExposure(exposure)
+        if type is "LUT":
+            imageData = exposure.getMaskedImage(). 
         mi = exposure.getMaskedImage()
         	
-    def readFile(self):
-    def writeFile(self):
-'''    
+    def readFile(self, filename):
+    def writeFile(self, filename):
+    def makeLinearReplace(self):
+        self.type = 
+    def makeLinearMult(self):
+'''

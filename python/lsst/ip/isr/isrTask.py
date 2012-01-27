@@ -120,6 +120,8 @@ class IsrTask(pipeBase.Task):
         ret = {}
         for name in ("flat", "bias", "dark"):
             ret[name] = butler.get(name, dataId)
+            if ret[name] is None:
+                print "Warning %s is not available for dataId: %s"%(name, dataId)
         return ret
 
     def doConversionForIsr(self, exposure, calibSet):
@@ -143,14 +145,14 @@ class IsrTask(pipeBase.Task):
         ep = amp.getElectronicParams()
         satvalue = ep.getSaturationLevel()
         maskname = self.config.saturatedMaskName
-        self.isr.saturationDetection(exposure, satvalue, maskName=maskname)
+        defectList = self.isr.makeThresholdMask(exposure, satvalue, growFootprints=0, maskName=maskname)
         return exposure
 
     def doSaturationInterpolation(self, exposure, calibSet):
         maskname = self.config.saturatedMaskName
         fwhm = self.config.fwhm
         grow = self.config.growSatruationFootprints
-        self.isr.saturationInterpolation(exposure, fwhm, growFootprints=grow, maskName=maskname)
+        self.isr.interpolateFromMask(exposure, fwhm, growFootprints=grow, maskName=maskname)
         return exposure
     '''
     def doLinearization(self, exposure, calibSet):
