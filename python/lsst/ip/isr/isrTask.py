@@ -29,6 +29,7 @@ from .isr import Isr
 from . import isrLib
 
 class IsrConfig(pexConfig.Config):
+    doWrite = pexConfig.Field(dtype=bool, doc="Write output?", default=True)
     fwhm = pexConfig.Field(
         dtype = float,
         doc = "FWHM of PSF (arcsec)",
@@ -74,7 +75,7 @@ class IsrConfig(pexConfig.Config):
         default = 1,
     )
     methodList = pexConfig.ListField(
-        itemType = str,   
+        str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
         default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doDarkCorrection", "doFlatCorrection"],
     )
@@ -104,7 +105,7 @@ class IsrTask(pipeBase.Task):
         workingExposure = exposure.Factory(exposure, True)
         for m in self.methodList:
             workingExposure = m(workingExposure, calibSet)
-        return pipeBase.Struct(posIsrExposure=workingExposure, metadata=self.metadata)
+        return pipeBase.Struct(postIsrExposure=workingExposure, metadata=self.metadata)
 
     def runButler(self, butler, dataid):
         """Run the ISR given a butler
@@ -114,14 +115,20 @@ class IsrTask(pipeBase.Task):
         """
         calibSet = self.makeCalibDict(butler, dataid)
         output = self.run(butler.get("raw", dataid), calibSet)
-        butler.put(output.posIsrExposure, "postISR", dataId=dataid)
+        if self.config.doWrite:
+            butler.put(output.postIsrExposure, "postISR", dataId=dataid)
+        return output
         
     def makeCalibDict(self, butler, dataId):
         ret = {}
-        for name in ("flat", "bias", "dark"):
-            ret[name] = butler.get(name, dataId)
-            if ret[name] is None:
-                print "Warning %s is not available for dataId: %s"%(name, dataId)
+        required = {"doBiasSubtraction": "bias",
+                    "doDarkCorrection": "dark",
+                    "doFlatCorrection": "flat",
+                    }
+        for method in required.keys():
+            if method in self.config.methodList:
+                calib = required[method]
+                ret[calib] = butler.get(calib, dataId)
         return ret
 
     def doConversionForIsr(self, exposure, calibSet):
@@ -131,21 +138,24 @@ class IsrTask(pipeBase.Task):
         pass
 
     def doSaturationCorrection(self, exposure, calibSet):
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
-        ep = amp.getElectronicParams()
-        satvalue = ep.getSaturationLevel()
         fwhm = self.config.fwhm
         grow = self.config.growSaturationFootprintSize
         maskname = self.config.saturatedMaskName
-        self.isr.saturationCorrection(exposure, satvalue, fwhm, growFootprints=grow, maskName=maskname)
+        for amp in self._getAmplifiers(exposure):
+            ep = amp.getElectronicParams()
+            satvalue = ep.getSaturationLevel()
+            exp = exposure.Factory(exposure, amp.getDiskDataSec())
+            self.isr.saturationCorrection(exp, satvalue, fwhm, growFootprints=grow, maskName=maskname)
         return exposure
 
     def doSaturationDetection(self, exposure, calibSet):
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
-        ep = amp.getElectronicParams()
-        satvalue = ep.getSaturationLevel()
-        maskname = self.config.saturatedMaskName
-        defectList = self.isr.makeThresholdMask(exposure, satvalue, growFootprints=0, maskName=maskname)
+        for amp in self._getAmplifiers(exposure):
+            datasec = amp.getDiskDataSec()
+            exp = exposure.Factory(exposure, datasec)
+            ep = amp.getElectronicParams()
+            satvalue = ep.getSaturationLevel()
+            maskname = self.config.saturatedMaskName
+            self.isr.saturationDetection(exp, satvalue, maskName=maskname)
         return exposure
 
     def doSaturationInterpolation(self, exposure, calibSet):
@@ -160,35 +170,80 @@ class IsrTask(pipeBase.Task):
         linearizer.apply(exposure)
         return exposure
     '''
+    
     def doOverscanCorrection(self, exposure, calibSet):
         fittype = self.config.overscanFitType
         polyorder = self.config.overscanPolyOrder
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
-        overscanBbox = amp.getDiskBiasSec()
-        self.isr.overscanCorrection(exposure, overscanBbox, fittype=fittype, polyorder=polyorder, imageFactory=afwImage.ImageF)
+        for amp in self._getAmplifiers(exposure):
+            expImage = exposure.getMaskedImage().getImage()
+            overscan = expImage.Factory(expImage, amp.getDiskBiasSec())
+            exp = exposure.Factory(exposure, amp.getDiskDataSec())
+            self.isr.overscanCorrection(exp, overscan, fittype=fittype, polyorder=polyorder,
+                                        imageFactory=afwImage.ImageF)
         return exposure
 
     def doBiasSubtraction(self, exposure, calibSet):
-        bias = calibSet['bias']
-        self.isr.biasCorrection(exposure, bias)
+        biasExposure = calibSet['bias']
+        for amp in self._getAmplifiers(exposure):
+            exp, bias = self._getCalibration(exposure, biasExposure, amp)
+            self.isr.biasCorrection(exp, bias)
+        
         return exposure 
 
     def doDarkCorrection(self, exposure, calibSet):
         darkexposure = calibSet['dark']
         darkscaling = darkexposure.getCalib().getExptime()
         expscaling = exposure.getCalib().getExptime()
-        self.isr.darkCorrection(exposure, darkexposure, expscaling, darkscaling)
+        
+        for amp in self._getAmplifiers(exposure):
+            exp, dark = self._getCalibration(exposure, darkexposure, amp)
+            self.isr.darkCorrection(exp, dark, expscaling, darkscaling)
         return exposure
 
     def doFringeCorrection(self, exposure, calibSet):
         pass
 
+    def _getAmplifiers(self, exposure):
+        """Return list of all amplifiers in an Exposure"""
+        amp = cameraGeom.cast_Amp(exposure.getDetector())
+        if amp is not None:
+            return [amp]
+        ccd = cameraGeom.cast_Ccd(exposure.getDetector())
+        assert ccd is not None
+        return [cameraGeom.cast_Amp(a) for a in ccd]
+
+    def _getCalibration(self, exposure, calibration, amp):
+        """Get a suitably-sized calibration exposure"""
+        exp = exposure
+        calib = calibration
+        if exp.getDimensions() != calib.getDimensions():
+            # Try just the exposure's pixels of interest
+            try:
+                exp = exp.Factory(exp, amp.getDiskDataSec()) # Exposure not trimmed or assembled
+            except:
+                pass
+        if exp.getDimensions() != calib.getDimensions():
+            # Try just the calibration's pixels of interest
+            try:
+                calib = calib.Factory(calib, amp.getDataSec(True)) # Calib is likely trimmed and assembled
+            except:
+                pass
+        if exp.getDimensions() != calib.getDimensions():
+            raise RuntimeError("Dimensions for exposure (%s) and calibration (%s) don't match" % \
+                               (exposure.getDimensions(), calibration.getDimensions()))
+        return exp, calib
+
     def doFlatCorrection(self, exposure, calibSet):
-        flat = calibSet['flat']
+        flatfield = calibSet['flat']
         scalingtype = self.config.flatScalingType
         scalingvalue = self.config.flatScalingValue
-        self.isr.flatCorrection(exposure, flat, scalingtype, scaling = scalingvalue)   
+
+        for amp in self._getAmplifiers(exposure):
+            exp, flat = self._getCalibration(exposure, flatfield, amp)
+            self.isr.flatCorrection(exp, flat, scalingtype, scaling = scalingvalue)   
         return exposure
 
     def doIlluminationCorrection(self, exposure, calibSet):
         pass
+
+    def doCcdAssembly(self, exposure, calibSet):

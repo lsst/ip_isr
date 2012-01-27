@@ -286,16 +286,13 @@ class Isr(object):
         # n.b. what other changes are needed here?
         # e.g. wcs info, overscan, etc
 
-    def overscanCorrection(self, exposure, overscanBBox, fittype='MEDIAN', polyorder=1, imageFactory=afwImage.ImageF):
+    def overscanCorrection(self, exposure, overscanData, fittype='MEDIAN', polyorder=1, imageFactory=afwImage.ImageF):
         """
         """
         typemap = {afwImage.ImageU:numpy.uint16, afwImage.ImageI:numpy.int32, afwImage.ImageF:numpy.float32, afwImage.ImageD:numpy.float64}
 
         # common input test
         mi = exposure.getMaskedImage()
-
-        # if "True", do a deep copy
-        overscanData = imageFactory(exposure.getMaskedImage().getImage(), overscanBBox, False)
 
         # what type of overscan modeling?
         offset = 0
