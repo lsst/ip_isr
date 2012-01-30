@@ -268,5 +268,6 @@ class IsrTask(pipeBase.Task):
         renorm = self.config.reNormAssembledCcd
         setgain = self.config.setGainAssembledCcd
         k2rm = self.config.keysToRemoveFromAssembledCcd
-        assembler = CcdAssembler(exopsure, exposure.getDetector(), reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
+        assembler = CcdAssembler(exposure, exposure.getDetector(), reNorm=renorm,
+                                 setGain=setgain, keysToRemove=k2rm)
         return assembler.assembleCcd()
