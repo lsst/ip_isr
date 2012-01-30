@@ -262,12 +262,9 @@ class IsrTask(pipeBase.Task):
     def doIlluminationCorrection(self, exposure, calibSet):
         pass
 
-    def doCcdAssembly(self, exposure, calibSet):
-        if cameraGeom.cast_Amp(exposure.getDetector()) is not None:
-            raise RuntimeError("For ccd assembly to work, exposure must be at the sensor level")
+    def doCcdAssembly(self, exposureList):
         renorm = self.config.reNormAssembledCcd
         setgain = self.config.setGainAssembledCcd
         k2rm = self.config.keysToRemoveFromAssembledCcd
-        assembler = CcdAssembler(exposure, exposure.getDetector(), reNorm=renorm,
-                                 setGain=setgain, keysToRemove=k2rm)
+        assembler = CcdAssembler(exposureList, reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
         return assembler.assembleCcd()
