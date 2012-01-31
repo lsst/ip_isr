@@ -75,8 +75,8 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %template(LookupTableReplaceI) lsst::ip::isr::LookupTableReplace<int>;
 %template(LookupTableReplaceF) lsst::ip::isr::LookupTableReplace<float>;
 
-%template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<float, double>;
-%template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<double, double>;
+%template(fitOverscanImageF) lsst::ip::isr::fitOverscanImage<float, double>;
+%template(fitOverscanImageD) lsst::ip::isr::fitOverscanImage<double, double>;
 
 %template(UnmaskedNanCounterF)
     lsst::ip::isr::UnmaskedNanCounter<float>;
