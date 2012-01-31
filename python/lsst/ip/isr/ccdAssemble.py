@@ -141,10 +141,6 @@ def getFixedWcs(exposures, amp):
             amp.prepareWcsData(wcs)
         else:
             wcs = None
-    origin = amp.getDataSec()
-    #shift the reference pixel to account for the location of the amp in the 
-    #ccd.
-    wcs.shiftReferencePixel(origin.getMinX(), origin.getMinY())
     return wcs
 
 def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], imageFactory=afwImage.ImageF):
@@ -157,11 +153,8 @@ def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], im
     for k in keysToRemove:
         if metadata.exists(k):
             metadata.remove(k)
-    #detector = cameraGeom.cast_Ccd(exposures[0].getDetector().getParent())
-    #dl = detector.getDefects()
     gain = 0
     namps = 0
-    #for a in detector:
     for a in ccd:
         gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
         namps += 1.
@@ -190,7 +183,6 @@ def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], im
         ccdExposure.setWcs(wcs)
     ccdExposure.setMetadata(metadata)
     ccdExposure.setFilter(filter)
-    #ccdExposure.setDetector(detector)
     ccdExposure.setDetector(ccd)
     ccdExposure.getCalib().setExptime(calib.getExptime())
     ccdExposure.getCalib().setMidTime(calib.getMidTime())
