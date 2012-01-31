@@ -93,7 +93,7 @@ class IsrTaskConfig(pexConfig.Config):
     methodList = pexConfig.ListField(
         dtype = str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
-        default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doDarkCorrection", "doFlatCorrection"],
+        default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFlatCorrection"],
     )
     
 class IsrTask(pipeBase.Task):
@@ -205,6 +205,13 @@ class IsrTask(pipeBase.Task):
             self.isr.biasCorrection(exp, bias)
         
         return exposure 
+
+    def doVariance(self, exposure, calibSet):
+        for amp in self._getAmplifiers(exposure):
+            exp = exposure.Factory(exposure, amp.getDataSec())
+            self.isr.updateVariance(exp, amp)
+            print "Set variance"
+        return exposure
 
     def doDarkCorrection(self, exposure, calibSet):
         darkexposure = calibSet['dark']

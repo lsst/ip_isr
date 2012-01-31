@@ -24,6 +24,7 @@ import math, re
 import numpy
 import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
+import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
 class Isr(object):
@@ -232,15 +233,13 @@ class Isr(object):
         mi  = exposure.getMaskedImage()
         mi.scaledMinus(scale, dark.getMaskedImage())
 
-    def updateVariance(self, exposure):
+    def updateVariance(self, exposure, amp):
         mi = exposure.getMaskedImage()
-        var = afwImage.ImageF(mi.getImage(), True)
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
+        var = mi.getVariance()
+        var <<= mi.getImage()
         ep = amp.getElectronicParams()
         gain = ep.getGain()
         var /= gain
-        mi = afwImage.makeMaskedImage(mi.getImage(), mi.getMask(), var)
-        exposure.setMaskedImage(mi)
 
     def flatCorrection(self, exposure, flat, scalingtype, scaling = 1.0):
 
