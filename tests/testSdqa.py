@@ -53,8 +53,8 @@ class IsrSdqaTestCases(unittest.TestCase):
 
     def testAmpSdqa(self):
         exposure = afwImage.ExposureF(self.mi)
-        self.isr.calculateSdqaAmpRatings(exposure, self.bbox, self.dbox)
         metadata = exposure.getMetadata()
+        self.isr.calculateSdqaAmpRatings(exposure.getMaskedImage(), metadata, self.bbox, self.dbox)
         self.assertEqual(metadata.get('overscanMin'), 100.)
         self.assertEqual(metadata.get('overscanMedian'), 100.)
         self.assertEqual(metadata.get('overscanMean'), 100.)
@@ -67,8 +67,8 @@ class IsrSdqaTestCases(unittest.TestCase):
         exposure = afwImage.ExposureF(afwImage.MaskedImageF(self.mi,
             self.dbox, afwImage.PARENT))
         im = exposure.getMaskedImage().getImage()
-        self.isr.calculateSdqaCcdRatings(exposure)
         metadata = exposure.getMetadata()
+        self.isr.calculateSdqaCcdRatings(exposure.getMaskedImage(), metadata)
         self.assertEqual(metadata.get('imageClipMean4Sig3Pass'), 40.5)
         self.assertEqual(metadata.get('imageMedian'), 40.5)
         #Since values 0 and 1 are masked min is 2.

@@ -75,7 +75,7 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(overscanKeyword, biassec)
 
-        self.isr.overscanCorrection(exposure, overscan.getImage(), fitType)
+        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fitType)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -105,7 +105,7 @@ class IsrTestCases(unittest.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(overscanKeyword, biassec)
 
-        self.isr.overscanCorrection(exposure, overscan.getImage(), fitType)
+        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fitType)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -134,7 +134,7 @@ class IsrTestCases(unittest.TestCase):
         
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
 
-        self.isr.overscanCorrection(exposure, overscan.getImage(), fittype="POLY")
+        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fittype="POLY")
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -167,7 +167,7 @@ class IsrTestCases(unittest.TestCase):
         
         exposure = afwImage.ExposureF(mi, afwImage.Wcs())
 
-        self.isr.overscanCorrection(exposure, overscan.getImage(), fittype="POLY")
+        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fittype="POLY")
 
         height        = mi.getHeight()
         width         = mi.getWidth()

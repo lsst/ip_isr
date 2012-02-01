@@ -72,8 +72,8 @@ class IsrTestCases(unittest.TestCase):
         submi    = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT, False)
         submi.set(saturation, 0x0, 1)
         
-        self.isr.makeThresholdMask(exposure, saturation, growFootprints=0, maskName='SAT')
-        self.isr.interpolateFromMask(exposure, defaultFwhm, growFootprints = growSaturated, maskName = 'SAT')
+        self.isr.makeThresholdMask(exposure.getMaskedImage(), saturation, growFootprints=0, maskName='SAT')
+        self.isr.interpolateFromMask(exposure.getMaskedImage(), defaultFwhm, growFootprints = growSaturated, maskName = 'SAT')
 
         bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')
         bitmaskSat    = mi.getMask().getPlaneBitMask('SAT')

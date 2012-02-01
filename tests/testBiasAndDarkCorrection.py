@@ -74,7 +74,7 @@ class IsrTestCases(unittest.TestCase):
         bmetadata.setDouble(meanCountsKeyword, 1.)
         bmetadata.setString(filenameKeyword, 'Unittest Bias')
 
-        self.isr.biasCorrection(exposure, biasexposure)
+        self.isr.biasCorrection(exposure.getMaskedImage(), biasexposure.getMaskedImage())
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -96,7 +96,7 @@ class IsrTestCases(unittest.TestCase):
         dmetadata = darkexposure.getMetadata()
         dmetadata.setString(filenameKeyword, 'Unittest Dark')
 
-        self.isr.darkCorrection(exposure, darkexposure, 1., scaling)
+        self.isr.darkCorrection(exposure.getMaskedImage(), darkexposure.getMaskedImage(), 1., scaling)
 
         height        = mi.getHeight()
         width         = mi.getWidth()

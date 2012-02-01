@@ -50,7 +50,7 @@ class CcdAssembler(object):
             self.mfactory = ListMaskFactory(exposureList)
             self.vfactory = ListVarianceFactory(exposureList)
             self.amp = cameraGeom.cast_Amp(self.exposure.getDetector())
-            self.ccd = cameraGeom.cast_ccd(self.amp.getParent())
+            self.ccd = cameraGeom.cast_Ccd(self.amp.getParent())
 
         if self.ccd is None or not isinstance(self.ccd, cameraGeom.Ccd) or \
                self.amp is None or not isinstance(self.amp, cameraGeom.Amp):
@@ -88,7 +88,7 @@ class CcdAssembler(object):
             mi *= gain
             self.metadata.set("GAIN", 1.0)
         isr = Isr()
-        (medgain, meangain) = isr.calcEffectiveGain(ccdExposure)
+        (medgain, meangain) = isr.calcEffectiveGain(ccdExposure.getMaskedImage())
         self.metadata.add("MEDGAIN", medgain)
         self.metadata.add("MEANGAIN", meangain)
         self.metadata.add("GAINEFF", medgain)

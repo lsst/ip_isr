@@ -73,7 +73,7 @@ class IsrTestCases(unittest.TestCase):
         dmetadata = flatexposure.getMetadata()
         dmetadata.setString(filenameKeyword, 'Unittest Flat')
 
-        self.isr.flatCorrection(exposure, flatexposure, 'USER', scaling)
+        self.isr.flatCorrection(exposure.getMaskedImage(), flatexposure.getMaskedImage(), 'USER', scaling)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
@@ -104,7 +104,7 @@ class IsrTestCases(unittest.TestCase):
         dmetadata = illumexposure.getMetadata()
         dmetadata.setString(filenameKeyword, 'Unittest Illum')
 
-        self.isr.illuminationCorrection(exposure, illumexposure, scaling)
+        self.isr.illuminationCorrection(exposure.getMaskedImage(), illumexposure.getMaskedImage(), scaling)
 
         height        = mi.getHeight()
         width         = mi.getWidth()
