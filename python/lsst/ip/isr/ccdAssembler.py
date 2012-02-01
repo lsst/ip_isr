@@ -28,30 +28,42 @@ from .isr import Isr
 
 
 class CcdAssembler(object):
-    def __init__(self, exposure, ccd, reNorm=True, setGain=True, keysToRemove=[], isTrimmed=True, display=False):
-        from .imageFactories import SingleImageFactory
-        from .imageFactories import SingleMaskFactory
-        from .imageFactories import SingleVarianceFactory
+    def __init__(self, exposureList, reNorm=True, setGain=True, keysToRemove=[],
+                 isTrimmed=True, display=False):
+        if not isinstance(exposureList, list):
+            # Support a single exposure as the 'exposureList'
+            exposureList = [exposureList]
+
         #set the reference exposure from the list.  Assume the first is fine...
-        self.exposure = exposure
-        #set the reference amp for doing the WCS manipulation
-        amp = cameraGeom.cast_Amp(ccd[0])
-        if amp is None:
-            raise("ccd does not contain amp level detectors")
+        self.exposure = exposureList[0]
+        if len(exposureList) == 1:
+            from .imageFactories import SingleImageFactory, SingleMaskFactory, SingleVarianceFactory
+            self.exposure = exposureList[0]
+            self.ifactory = SingleImageFactory(self.exposure)
+            self.mfactory = SingleMaskFactory(self.exposure)
+            self.vfactory = SingleVarianceFactory(self.exposure)
+            self.ccd = cameraGeom.cast_Ccd(self.exposure.getDetector())
+            self.amp = cameraGeom.cast_Amp(self.ccd[0])
         else:
-            self.amp = amp
-        self.detector = ccd
-        self.detector.setTrimmed(isTrimmed)
+            from .imageFactories import ListImageFactory, ListMaskFactory, ListVarianceFactory
+            self.ifactory = ListImageFactory(exposureList)
+            self.mfactory = ListMaskFactory(exposureList)
+            self.vfactory = ListVarianceFactory(exposureList)
+            self.amp = cameraGeom.cast_Amp(self.exposure.getDetector())
+            self.ccd = cameraGeom.cast_ccd(self.amp.getParent())
+
+        if self.ccd is None or not isinstance(self.ccd, cameraGeom.Ccd) or \
+               self.amp is None or not isinstance(self.amp, cameraGeom.Amp):
+            raise RuntimeError("Detector in exposure does not match calling pattern")
+        self.ccd.setTrimmed(isTrimmed)
         self.reNorm = reNorm
         self.ktr = keysToRemove
         self.outputImageFactory = self.exposure.getMaskedImage().getImage().Factory
-        self.ifactory = SingleImageFactory(self.exposure)
-        self.mfactory = SingleMaskFactory(self.exposure)
-        self.vfactory = SingleVarianceFactory(self.exposure)
         self.filter = self.exposure.getFilter()
         self.metadata = self.exposure.getMetadata()
         self.calib = self.exposure.getCalib()
-        self.display
+        self.display = display
+        self._setGain = setGain
 
     def getFixedWcs(self):
         if self.exposure.hasWcs():
@@ -67,11 +79,12 @@ class CcdAssembler(object):
     def setGain(self, ccdExposure):
         gain = 0
         namps = 0
-        for a in self.detector:
+        for a in self.ccd:
             gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
             namps += 1.
         gain /= namps
         if self.reNorm:
+            mi = ccdExposure.getMaskedImage()
             mi *= gain
             self.metadata.set("GAIN", 1.0)
         isr = Isr()
@@ -89,21 +102,21 @@ class CcdAssembler(object):
                 metadata.remove(k)
         ccdExposure.setMetadata(self.metadata)
         ccdExposure.setFilter(self.filter)
-        ccdExposure.setDetector(self.detector)
+        ccdExposure.setDetector(self.ccd)
         ccdExposure.getCalib().setExptime(self.calib.getExptime())
         ccdExposure.getCalib().setMidTime(self.calib.getMidTime())
 
 
     def assembleCcd(self):
-        ccdImage = cameraGeomUtils.makeImageFromCcd(self.detector, imageSource = self.ifactory,
+        ccdImage = cameraGeomUtils.makeImageFromCcd(self.ccd, imageSource = self.ifactory,
             imageFactory = self.outputImageFactory, bin=False)
-        ccdVariance = cameraGeomUtils.makeImageFromCcd(self.detector, imageSource = self.vfactory,
+        ccdVariance = cameraGeomUtils.makeImageFromCcd(self.ccd, imageSource = self.vfactory,
             imageFactory = afwImage.ImageF, bin=False)
-        ccdMask = cameraGeomUtils.makeImageFromCcd(self.detector, imageSource = self.mfactory,
+        ccdMask = cameraGeomUtils.makeImageFromCcd(self.ccd, imageSource = self.mfactory,
             imageFactory = afwImage.MaskU, bin=False)
         mi = afwImage.makeMaskedImage(ccdImage, ccdMask, ccdVariance)
         ccdExposure = afwImage.makeExposure(mi)
-        if self.setGain:
+        if self._setGain:
             if not ccdVariance.getArray().max() == 0:
                 self.setGain(ccdExposure)
             else:

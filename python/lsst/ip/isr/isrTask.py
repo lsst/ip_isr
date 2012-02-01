@@ -87,7 +87,7 @@ class IsrTaskConfig(pexConfig.Config):
         default = True,
     )
     keysToRemoveFromAssembledCcd = pexConfig.ListField(
-        str,
+        dtype = str,
         doc = "fields to remove from the metadata of the assembled ccd.",
         default = [],
     )
@@ -97,7 +97,7 @@ class IsrTaskConfig(pexConfig.Config):
         default = True,
     )
     methodList = pexConfig.ListField(
-        str,   
+        dtype = str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
         default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFlatCorrection"],
     )
@@ -322,11 +322,9 @@ class IsrTask(pipeBase.Task):
     def doIlluminationCorrection(self, exposure, calibSet):
         pass
 
-    def doCcdAssembly(self, exposure, calibSet):
-        if cameraGeom.cast_Amp(exposure.getDetector()) is not None:
-            raise RuntimeError("For ccd assembly to work, exposure must be at the sensor level")
+    def doCcdAssembly(self, exposureList):
         renorm = self.config.reNormAssembledCcd
         setgain = self.config.setGainAssembledCcd
         k2rm = self.config.keysToRemoveFromAssembledCcd
-        assembler = CcdAssembler(exposure, exposure.getDetector(), reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
+        assembler = CcdAssembler(exposureList, reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
         return assembler.assembleCcd()
