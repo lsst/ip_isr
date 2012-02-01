@@ -21,6 +21,7 @@
 #
 
 import lsst.afw.image       as afwImage
+import lsst.meas.algorithms as measAlg
 import lsst.afw.cameraGeom  as cameraGeom
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
@@ -75,6 +76,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "Number of pixels by which to grow the saturation footprints",
         default = 1,
     )
+    growDefectFootprintSize = pexConfig.Field(
+        dtype = int,
+        doc = "Number of pixels by which to grow the defect (bad and nan) footprints",
+        default = 1,
+    )
     setGainAssembledCcd = pexConfig.Field(
         dtype = bool,
         doc = "update exposure metadata in the assembled ccd to reflect the effective gain of the assembled chip",
@@ -93,7 +99,7 @@ class IsrTaskConfig(pexConfig.Config):
     methodList = pexConfig.ListField(
         str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
-        default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doDarkCorrection", "doFlatCorrection"],
+        default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFlatCorrection"],
     )
     
 class IsrTask(pipeBase.Task):
@@ -148,7 +154,23 @@ class IsrTask(pipeBase.Task):
         return ret
 
     def doConversionForIsr(self, exposure, calibSet):
-        return self.isr.convertImageForIsr(exposure)
+        if not isinstance(exposure, afwImage.ExposureU):
+            raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
+                %s."%(exposure.__repr__()))
+
+        newexposure = exposure.convertF()
+        mi = newexposure.getMaskedImage()
+        var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
+        mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
+        mask.set(0)
+        newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
+        return newexposure
+
+    def doVariance(self, exposure, calibSet):
+        for amp in self._getAmplifiers(exposure):
+            exp = exposure.Factory(exposure, amp.getDiskDataSec())
+            self.isr.updateVariance(exp.getMaskedImage(), amp.getElectronicParams().getGain())
+        return exposure
 
     def doCrosstalkCorrection(self, exposure, calibSet):
         pass
@@ -161,7 +183,7 @@ class IsrTask(pipeBase.Task):
             ep = amp.getElectronicParams()
             satvalue = ep.getSaturationLevel()
             exp = exposure.Factory(exposure, amp.getDiskDataSec())
-            self.isr.saturationCorrection(exp, satvalue, fwhm, growFootprints=grow, maskName=maskname)
+            self.isr.saturationCorrection(exp.getMaskedImage(), satvalue, fwhm, growFootprints=grow, maskName=maskname)
         return exposure
 
     def doSaturationDetection(self, exposure, calibSet):
@@ -171,15 +193,53 @@ class IsrTask(pipeBase.Task):
             ep = amp.getElectronicParams()
             satvalue = ep.getSaturationLevel()
             maskname = self.config.saturatedMaskName
-            self.isr.makeThresholdMask(exp, satvalue, growFootprints=0, maskName=maskname)
+            self.isr.makeThresholdMask(exp.getMaskedImage(), satvalue, growFootprints=0, maskName=maskname)
         return exposure
 
     def doSaturationInterpolation(self, exposure, calibSet):
+        #Don't loop over amps since saturation can cross amp boundaries
         maskname = self.config.saturatedMaskName
         fwhm = self.config.fwhm
-        grow = self.config.growSatruationFootprints
-        self.isr.interpolateFromMask(exposure, fwhm, growFootprints=grow, maskName=maskname)
+        grow = self.config.growSaturationFootprintSize
+        self.isr.interpolateFromMask(exposure.getMaskedImage(), fwhm, growFootprints=grow, maskName=maskname)
         return exposure
+    
+    def doMaskAndInterpDefect(self, exposure, calibSet):
+        #Don't loop over amps since defects could cross amp boundaries
+        fwhm = self.config.fwhm
+        grow = self.config.growDefectFootprintSize
+        defectBaseList = cameraGeom.cast_Ccd(exposure.getDetector()).getDefects()
+        defectList = measAlg.DefectListT()
+        #mask bad pixels in the camera class
+        #create master list of defects and add those from the camera class
+        for d in defectBaseList:
+            bbox = d.getBBox()
+            nd = measAlg.Defect(bbox)
+            defectList.append(nd)
+        self.isr.maskPixelsFromDefectList(exposure.getMaskedImage(), defectList, maskName='BAD')
+        defectList = self.isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='BAD', growFootprints=grow)
+        self.isr.interpolateDefectList(exposure.getMaskedImage(), defectList, fwhm)
+        return exposure
+
+    def doMaskAndInterpNan(self, exposure, calibSet):
+        #Don't loop over amps since nans could cross amp boundaries
+        fwhm = self.config.fwhm
+        grow = self.config.growDefectFootprintSize
+        #find unmasked bad pixels and mask them
+        exposure.getMaskedImage().getMask().addMaskPlane("UNMASKEDNAN") 
+        unc = isrLib.UnmaskedNanCounterF()
+        unc.apply(exposure.getMaskedImage())
+        nnans = unc.getNpix()
+        metadata = exposure.getMetadata()
+        metadata.set("NUMNANS", nnans)
+        if not nnans == 0:
+		raise RuntimeError("There were %i unmasked NaNs"%(nnans))
+        #get footprints of bad pixels not in the camera class
+        undefects = self.isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='UNMASKEDNAN', growFootprints=grow)
+        #interpolate all bad pixels
+        self.isr.interpolateDefectList(exposure.getMaskedImage(), undefects, fwhm)
+        return exposure
+
     '''
     def doLinearization(self, exposure, calibSet):
         linearizer = Linearization(calibSet['linearityFile'])
@@ -194,7 +254,7 @@ class IsrTask(pipeBase.Task):
             expImage = exposure.getMaskedImage().getImage()
             overscan = expImage.Factory(expImage, amp.getDiskBiasSec())
             exp = exposure.Factory(exposure, amp.getDiskDataSec())
-            self.isr.overscanCorrection(exp, overscan, fittype=fittype, polyorder=polyorder,
+            self.isr.overscanCorrection(exp.getMaskedImage(), overscan, fittype=fittype, polyorder=polyorder,
                                         imageFactory=afwImage.ImageF)
         return exposure
 
@@ -202,7 +262,7 @@ class IsrTask(pipeBase.Task):
         biasExposure = calibSet['bias']
         for amp in self._getAmplifiers(exposure):
             exp, bias = self._getCalibration(exposure, biasExposure, amp)
-            self.isr.biasCorrection(exp, bias)
+            self.isr.biasCorrection(exp.getMaskedImage(), bias.getMaskedImage())
         
         return exposure 
 
@@ -213,7 +273,7 @@ class IsrTask(pipeBase.Task):
         
         for amp in self._getAmplifiers(exposure):
             exp, dark = self._getCalibration(exposure, darkexposure, amp)
-            self.isr.darkCorrection(exp, dark, expscaling, darkscaling)
+            self.isr.darkCorrection(exp.getMaskedImage(), dark.getMaskedImage(), expscaling, darkscaling)
         return exposure
 
     def doFringeCorrection(self, exposure, calibSet):
@@ -256,7 +316,7 @@ class IsrTask(pipeBase.Task):
 
         for amp in self._getAmplifiers(exposure):
             exp, flat = self._getCalibration(exposure, flatfield, amp)
-            self.isr.flatCorrection(exp, flat, scalingtype, scaling = scalingvalue)   
+            self.isr.flatCorrection(exp.getMaskedImage(), flat.getMaskedImage(), scalingtype, scaling = scalingvalue)   
         return exposure
 
     def doIlluminationCorrection(self, exposure, calibSet):
@@ -268,5 +328,5 @@ class IsrTask(pipeBase.Task):
         renorm = self.config.reNormAssembledCcd
         setgain = self.config.setGainAssembledCcd
         k2rm = self.config.keysToRemoveFromAssembledCcd
-        assembler = CcdAssembler(exopsure, exposure.getDetector(), reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
+        assembler = CcdAssembler(exposure, exposure.getDetector(), reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
         return assembler.assembleCcd()

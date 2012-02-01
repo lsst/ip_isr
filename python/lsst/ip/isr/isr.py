@@ -34,29 +34,15 @@ class Isr(object):
         ksize = 4*int(fwhm) + 1
         return afwDetection.createPsf('DoubleGaussian', ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
 
-    def calcEffectiveGain(self, exposure):
-        mi = exposure.getMaskedImage()
-        im = afwImage.ImageF(mi.getImage(), True)
-        var = mi.getVariance()
+    def calcEffectiveGain(self, maskedImage):
+        im = afwImage.ImageF(maskedImage.getImage(), True)
+        var = maskedImage.getVariance()
         im /= var
         medgain = afwMath.makeStatistics(im, afwMath.MEDIAN).getValue()
         meangain = afwMath.makeStatistics(im, afwMath.MEANCLIP).getValue()
         return medgain, meangain
 
-    def convertImageForIsr(self, exposure):
-        if not isinstance(exposure, afwImage.ExposureU):
-            raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
-                %s."%(exposure.__repr__()))
-
-        newexposure = exposure.convertF()
-        mi = newexposure.getMaskedImage()
-        var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
-        mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
-        mask.set(0)
-        newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
-        return newexposure
-
-    def calculateSdqaCcdRatings(self, exposure):
+    def calculateSdqaCcdRatings(self, maskedImage, metadata):
         metrics = {}
         metrics['nSaturatePix'] = 0
         metrics['nBadCalibPix'] = 0
@@ -65,9 +51,7 @@ class Isr(object):
         metrics['imageMedian'] = None
         metrics['imageMin'] = None
         metrics['imageMax'] = None
-        metadata = exposure.getMetadata()
-        mi = exposure.getMaskedImage()
-        mask = mi.getMask()
+        mask = maskedImage.getMask()
         badbitmask = mask.getPlaneBitMask('BAD')
         satbitmask = mask.getPlaneBitMask('SAT')
         intrpbitmask = mask.getPlaneBitMask('INTRP')
@@ -90,7 +74,7 @@ class Isr(object):
         fs = afwDetection.makeFootprintSet(badmaskim, thresh)
         for f in fs.getFootprints():
             metrics['nBadCalibPix'] += f.getNpix()
-        stats = afwMath.makeStatistics(mi, afwMath.MEANCLIP | \
+        stats = afwMath.makeStatistics(maskedImage, afwMath.MEANCLIP | \
             afwMath.STDEVCLIP | afwMath.MEDIAN | afwMath.MIN |\
             afwMath.MAX, sctrl)
         metrics['imageClipMean4Sig3Pass'] = stats.getValue(afwMath.MEANCLIP)
@@ -101,7 +85,7 @@ class Isr(object):
         for k in metrics.keys():
             metadata.set(k, metrics[k])
 
-    def calculateSdqaAmpRatings(self, exposure, biasBBox, dataBBox):
+    def calculateSdqaAmpRatings(self, maskedImage, metadata, biasBBox, dataBBox):
         metrics = {}
         metrics['nSaturatePix'] = 0
         metrics['overscanMean'] = None
@@ -109,11 +93,9 @@ class Isr(object):
         metrics['overscanMedian'] = None
         metrics['overscanMin'] = None
         metrics['overscanMax'] = None
-        mi = exposure.getMaskedImage()
-        metadata = exposure.getMetadata()
-        trimmi = afwImage.MaskedImageF(mi, dataBBox, False)
-        biasmi = afwImage.MaskedImageF(mi, biasBBox, False)
-        mask = mi.getMask()
+        trimmi = afwImage.MaskedImageF(maskedImage, dataBBox, False)
+        biasmi = afwImage.MaskedImageF(maskedImage, biasBBox, False)
+        mask = maskedImage.getMask()
         satbitmask = mask.getPlaneBitMask('SAT')
         sctrl = afwMath.StatisticsControl()
         sctrl.setAndMask(satbitmask)
@@ -136,12 +118,11 @@ class Isr(object):
         for k in metrics.keys():
             metadata.set(k, metrics[k])
 
-    def interpolateDefectList(self, exposure, defectList, fwhm, fallbackValue=None):
-        mi = exposure.getMaskedImage()
+    def interpolateDefectList(self, maskedImage, defectList, fwhm, fallbackValue=None):
         psf = self.createPsf(fwhm)
         if fallbackValue is None:
-            fallbackValue = afwMath.makeStatistics(mi.getImage(), afwMath.MEANCLIP).getValue()
-        measAlg.interpolateOverDefects(mi, psf, defectList, fallbackValue)
+            fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
+        measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue)
  
     def defectListFromFootprintList(self, fpList, growFootprints=1):
         defectList = measAlg.DefectListT()
@@ -157,21 +138,13 @@ class Isr(object):
                 defectList.push_back(defect)
         return defectList
    
-    def maskPixelsFromDefectList(self, exposure, defectList, maskName='BAD'):
+    def maskPixelsFromDefectList(self, maskedImage, defectList, maskName='BAD'):
         # mask bad pixels
-        mi = exposure.getMaskedImage()
-        mask = mi.getMask()
+        mask = maskedImage.getMask()
         bitmask = mask.getPlaneBitMask(maskName)
         for defect in defectList:
             bbox = defect.getBBox()
             afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)
-
-    def linearization(self, exposure, lookupTable):
-        # common input test
-        metadata   = exposure.getMetadata()
-        gain = metadata.get('gain')
-        mi   = exposure.getMaskedImage()
-        lookupTable.apply(mi, gain)
 
     def getDefectListFromMask(self, maskedImage, maskName, growFootprints=1):
         mask = maskedImage.getMask()
@@ -184,17 +157,16 @@ class Isr(object):
         fpList = ds.getFootprints()
         return self.defectListFromFootprintList(fpList, growFootprints)
 
-    def makeThresholdMask(self, exposure, threshold, growFootprints=1, maskName = 'SAT'):
-        mi = exposure.getMaskedImage()
+    def makeThresholdMask(self, maskedImage, threshold, growFootprints=1, maskName = 'SAT'):
         if self.display:
-            ds9.mtv(mi, frame=0)
+            ds9.mtv(maskedImage, frame=0)
 
         # find saturated regions
         thresh = afwDetection.Threshold(threshold)
-        ds = afwDetection.makeFootprintSet(mi, thresh)
+        ds = afwDetection.makeFootprintSet(maskedImage, thresh)
         fpList = ds.getFootprints()
         # set mask
-        mask = mi.getMask()
+        mask = maskedImage.getMask()
         bitmask = mask.getPlaneBitMask(maskName)
         if growFootprints > 0:
             for fp in fpList:
@@ -203,72 +175,59 @@ class Isr(object):
 
         return self.defectListFromFootprintList(fpList, growFootprints=0)
 
-    def interpolateFromMask(self, exposure, fwhm, growFootprints = 1, maskName = 'SAT'):
-        mi = exposure.getMaskedImage()
-        defectList = self.getDefectListFromMask(mi, maskName, growFootprints)
-        if 'INTRP' not in mi.getMask().getMaskPlaneDict().keys():
-            mi.getMask.addMaskPlane('INTRP')
+    def interpolateFromMask(self, maskedImage, fwhm, growFootprints = 1, maskName = 'SAT'):
+        defectList = self.getDefectListFromMask(maskedImage, maskName, growFootprints)
+        if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict().keys():
+            maskedImage.getMask.addMaskPlane('INTRP')
         psf = self.createPsf(fwhm)
-        measAlg.interpolateOverDefects(mi, psf, defectList)
+        measAlg.interpolateOverDefects(maskedImage, psf, defectList)
 
 
-    def saturationCorrection(self, exposure, saturation, fwhm, growFootprints=1, interpolate = True, maskName = 'SAT'):
-        defectList = self.makeThresholdMask(exposure, saturation, grwoFootprints=growFootprints, maskName=maskName)
+    def saturationCorrection(self, maskedImage, saturation, fwhm, growFootprints=1, interpolate = True, maskName = 'SAT'):
+        defectList = self.makeThresholdMask(maskedImage, saturation, grwoFootprints=growFootprints, maskName=maskName)
         if interpolate:
-            measAlg.interpolateOverDefects(exposure.getMaskedImage(), self.createPsf(fwhm), defectList)
+            measAlg.interpolateOverDefects(maskedImage, self.createPsf(fwhm), defectList)
         if self.display:
-            ds9.mtv(exposure.getmaskedImage(), frame=0)
+            ds9.mtv(maskedImage, frame=0)
 
 
-    def biasCorrection(self, exposure, bias):
+    def biasCorrection(self, maskedImage, biasMaskedImage):
 
-        mi = exposure.getMaskedImage()
-        bmi = bias.getMaskedImage()
-        mi -= bmi
+        maskedImage -= biasMaskedImage
 
-    def darkCorrection(self, exposure, dark, expscaling, darkscaling):
+    def darkCorrection(self, maskedImage, darkMaskedImage, expscaling, darkscaling):
 
         scale = expscaling / darkscaling
-        mi  = exposure.getMaskedImage()
-        mi.scaledMinus(scale, dark.getMaskedImage())
+        maskedImage.scaledMinus(scale, darkMaskedImage)
 
-    def updateVariance(self, exposure):
-        mi = exposure.getMaskedImage()
-        var = afwImage.ImageF(mi.getImage(), True)
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
-        ep = amp.getElectronicParams()
-        gain = ep.getGain()
+    def updateVariance(self, maskedImage, gain):
+        var = maskedImage.getVariance()
+        var <<= maskedImage.getImage()
         var /= gain
-        mi = afwImage.makeMaskedImage(mi.getImage(), mi.getMask(), var)
-        exposure.setMaskedImage(mi)
 
-    def flatCorrection(self, exposure, flat, scalingtype, scaling = 1.0):
-
+    def flatCorrection(self, maskedImage, flatMaskedImage, scalingtype, scaling = 1.0):
         flatscaling = 1.0
         # Figure out scaling from the data
         # I'm not sure we should be doing this here, but maybe
         if scalingtype == 'MEAN':
-            flatscaling = afwMath.makeStatistics(flat.getMaskedImage().getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
+            flatscaling = afwMath.makeStatistics(flatMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
         elif scalingtype == 'MEDIAN':
-            flatscaling = afwMath.makeStatistics(flat.getMaskedImage().getImage(), afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+            flatscaling = afwMath.makeStatistics(flatMaskedImage.getImage(), afwMath.MEDIAN).getValue(afwMath.MEDIAN)
         elif scalingtype == 'USER':
             flatscaling = scaling
         else:
             raise pexExcept.LsstException, '%s : %s not implemented' % ("flatCorrection", scalingtype)
-        mi   = exposure.getMaskedImage()
-        fmi  = flat.getMaskedImage()
         
-        mi.scaledDivides(1./flatscaling, fmi)
+        maskedImage.scaledDivides(1./flatscaling, flatMaskedImage)
 
         if self.display:
-            ds9.mtv(mi, title="Flattened")
+            ds9.mtv(maskedImage, title="Flattened")
 
-    def illuminationCorrection(self, exposure, illum, illumscaling):
+    def illuminationCorrection(self, maskedImage, illumMaskedImage, illumscaling):
 
         # common input test
 
-        mi   = exposure.getMaskedImage()
-        mi.scaledDivides(1./illumscaling, illum.getMaskedImage())
+        maskedImage.scaledDivides(1./illumscaling, illumMaskedImage)
 
 
 
@@ -286,22 +245,19 @@ class Isr(object):
         # n.b. what other changes are needed here?
         # e.g. wcs info, overscan, etc
 
-    def overscanCorrection(self, exposure, overscanData, fittype='MEDIAN', polyorder=1, imageFactory=afwImage.ImageF):
+    def overscanCorrection(self, maskedImage, overscanData, fittype='MEDIAN', polyorder=1, imageFactory=afwImage.ImageF):
         """
         """
         typemap = {afwImage.ImageU:numpy.uint16, afwImage.ImageI:numpy.int32, afwImage.ImageF:numpy.float32, afwImage.ImageD:numpy.float64}
-
-        # common input test
-        mi = exposure.getMaskedImage()
 
         # what type of overscan modeling?
         offset = 0
         if fittype == 'MEAN':
             offset = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
-            mi    -= offset
+            maskedImage -= offset
         elif fittype == 'MEDIAN':
             offset = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
-            mi    -= offset
+            maskedImage -= offset
         elif fittype == 'POLY':
             biasArray = overscanData.getArray()
             #Assume we want to fit along the long axis
@@ -310,7 +266,7 @@ class Isr(object):
             fitarr = numpy.median(biasArray, axis=aind)
             coeffs = numpy.polyfit(range(len(fitarr)), fitarr, deg=polyorder)
             offsets = numpy.polyval(coeffs, range(len(fitarr)))
-            width, height = mi.getDimensions()
+            width, height = maskedImage.getDimensions()
             offarr = numpy.zeros((height, width), dtype = typemap[imageFactory])
             if aind == 1:
                 for i in range(len(offsets)):
@@ -323,16 +279,16 @@ class Isr(object):
             else:
                 raise pexExcept.LsstException, "Non-2D array returned from MaskedImage.getArray()"
             im = afwImage.makeImageFromArray(offarr)
-            mi -= im 
+            maskedImage -= im 
         else:
             raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fittype)
 
-    def fringeCorrection(self, exposure, fringe):
+    def fringeCorrection(self, maskedImage, fringe):
 
         raise pexExcept.LsstException, '%s not implemented' % ("ipIsr.fringCorrection")
 
 
-    def pupilCorrection(self, exposure, pupil):
+    def pupilCorrection(self, maskedImage, pupil):
 
         raise pexExcept.LsstException, '%s not implemented' % (stageName)
 '''
