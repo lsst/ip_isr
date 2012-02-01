@@ -440,13 +440,6 @@ def saturationCorrection(exposure, saturation, fwhm, growSaturated = False,
                 defect = algorithms.Defect(bbox)
                 defectList.push_back(defect)
 
-    # interpolate over them
-    if interpolate:
-        mask.addMaskPlane('INTRP')
-        psf = createPsf(fwhm)
-        algorithms.interpolateOverDefects(mi, psf, defectList)
-
-
 def biasCorrection(exposure, bias):
 
     mi  = exposure.getMaskedImage()

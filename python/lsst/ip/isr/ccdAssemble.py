@@ -146,7 +146,7 @@ def getFixedWcs(exposures, amp):
 def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], imageFactory=afwImage.ImageF):
     display = lsstDebug.Info(__name__).display 
     ccd.setTrimmed(isTrimmed)
-    wcs = getFixedWcs(exposures, cameraGeom.cast_Amp(ccd[15]))
+    wcs = getFixedWcs(exposures, cameraGeom.cast_Amp(ccd[0]))
     filter = exposures[0].getFilter()
     metadata = exposures[0].getMetadata()
     calib = exposures[0].getCalib()
