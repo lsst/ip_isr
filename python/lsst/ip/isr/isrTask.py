@@ -210,7 +210,6 @@ class IsrTask(pipeBase.Task):
         for amp in self._getAmplifiers(exposure):
             exp = exposure.Factory(exposure, amp.getDataSec())
             self.isr.updateVariance(exp, amp)
-            print "Set variance"
         return exposure
 
     def doDarkCorrection(self, exposure, calibSet):
