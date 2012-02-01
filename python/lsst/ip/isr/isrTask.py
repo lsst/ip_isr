@@ -87,7 +87,7 @@ class IsrTaskConfig(pexConfig.Config):
         default = True,
     )
     keysToRemoveFromAssembledCcd = pexConfig.ListField(
-        str,
+        dtype = str,
         doc = "fields to remove from the metadata of the assembled ccd.",
         default = [],
     )
@@ -97,7 +97,7 @@ class IsrTaskConfig(pexConfig.Config):
         default = True,
     )
     methodList = pexConfig.ListField(
-        str,   
+        dtype = str,   
         doc = "The list of ISR corrections to apply in the order they should be applied",
         default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFlatCorrection"],
     )
