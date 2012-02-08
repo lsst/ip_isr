@@ -26,8 +26,13 @@ from .version import *
 from isrLib import *
 
 # python code
-from isr import *
+from .isr import *
 
 # ccdAssembly
-from ccdAssemble import *
+from .ccdListAssembler import *
+from .ccdAssembler import *
+from .imageFactories import *
+
+#IsrTask
+from .isrTask import *
 

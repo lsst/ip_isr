@@ -19,19 +19,9 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-import lsstDebug
-
-import lsst.pex.policy as pexPolicy
-import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
-import lsst.afw.math as afwMath
-import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
-import lsst.afw.display.ds9 as ds9
-import isr
-import os,sys,eups,math
-
-class singleImageFactory(cameraGeomUtils.GetCcdImage):
+class SingleImageFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposure, isTrimmed=True):
         self.exposure = exposure
         self.isRaw = True
@@ -45,7 +35,7 @@ class singleImageFactory(cameraGeomUtils.GetCcdImage):
                     amp.getDiskAllPixels(), afwImage.PARENT)
         return amp.prepareAmpData(img)
 
-class singleMaskFactory(cameraGeomUtils.GetCcdImage):
+class SingleMaskFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposure, isTrimmed=True):
         self.exposure = exposure
         self.isRaw = True
@@ -59,7 +49,7 @@ class singleMaskFactory(cameraGeomUtils.GetCcdImage):
 		    amp.getDiskAllPixels(), afwImage.PARENT)
 	return amp.prepareAmpData(img)
 
-class singleVarianceFactory(cameraGeomUtils.GetCcdImage):
+class SingleVarianceFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposure, isTrimmed=True):
         self.exposure = exposure
         self.isRaw = True
@@ -74,7 +64,7 @@ class singleVarianceFactory(cameraGeomUtils.GetCcdImage):
 		    amp.getDiskAllPixels(), afwImage.PARENT)
 	return amp.prepareAmpData(img)
 
-class listImageFactory(cameraGeomUtils.GetCcdImage):
+class ListImageFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures, isTrimmed=True):
         self.exposures = exposures
         self.isRaw = True
@@ -91,7 +81,7 @@ class listImageFactory(cameraGeomUtils.GetCcdImage):
                 return amp.prepareAmpData(img)
         return None
 
-class listMaskFactory(cameraGeomUtils.GetCcdImage):
+class ListMaskFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures, isTrimmed=True):
         self.exposures = exposures
         self.isRaw = True
@@ -108,7 +98,7 @@ class listMaskFactory(cameraGeomUtils.GetCcdImage):
                 return amp.prepareAmpData(img)
         return None
 
-class listVarianceFactory(cameraGeomUtils.GetCcdImage):
+class ListVarianceFactory(cameraGeomUtils.GetCcdImage):
     def __init__(self, exposures, isTrimmed=True):
         self.exposures = exposures
         self.isRaw = True
@@ -125,78 +115,3 @@ class listVarianceFactory(cameraGeomUtils.GetCcdImage):
                             amp.getDiskAllPixels(), afwImage.PARENT)
                 return amp.prepareAmpData(img)
         return None
-
-def getFixedWcs(exposures, amp):
-    if len(exposures) > 1:
-        for exp in exposures:
-            if exp.getDetector().getId() == amp.getId():
-                if exp.hasWcs():
-                    wcs = exp.getWcs()
-                    amp.prepareWcsData(wcs)
-                else:
-                    wcs = None
-    else:
-        if exposures[0].hasWcs():
-            wcs = exposures[0].getWcs()
-            amp.prepareWcsData(wcs)
-        else:
-            wcs = None
-    return wcs
-
-def assembleCcd(exposures, ccd, reNorm=True, isTrimmed=True, keysToRemove=[], imageFactory=afwImage.ImageF):
-    display = lsstDebug.Info(__name__).display 
-    ccd.setTrimmed(isTrimmed)
-    wcs = getFixedWcs(exposures, cameraGeom.cast_Amp(ccd[0]))
-    filter = exposures[0].getFilter()
-    metadata = exposures[0].getMetadata()
-    calib = exposures[0].getCalib()
-    for k in keysToRemove:
-        if metadata.exists(k):
-            metadata.remove(k)
-    gain = 0
-    namps = 0
-    for a in ccd:
-        gain += cameraGeom.cast_Amp(a).getElectronicParams().getGain()
-        namps += 1.
-    gain /= namps
-    if len(exposures) > 1:
-        lif = listImageFactory(exposures)
-        lmf = listMaskFactory(exposures)
-        lvf = listVarianceFactory(exposures)
-    else:
-        lif = singleImageFactory(exposures[0])
-        lmf = singleMaskFactory(exposures[0])
-        lvf = singleVarianceFactory(exposures[0])
-    ccdImage = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lif,
-            imageFactory = imageFactory, bin=False)
-    ccdVariance = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lvf,
-            imageFactory = afwImage.ImageF, bin=False)
-    ccdMask = cameraGeomUtils.makeImageFromCcd(ccd, imageSource = lmf,
-            imageFactory = afwImage.MaskU, bin=False)
-    mi = afwImage.makeMaskedImage(ccdImage,
-        ccdMask, ccdVariance)
-    if reNorm:
-        mi *= gain
-        metadata.set("GAIN", 1.0)
-    ccdExposure = afwImage.makeExposure(mi)
-    if wcs is not None:
-        ccdExposure.setWcs(wcs)
-    ccdExposure.setMetadata(metadata)
-    ccdExposure.setFilter(filter)
-    ccdExposure.setDetector(ccd)
-    ccdExposure.getCalib().setExptime(calib.getExptime())
-    ccdExposure.getCalib().setMidTime(calib.getMidTime())
-    if not ccdVariance.getArray().max() == 0:
-        (medgain, meangain) = isr.calcEffectiveGain(ccdExposure)
-        metadata.add("MEDGAIN", medgain)
-        metadata.add("MEANGAIN", meangain)
-        metadata.add("GAINEFF", medgain)
-    else:
-        metadata.add("MEDGAIN", 0.)
-        metadata.add("MEANGAIN", 0.)
-        metadata.add("GAINEFF", 0.)
-
-    if display:
-        ds9.mtv(ccdExposure)
-    
-    return ccdExposure
