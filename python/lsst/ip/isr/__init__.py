@@ -29,7 +29,6 @@ from isrLib import *
 from .isr import *
 
 # ccdAssembly
-from .ccdListAssembler import *
 from .ccdAssembler import *
 from .imageFactories import *
 
