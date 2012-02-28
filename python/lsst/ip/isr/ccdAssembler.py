@@ -60,7 +60,9 @@ class CcdAssembler(object):
         
         self.ccd.setTrimmed(isTrimmed)
         self.reNorm = reNorm
-        self.ktr = keysToRemove
+        self.ktr = ['DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN']
+        for k in keysToRemove:
+            self.ktr.append(k)
         self.outputImageFactory = self.exposure.getMaskedImage().getImage().Factory
         self.filter = self.exposure.getFilter()
         self.metadata = self.exposure.getMetadata()

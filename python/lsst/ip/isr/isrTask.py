@@ -194,7 +194,6 @@ class IsrTask(pipeBase.Task):
         self.methodList = ["doConversionForIsr", "doSaturationDetection", "doLinearization", "doOverscanCorrection", "doTrimExposure", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFringeCorrection", "doFlatCorrection", "doSaturationInterpolation", "doMaskAndInterpDefect", "doMaskAndInterpNan"]
         self.preList = []
         self.postList = []
-        self.metadata = {}
         for methodname in self.methodList:
             mvalue = getattr(self.config, methodname)
             assembleReached = False
@@ -214,8 +213,7 @@ class IsrTask(pipeBase.Task):
         @param exposure Apply ISR to this Exposure
         @param calibSet Dictionary of calibration products (bias/zero, dark, flat, fringe, linearization information)
         @return a pipeBase.Struct with fields:
-        - postIsrExposure: the exposure after application of ISR
-        - metadata: metadata about the ISR process
+        - exposure: the exposure after application of ISR
         """
 
         #The ISR routines operate in place.  A copy of the original exposure
@@ -229,6 +227,7 @@ class IsrTask(pipeBase.Task):
             amp = cameraGeom.cast_Amp(ampExp.getDetector())
             workingExposure = ampExp.Factory(ampExp, True)
             for m in self.preList:
+                print "doing %s"%(m)
                 workingExposure = getattr(self, m)(workingExposure, calibDict, amp)
             exposureList.append(workingExposure)\
 
@@ -239,9 +238,10 @@ class IsrTask(pipeBase.Task):
             calibDict = self.makeCalibDict(sDataRef, ccd, self.postList)
 
             for m in self.postList:
+                print "doing %s"%(m)
                 workingExposure = getattr(self,m)(workingExposure, calibDict, ccd)
-        
-        return pipeBase.Struct(exposure=workingExposure, metadata=self.metadata)
+        workingExposure.writeFits("assembled.fits") 
+        return pipeBase.Struct(exposure=workingExposure)
 
     def checkIsAmp(self, detector):
         if not isinstance(detector, cameraGeom.Amp):
@@ -369,8 +369,7 @@ class IsrTask(pipeBase.Task):
         unc = isrLib.UnmaskedNanCounterF()
         unc.apply(exposure.getMaskedImage())
         nnans = unc.getNpix()
-        metadata = exposure.getMetadata()
-        metadata.set("NUMNANS", nnans)
+        self.metadata.set("NUMNANS", nnans)
         if not nnans == 0:
 		raise RuntimeError("There were %i unmasked NaNs"%(nnans))
         #get footprints of bad pixels not in the camera class
