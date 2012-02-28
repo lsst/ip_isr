@@ -108,7 +108,6 @@ class IsrTask(pipeBase.Task):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.isr = Isr()
         self.methodList = []
-        self.metadata = {}
         for methodname in self.config.methodList:
             self.methodList.append(getattr(self, methodname))
 
