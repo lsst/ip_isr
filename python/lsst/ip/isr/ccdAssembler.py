@@ -51,10 +51,13 @@ class CcdAssembler(object):
             self.vfactory = ListVarianceFactory(exposureList)
             self.amp = cameraGeom.cast_Amp(self.exposure.getDetector())
             self.ccd = cameraGeom.cast_Ccd(self.amp.getParent())
+            if not self.ccd[len(exposureList)-1]:
+                raise RuntimeError("The number of amps (%i) does not match the number of exposures (%i)."%(len(self.ccd), len(exposureList)))
 
         if self.ccd is None or not isinstance(self.ccd, cameraGeom.Ccd) or \
                self.amp is None or not isinstance(self.amp, cameraGeom.Amp):
             raise RuntimeError("Detector in exposure does not match calling pattern")
+        
         self.ccd.setTrimmed(isTrimmed)
         self.reNorm = reNorm
         self.ktr = keysToRemove
