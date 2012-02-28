@@ -57,7 +57,10 @@ class CcdAssembler(object):
             raise RuntimeError("Detector in exposure does not match calling pattern")
         self.ccd.setTrimmed(isTrimmed)
         self.reNorm = reNorm
-        self.ktr = keysToRemove
+        #If found, the following should definitely be removed from the assembled exposure header.
+        self.ktr = ['TRIMSEC', 'BIASSEC', 'DATASEC', 'GAIN']
+        for k in keysToRemove:
+            self.ktr.append(k)
         self.outputImageFactory = self.exposure.getMaskedImage().getImage().Factory
         self.filter = self.exposure.getFilter()
         self.metadata = self.exposure.getMetadata()
@@ -98,8 +101,8 @@ class CcdAssembler(object):
         if wcs is not None:
             ccdExposure.setWcs(wcs)
         for k in self.ktr:
-            if metadata.exists(k):
-                metadata.remove(k)
+            if self.metadata.exists(k):
+                self.metadata.remove(k)
         ccdExposure.setMetadata(self.metadata)
         ccdExposure.setFilter(self.filter)
         ccdExposure.setDetector(self.ccd)
