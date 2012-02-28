@@ -118,7 +118,6 @@ class IsrTask(pipeBase.Task):
         @param calibSet Dictionary of calibration products (bias/zero, dark, flat, fringe, linearization information)
         @return a pipeBase.Struct with fields:
         - postIsrExposure: the exposure after application of ISR
-        - metadata: metadata about the ISR process
         """
 
         #The ISR routines operate in place.  A copy of the original exposure
@@ -126,7 +125,7 @@ class IsrTask(pipeBase.Task):
         workingExposure = exposure.Factory(exposure, True)
         for m in self.methodList:
             workingExposure = m(workingExposure, calibSet)
-        return pipeBase.Struct(postIsrExposure=workingExposure, metadata=self.metadata)
+        return pipeBase.Struct(postIsrExposure=workingExposure)
 
     def runButler(self, butler, dataid):
         """Run the ISR given a butler
@@ -229,8 +228,8 @@ class IsrTask(pipeBase.Task):
         unc = isrLib.UnmaskedNanCounterF()
         unc.apply(exposure.getMaskedImage())
         nnans = unc.getNpix()
-        metadata = exposure.getMetadata()
-        metadata.set("NUMNANS", nnans)
+        expmeta = exposure.getMetadata()
+        expmeta.set("NUMNANS", nnans)
         if not nnans == 0:
 		raise RuntimeError("There were %i unmasked NaNs"%(nnans))
         #get footprints of bad pixels not in the camera class
