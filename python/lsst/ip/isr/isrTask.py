@@ -34,7 +34,7 @@ class IsrTaskConfig(pexConfig.Config):
     doWrite = pexConfig.Field(dtype=bool, doc="Write output?", default=True)
     calibsAreTrimmed = pexConfig.Field(
         dtype = bool,
-        doc = "Have calibs been trimmed of none science pixels?",
+        doc = "Have calibs been trimmed of non-science pixels?",
         default = True,
     )
     fwhm = pexConfig.Field(
@@ -184,6 +184,11 @@ class IsrTaskConfig(pexConfig.Config):
         allowed = {"post":"Do the masking and interpolation after assembly.", "None":"Don't look for nans/infs"},
         default = "post",
     )
+    transposeForInterpolation = pexConfig.Field(
+        dtype = bool,
+        doc = "Since defect interpolation happens along rows, some data may need to be transposed before interpolation",
+        default = False,
+    )
     
     
 class IsrTask(pipeBase.Task):
@@ -216,8 +221,7 @@ class IsrTask(pipeBase.Task):
         - exposure: the exposure after application of ISR
         """
 
-        #The ISR routines operate in place.  A copy of the original exposure
-        #will be made and the reduced exposure will be returned.
+        #The ISR routines operate in place.  
         isChannel = sDataRef.butlerSubset.level == 'channel'
         if isChannel and (not self.postList or self.config.doAssembly):
             raise RuntimeError("Must provide more than one channel to do assembly and post assembly processing")
@@ -227,7 +231,6 @@ class IsrTask(pipeBase.Task):
             amp = cameraGeom.cast_Amp(ampExp.getDetector())
             workingExposure = ampExp.Factory(ampExp, True)
             for m in self.preList:
-                print "doing %s"%(m)
                 workingExposure = getattr(self, m)(workingExposure, calibDict, amp)
             exposureList.append(workingExposure)\
 
@@ -238,9 +241,7 @@ class IsrTask(pipeBase.Task):
             calibDict = self.makeCalibDict(sDataRef, ccd, self.postList)
 
             for m in self.postList:
-                print "doing %s"%(m)
                 workingExposure = getattr(self,m)(workingExposure, calibDict, ccd)
-        workingExposure.writeFits("assembled.fits") 
         return pipeBase.Struct(exposure=workingExposure)
 
     def checkIsAmp(self, detector):
@@ -340,7 +341,14 @@ class IsrTask(pipeBase.Task):
         maskname = self.config.saturatedMaskName
         fwhm = self.config.fwhm
         grow = self.config.growSaturationFootprintSize
-        self.isr.interpolateFromMask(exposure.getMaskedImage(), fwhm, growFootprints=grow, maskName=maskname)
+        if self.config.transposeForInterpolation:
+            print "doing transpose"
+            mi = self.isr.transposeMaskedImage(exposure.getMaskedImage())
+            self.isr.interpolateFromMask(mi, fwhm, growFootprints=grow, maskName=maskname)
+            mi = self.isr.transposeMaskedImage(mi)
+            exposure.setMaskedImage(mi)
+        else:
+            self.isr.interpolateFromMask(exposure.getMaskedImage(), fwhm, growFootprints=grow, maskName=maskname)
         return exposure
     
     def doMaskAndInterpDefect(self, exposure, calibSet, detector):
@@ -357,7 +365,14 @@ class IsrTask(pipeBase.Task):
             defectList.append(nd)
         self.isr.maskPixelsFromDefectList(exposure.getMaskedImage(), defectList, maskName='BAD')
         defectList = self.isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='BAD', growFootprints=grow)
-        self.isr.interpolateDefectList(exposure.getMaskedImage(), defectList, fwhm)
+        if self.config.transposeForInterpolation:
+            mi = self.isr.transposeMaskedImage(exposure.getMaskedImage())
+            defectList = self.isr.transposeDefectList(defectList)
+            self.isr.interpolateDefectList(mi, defectList, fwhm)
+            mi = self.isr.transposeMaskedImage(mi)
+            exposure.setMaskedImage(mi)
+        else:
+            self.isr.interpolateDefectList(exposure.getMaskedImage(), defectList, fwhm)
         return exposure
 
     def doMaskAndInterpNan(self, exposure, calibSet, detector):
@@ -373,9 +388,17 @@ class IsrTask(pipeBase.Task):
         if not nnans == 0:
 		raise RuntimeError("There were %i unmasked NaNs"%(nnans))
         #get footprints of bad pixels not in the camera class
-        undefects = self.isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='UNMASKEDNAN', growFootprints=grow)
-        #interpolate all bad pixels
-        self.isr.interpolateDefectList(exposure.getMaskedImage(), undefects, fwhm)
+        if nnans > 0:
+            undefects = self.isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='UNMASKEDNAN', growFootprints=grow)
+            #interpolate all bad pixels
+            if self.config.transposeForInterpolation:
+                mi = self.isr.transposeMaskedImage(exposure.getMaskedImage())
+                defectList = self.isr.transposeDefectList(uudefects)
+                self.isr.interpolateDefectList(mi, defectList, fwhm)
+                mi = self.isr.transposeMaskedImage(mi)
+                exposure.setMaskedImage(mi)
+            else:
+                self.isr.interpolateDefectList(exposure.getMaskedImage(), uudefects, fwhm)
         return exposure
 
     '''

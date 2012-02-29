@@ -26,6 +26,7 @@ import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
+import lsst.afw.geom as afwGeom
 class Isr(object):
     def __init__(self, display=False):
         self.display = display
@@ -41,6 +42,13 @@ class Isr(object):
         medgain = afwMath.makeStatistics(im, afwMath.MEDIAN).getValue()
         meangain = afwMath.makeStatistics(im, afwMath.MEANCLIP).getValue()
         return medgain, meangain
+
+    def transposeMaskedImage(self, maskedImage):
+        imarr = maskedImage.getImage().getArray().T.__copy__()
+        vararr = maskedImage.getVariance().getArray().T.__copy__()
+        maskarr = maskedImage.getMask().getArray().T.__copy__()
+        return afwImage.makeMaskedImageFromArrays(imarr, maskarr, vararr)
+ 
 
     def calculateSdqaCcdRatings(self, maskedImage, metadata):
         metrics = {}
@@ -137,7 +145,16 @@ class Isr(object):
                 defect = measAlg.Defect(bbox)
                 defectList.push_back(defect)
         return defectList
-   
+
+    def transposeDefectList(self, defectList):
+        retDefectList = measAlg.DefectListT()
+        for defect in defectList:
+            bbox = defect.getBBox()
+            nbbox = afwGeom.Box2I(afwGeom.Point2I(bbox.getMinY(), bbox.getMinX()), 
+                 afwGeom.Extent2I(bbox.getDimensions()[1], bbox.getDimensions()[0]))
+            retDefectList.push_back(measAlg.Defect(nbbox))
+        return retDefectList
+
     def maskPixelsFromDefectList(self, maskedImage, defectList, maskName='BAD'):
         # mask bad pixels
         mask = maskedImage.getMask()

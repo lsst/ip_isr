@@ -60,7 +60,13 @@ class CcdAssembler(object):
         
         self.ccd.setTrimmed(isTrimmed)
         self.reNorm = reNorm
-        self.ktr = ['DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN']
+        #If found, the following should definitely be removed from the assembled exposure header.
+        if self.reNorm:
+            #Don't want to remove GAIN keyword as it is set by the renormalization.
+            self.ktr = ['DATASEC', 'BIASSEC', 'TRIMSEC']
+        else:
+            self.ktr = ['DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN']
+
         for k in keysToRemove:
             self.ktr.append(k)
         self.outputImageFactory = self.exposure.getMaskedImage().getImage().Factory
@@ -103,8 +109,8 @@ class CcdAssembler(object):
         if wcs is not None:
             ccdExposure.setWcs(wcs)
         for k in self.ktr:
-            if metadata.exists(k):
-                metadata.remove(k)
+            if self.metadata.exists(k):
+                self.metadata.remove(k)
         ccdExposure.setMetadata(self.metadata)
         ccdExposure.setFilter(self.filter)
         ccdExposure.setDetector(self.ccd)
