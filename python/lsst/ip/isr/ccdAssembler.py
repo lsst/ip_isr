@@ -120,7 +120,7 @@ class CcdAssembler(object):
             if not ccdVariance.getArray().max() == 0:
                 self.setGain(ccdExposure)
             else:
-                raise("Can't calculate the effective gain since the variance plane is set to zero")
+                raise RuntimeError("Can't calculate the effective gain: the variance plane is set to zero")
         self.setExposureComponents(ccdExposure)
 
         if self.display:
