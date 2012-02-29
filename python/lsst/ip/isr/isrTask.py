@@ -169,19 +169,19 @@ class IsrTaskConfig(pexConfig.Config):
     doSaturationInterpolation = pexConfig.ChoiceField(
         dtype = str,
         doc = "Interpolate pixels masked as saturated",
-        allowed = {"post":"Do the interpolation after assembly", "None":"Don't interpolate saturated pixels."},
+        allowed = {"pre":"Do flat correction before assembly", "post":"Do the interpolation after assembly", "None":"Don't interpolate saturated pixels."},
         default = "post",
     )
     doMaskAndInterpDefect = pexConfig.ChoiceField(
         dtype = str,
         doc = "Mask and interpolate over known defects.",
-        allowed = {"post":"Do the masking and interpolation after assembly", "None":"Don't find and interpolate defects"},
+        allowed = {"pre":"Do flat correction before assembly", "post":"Do the masking and interpolation after assembly", "None":"Don't find and interpolate defects"},
         default = "post",
     )
     doMaskAndInterpNan = pexConfig.ChoiceField(
         dtype = str,
         doc = "Do look for unmasked NaN/Infs in the image.  If found mask and interpolate them.",
-        allowed = {"post":"Do the masking and interpolation after assembly.", "None":"Don't look for nans/infs"},
+        allowed = {"pre":"Do flat correction before assembly", "post":"Do the masking and interpolation after assembly.", "None":"Don't look for nans/infs"},
         default = "post",
     )
     transposeForInterpolation = pexConfig.Field(
@@ -204,13 +204,13 @@ class IsrTask(pipeBase.Task):
             assembleReached = False
             if mvalue == "pre" and not assembleReached:
                 self.preList.append(methodname)
-            elif mvalue == "post":
+            elif mvalue == "post" and self.config.doAssembly:
                 assembleReached = True
                 self.postList.append(methodname)
             elif mvalue == "None":
                 continue
             else:
-                raise ValueError("Got invalid value for %s: %s"%(methodname, mvalue))
+                raise ValueError("Got invalid value for %s: %s\n Either you have tagged a pre method after assembly or you have post methods with assembly turned off."%(methodname, mvalue))
 
     def run(self, sDataRef):
         """Do instrument signature removal on an exposure: saturation, bias, overscan, dark, flat, fringe correction
@@ -234,9 +234,8 @@ class IsrTask(pipeBase.Task):
                 workingExposure = getattr(self, m)(workingExposure, calibDict, amp)
             exposureList.append(workingExposure)
 
-        if not isChannel:
-            if self.config.doAssembly:
-                workingExposure = self.doCcdAssembly(exposureList)
+        if not isChannel and self.config.doAssembly:
+            workingExposure = self.doCcdAssembly(exposureList)
             ccd = cameraGeom.cast_Ccd(workingExposure.getDetector())
 
             #Get calibs for the post assembly corrections
