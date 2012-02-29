@@ -72,9 +72,6 @@ class CcdAssembler(object):
         if self.exposure.hasWcs():
             wcs = self.exposure.getWcs()
             self.amp.prepareWcsData(wcs)
-            #shift the reference pixel to account for the location of the amp in the ccd.
-            origin = self.amp.getDataSec()
-            wcs.shiftReferencePixel(origin.getMinX(), origin.getMinY())
         else:
             wcs = None
         return wcs
