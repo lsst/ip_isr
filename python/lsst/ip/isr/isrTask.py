@@ -196,7 +196,7 @@ class IsrTask(pipeBase.Task):
     def __init__(self, *args, **kwargs):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.isr = Isr()
-        self.methodList = ["doConversionForIsr", "doSaturationDetection", "doLinearization", "doOverscanCorrection", "doTrimExposure", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFringeCorrection", "doFlatCorrection", "doSaturationInterpolation", "doMaskAndInterpDefect", "doMaskAndInterpNan"]
+        self.methodList = ["doConversionForIsr", "doSaturationDetection", "doLinearization", "doOverscanCorrection", "doTrimExposure", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFringeCorrection", "doFlatCorrection", "doMaskAndInterpDefect", "doSaturationInterpolation", "doMaskAndInterpNan"]
         self.preList = []
         self.postList = []
         for methodname in self.methodList:
@@ -215,42 +215,65 @@ class IsrTask(pipeBase.Task):
     def run(self, sDataRef):
         """Do instrument signature removal on an exposure: saturation, bias, overscan, dark, flat, fringe correction
 
-        @param exposure Apply ISR to this Exposure
-        @param calibSet Dictionary of calibration products (bias/zero, dark, flat, fringe, linearization information)
+        @param sDataRef daf.persistence.butlerSubset.ButlerDataRef of the data to be processed
         @return a pipeBase.Struct with fields:
         - exposure: the exposure after application of ISR
         """
 
-        #The ISR routines operate in place.  
         isChannel = sDataRef.butlerSubset.level == 'channel'
         if isChannel and (not self.postList or self.config.doAssembly):
             raise RuntimeError("Must provide more than one channel to do assembly and post assembly processing")
         exposureList = []
+        #Get the list of amps and the associated calibration products for doing pre assembly processing
         ampList, calibList = self.makeAmpList(sDataRef)
         for ampExp, calibDict in zip(ampList, calibList):
             amp = cameraGeom.cast_Amp(ampExp.getDetector())
             workingExposure = ampExp.Factory(ampExp, True)
+            #Run each correction for each amp
             for m in self.preList:
                 workingExposure = getattr(self, m)(workingExposure, calibDict, amp)
-            exposureList.append(workingExposure)\
+            exposureList.append(workingExposure)
 
         if not isChannel:
             if self.config.doAssembly:
                 workingExposure = self.doCcdAssembly(exposureList)
             ccd = cameraGeom.cast_Ccd(workingExposure.getDetector())
+
+            #Get calibs for the post assembly corrections
             calibDict = self.makeCalibDict(sDataRef, ccd, self.postList)
 
+            #Run post assembly corrections
             for m in self.postList:
                 workingExposure = getattr(self,m)(workingExposure, calibDict, ccd)
+            if self.config.doWrite:
+                #Persist data
+                sDataRef.put(workingExposure, "postISRCCD")
+
+        else:
+            if self.config.doWrite:
+                #Persist each of the corrected amps if assembly is not done
+                for exp in exposureList:
+                    sDataRef.put(exp, "postISR")
+
         return pipeBase.Struct(exposure=workingExposure)
 
     def checkIsAmp(self, detector):
+        """Check if a detector is of type cameraGeom.Amp
+
+        @param Detector cameraGeom.Detector to be checked
+        @return boolean True if Amp, else False
+        """
         if not isinstance(detector, cameraGeom.Amp):
             return False
         else:
             return True
 
     def makeAmpList(self, dataRef):
+        """Make a list of amps and the associated calibration products
+
+        @param dataRef ButlerDataRef from which to retrieve relevant data 
+        @return ampList, calibList list of amp level raw data and a list of dictionaries of the calibration products for each amp
+        """
         ampList = []
         calibList = []
         if dataRef.butlerSubset.level == 'channel':
@@ -276,6 +299,13 @@ class IsrTask(pipeBase.Task):
         return ampList, calibList 
 
     def makeCalibDict(self, dataRef, detector, methodList):
+        """Make a dictionary of calibration products for a detector given the methods that will be run on it
+
+        @param dataRef ButlerDataRef from which to retrieve relevant data 
+        @param detector cameraGeom.Detector to use for getting bounding boxes  
+        @param methodList list of method names for retrieving calibration products
+        @return calibList dictionary of calibration products
+        """
         ret = {}
         required = {"doBiasSubtraction": "bias",
                     "doDarkCorrection": "dark",
@@ -293,6 +323,13 @@ class IsrTask(pipeBase.Task):
         return ret
 
     def doConversionForIsr(self, exposure, calibSet, detector):
+        """Convert from int to float image for ISR processing
+
+        @param exposure afwImage.Exposure to operate on
+        @param calibSet dictionary of calibration products
+        @param detector cameraGeom.Detector for the exposure
+        @return newexposure afwImage.Exposure corrected exposure
+        """
         if not isinstance(exposure, afwImage.ExposureU):
             raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
                 %s."%(exposure.__repr__()))
@@ -342,7 +379,6 @@ class IsrTask(pipeBase.Task):
         fwhm = self.config.fwhm
         grow = self.config.growSaturationFootprintSize
         if self.config.transposeForInterpolation:
-            print "doing transpose"
             mi = self.isr.transposeMaskedImage(exposure.getMaskedImage())
             self.isr.interpolateFromMask(mi, fwhm, growFootprints=grow, maskName=maskname)
             mi = self.isr.transposeMaskedImage(mi)

@@ -7,7 +7,8 @@ args = ['lsstSim', '/lsst3/weekly/data/obs_imSim-2011-09-07/PT1.2/', '--calib=/l
          '--id', 'visit=885449191', 'snap=0', 'raft=2,2', 'sensor=1,1']
 parser = pipeBase.ArgumentParser()
 config = IsrTaskConfig()
-config.transposeForInterpolation = False
+config.transposeForInterpolation = True
+config.doWrite = True
 namespace = parser.parse_args(args=args, config=config)
 isrtask = IsrTask(config=namespace.config)
 output = isrtask.run(namespace.dataRefList[0])
