@@ -57,7 +57,10 @@ class CcdAssembler(object):
             raise RuntimeError("Detector in exposure does not match calling pattern")
         self.ccd.setTrimmed(isTrimmed)
         self.reNorm = reNorm
-        self.ktr = keysToRemove
+        #If found, the following should definitely be removed from the assembled exposure header.
+        self.ktr = ['TRIMSEC', 'BIASSEC', 'DATASEC', 'GAIN']
+        for k in keysToRemove:
+            self.ktr.append(k)
         self.outputImageFactory = self.exposure.getMaskedImage().getImage().Factory
         self.filter = self.exposure.getFilter()
         self.metadata = self.exposure.getMetadata()
@@ -69,9 +72,6 @@ class CcdAssembler(object):
         if self.exposure.hasWcs():
             wcs = self.exposure.getWcs()
             self.amp.prepareWcsData(wcs)
-            #shift the reference pixel to account for the location of the amp in the ccd.
-            origin = self.amp.getDataSec()
-            wcs.shiftReferencePixel(origin.getMinX(), origin.getMinY())
         else:
             wcs = None
         return wcs
@@ -98,8 +98,8 @@ class CcdAssembler(object):
         if wcs is not None:
             ccdExposure.setWcs(wcs)
         for k in self.ktr:
-            if metadata.exists(k):
-                metadata.remove(k)
+            if self.metadata.exists(k):
+                self.metadata.remove(k)
         ccdExposure.setMetadata(self.metadata)
         ccdExposure.setFilter(self.filter)
         ccdExposure.setDetector(self.ccd)
@@ -120,7 +120,7 @@ class CcdAssembler(object):
             if not ccdVariance.getArray().max() == 0:
                 self.setGain(ccdExposure)
             else:
-                raise("Can't calculate the effective gain since the variance plane is set to zero")
+                raise RuntimeError("Can't calculate the effective gain: the variance plane is set to zero")
         self.setExposureComponents(ccdExposure)
 
         if self.display:
