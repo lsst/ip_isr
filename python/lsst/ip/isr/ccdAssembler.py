@@ -58,7 +58,10 @@ class CcdAssembler(object):
         self.ccd.setTrimmed(isTrimmed)
         self.reNorm = reNorm
         #If found, the following should definitely be removed from the assembled exposure header.
-        self.ktr = ['TRIMSEC', 'BIASSEC', 'DATASEC', 'GAIN']
+        if setGain:
+            self.ktr = ['TRIMSEC', 'BIASSEC', 'DATASEC']
+        else:
+            self.ktr = ['TRIMSEC', 'BIASSEC', 'DATASEC', 'GAIN']
         for k in keysToRemove:
             self.ktr.append(k)
         self.outputImageFactory = self.exposure.getMaskedImage().getImage().Factory
