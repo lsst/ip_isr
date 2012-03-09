@@ -322,7 +322,7 @@ class IsrTask(pipeBase.Task):
         return ret
 
     def doConversionForIsr(self, exposure, calibSet, detector):
-        """Convert from int to float image for ISR processing
+        """Convert from int to float image for ISR processing.  This step also converts from DN to electrons.
 
         @param exposure afwImage.Exposure to operate on
         @param calibSet dictionary of calibration products
@@ -332,9 +332,10 @@ class IsrTask(pipeBase.Task):
         if not isinstance(exposure, afwImage.ExposureU):
             raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
                 %s."%(exposure.__repr__()))
-
+        gain = exposure.getElectronicParameters().getGain()
         newexposure = exposure.convertF()
         mi = newexposure.getMaskedImage()
+        mi /= gain
         var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
         mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
         mask.set(0)
