@@ -32,6 +32,7 @@ from . import isrLib
 
 class IsrTaskConfig(pexConfig.Config):
     doWrite = pexConfig.Field(dtype=bool, doc="Write output?", default=True)
+    normalizeGain = pexConfig.Field(dtype=bool, doc="Normalize to unity gain?", default=False)
     fwhm = pexConfig.Field(
         dtype = float,
         doc = "FWHM of PSF (arcsec)",
@@ -157,7 +158,12 @@ class IsrTask(pipeBase.Task):
                 %s."%(exposure.__repr__()))
 
         newexposure = exposure.convertF()
+        amp = cameraGeom.cast_Amp(newexposure.getDetector())
+        gain = amp.getElectronicParams().getGain()
         mi = newexposure.getMaskedImage()
+        if self.config.normalizeGain:
+            mi /= gain
+            amp.getElectronicParams().setGain(1.)
         var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
         mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
         mask.set(0)
