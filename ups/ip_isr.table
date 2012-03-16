@@ -1,4 +1,4 @@
-setupRequired(meas_algorithms >= 4.7.3.0)
+setupRequired(meas_algorithms >= 5.0.1.0)
 setupRequired(pipe_base)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
