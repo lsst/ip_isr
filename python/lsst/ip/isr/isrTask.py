@@ -162,8 +162,8 @@ class IsrTask(pipeBase.Task):
         gain = amp.getElectronicParams().getGain()
         mi = newexposure.getMaskedImage()
         if self.config.normalizeGain:
+            print "Normalizing gain"
             mi /= gain
-            amp.getElectronicParams().setGain(1.)
         var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
         mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
         mask.set(0)
