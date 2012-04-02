@@ -32,7 +32,6 @@ from . import isrLib
 
 class IsrTaskConfig(pexConfig.Config):
     doWrite = pexConfig.Field(dtype=bool, doc="Write output?", default=True)
-    normalizeGain = pexConfig.Field(dtype=bool, doc="Normalize to unity gain?", default=False)
     fwhm = pexConfig.Field(
         dtype = float,
         doc = "FWHM of PSF (arcsec)",
