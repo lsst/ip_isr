@@ -293,7 +293,7 @@ class IsrTask(pipeBase.Task):
 
         if exp.getDimensions() != amp.getDataSec():
             # Just the amp of interest
-            exp = exp.Factory(exp, amp.getDataSec())
+            exp = exp.Factory(exp, amp.getDiskDataSec())
         if exp.getDimensions() == calib.getDimensions():
             return exp, calib
         # Try just the calibration's pixels of interest
