@@ -290,22 +290,21 @@ class IsrTask(pipeBase.Task):
         """Get a suitably-sized calibration exposure"""
         exp = exposure
         calib = calibration
-        if exp.getDimensions() != calib.getDimensions():
-            # Try just the exposure's pixels of interest
-            try:
-                exp = exp.Factory(exp, amp.getDiskDataSec()) # Exposure not trimmed or assembled
-            except:
-                pass
-        if exp.getDimensions() != calib.getDimensions():
-            # Try just the calibration's pixels of interest
-            try:
-                calib = calib.Factory(calib, amp.getDataSec(True)) # Calib is likely trimmed and assembled
-            except:
-                pass
-        if exp.getDimensions() != calib.getDimensions():
-            raise RuntimeError("Dimensions for exposure (%s) and calibration (%s) don't match" % \
-                               (exposure.getDimensions(), calibration.getDimensions()))
-        return exp, calib
+
+        if exp.getDimensions() != amp.getDataSec():
+            # Just the amp of interest
+            exp = exp.Factory(exp, amp.getDataSec())
+        if exp.getDimensions() == calib.getDimensions():
+            return exp, calib
+        # Try just the calibration's pixels of interest
+        try:
+            calib = calib.Factory(calib, amp.getDataSec(True)) # Calib is likely trimmed and assembled
+        except:
+            pass
+        if exp.getDimensions() == calib.getDimensions():
+            return exp, calib
+        raise RuntimeError("Dimensions for exposure (%s) and calibration (%s) don't match" % \
+                           (exposure.getDimensions(), calibration.getDimensions()))
 
     def doFlatCorrection(self, exposure, calibSet):
         flatfield = calibSet['flat']
