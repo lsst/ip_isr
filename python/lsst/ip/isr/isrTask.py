@@ -291,9 +291,14 @@ class IsrTask(pipeBase.Task):
         exp = exposure
         calib = calibration
 
-        if exp.getDimensions() != amp.getDataSec():
+        if exp.getDimensions() != amp.getDataSec().getDimensions():
             # Just the amp of interest
-            exp = exp.Factory(exp, amp.getDiskDataSec())
+            if exp.getDimensions() == amp.getParent().getAllPixelsNoRotation().getDimensions():
+                # We have a full CCD; just cut out the amp
+                exp = exp.Factory(exp, amp.getDataSec())
+            else:
+                # Probably dealing with a disk image
+                exp = exp.Factory(exp, amp.getDiskDataSec())
         if exp.getDimensions() == calib.getDimensions():
             return exp, calib
         # Try just the calibration's pixels of interest
