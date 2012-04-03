@@ -290,10 +290,9 @@ class IsrTask(pipeBase.Task):
         """Get a suitably-sized calibration exposure"""
         exp = exposure
         calib = calibration
-
         if exp.getDimensions() != amp.getDataSec().getDimensions():
             # Just the amp of interest
-            if exp.getDimensions() == amp.getParent().getAllPixelsNoRotation().getDimensions():
+            if exp.getDimensions() == amp.getParent().getAllPixels().getDimensions():
                 # We have a full CCD; just cut out the amp
                 exp = exp.Factory(exp, amp.getDataSec())
             else:
