@@ -20,15 +20,14 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
-import lsst.afw.image       as afwImage
+import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
-import lsst.afw.cameraGeom  as cameraGeom
+import lsst.afw.cameraGeom as cameraGeom
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from . import isr
 from .isrLib import UnmaskedNanCounterF
 from .assembleCcdTask import AssembleCcdTask
-from .ccdAssembler import CcdAssembler
 
 class IsrTaskConfig(pexConfig.Config):
     doWrite = pexConfig.Field(
@@ -122,12 +121,10 @@ class IsrTask(pipeBase.Task):
         @return a pipeBase.Struct with fields:
         - exposure: the exposure after application of ISR
         """
-        ampExpList = []
-
         ccdExp = sensorRef.get('raw')
         ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
 
-        ccdExp = self.convertIntToFloat(ccdExp, ccd)
+        ccdExp = isr.floatImageFromInt(ccdExp)
         
         for amp in ccd:
             ampExp = ccdExp.Factory(ccdExp, amp.getDiskAllPixels())
@@ -139,8 +136,7 @@ class IsrTask(pipeBase.Task):
 
             self.overscanCorrection(ampExp, amp)
 
-        biasMI = sensorRef.get("bias").getMaskedImage()
-        isr.biasCorrection(ccdExp.getMaskedImage(), biasMI)
+        self.biasCorrection(ccdExp, sensorRef)
         
         isr.updateVariance(ccdExp.getMaskedImage(), ccd.getElectronicParams().getGain())
         
@@ -162,25 +158,10 @@ class IsrTask(pipeBase.Task):
             sensorRef.put(ccdExp, "postISRCCD")
 
         return pipeBase.Struct(exposure=ccdExp)
-
-    def convertIntToFloat(self, exposure, detector):
-        """Convert from int to float image for ISR processing.  This step also converts from DN to electrons.
-
-        @param exposure afwImage.Exposure to operate on
-        @param detector cameraGeom.Detector for the exposure
-        @return newexposure afwImage.Exposure corrected exposure
-        """
-        if not isinstance(exposure, afwImage.ExposureU):
-            raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got %r." % (exposure,))
-        gain = exposure.getElectronicParameters().getGain()
-        newexposure = exposure.convertF()
-        mi = newexposure.getMaskedImage()
-        mi /= gain
-        var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
-        mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
-        mask.set(0)
-        newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
-        return newexposure
+    
+    def biasCorrection(self, exposure, dataRef):
+        biasMI = sensorRef.get("bias").getMaskedImage()
+        isr.biasCorrection(ccdExp.getMaskedImage(), biasMI)
 
     def darkCorrection(self, exposure, dataRef):
         darkexposure = dataRef['dark']
@@ -268,7 +249,7 @@ class IsrTask(pipeBase.Task):
         grow = self.config.growDefectFootprintSize
         #find unmasked bad pixels and mask them
         exposure.getMaskedImage().getMask().addMaskPlane("UNMASKEDNAN") 
-        unc = isrLib.UnmaskedNanCounterF()
+        unc = UnmaskedNanCounterF()
         unc.apply(exposure.getMaskedImage())
         nnans = unc.getNpix()
         self.metadata.set("NUMNANS", nnans)
