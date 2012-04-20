@@ -21,17 +21,8 @@
 #
 
 from .version import *
-
-# c wrapper
-from isrLib import *
-
-# python code
+from .isrLib import *
+from .assembleCcdTask import *
 from .isr import *
-
-# ccdAssembly
-from .ccdAssembler import *
-from .imageFactories import *
-
-#IsrTask
 from .isrTask import *
 

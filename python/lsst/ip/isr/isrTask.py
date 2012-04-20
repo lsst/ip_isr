@@ -32,7 +32,7 @@ from .assembleCcdTask import AssembleCcdTask
 class IsrTaskConfig(pexConfig.Config):
     doWrite = pexConfig.Field(
         dtype = bool,
-        doc = "Write output?",
+        doc = "Persist visitCCD?",
         default = True,
     )
     assembleCcd = pexConfig.ConfigurableField(
@@ -109,11 +109,13 @@ class IsrTaskConfig(pexConfig.Config):
     
 class IsrTask(pipeBase.Task):
     ConfigClass = IsrTaskConfig
+
     def __init__(self, *args, **kwargs):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.makeSubtask("assembleCcd")
         self.transposeForInterpolation = False
 
+    @pipeBase.timeMethod
     def run(self, sensorRef):
         """Do instrument signature removal on an exposure: saturation, bias, overscan, dark, flat, fringe correction
 
@@ -155,9 +157,13 @@ class IsrTask(pipeBase.Task):
         self.maskAndInterpNan(ccdExp)
 
         if self.config.doWrite:
-            sensorRef.put(ccdExp, "postISRCCD")
+            sensorRef.put(ccdExp, "visitCCD")
+        
+        self.display("visitCCD", ccdExp)
 
-        return pipeBase.Struct(exposure=ccdExp)
+        return pipeBase.Struct(
+            exposure = ccdExp,
+        )
     
     def biasCorrection(self, exposure, dataRef):
         biasMI = sensorRef.get("bias").getMaskedImage()
@@ -183,7 +189,7 @@ class IsrTask(pipeBase.Task):
 # this is not used!!!
     def saturationCorrection(self, exposure, detector):
         if not self.checkIsAmp(detector):
-            raise RuntimeError("This method must be executed on a single channel.")
+            raise RuntimeError("This method must be executed on an amp.")
         fwhm = self.config.fwhm
         grow = self.config.growSaturationFootprintSize
         maskname = self.config.saturatedMaskName
