@@ -42,6 +42,7 @@ class AssembleCcdTask(pipeBase.Task):
     """Assemble a CCD
     """
     ConfigClass = AssembleCcdConfig
+    _DefaultName = "assembleCcd"
     
     def __init__(self, **kwargs):
         pipeBase.Task.__init__(self, **kwargs)
@@ -194,7 +195,7 @@ class AssembleCcdTask(pipeBase.Task):
 
 class GetCcdImageData(cameraGeomUtils.GetCcdImage):
     def __init__(self, image, isTrimmed=True):
-        self.image = exposure
+        self.image = image
         self.isRaw = True
         self.isTrimmed = isTrimmed
 
@@ -203,5 +204,5 @@ class GetCcdImageData(cameraGeomUtils.GetCcdImage):
             bbox = amp.getDiskDataSec()
         else:
             bbox = amp.getDiskAllPixels()
-        img = imageFactory(self.image, bbox, afwImage.PARENT)
-        return amp.prepareAmpData(img)
+        subImage = imageFactory(self.image, bbox, afwImage.PARENT)
+        return amp.prepareAmpData(subImage)

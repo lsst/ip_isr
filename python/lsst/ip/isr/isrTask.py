@@ -109,6 +109,7 @@ class IsrTaskConfig(pexConfig.Config):
     
 class IsrTask(pipeBase.Task):
     ConfigClass = IsrTaskConfig
+    _DefaultName = "isr"
 
     def __init__(self, *args, **kwargs):
         pipeBase.Task.__init__(self, *args, **kwargs)
