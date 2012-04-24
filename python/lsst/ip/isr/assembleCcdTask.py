@@ -20,7 +20,6 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import lsst.afw.cameraGeom as cameraGeom
-import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.image as afwImage
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
@@ -59,7 +58,7 @@ class AssembleCcdTask(pipeBase.Task):
     def run(self, inExposure):
         """Assemble a CCD by trimming non-data areas
 
-        @param[in,out]  inExposure  input exposure; the setTrimmed flag of the ccd device info may be modified
+        @param[in,out] inExposure   input exposure; the setTrimmed flag of the ccd device info may be modified
         @return a pipe_base Struct with these fields:
         - exposure: assembled exposure
         """
@@ -81,7 +80,7 @@ class AssembleCcdTask(pipeBase.Task):
     def assemblePixels(self, inExposure):
         """Assemble CCD pixels
 
-        @param[in]      inExposure  input exposure
+        @param[in,out]  inExposure  input exposure; the setTrimmed flag of the ccd device info may be modified
         @return         outExposure assembled exposure: just the pixel data and detector are set
         """
         ccd = cameraGeom.cast_Ccd(inExposure.getDetector())
@@ -154,7 +153,7 @@ class AssembleCcdTask(pipeBase.Task):
                                     - sets calib, filter, and detector
         @param[in]      inExposure  input exposure
         """
-        wcs = self.makeWcs(inExposure)
+        wcs = self.makeWcs(inExposure = inExposure)
         if wcs is not None:
             outExposure.setWcs(wcs)
         else:
@@ -167,7 +166,7 @@ class AssembleCcdTask(pipeBase.Task):
         outExposure.setMetadata(exposureMetadata)
 
         if self.config.setGain:
-            self.setGain(outExposure)
+            self.setGain(outExposure = outExposure)
 
         inCalib = inExposure.getCalib()
         outCalib = outExposure.getCalib()

@@ -55,14 +55,14 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "The method for scaling the flat on the fly.",
         default = 'USER',
         allowed = {
-            "USER": "User defined scaling",
-            "MEAN": "Scale by the inverse of the mean",
+            "USER":   "Scale by flatUserScale",
+            "MEAN":   "Scale by the inverse of the mean",
             "MEDIAN": "Scale by the inverse of the median",
         },
     )
-    flatScalingValue = pexConfig.Field(
+    flatUserScale = pexConfig.Field(
         dtype = float,
-        doc = "If scaling type is USER, a value for the scaling must be provided",
+        doc = "If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise",
         default = 1.0,
     )
     overscanFitType = pexConfig.ChoiceField(
@@ -118,13 +118,18 @@ class IsrTask(pipeBase.Task):
 
     @pipeBase.timeMethod
     def run(self, sensorRef):
-        """Do instrument signature removal on an exposure: saturation, bias, overscan, dark, flat, fringe correction
+        """Do instrument signature removal on an exposure
+        
+        Correct for saturation, bias, overscan, dark, flat..., perform CCD assembly,
+        and interpolate over defects and saturated pixels.
+        
+        Persist the ISR-corrected exposure as "visitCcd" if config.doWrite is True.
 
         @param sensorRef daf.persistence.butlerSubset.ButlerDataRef of the data to be processed
         @return a pipeBase.Struct with fields:
         - exposure: the exposure after application of ISR
         """
-        self.log.log(self.log.INFO, "Processing sensor %s" % (sensorRef.dataId))
+        self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExp = sensorRef.get('raw')
         ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
 
@@ -135,8 +140,6 @@ class IsrTask(pipeBase.Task):
             amp = cameraGeom.cast_Amp(ampExp.getDetector())
     
             self.saturationDetection(ampExp, amp)
-
-#             self.linearization(ampExp, ampRef, amp)
 
             self.overscanCorrection(ampExp, amp)
 
@@ -180,10 +183,10 @@ class IsrTask(pipeBase.Task):
 
     def darkCorrection(self, exposure, dataRef):
         darkexposure = dataRef['dark']
-        darkscaling = darkexposure.getCalib().getExptime()
-        expscaling = exposure.getCalib().getExptime()
+        darkScale = darkexposure.getCalib().getExptime()
+        expScale = exposure.getCalib().getExptime()
         
-        isr.darkCorrection(exposure.getMaskedImage(), darkexposure.getMaskedImage(), expscaling, darkscaling)
+        isr.darkCorrection(exposure.getMaskedImage(), darkexposure.getMaskedImage(), expScale, darkScale)
     
     def updateVariance(self, exposure, ccd):
         """Set the variance plane
@@ -191,15 +194,15 @@ class IsrTask(pipeBase.Task):
         isr.updateVariance(ccdExp.getMaskedImage(), ccd.getElectronicParams().getGain(),
             ccd.getElectronicParams().getReadNoise())
 
-    def fringeCorrection(self, exposure, sensorRef, detector):
-        pass
-
     def flatCorrection(self, exposure, dataRef):
         flatfield = dataRef['flat']
-        scalingtype = self.config.flatScalingType
-        scalingvalue = self.config.flatScalingValue
 
-        isr.flatCorrection(exposure.getMaskedImage(), flatfield.getMaskedImage(), scalingtype, scaling = scalingvalue)   
+        isr.flatCorrection(
+            maskedImage = exposure.getMaskedImage(),
+            flatMaskedImage = flatfield.getMaskedImage(),
+            scalingType = self.config.flatScalingType,
+            userScale = self.config.flatUserScale,
+        )
 
     def saturationCorrection(self, exposure, detector):
         """Perform saturation detection and interpolation as a single step.
@@ -212,10 +215,16 @@ class IsrTask(pipeBase.Task):
             raise RuntimeError("This method must be executed on an amp.")
         fwhm = self.config.fwhm
         grow = self.config.growSaturationFootprintSize
-        maskname = self.config.saturatedMaskName
+        maskName = self.config.saturatedMaskName
         ep = detector.getElectronicParams()
         satvalue = ep.getSaturationLevel()
-        isr.saturationCorrection(exposure.getMaskedImage(), satvalue, fwhm, growFootprints=grow, maskName=maskname)
+        isr.saturationCorrection(
+            maskedImage = exposure.getMaskedImage(),
+            saturation = satvalue,
+            fwhm = fwhm,
+            growFootprints = grow,
+            maskName = maskName,
+        )
         return exposure
 
     def saturationDetection(self, exposure, detector):
@@ -223,27 +232,27 @@ class IsrTask(pipeBase.Task):
             raise RuntimeError("This method must be executed on an amp.")
         ep = detector.getElectronicParams()
         satvalue = ep.getSaturationLevel()
-        maskname = self.config.saturatedMaskName
-        isr.makeThresholdMask(exposure.getMaskedImage(), satvalue, growFootprints=0, maskName=maskname)
+        maskName = self.config.saturatedMaskName
+        isr.makeThresholdMask(
+            maskedImage = exposure.getMaskedImage(),
+            saturation = satvalue,
+            growFootprints = 0,
+            maskName = maskName,
+        )
         return exposure
-    
-#     def linearization(self, ampExp, ampRef, amp):
-#         linFile = sensorRef.get("linearizationFile")
-#         linearizer = isr.Linearization(linFile)
-#         linearizer.apply(ampExp)
 
     def saturationInterpolation(self, exposure):
         #Don't loop over amps since saturation can cross amp boundaries
-        maskname = self.config.saturatedMaskName
+        maskName = self.config.saturatedMaskName
         fwhm = self.config.fwhm
         grow = self.config.growSaturationFootprintSize
         if self.transposeForInterpolation:
             mi = isr.transposeMaskedImage(exposure.getMaskedImage())
-            isr.interpolateFromMask(mi, fwhm, growFootprints=grow, maskName=maskname)
+            isr.interpolateFromMask(mi, fwhm, growFootprints=grow, maskName=maskName)
             mi = isr.transposeMaskedImage(mi)
             exposure.setMaskedImage(mi)
         else:
-            isr.interpolateFromMask(exposure.getMaskedImage(), fwhm, growFootprints=grow, maskName=maskname)
+            isr.interpolateFromMask(exposure.getMaskedImage(), fwhm, growFootprints=grow, maskName=maskName)
     
     def maskAndInterpDefect(self, exposure, detector):
         #Don't loop over amps since defects could cross amp boundaries
