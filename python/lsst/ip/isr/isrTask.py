@@ -124,6 +124,7 @@ class IsrTask(pipeBase.Task):
         @return a pipeBase.Struct with fields:
         - exposure: the exposure after application of ISR
         """
+        self.log.log(self.log.INFO, "Processing sensor %s" % (sensorRef.dataId))
         ccdExp = sensorRef.get('raw')
         ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
 
@@ -135,20 +136,19 @@ class IsrTask(pipeBase.Task):
     
             self.saturationDetection(ampExp, amp)
 
-            self.linearization(ampExp, ampRef, amp)
+#             self.linearization(ampExp, ampRef, amp)
 
             self.overscanCorrection(ampExp, amp)
 
         self.biasCorrection(ccdExp, sensorRef)
         
-        isr.updateVariance(ccdExp.getMaskedImage(), ccd.getElectronicParams().getGain())
-        
         self.darkCorrection(ccdExp, sensorRef)
+        
+        self.updateVariance(ccdExp, ccd)
         
         self.flatCorrection(ccdExp, sensorRef)
         
-        assembleRes = self.assembleCcd.run(ccdExp)
-        ccdExp = assembleRes.exposure
+        ccdExp = self.assembleCcd.run(ccdExp).exposure
         ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
         
         self.maskAndInterpDefect(ccdExp, ccd)
@@ -165,6 +165,14 @@ class IsrTask(pipeBase.Task):
         return pipeBase.Struct(
             exposure = ccdExp,
         )
+
+    def checkIsAmp(self, detector):
+        """Check if a detector is of type cameraGeom.Amp
+
+        @param Detector cameraGeom.Detector to be checked
+        @return True if Amp, else False
+        """
+        return isinstance(detector, cameraGeom.Amp)
     
     def biasCorrection(self, exposure, dataRef):
         biasMI = sensorRef.get("bias").getMaskedImage()
@@ -176,6 +184,12 @@ class IsrTask(pipeBase.Task):
         expscaling = exposure.getCalib().getExptime()
         
         isr.darkCorrection(exposure.getMaskedImage(), darkexposure.getMaskedImage(), expscaling, darkscaling)
+    
+    def updateVariance(self, exposure, ccd):
+        """Set the variance plane
+        """
+        isr.updateVariance(ccdExp.getMaskedImage(), ccd.getElectronicParams().getGain(),
+            ccd.getElectronicParams().getReadNoise())
 
     def fringeCorrection(self, exposure, sensorRef, detector):
         pass
@@ -187,8 +201,13 @@ class IsrTask(pipeBase.Task):
 
         isr.flatCorrection(exposure.getMaskedImage(), flatfield.getMaskedImage(), scalingtype, scaling = scalingvalue)   
 
-# this is not used!!!
     def saturationCorrection(self, exposure, detector):
+        """Perform saturation detection and interpolation as a single step.
+
+        @warning Only suitable for CCDs with a single amplifier; otherwise you don't correctly handle
+        bleed trails that go across amplifier boundaries. For more complex CCDs perform saturation detection
+        first (before linearization), then CCD assembly, then saturation interpolation.
+        """
         if not self.checkIsAmp(detector):
             raise RuntimeError("This method must be executed on an amp.")
         fwhm = self.config.fwhm
@@ -208,8 +227,7 @@ class IsrTask(pipeBase.Task):
         isr.makeThresholdMask(exposure.getMaskedImage(), satvalue, growFootprints=0, maskName=maskname)
         return exposure
     
-    def linearization(self, ampExp, ampRef, amp):
-        pass
+#     def linearization(self, ampExp, ampRef, amp):
 #         linFile = sensorRef.get("linearizationFile")
 #         linearizer = isr.Linearization(linFile)
 #         linearizer.apply(ampExp)

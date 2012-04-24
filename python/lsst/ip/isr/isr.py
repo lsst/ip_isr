@@ -225,10 +225,11 @@ def darkCorrection(maskedImage, darkMaskedImage, expscaling, darkscaling):
     scale = expscaling / darkscaling
     maskedImage.scaledMinus(scale, darkMaskedImage)
 
-def updateVariance(maskedImage, gain):
+def updateVariance(maskedImage, gain, readNoise):
     var = maskedImage.getVariance()
     var <<= maskedImage.getImage()
     var /= gain
+    var += readNoise
 
 def flatCorrection(maskedImage, flatMaskedImage, scalingtype, scaling = 1.0):
     flatscaling = 1.0
