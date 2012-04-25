@@ -30,6 +30,21 @@ from .isrLib import UnmaskedNanCounterF
 from .assembleCcdTask import AssembleCcdTask
 
 class IsrTaskConfig(pexConfig.Config):
+    doBias = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply bias frame correction?",
+        default = True,
+    )
+    doDark = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply dark frame correction?",
+        default = True,
+    )
+    doFlat = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply flat field correction?",
+        default = True,
+    )
     doWrite = pexConfig.Field(
         dtype = bool,
         doc = "Persist visitCCD?",
@@ -37,17 +52,16 @@ class IsrTaskConfig(pexConfig.Config):
     )
     assembleCcd = pexConfig.ConfigurableField(
         target = AssembleCcdTask,
-        doc = "Assemble CCD",
+        doc = "CCD assembly task",
     )
     fwhm = pexConfig.Field(
         dtype = float,
         doc = "FWHM of PSF (arcsec)",
         default = 1.0,
     )
-    #This is needed for both the detection and correction aspects
     saturatedMaskName = pexConfig.Field(
         dtype = str,
-        doc = "Name of mask plane to use in saturation detection",
+        doc = "Name of mask plane to use in saturation detection and interpolation",
         default = "SAT",
     )
     flatScalingType = pexConfig.ChoiceField(
@@ -144,13 +158,16 @@ class IsrTask(pipeBase.Task):
 
             self.overscanCorrection(ampExp, amp)
 
-        self.biasCorrection(ccdExp, sensorRef)
+        if self.config.doBias:
+            self.biasCorrection(ccdExp, sensorRef)
         
-        self.darkCorrection(ccdExp, sensorRef)
+        if self.config.doDark:
+            self.darkCorrection(ccdExp, sensorRef)
         
         self.updateVariance(ccdExp, ccd)
         
-        self.flatCorrection(ccdExp, sensorRef)
+        if self.config.doFlat:
+            self.flatCorrection(ccdExp, sensorRef)
         
         ccdExp = self.assembleCcd.run(ccdExp).exposure
         ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
@@ -202,10 +219,10 @@ class IsrTask(pipeBase.Task):
             darkScale = darkCalib.getExptime(),
         )
     
-    def updateVariance(self, exposure, ccd):
+    def updateVariance(self, ccdExposure, ccd):
         """Set the variance plane based on the image plane
         
-        @param[in,out]  exposure        exposure to process
+        @param[in,out]  ccdExposure     exposure to process
         @param[in]      ccd             CCD detector information
         """
         isr.updateVariance(
@@ -267,17 +284,17 @@ class IsrTask(pipeBase.Task):
         )
         return ampExposure
 
-    def saturationInterpolation(self, exposure):
+    def saturationInterpolation(self, ccdExposure):
         """Interpolate over saturated pixels, in place
         
-        @param[in,out]  exposure    exposure to process
+        @param[in,out]  ccdExposure     exposure to process
 
         @warning:
         - Call saturationDetection first, so that saturated pixels have been identified in the mask.
         - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
         """
         if self.transposeForInterpolation:
-            mi = isr.transposeMaskedImage(exposure.getMaskedImage())
+            mi = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
             isr.interpolateFromMask(
                 maskedImage = mi,
                 fwhm = self.config.fwhm,
@@ -285,19 +302,19 @@ class IsrTask(pipeBase.Task):
                 maskName = self.config.saturatedMaskName,
             )
             mi = isr.transposeMaskedImage(mi)
-            exposure.setMaskedImage(mi)
+            ccdExposure.setMaskedImage(mi)
         else:
             isr.interpolateFromMask(
-                maskedImage = exposure.getMaskedImage(),
+                maskedImage = ccdExposure.getMaskedImage(),
                 fwhm = self.config.fwhm,
                 growFootprints = self.config.growSaturationFootprintSize,
                 maskName = self.config.saturatedMaskName,
             )
     
-    def maskAndInterpDefect(self, exposure, ccd):
+    def maskAndInterpDefect(self, ccdExposure, ccd):
         """Mask defects and interpolate over them, in place
 
-        @param[in,out]  exposure        exposure to process
+        @param[in,out]  ccdExposure     exposure to process
         @param[in]      ccd             CCD detector information
         
         @warning: call this after CCD assembly, since defects may cross amplifier boundaries
@@ -313,16 +330,16 @@ class IsrTask(pipeBase.Task):
             bbox = d.getBBox()
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
-        isr.maskPixelsFromDefectList(exposure.getMaskedImage(), defectList, maskName='BAD')
-        defectList = isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='BAD', growFootprints=grow)
+        isr.maskPixelsFromDefectList(ccdExposure.getMaskedImage(), defectList, maskName='BAD')
+        defectList = isr.getDefectListFromMask(ccdExposure.getMaskedImage(), maskName='BAD', growFootprints=grow)
         if self.transposeForInterpolation:
-            mi = isr.transposeMaskedImage(exposure.getMaskedImage())
+            mi = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
             defectList = isr.transposeDefectList(defectList)
             isr.interpolateDefectList(mi, defectList, fwhm)
             mi = isr.transposeMaskedImage(mi)
-            exposure.setMaskedImage(mi)
+            ccdExposure.setMaskedImage(mi)
         else:
-            isr.interpolateDefectList(exposure.getMaskedImage(), defectList, fwhm)
+            isr.interpolateDefectList(ccdExposure.getMaskedImage(), defectList, fwhm)
 
     def maskAndInterpNan(self, exposure):
         """Mask NaNs and interpolate over them, in place

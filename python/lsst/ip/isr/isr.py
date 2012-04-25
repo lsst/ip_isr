@@ -42,7 +42,7 @@ def calcEffectiveGain(maskedImage):
     """Calculate effective gain
 
     @param[in]      maskedImage     masked image to process
-    @return (median gain, mean gain)
+    @return (median gain, mean gain) in e-/ADU
     """
     im = afwImage.ImageF(maskedImage.getImage(), True)
     var = maskedImage.getVariance()
@@ -316,13 +316,13 @@ def updateVariance(maskedImage, gain, readNoise):
     """Set the variance plane based on the image plane
 
     @param[in,out]  maskedImage     masked image; image plane is read and variance plane is written
-    @param[in]      gain            amplifier gain (DN)
-    @param[in]      readNoise       amplifier read noise (DN)
+    @param[in]      gain            amplifier gain (e-/ADU)
+    @param[in]      readNoise       amplifier read noise (ADU/pixel)
     """
     var = maskedImage.getVariance()
     var <<= maskedImage.getImage()
     var /= gain
-    var += readNoise
+    var += readNoise**2
 
 def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     """Apply flat correction in place
