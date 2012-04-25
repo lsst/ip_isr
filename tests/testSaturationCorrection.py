@@ -21,65 +21,47 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-
 import os
-
 import unittest
-import lsst.utils.tests as tests
 
-import eups
-import lsst.afw.detection as afwDetection
+import lsst.utils.tests as tests
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
-import lsst.pex.policy as pexPolicy
-from lsst.ip.isr import Isr
-import lsst.pex.logging as logging
-
-import lsst.afw.display.ds9 as ds9
-
-Verbosity = 4
-logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
-
-isrDir     = eups.productDir('ip_isr')
-
-
-# Policy file
-InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
+import lsst.ip.isr as ipIsr
 
 class IsrTestCases(unittest.TestCase):
-    
-    def setUp(self):
-        self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
-        self.isr = Isr()
-        
-    def tearDown(self):
-        del self.policy
-        del self.isr
-
     def testSaturation(self):
         saturation = 1000
-        
-        saturationKeyword = self.policy.getString('saturationPolicy.saturationKeyword')
-        growSaturated     = self.policy.getInt('saturationPolicy.growSaturated')
-        defaultFwhm = self.policy.getDouble('defaultFwhm')
+
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(19,19))
-        mi       = afwImage.MaskedImageF(bbox)
-        mi.set(100, 0x0, 1)
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        maskedImage       = afwImage.MaskedImageF(bbox)
+        maskedImage.set(100, 0x0, 1)
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
         
         bbox     = afwGeom.Box2I(afwGeom.Point2I(9,5),
                                  afwGeom.Point2I(9,15))
-        submi    = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT, False)
+        submi    = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT, False)
         submi.set(saturation, 0x0, 1)
         
-        self.isr.makeThresholdMask(exposure.getMaskedImage(), saturation, growFootprints=0, maskName='SAT')
-        self.isr.interpolateFromMask(exposure.getMaskedImage(), defaultFwhm, growFootprints = growSaturated, maskName = 'SAT')
+        ipIsr.makeThresholdMask(
+            maskedImage = maskedImage,
+            threshold = saturation,
+            growFootprints = 0,
+            maskName = 'SAT',
+        )
+        ipIsr.interpolateFromMask(
+            maskedImage = maskedImage,
+            fwhm = 5.0,
+            growFootprints = 1,
+            maskName = 'SAT',
+        )
 
-        bitmaskBad    = mi.getMask().getPlaneBitMask('BAD')
-        bitmaskSat    = mi.getMask().getPlaneBitMask('SAT')
-        bitmaskInterp = mi.getMask().getPlaneBitMask('INTRP')
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        mask = maskedImage.getMask()
+        bitmaskBad    = mask.getPlaneBitMask('BAD')
+        bitmaskSat    = mask.getPlaneBitMask('SAT')
+        bitmaskInterp = mask.getPlaneBitMask('INTRP')
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
 
         for j in range(height):
             for i in range(width):
@@ -87,27 +69,25 @@ class IsrTestCases(unittest.TestCase):
                 if i >= 8 and i <= 10:
                     if (i,j) in [(8,4),(8,16),(10,4),(10,16)]:
                         #Should not be saturated or interpolated at all
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, 0)
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskSat, 0)
+                        self.assertEqual(mask.get(i,j) & bitmaskInterp, 0)
+                        self.assertEqual(mask.get(i,j) & bitmaskSat, 0)
                     elif (j >4 and j < 16) and (i == 8 or i == 10):
                         # Not saturated but interpolated over
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask.get(i,j) & bitmaskInterp, bitmaskInterp)
                     elif (j == 4 or j == 16):
                         # Interpolated over; bottom/top
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask.get(i,j) & bitmaskInterp, bitmaskInterp)
                     elif (j > 4 and j < 16 and i == 9):
                         # Both saturated and interpolated over; guts of it
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskInterp, bitmaskInterp)
-                        self.assertEqual(mi.getMask().get(i,j) & bitmaskSat,    bitmaskSat)
+                        self.assertEqual(mask.get(i,j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask.get(i,j) & bitmaskSat,    bitmaskSat)
                     else:
                         # Neither; above or below the mask
-                        self.assertEqual(mi.getMask().get(i,j), 0)
+                        self.assertEqual(mask.get(i,j), 0)
                 else:
-                    self.assertEqual(mi.getMask().get(i,j), 0)
+                    self.assertEqual(mask.get(i,j), 0)
                            
 
-#####
-        
 def suite():
     """Returns a suite containing all the test cases in this module."""
     tests.init()

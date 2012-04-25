@@ -21,168 +21,143 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-
 import os
-
 import unittest
-import lsst.utils.tests as tests
 
-import eups
-import lsst.afw.detection as afwDetection
+import lsst.utils.tests as tests
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
-import lsst.pex.policy as pexPolicy
-from lsst.ip.isr import Isr
-import lsst.pex.logging as logging
-
-import lsst.afw.display.ds9 as ds9
-
-Verbosity = 4
-logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
-
-isrDir     = eups.productDir('ip_isr')
-
-
-# Policy file
-InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
+import lsst.ip.isr as ipIsr
 
 class IsrTestCases(unittest.TestCase):
-    
     def setUp(self):
-        self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
-        self.isr = Isr()
+        self.overscanKeyword = "BIASSEC"
 
     def tearDown(self):
-        del self.policy
+        del self.overscanKeyword
 
     def testOverscanCorrectionY(self):
-	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
-			    afwGeom.Point2I(9,12))
-        mi = afwImage.MaskedImageF(bbox)
-        mi.set(10, 0x0, 1)
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
+                            afwGeom.Point2I(9,12))
+        maskedImage = afwImage.MaskedImageF(bbox)
+        maskedImage.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwGeom.Box2I(afwGeom.Point2I(0,10),
                                  afwGeom.Point2I(9,12))
         biassec  = '[1:10,11:13]'
-        overscan = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         
-        overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
-        fitType = self.policy.getPolicy('overscanPolicy').getString('overscanFitType')
-
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
         metadata = exposure.getMetadata()
-        metadata.setString(overscanKeyword, biassec)
+        metadata.setString(self.overscanKeyword, biassec)
 
-        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fitType)
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType = "MEDIAN")
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
                 if j >= 10:
-                    self.assertEqual(mi.getImage().get(i,j), 0)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 0)
                 else:
-                    self.assertEqual(mi.getImage().get(i,j), 8)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 8)
 
     def testOverscanCorrectionX(self):
-	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
-			    afwGeom.Point2I(12,9))
-        mi = afwImage.MaskedImageF(bbox)
-        mi.set(10, 0x0, 1)
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
+                            afwGeom.Point2I(12,9))
+        maskedImage = afwImage.MaskedImageF(bbox)
+        maskedImage.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwGeom.Box2I(afwGeom.Point2I(10,0),
                                  afwGeom.Point2I(12,9))
         biassec  = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         
-        overscanKeyword = self.policy.getString('overscanPolicy.overscanKeyword')
-        fitType = self.policy.getPolicy('overscanPolicy').getString('overscanFitType')
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
         metadata = exposure.getMetadata()
-        metadata.setString(overscanKeyword, biassec)
+        metadata.setString(self.overscanKeyword, biassec)
 
-        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fitType)
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType = "MEDIAN")
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
                 if i >= 10:
-                    self.assertEqual(mi.getImage().get(i,j), 0)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 0)
                 else:
-                    self.assertEqual(mi.getImage().get(i,j), 8)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 8)
 
     def testPolyOverscanCorrectionX(self):
-	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
-			    afwGeom.Point2I(12,9))
-        mi = afwImage.MaskedImageF(bbox)
-        mi.set(10, 0x0, 1)
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
+                            afwGeom.Point2I(12,9))
+        maskedImage = afwImage.MaskedImageF(bbox)
+        maskedImage.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwGeom.Box2I(afwGeom.Point2I(10,0),
                                  afwGeom.Point2I(12,9))
         biassec  = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[1]):
             for j,off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.getImage().set(j,i,2+i+off)
         
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
 
-        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fittype="POLY")
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
                 if i == 10:
-                    self.assertEqual(mi.getImage().get(i,j), -0.5)
+                    self.assertEqual(maskedImage.getImage().get(i,j), -0.5)
                 elif i == 11:
-                    self.assertEqual(mi.getImage().get(i,j), 0)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 0)
                 elif i == 12:
-                    self.assertEqual(mi.getImage().get(i,j), 0.5)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 0.5)
                 else:
-                    self.assertEqual(mi.getImage().get(i,j), 10 - 2 - j)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 10 - 2 - j)
 
     def testPolyOverscanCorrectionY(self):
-	bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
-			    afwGeom.Point2I(9,12))
-        mi = afwImage.MaskedImageF(bbox)
-        mi.set(10, 0x0, 1)
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
+                            afwGeom.Point2I(9,12))
+        maskedImage = afwImage.MaskedImageF(bbox)
+        maskedImage.set(10, 0x0, 1)
 
         # these should be functionally equivalent
         bbox     = afwGeom.Box2I(afwGeom.Point2I(0,10),
                                  afwGeom.Point2I(9,12))
         biassec  = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(mi, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[0]):
             for j,off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.getImage().set(i,j,2+i+off)
         
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
 
-        self.isr.overscanCorrection(exposure.getMaskedImage(), overscan.getImage(), fittype="POLY")
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
                 if j == 10:
-                    self.assertEqual(mi.getImage().get(i,j), -0.5)
+                    self.assertEqual(maskedImage.getImage().get(i,j), -0.5)
                 elif j == 11:
-                    self.assertEqual(mi.getImage().get(i,j), 0)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 0)
                 elif j == 12:
-                    self.assertEqual(mi.getImage().get(i,j), 0.5)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 0.5)
                 else:
-                    self.assertEqual(mi.getImage().get(i,j), 10 - 2 - i)
+                    self.assertEqual(maskedImage.getImage().get(i,j), 10 - 2 - i)
 
-#####
         
 def suite():
     """Returns a suite containing all the test cases in this module."""

@@ -21,88 +21,66 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-
 import os
-
 import unittest
-import lsst.utils.tests as tests
 
-import eups
-import lsst.afw.detection as afwDetection
+import lsst.utils.tests as tests
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
-import lsst.pex.policy as pexPolicy
-from lsst.ip.isr import Isr
-import lsst.pex.logging as logging
-
-import lsst.afw.display.ds9 as ds9
-
-Verbosity = 4
-logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
-
-isrDir     = eups.productDir('ip_isr')
-
-
-# Policy file
-InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
+import lsst.ip.isr as ipIsr
 
 class IsrTestCases(unittest.TestCase):
-    
     def setUp(self):
-        self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
         self.pmin = afwGeom.Point2I(1,1)
         self.pmax = afwGeom.Point2I(10,10)
-        self.isr = Isr()
+        self.meanCountsKeyword = "IMMODE"
+        self.filenameKeyword = "filename"
         
     def tearDown(self):
-        del self.policy
         del self.pmin
         del self.pmax
-        del self.isr
+        del self.meanCountsKeyword
+        del self.filenameKeyword
 
     def testBias(self):
-        meanCountsKeyword = self.policy.getString('biasPolicy.meanCountsKeyword')
-        filenameKeyword   = self.policy.getString('filenameKeyword')
-        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
-        mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage.getImage().set(10)
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
 
         bias = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         bias.getImage().set(1)
         biasexposure = afwImage.ExposureF(bias, afwImage.Wcs())
         bmetadata = biasexposure.getMetadata()
-        bmetadata.setDouble(meanCountsKeyword, 1.)
-        bmetadata.setString(filenameKeyword, 'Unittest Bias')
+        bmetadata.setDouble(self.meanCountsKeyword, 1.)
+        bmetadata.setString(self.filenameKeyword, 'Unittest Bias')
 
-        self.isr.biasCorrection(exposure.getMaskedImage(), biasexposure.getMaskedImage())
+        ipIsr.biasCorrection(maskedImage, biasexposure.getMaskedImage())
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height = maskedImage.getHeight()
+        width  = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertEqual(mi.getImage().get(i,j), 9)
+                self.assertEqual(maskedImage.getImage().get(i,j), 9)
 
     def doDark(self, scaling):
-        filenameKeyword  = self.policy.getString('filenameKeyword')
-        
-        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
-        mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage.getImage().set(10)
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
         metadata = exposure.getMetadata()
         
         dark = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         dark.getImage().set(1)
         darkexposure = afwImage.ExposureF(dark, afwImage.Wcs())
         dmetadata = darkexposure.getMetadata()
-        dmetadata.setString(filenameKeyword, 'Unittest Dark')
+        dmetadata.setString(self.filenameKeyword, 'Unittest Dark')
 
-        self.isr.darkCorrection(exposure.getMaskedImage(), darkexposure.getMaskedImage(), 1., scaling)
+        ipIsr.darkCorrection(maskedImage, darkexposure.getMaskedImage(), 1., scaling)
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(mi.getImage().get(i,j), 10 - 1./scaling, 5)
+                self.assertAlmostEqual(maskedImage.getImage().get(i,j), 10 - 1./scaling, 5)
 
     def testDark1(self):
         self.doDark(scaling=10)
@@ -112,9 +90,8 @@ class IsrTestCases(unittest.TestCase):
 
     def testDark3(self):
         self.doDark(scaling=3.7)
-    
-#####
-        
+
+
 def suite():
     """Returns a suite containing all the test cases in this module."""
     tests.init()

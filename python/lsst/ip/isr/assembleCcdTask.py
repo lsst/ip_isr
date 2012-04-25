@@ -28,14 +28,26 @@ from .isr import calcEffectiveGain
 __all__ = ["AssembleCcdTask"]
 
 class AssembleCcdConfig(pexConfig.Config):
-    setGain = pexConfig.ConfigField(dtype = bool, default = True,
-        doc = "set gain?")
-    doRenorm = pexConfig.ConfigField(dtype = bool, default = True,
-        doc = "renormalize to a gain of 1? (ignored if setGain false)")
-    doTrim = pexConfig.ConfigField(dtype = bool, default = True,
-        doc = "trim out non-data regions?")
-    keysToRemove = pexConfig.ListField(dtype = str, default = (),
-        doc = "FITS headers to remove (in addition to DATASEC, BIASSEC, TRIMSEC and perhaps GAIN)")
+    setGain = pexConfig.Field(
+        doc = "set gain?",
+        dtype = bool,
+        default = True,
+    )
+    doRenorm = pexConfig.Field(
+        doc = "renormalize to a gain of 1? (ignored if setGain false)",
+        dtype = bool,
+        default = True,
+    )
+    doTrim = pexConfig.Field(
+        doc = "trim out non-data regions?",
+        dtype = bool,
+        default = True,
+    )
+    keysToRemove = pexConfig.ListField(
+        doc = "FITS headers to remove (in addition to DATASEC, BIASSEC, TRIMSEC and perhaps GAIN)",
+        dtype = str,
+        default = (),
+    )
 
 
 class AssembleCcdTask(pipeBase.Task):
@@ -47,13 +59,7 @@ class AssembleCcdTask(pipeBase.Task):
     def __init__(self, **kwargs):
         pipeBase.Task.__init__(self, **kwargs)
         
-        if self.config.setGain and self.config.doRenorm:
-            #Don't want to remove GAIN keyword as it is set by the renormalization.
-            self.allKeysToRemove = ['DATASEC', 'BIASSEC', 'TRIMSEC']
-        else:
-            self.allKeysToRemove = ['DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN']
-        for key in self.config.keysToRemove:
-            self.allKeysToRemove.append(key)
+        self.allKeysToRemove = ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN') + tuple(self.config.keysToRemove)
     
     def run(self, inExposure):
         """Assemble a CCD by trimming non-data areas

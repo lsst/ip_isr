@@ -22,7 +22,6 @@
 
 from .version import *
 from .isrLib import *
-from .assembleCcdTask import *
 from .isr import *
+from .assembleCcdTask import *
 from .isrTask import *
-

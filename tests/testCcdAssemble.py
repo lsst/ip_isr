@@ -21,7 +21,6 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-
 import os
 
 import unittest
@@ -46,12 +45,11 @@ logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
 afwDir = eups.productDir('afw')
 
 # Policy file
-cameraPolicy = os.path.join(afwDir, 'tests', 'TestCameraGeom.paf')
+CameraPolicyPath = os.path.join(afwDir, 'tests', 'TestCameraGeom.paf')
 
 class IsrTestCases(unittest.TestCase):
-    
     def setUp(self):
-        self.cameraPolicy = cameraGeomUtils.getGeomPolicy(cameraPolicy)
+        self.cameraPolicy = cameraGeomUtils.getGeomPolicy(CameraPolicyPath)
         afwImage.Filter.reset()
         afwImage.FilterProperty.reset()
 
@@ -75,8 +73,12 @@ class IsrTestCases(unittest.TestCase):
             exp.setFilter(afwImage.Filter("g"))
             exp.getCalib().setExptime(15)
             exposureList.append(exp)
-        assembler = ipIsr.CcdAssembler(exposureList, reNorm = False, isTrimmed=True)
-        aexp = assembler.assembleCcd()
+        
+        assemblerConfig = ipIsr.AssembleCcdTask.ConfigClass()
+        assemblerConfig.reNorm = False
+        assembler = ipIsr.AssembleCcdTask(config=assemblerConfig)
+        
+        aexp = assembler.run(exposureList).exposure
         xpos = [50,150]
         ypos = [25,76,137,188]
         ind = 0
@@ -87,7 +89,6 @@ class IsrTestCases(unittest.TestCase):
         if display:
             ds9.mtv(aexp)
 
-#####
         
 def suite():
     """Returns a suite containing all the test cases in this module."""

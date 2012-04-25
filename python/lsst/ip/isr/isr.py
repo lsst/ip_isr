@@ -89,10 +89,10 @@ def calculateSdqaCcdRatings(maskedImage, metadata):
     badmaskim = afwImage.ImageU(badmask.getBBox(afwImage.PARENT))
     badmaskim <<= badmask
     thresh = afwDetection.Threshold(0.5)
-    fs = afwDetection.makeFootprintSet(satmaskim, thresh)
+    fs = afwDetection.FootprintSet(satmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nSaturatePix'] += f.getNpix()
-    fs = afwDetection.makeFootprintSet(badmaskim, thresh)
+    fs = afwDetection.FootprintSet(badmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nBadCalibPix'] += f.getNpix()
     stats = afwMath.makeStatistics(maskedImage, afwMath.MEANCLIP | \
@@ -125,7 +125,7 @@ def calculateSdqaAmpRatings(maskedImage, metadata, biasBBox, dataBBox):
     satmaskim = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
     satmaskim <<= satmask
     thresh = afwDetection.Threshold(0.5)
-    fs = afwDetection.makeFootprintSet(satmaskim, thresh)
+    fs = afwDetection.FootprintSet(satmaskim, thresh)
     for f in fs.getFootprints():
         metrics['nSaturatePix'] += f.getNpix()
     stats = afwMath.makeStatistics(biasmi, afwMath.MEAN | \
@@ -232,7 +232,7 @@ def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
     thresh = afwDetection.Threshold(0.5)
     maskimg = afwImage.ImageU(workmask.getBBox(afwImage.PARENT))
     maskimg <<= workmask
-    ds = afwDetection.makeFootprintSet(maskimg, thresh)
+    ds = afwDetection.FootprintSet(maskimg, thresh)
     fpList = ds.getFootprints()
     return defectListFromFootprintList(fpList, growFootprints)
 
@@ -246,7 +246,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName = 'SAT'
     """
     # find saturated regions
     thresh = afwDetection.Threshold(threshold)
-    ds = afwDetection.makeFootprintSet(maskedImage, thresh)
+    ds = afwDetection.FootprintSet(maskedImage, thresh)
     fpList = ds.getFootprints()
     # set mask
     mask = maskedImage.getMask()

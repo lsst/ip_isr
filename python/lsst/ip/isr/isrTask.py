@@ -354,10 +354,10 @@ class IsrTask(pipeBase.Task):
         unc.apply(exposure.getMaskedImage())
         nnans = unc.getNpix()
         self.metadata.set("NUMNANS", nnans)
-        if not nnans == 0:
-		raise RuntimeError("There were %i unmasked NaNs"%(nnans))
+
         #get footprints of bad pixels not in the camera class
         if nnans > 0:
+            self.log.log(self.log.WARN, "There were %i unmasked NaNs" % (nnans,))
             undefects = isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='UNMASKEDNAN', growFootprints=grow)
             #interpolate all bad pixels
             if self.transposeForInterpolation:
