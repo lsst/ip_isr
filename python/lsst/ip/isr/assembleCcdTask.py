@@ -59,23 +59,16 @@ class AssembleCcdTask(pipeBase.Task):
         """Assemble a CCD by trimming non-data areas
 
         @param[in,out] inExposure   input exposure; the setTrimmed flag of the ccd device info may be modified
-        @return a pipe_base Struct with these fields:
+        @return a pipe_base Struct with one field:
         - exposure: assembled exposure
         """
-        outExposure = self.assemblePixels(
-            inExposure = inExposure,
-        )
+        outExposure = self.assemblePixels(inExposure=inExposure)
 
-        self.setExposureComponents(
-            outExposure = outExposure,
-            inExposure = inExposure,
-        )
+        self.setExposureComponents(outExposure=outExposure, inExposure=inExposure)
 
-        self.display("assembledExposure", exposure = outExposure)
+        self.display("assembledExposure", exposure=outExposure)
     
-        return pipeBase.Struct(
-            exposure = outExposure
-        )
+        return pipeBase.Struct(exposure=outExposure)
     
     def assemblePixels(self, inExposure):
         """Assemble CCD pixels

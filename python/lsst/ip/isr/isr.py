@@ -367,35 +367,35 @@ def trimAmp(exposure, trimBbox=None):
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
 
-def overscanCorrection(maskedImage, overscanData, fittype='MEDIAN', polyorder=1, imageFactory=afwImage.ImageF):
+def overscanCorrection(maskedImage, overscanData, fitType='MEDIAN', polyOrder=1, imageFactory=afwImage.ImageF):
     """Apply overscan correction in place
 
     @param[in,out]  maskedImage     masked image to correct
     @param[in]      overscanData    overscan data as an image
-    @param[in]      fittype         type of fit for overscan correction; one of:
+    @param[in]      fitType         type of fit for overscan correction; one of:
                                     - 'MEAN'
                                     - 'MEDIAN'
                                     - 'POLY'
-    @param[in]      polyorder       polynomial order (ignored unless fittype='POLY')
+    @param[in]      polyOrder       polynomial order (ignored unless fitType='POLY')
     @param[in]      imageFactory    image class
     """
     typemap = {afwImage.ImageU:numpy.uint16, afwImage.ImageI:numpy.int32, afwImage.ImageF:numpy.float32, afwImage.ImageD:numpy.float64}
 
     # what type of overscan modeling?
     offset = 0
-    if fittype == 'MEAN':
+    if fitType == 'MEAN':
         offset = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
         maskedImage -= offset
-    elif fittype == 'MEDIAN':
+    elif fitType == 'MEDIAN':
         offset = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
         maskedImage -= offset
-    elif fittype == 'POLY':
+    elif fitType == 'POLY':
         biasArray = overscanData.getArray()
         #Assume we want to fit along the long axis
         aind = numpy.argmin(biasArray.shape)
         find = numpy.argmin(biasArray.shape)
         fitarr = numpy.median(biasArray, axis=aind)
-        coeffs = numpy.polyfit(range(len(fitarr)), fitarr, deg=polyorder)
+        coeffs = numpy.polyfit(range(len(fitarr)), fitarr, deg=polyOrder)
         offsets = numpy.polyval(coeffs, range(len(fitarr)))
         width, height = maskedImage.getDimensions()
         offarr = numpy.zeros((height, width), dtype = typemap[imageFactory])
@@ -412,7 +412,7 @@ def overscanCorrection(maskedImage, overscanData, fittype='MEDIAN', polyorder=1,
         im = afwImage.makeImageFromArray(offarr)
         maskedImage -= im 
     else:
-        raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fittype)
+        raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fitType)
 
 # def fringeCorrection(maskedImage, fringe):
 #     raise NotImplementedError()
