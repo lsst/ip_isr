@@ -75,7 +75,7 @@ class IsrTestCases(unittest.TestCase):
             exposureList.append(exp)
         
         assemblerConfig = ipIsr.AssembleCcdTask.ConfigClass()
-        assemblerConfig.reNorm = False
+        assemblerConfig.doRenorm = False
         assembler = ipIsr.AssembleCcdTask(config=assemblerConfig)
         
         aexp = assembler.run(exposureList).exposure

@@ -87,11 +87,11 @@ class AssembleCcdTask(pipeBase.Task):
             raise RuntimeError("Detector not a ccd")
         ccd.setTrimmed(self.config.doTrim)
 
-        outExposure = afwImage.ExposureF(ccd.getAllPixels(isTrimmed))
+        outExposure = afwImage.ExposureF(ccd.getAllPixels(self.config.doTrim))
         outMI = outExposure.getMaskedImage()
         inMI = inExposure.getMaskedImage()
         for amp in ccd:
-            outView = outMI.Factory(outMI, amp.getAllPixels(isTrimmed), afwImage.LOCAL)
+            outView = outMI.Factory(outMI, amp.getAllPixels(self.config.doTrim), afwImage.LOCAL)
             if self.config.doTrim:
                 inBBox = amp.getDiskDataSec()
             else:
@@ -127,7 +127,7 @@ class AssembleCcdTask(pipeBase.Task):
         """
         if outExposure.getMaskedImage().getVariance().getArray().max() == 0:
             raise RuntimeError("Can't calculate the effective gain since the variance plane is set to zero")
-        ccd = cameraGeom.cast_Ccd(inExposure.getDetector())
+        ccd = cameraGeom.cast_Ccd(outExposure.getDetector())
         exposureMetadata = outExposure.getMetadata()
         gain = 0
         namps = 0
@@ -158,7 +158,7 @@ class AssembleCcdTask(pipeBase.Task):
         else:
             self.log.log(self.log.WARN, "No WCS found in input exposure")
 
-        exposureMetadata = inExposure.getMetadata().copy()
+        exposureMetadata = inExposure.getMetadata()
         for key in self.allKeysToRemove:
             if exposureMetadata.exists(key):
                 exposureMetadata.remove(key)
