@@ -22,32 +22,22 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import os
-
 import unittest
-import lsst.utils.tests as tests
 
 import eups
+import lsst.utils.tests as tests
 import lsst.afw.image as afwImage
-import lsst.afw.geom as afwGeom
 import lsst.pex.policy as pexPolicy
-import lsst.ip.isr as ipIsr
-import lsst.pex.logging as logging
-import lsst.daf.base as dafBase
-
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
-
-import lsst.afw.display.ds9 as ds9
-Verbosity = 4
-display = False
-logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
+from lsst.ip.isr import AssembleCcdTask
 
 afwDir = eups.productDir('afw')
 
 # Policy file
 CameraPolicyPath = os.path.join(afwDir, 'tests', 'TestCameraGeom.paf')
 
-class IsrTestCases(unittest.TestCase):
+class AssembleCcdTestCase(unittest.TestCase):
     def setUp(self):
         self.cameraPolicy = cameraGeomUtils.getGeomPolicy(CameraPolicyPath)
         afwImage.Filter.reset()
@@ -74,28 +64,25 @@ class IsrTestCases(unittest.TestCase):
             exp.getCalib().setExptime(15)
             exposureList.append(exp)
         
-        assemblerConfig = ipIsr.AssembleCcdTask.ConfigClass()
+        assemblerConfig = AssembleCcdTask.ConfigClass()
         assemblerConfig.doRenorm = False
-        assembler = ipIsr.AssembleCcdTask(config=assemblerConfig)
+        assembler = AssembleCcdTask(config=assemblerConfig)
         
-        aexp = assembler.run(exposureList).exposure
+        assembledExposure = assembler.assembleAmpList(exposureList)
         xpos = [50,150]
         ypos = [25,76,137,188]
         ind = 0
         for ix in xpos:
             for iy in ypos:
-                self.assertEqual(aexp.getMaskedImage().getImage().get(ix,iy), ind)
+                self.assertEqual(assembledExposure.getMaskedImage().getImage().get(ix,iy), ind)
                 ind += 1
-        if display:
-            ds9.mtv(aexp)
-
         
 def suite():
     """Returns a suite containing all the test cases in this module."""
     tests.init()
 
     suites = []
-    suites += unittest.makeSuite(IsrTestCases)
+    suites += unittest.makeSuite(AssembleCcdTestCase)
     suites += unittest.makeSuite(tests.MemoryTestCase)
     return unittest.TestSuite(suites)
 

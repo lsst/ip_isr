@@ -61,26 +61,11 @@ class AssembleCcdTask(pipeBase.Task):
         
         self.allKeysToRemove = ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN') + tuple(self.config.keysToRemove)
     
-    def run(self, inExposure):
-        """Assemble a CCD by trimming non-data areas
+    def assembleCcd(self, inExposure):
+        """Assemble a CCD by copying data sections and (usually) trimming out the rest
 
         @param[in,out] inExposure   input exposure; the setTrimmed flag of the ccd device info may be modified
-        @return a pipe_base Struct with one field:
-        - exposure: assembled exposure
-        """
-        outExposure = self.assemblePixels(inExposure=inExposure)
-
-        self.setExposureComponents(outExposure=outExposure, inExposure=inExposure)
-
-        self.display("assembledExposure", exposure=outExposure)
-    
-        return pipeBase.Struct(exposure=outExposure)
-    
-    def assemblePixels(self, inExposure):
-        """Assemble CCD pixels
-
-        @param[in,out]  inExposure  input exposure; the setTrimmed flag of the ccd device info may be modified
-        @return         outExposure assembled exposure: just the pixel data and detector are set
+        @return assembled exposure
         """
         ccd = cameraGeom.cast_Ccd(inExposure.getDetector())
         if ccd is None:
@@ -90,17 +75,125 @@ class AssembleCcdTask(pipeBase.Task):
         outExposure = afwImage.ExposureF(ccd.getAllPixels(self.config.doTrim))
         outMI = outExposure.getMaskedImage()
         inMI = inExposure.getMaskedImage()
+
+        # Precompute amplifier information to avoid recomputing it for each image plane.
+        ampInfoList = []
         for amp in ccd:
-            outView = outMI.Factory(outMI, amp.getAllPixels(self.config.doTrim), afwImage.LOCAL)
+            outBBox = amp.getAllPixels(self.config.doTrim)
             if self.config.doTrim:
                 inBBox = amp.getDiskDataSec()
             else:
                 inBBox = amp.getDiskAllPixels()
-            inView = inMI.Factory(inMI, inBBox, afwImage.PARENT)
-            outView <<= amp.prepareAmpData(inView)
+            ampInfoList.append(pipeBase.Struct(
+                amp = amp,
+                outBBox = outBBox,
+                inBBox = inBBox,
+            ))
+        
+        # Process one image plane at a time, since that is probably better for cache performance
+        # and is a requirement of amp.prepareAmpData.
+        # Unfortunately image planes cannot be accessed by index or name,
+        # so use getattr to access each image plane getter function
+        for imagePlaneGetterName in ("getImage", "getMask", "getVariance"):
+            outImage = getattr(outMI, imagePlaneGetterName)()
+            inImage = getattr(inMI, imagePlaneGetterName)()
+            for ampInfo in ampInfoList:
+                outView = outImage.Factory(outImage, ampInfo.outBBox, afwImage.LOCAL)
+                inView = inImage.Factory(inImage, ampInfo.inBBox, afwImage.PARENT)
+                outView <<= ampInfo.amp.prepareAmpData(inView)
 
         outExposure.setDetector(ccd)
+
+        self.postprocessExposure(outExposure=outExposure, inExposure=inExposure)
+        
         return outExposure
+    
+    def assembleAmpList(self, ampExposureList):
+        """Assemble a collection of amplifier exposures into a CCD
+
+        @param[in,out]  ampExposureList collection of amp exposures to assemble;
+                                        the setTrimmed flag of the ccd device info may be modified
+        @return assembled exposure
+        """
+        ampExp0 = ampExposureList[0]
+        amp0 = cameraGeom.cast_Amp(ampExp0.getDetector())
+        if amp0 is None:
+            raise RuntimeError("No amp detector found in first amp exposure")
+        ccd = cameraGeom.cast_Ccd(amp0.getParent())
+        if ccd is None:
+            raise RuntimeError("No ccd detector found in amp detector")
+        ccd.setTrimmed(self.config.doTrim)
+
+        outExposure = afwImage.ExposureF(ccd.getAllPixels(self.config.doTrim))
+        outMI = outExposure.getMaskedImage()
+        
+        # Precompute amplifier information to avoid recomputing it for each image plane.
+        ampInfoList = []
+        for ampExp in ampExposureList:
+            amp = cameraGeom.cast_Amp(ampExp.getDetector())
+            outBBox = amp.getAllPixels(self.config.doTrim)
+            if self.config.doTrim:
+                inBBox = amp.getDiskDataSec()
+            else:
+                inBBox = amp.getDiskAllPixels()
+            ampInfoList.append(pipeBase.Struct(
+                amp = amp,
+                outBBox = outBBox,
+                inBBox = inBBox,
+                ampMaskedImage = ampExp.getMaskedImage(),
+            ))
+        
+        # Process one image plane at a time, since that is probably better for cache performance
+        # and since it is the only way amp.prepareAmpData works.
+        # Unfortunately image planes cannot be accessed by index or name,
+        # so use getattr to access each image plane getter function
+        for imagePlaneGetterName in ("getImage", "getMask", "getVariance"):
+            outImage = getattr(outMI, imagePlaneGetterName)()
+            for ampInfo in ampInfoList:
+                outView = outImage.Factory(outImage, ampInfo.outBBox, afwImage.LOCAL)
+                inImage = getattr(ampInfo.ampMaskedImage, imagePlaneGetterName)()
+                inView = inImage.Factory(inImage, ampInfo.inBBox, afwImage.PARENT)
+                outView <<= ampInfo.amp.prepareAmpData(inView)
+
+        outExposure.setDetector(ccd)
+
+        self.postprocessExposure(outExposure=outExposure, inExposure=ampExposureList[0])
+    
+        return outExposure
+
+    def postprocessExposure(self, outExposure, inExposure):
+        """Set exposure non-image attributes, including wcs and metadata and display exposure (if requested)
+        
+        Call after assembling the pixels
+        
+        @param[in,out]  outExposure assembled exposure:
+                                    - removes unwanted keywords
+                                    - sets calib, filter, and detector
+        @param[in]      inExposure  input exposure
+        """
+        wcs = self.makeWcs(inExposure = inExposure)
+        if wcs is not None:
+            outExposure.setWcs(wcs)
+        else:
+            self.log.log(self.log.WARN, "No WCS found in input exposure")
+
+        exposureMetadata = inExposure.getMetadata()
+        for key in self.allKeysToRemove:
+            if exposureMetadata.exists(key):
+                exposureMetadata.remove(key)
+        outExposure.setMetadata(exposureMetadata)
+
+        if self.config.setGain:
+            self.setGain(outExposure = outExposure)
+
+        inCalib = inExposure.getCalib()
+        outCalib = outExposure.getCalib()
+        outCalib.setExptime(inCalib.getExptime())
+        outCalib.setMidTime(inCalib.getMidTime())
+
+        outExposure.setFilter(inExposure.getFilter())
+
+        self.display("assembledExposure", exposure=outExposure)
 
     def makeWcs(self, inExposure):
         """Create output WCS = input WCS offset for the datasec of the lower left amplifier.
@@ -143,33 +236,3 @@ class AssembleCcdTask(pipeBase.Task):
         exposureMetadata.add("MEDGAIN", medgain)
         exposureMetadata.add("MEANGAIN", meangain)
         exposureMetadata.add("GAINEFF", medgain)
-    
-    def setExposureComponents(self, outExposure, inExposure):
-        """Set exposure non-image attributes, including wcs and metadata
-        
-        @param[in,out]  outExposure assembled exposure:
-                                    - removes unwanted keywords
-                                    - sets calib, filter, and detector
-        @param[in]      inExposure  input exposure
-        """
-        wcs = self.makeWcs(inExposure = inExposure)
-        if wcs is not None:
-            outExposure.setWcs(wcs)
-        else:
-            self.log.log(self.log.WARN, "No WCS found in input exposure")
-
-        exposureMetadata = inExposure.getMetadata()
-        for key in self.allKeysToRemove:
-            if exposureMetadata.exists(key):
-                exposureMetadata.remove(key)
-        outExposure.setMetadata(exposureMetadata)
-
-        if self.config.setGain:
-            self.setGain(outExposure = outExposure)
-
-        inCalib = inExposure.getCalib()
-        outCalib = outExposure.getCalib()
-        outCalib.setExptime(inCalib.getExptime())
-        outCalib.setMidTime(inCalib.getMidTime())
-
-        outExposure.setFilter(inExposure.getFilter())

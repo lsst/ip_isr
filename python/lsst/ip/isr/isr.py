@@ -139,7 +139,7 @@ def calculateSdqaAmpRatings(maskedImage, metadata, biasBBox, dataBBox):
     for k in metrics.keys():
         metadata.set(k, metrics[k])
 
-def floatImageFromInt(self, exposure):
+def floatImageFromInt(exposure):
     """Convert an exposure from int to float.  This step also converts from DN to electrons.
 
     @param exposure to operate on; must be of type afwImage.ExposureU
@@ -153,7 +153,6 @@ def floatImageFromInt(self, exposure):
     mi /= gain
     var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
     mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
-    mask.set(0)
     newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
     return newexposure
 
@@ -367,52 +366,40 @@ def trimAmp(exposure, trimBbox=None):
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
 
-def overscanCorrection(maskedImage, overscanData, fitType='MEDIAN', polyOrder=1, imageFactory=afwImage.ImageF):
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1, imageFactory=afwImage.ImageF):
     """Apply overscan correction in place
 
-    @param[in,out]  maskedImage     masked image to correct
-    @param[in]      overscanData    overscan data as an image
+    @param[in,out]  ampMaskedImage  masked image to correct
+    @param[in]      overscanImage   overscan data as an image
     @param[in]      fitType         type of fit for overscan correction; one of:
                                     - 'MEAN'
                                     - 'MEDIAN'
                                     - 'POLY'
     @param[in]      polyOrder       polynomial order (ignored unless fitType='POLY')
-    @param[in]      imageFactory    image class
     """
-    typemap = {afwImage.ImageU:numpy.uint16, afwImage.ImageI:numpy.int32, afwImage.ImageF:numpy.float32, afwImage.ImageD:numpy.float64}
-
-    # what type of overscan modeling?
-    offset = 0
+    ampImage = ampMaskedImage.getImage()
     if fitType == 'MEAN':
-        offset = afwMath.makeStatistics(overscanData, afwMath.MEAN).getValue(afwMath.MEAN)
-        maskedImage -= offset
+        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN).getValue(afwMath.MEAN)
     elif fitType == 'MEDIAN':
-        offset = afwMath.makeStatistics(overscanData, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
-        maskedImage -= offset
+        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
     elif fitType == 'POLY':
-        biasArray = overscanData.getArray()
-        #Assume we want to fit along the long axis
-        aind = numpy.argmin(biasArray.shape)
-        find = numpy.argmin(biasArray.shape)
-        fitarr = numpy.median(biasArray, axis=aind)
-        coeffs = numpy.polyfit(range(len(fitarr)), fitarr, deg=polyOrder)
-        offsets = numpy.polyval(coeffs, range(len(fitarr)))
-        width, height = maskedImage.getDimensions()
-        offarr = numpy.zeros((height, width), dtype = typemap[imageFactory])
-        if aind == 1:
-            for i in range(len(offsets)):
-                offarr[i] = offsets[i]
-        elif aind == 0:
-            offarr = offarr.T
-            for i in range(len(offsets)):
-                offarr[i] = offsets[i]
-            offarr = offarr.T
+        biasArray = overscanImage.getArray()
+        # Fit along the long axis, so take median of each short row and fit the resulting array
+        shortInd = numpy.argmin(biasArray.shape)
+        medianBiasArr = numpy.median(biasArray, axis=shortInd)
+        coeffs = numpy.polyfit(range(len(medianBiasArr)), medianBiasArr, deg=polyOrder)
+        fitBiasArr = numpy.polyval(coeffs, range(len(medianBiasArr)))
+        offImage = ampImage.Factory(ampImage.getDimensions())
+        offArray = offImage.getArray()
+        if shortInd == 1:
+            print "shortInd=1"
+            offArray[:,:] = fitBiasArr[:,numpy.newaxis]
         else:
-            raise pexExcept.LsstException, "Non-2D array returned from MaskedImage.getArray()"
-        im = afwImage.makeImageFromArray(offarr)
-        maskedImage -= im 
+            offArray[:,:] = fitBiasArr[numpy.newaxis,:]
     else:
-        raise pexExcept.LsstException, '%s : %s an invalid overscan type' % ("overscanCorrection", fitType)
+        raise pexExcept.LsstException, '%s : %s an invalid overscan type' % \
+            ("overscanCorrection", fitType)
+    ampMaskedImage -= offImage
 
 # def fringeCorrection(maskedImage, fringe):
 #     raise NotImplementedError()

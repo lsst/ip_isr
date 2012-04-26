@@ -169,10 +169,9 @@ class IsrTask(pipeBase.Task):
         if self.config.doFlat:
             self.flatCorrection(ccdExp, sensorRef)
         
-        ccdExp = self.assembleCcd.run(ccdExp).exposure
-        ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
+        ccdExp = self.assembleCcd.assembleCcd(ccdExp)
         
-        self.maskAndInterpDefect(ccdExp, ccd)
+        self.maskAndInterpDefect(ccdExp)
         
         self.saturationInterpolation(ccdExp)
         
@@ -201,8 +200,8 @@ class IsrTask(pipeBase.Task):
         @param[in,out]  exposure        exposure to process
         @param[in]      dataRef         data reference at same level as exposure
         """
-        biasMI = dataRef.get("bias").getMaskedImage()
-        isr.biasCorrection(ccdExp.getMaskedImage(), biasMI)
+        biasMaskedImage = dataRef.get("bias").getMaskedImage()
+        isr.biasCorrection(ccdExp.getMaskedImage(), biasMaskedImage)
 
     def darkCorrection(self, exposure, dataRef):
         """Apply dark correction in place
@@ -311,15 +310,14 @@ class IsrTask(pipeBase.Task):
                 maskName = self.config.saturatedMaskName,
             )
     
-    def maskAndInterpDefect(self, ccdExposure, ccd):
+    def maskAndInterpDefect(self, ccdExposure):
         """Mask defects and interpolate over them, in place
 
         @param[in,out]  ccdExposure     exposure to process
-        @param[in]      ccd             CCD detector information
         
         @warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
-        #Don't loop over amps since defects could cross amp boundaries
+        ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
         fwhm = self.config.fwhm
         grow = self.config.growDefectFootprintSize
         defectBaseList = ccd.getDefects()
