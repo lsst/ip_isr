@@ -102,7 +102,7 @@ class IsrTaskConfig(pexConfig.Config):
     growDefectFootprintSize = pexConfig.Field(
         dtype = int,
         doc = "Number of pixels by which to grow the defect (bad and nan) footprints",
-        default = 1,
+        default = 0,
     )
     setGainAssembledCcd = pexConfig.Field(
         dtype = bool,
