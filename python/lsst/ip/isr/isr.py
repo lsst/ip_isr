@@ -139,23 +139,6 @@ def calculateSdqaAmpRatings(maskedImage, metadata, biasBBox, dataBBox):
     for k in metrics.keys():
         metadata.set(k, metrics[k])
 
-def floatImageFromInt(exposure):
-    """Convert an exposure from int to float.  This step also converts from DN to electrons.
-
-    @param exposure to operate on; must be of type afwImage.ExposureU
-    @return converted exposure of type afwImage.ExposureF
-    """
-    if not isinstance(exposure, afwImage.ExposureU):
-        raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got %r." % (exposure,))
-    gain = exposure.getElectronicParameters().getGain()
-    newexposure = exposure.convertF()
-    mi = newexposure.getMaskedImage()
-    mi /= gain
-    var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
-    mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
-    newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
-    return newexposure
-
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     """Interpolate over defects specified in a defect list
 
@@ -366,7 +349,7 @@ def trimAmp(exposure, trimBbox=None):
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
 
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1, imageFactory=afwImage.ImageF):
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1):
     """Apply overscan correction in place
 
     @param[in,out]  ampMaskedImage  masked image to correct
@@ -399,7 +382,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
     else:
         raise pexExcept.LsstException, '%s : %s an invalid overscan type' % \
             ("overscanCorrection", fitType)
-    ampMaskedImage -= offImage
+    ampImage -= offImage
 
 # def fringeCorrection(maskedImage, fringe):
 #     raise NotImplementedError()

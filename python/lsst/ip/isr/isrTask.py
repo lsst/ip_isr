@@ -145,45 +145,45 @@ class IsrTask(pipeBase.Task):
         - exposure: the exposure after application of ISR
         """
         self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
-        ccdExp = sensorRef.get('raw')
-        ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
+        ccdExposure = sensorRef.get('raw')
+        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
 
-        ccdExp = isr.floatImageFromInt(ccdExp)
+        ccdExposure = convertIntToFloat(ccdExposure)
         
         for amp in ccd:
-            ampExp = ccdExp.Factory(ccdExp, amp.getDiskAllPixels())
-            amp = cameraGeom.cast_Amp(ampExp.getDetector())
+            ampExposure = ccdExposure.Factory(ccdExposure, amp.getDiskAllPixels())
+            amp = cameraGeom.cast_Amp(ampExposure.getDetector())
     
-            self.saturationDetection(ampExp, amp)
+            self.saturationDetection(ampExposure, amp)
 
-            self.overscanCorrection(ampExp, amp)
+            self.overscanCorrection(ampExposure, amp)
 
         if self.config.doBias:
-            self.biasCorrection(ccdExp, sensorRef)
+            self.biasCorrection(ccdExposure, sensorRef)
         
         if self.config.doDark:
-            self.darkCorrection(ccdExp, sensorRef)
+            self.darkCorrection(ccdExposure, sensorRef)
         
-        self.updateVariance(ccdExp, ccd)
+        self.updateVariance(ccdExposure, ccd)
         
         if self.config.doFlat:
-            self.flatCorrection(ccdExp, sensorRef)
+            self.flatCorrection(ccdExposure, sensorRef)
         
-        ccdExp = self.assembleCcd.assembleCcd(ccdExp)
+        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
         
-        self.maskAndInterpDefect(ccdExp)
+        self.maskAndInterpDefect(ccdExposure)
         
-        self.saturationInterpolation(ccdExp)
+        self.saturationInterpolation(ccdExposure)
         
-        self.maskAndInterpNan(ccdExp)
+        self.maskAndInterpNan(ccdExposure)
 
         if self.config.doWrite:
-            sensorRef.put(ccdExp, "visitCCD")
+            sensorRef.put(ccdExposure, "visitCCD")
         
-        self.display("visitCCD", ccdExp)
+        self.display("visitCCD", ccdExposure)
 
         return pipeBase.Struct(
-            exposure = ccdExp,
+            exposure = ccdExposure,
         )
 
     def checkIsAmp(self, amp):
@@ -193,6 +193,20 @@ class IsrTask(pipeBase.Task):
         @return True if Amp, else False
         """
         return isinstance(amp, cameraGeom.Amp)
+
+    def convertIntToFloat(self, exposure):
+        """Convert an exposure from uint16 to float and zero out the variance and mask planes
+        """
+        if not isinstance(exposure, afwImage.ExposureU):
+            raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got %r" % (exposure,))
+
+        newexposure = exposure.convertF()
+        maskedImage = newexposure.getMaskedImage()
+        varArray = maskedImage.getVariance().getArray()
+        varArray[:,:] = 0
+        maskArray = maskedImage.getMask().getArray()
+        maskArray[:,:] = 0
+        return newexposure
     
     def biasCorrection(self, exposure, dataRef):
         """Apply bias correction in place
@@ -201,7 +215,7 @@ class IsrTask(pipeBase.Task):
         @param[in]      dataRef         data reference at same level as exposure
         """
         biasMaskedImage = dataRef.get("bias").getMaskedImage()
-        isr.biasCorrection(ccdExp.getMaskedImage(), biasMaskedImage)
+        isr.biasCorrection(exposure.getMaskedImage(), biasMaskedImage)
 
     def darkCorrection(self, exposure, dataRef):
         """Apply dark correction in place
@@ -225,7 +239,7 @@ class IsrTask(pipeBase.Task):
         @param[in]      ccd             CCD detector information
         """
         isr.updateVariance(
-            maskedImage = ccdExp.getMaskedImage(),
+            maskedImage = ccdExposure.getMaskedImage(),
             gain = ccd.getElectronicParams().getGain(),
             readNoise = ccd.getElectronicParams().getReadNoise(),
         )
@@ -236,7 +250,7 @@ class IsrTask(pipeBase.Task):
         @param[in,out]  exposure        exposure to process
         @param[in]      dataRef         data reference at same level as exposure
         """
-        flatfield = dataRef['flat']
+        flatfield = dataRef.get("flat")
         isr.flatCorrection(
             maskedImage = exposure.getMaskedImage(),
             flatMaskedImage = flatfield.getMaskedImage(),
@@ -277,7 +291,7 @@ class IsrTask(pipeBase.Task):
             raise RuntimeError("This method must be executed on an amp.")
         isr.makeThresholdMask(
             maskedImage = ampExposure.getMaskedImage(),
-            saturation = amp.getElectronicParams().getSaturationLevel(),
+            threshold = amp.getElectronicParams().getSaturationLevel(),
             growFootprints = 0,
             maskName = self.config.saturatedMaskName,
         )
@@ -293,15 +307,15 @@ class IsrTask(pipeBase.Task):
         - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
         """
         if self.transposeForInterpolation:
-            mi = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
+            maskedImage = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
             isr.interpolateFromMask(
-                maskedImage = mi,
+                maskedImage = maskedImage,
                 fwhm = self.config.fwhm,
                 growFootprints = self.config.growSaturationFootprintSize,
                 maskName = self.config.saturatedMaskName,
             )
-            mi = isr.transposeMaskedImage(mi)
-            ccdExposure.setMaskedImage(mi)
+            maskedImage = isr.transposeMaskedImage(maskedImage)
+            ccdExposure.setMaskedImage(maskedImage)
         else:
             isr.interpolateFromMask(
                 maskedImage = ccdExposure.getMaskedImage(),
@@ -317,7 +331,8 @@ class IsrTask(pipeBase.Task):
         
         @warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
-        ccd = cameraGeom.cast_Ccd(ccdExp.getDetector())
+        maskedImage = ccdExposure.getMaskedImage()
+        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
         fwhm = self.config.fwhm
         grow = self.config.growDefectFootprintSize
         defectBaseList = ccd.getDefects()
@@ -328,26 +343,30 @@ class IsrTask(pipeBase.Task):
             bbox = d.getBBox()
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
-        isr.maskPixelsFromDefectList(ccdExposure.getMaskedImage(), defectList, maskName='BAD')
-        defectList = isr.getDefectListFromMask(ccdExposure.getMaskedImage(), maskName='BAD', growFootprints=grow)
+        isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
+        defectList = isr.getDefectListFromMask(maskedImage, maskName='BAD', growFootprints=grow)
         if self.transposeForInterpolation:
-            mi = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
+            maskedImage = isr.transposeMaskedImage(maskedImage)
             defectList = isr.transposeDefectList(defectList)
-            isr.interpolateDefectList(mi, defectList, fwhm)
-            mi = isr.transposeMaskedImage(mi)
-            ccdExposure.setMaskedImage(mi)
+            isr.interpolateDefectList(
+                maskedImage = maskedImage,
+                defectList = defectList,
+                fwhm = fwhm,
+            )
+            maskedImage = isr.transposeMaskedImage(maskedImage)
+            ccdExposure.setMaskedImage(maskedImage)
         else:
-            isr.interpolateDefectList(ccdExposure.getMaskedImage(), defectList, fwhm)
+            isr.interpolateDefectList(maskedImage, defectList, fwhm)
 
     def maskAndInterpNan(self, exposure):
         """Mask NaNs and interpolate over them, in place
 
         @param[in,out]  exposure        exposure to process
         """
-        fwhm = self.config.fwhm
-        grow = self.config.growDefectFootprintSize
+        maskedImage = exposure.getMaskedImage()
+        
         #find unmasked bad pixels and mask them
-        exposure.getMaskedImage().getMask().addMaskPlane("UNMASKEDNAN") 
+        maskedImage.getMask().addMaskPlane("UNMASKEDNAN") 
         unc = UnmaskedNanCounterF()
         unc.apply(exposure.getMaskedImage())
         nnans = unc.getNpix()
@@ -356,16 +375,28 @@ class IsrTask(pipeBase.Task):
         #get footprints of bad pixels not in the camera class
         if nnans > 0:
             self.log.log(self.log.WARN, "There were %i unmasked NaNs" % (nnans,))
-            undefects = isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='UNMASKEDNAN', growFootprints=grow)
+            nanDefectList = isr.getDefectListFromMask(
+                maskedImage = maskedImage,
+                maskName = 'UNMASKEDNAN',
+                growFootprints = self.config.growDefectFootprintSize,
+            )
             #interpolate all bad pixels
             if self.transposeForInterpolation:
-                mi = isr.transposeMaskedImage(exposure.getMaskedImage())
-                defectList = isr.transposeDefectList(uudefects)
-                isr.interpolateDefectList(mi, defectList, fwhm)
-                mi = isr.transposeMaskedImage(mi)
-                exposure.setMaskedImage(mi)
+                maskedImage = isr.transposeMaskedImage(exposure.getMaskedImage())
+                defectList = isr.transposeDefectList(nanDefectList)
+                isr.interpolateDefectList(
+                    maskedImage = maskedImage,
+                    defectList = nanDefectList,
+                    fwhm = self.config.fwhm,
+                )
+                maskedImage = isr.transposeMaskedImage(maskedImage)
+                exposure.setMaskedImage(maskedImage)
             else:
-                isr.interpolateDefectList(exposure.getMaskedImage(), uudefects, fwhm)
+                isr.interpolateDefectList(
+                    maskedImage = exposure.getMaskedImage(),
+                    defectList = nanDefectList,
+                    fwhm = self.config.fwhm,
+                )
 
     def overscanCorrection(self, ampExposure, amp):
         """Apply overscan correction, in place
@@ -376,11 +407,10 @@ class IsrTask(pipeBase.Task):
         if not self.checkIsAmp(amp):
             raise RuntimeError("This method must be executed on an amp.")
         expImage = ampExposure.getMaskedImage().getImage()
-        overscan = expImage.Factory(expImage, amp.getDiskBiasSec())
+        overscanImage = expImage.Factory(expImage, amp.getDiskBiasSec())
         isr.overscanCorrection(
-            maskedImage = ampExposure.getMaskedImage(),
-            overscanData = ovescan,
+            ampMaskedImage = ampExposure.getMaskedImage(),
+            overscanImage = overscanImage,
             fitType = self.config.overscanFitType,
             polyOrder = self.config.overscanPolyOrder,
-            imageFactory = overscan.Factory,
         )

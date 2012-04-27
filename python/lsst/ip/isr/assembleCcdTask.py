@@ -171,11 +171,7 @@ class AssembleCcdTask(pipeBase.Task):
                                     - sets calib, filter, and detector
         @param[in]      inExposure  input exposure
         """
-        wcs = self.makeWcs(inExposure = inExposure)
-        if wcs is not None:
-            outExposure.setWcs(wcs)
-        else:
-            self.log.log(self.log.WARN, "No WCS found in input exposure")
+        self.setWcs(outExposure = outExposure, inExposure = inExposure)
 
         exposureMetadata = inExposure.getMetadata()
         for key in self.allKeysToRemove:
@@ -195,21 +191,22 @@ class AssembleCcdTask(pipeBase.Task):
 
         self.display("assembledExposure", exposure=outExposure)
 
-    def makeWcs(self, inExposure):
-        """Create output WCS = input WCS offset for the datasec of the lower left amplifier.
+    def setWcs(self, outExposure, inExposure):
+        """Set output WCS = input WCS, adjusted as required for datasecs not starting at lower left corner
 
+        @param[in,out]  outExposure     assembled exposure; wcs is set
         @param[in]      inExposure      input exposure
         """
         if inExposure.hasWcs():
             wcs = inExposure.getWcs()
-            ccd = cameraGeom.cast_Ccd(inExposure.getDetector())
+            ccd = cameraGeom.cast_Ccd(outExposure.getDetector())
             amp0 = cameraGeom.cast_Amp(ccd[0])
             if amp0 is None:
                 raise RuntimeError("No amplifier detector information found")
             amp0.prepareWcsData(wcs)
+            outExposure.setWcs(wcs)
         else:
-            wcs = None
-        return wcs
+            self.log.log(self.log.WARN, "No WCS found in input exposure")
 
     def setGain(self, outExposure):
         """Renormalize, if requested, and set gain metadata
