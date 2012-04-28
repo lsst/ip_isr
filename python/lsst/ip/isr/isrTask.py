@@ -147,12 +147,11 @@ class IsrTask(pipeBase.Task):
         self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')
         ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
-
-        ccdExposure = convertIntToFloat(ccdExposure)
+    
+        ccdExposure = self.convertIntToFloat(ccdExposure)
         
         for amp in ccd:
-            ampExposure = ccdExposure.Factory(ccdExposure, amp.getDiskAllPixels())
-            amp = cameraGeom.cast_Amp(ampExposure.getDetector())
+            ampExposure = ccdExposure.Factory(ccdExposure, amp.getDiskAllPixels(), afwImage.PARENT)
     
             self.saturationDetection(ampExposure, amp)
 
@@ -164,12 +163,15 @@ class IsrTask(pipeBase.Task):
         if self.config.doDark:
             self.darkCorrection(ccdExposure, sensorRef)
         
-        self.updateVariance(ccdExposure, ccd)
+        for amp in ccd:
+            ampExposure = ccdExposure.Factory(ccdExposure, amp.getDiskDataSec(), afwImage.PARENT)
+
+            self.updateVariance(ampExposure, amp)
+        
+        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
         
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, sensorRef)
-        
-        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
         
         self.maskAndInterpDefect(ccdExposure)
         
@@ -232,16 +234,18 @@ class IsrTask(pipeBase.Task):
             darkScale = darkCalib.getExptime(),
         )
     
-    def updateVariance(self, ccdExposure, ccd):
-        """Set the variance plane based on the image plane
+    def updateVariance(self, ampExposure, amp):
+        """Set the variance plane based on the image plane, plus amplifier gain and read noise
         
-        @param[in,out]  ccdExposure     exposure to process
-        @param[in]      ccd             CCD detector information
+        @param[in,out]  ampExposure     exposure to process
+        @param[in]      amp             amplifier detector information
         """
+        if not self.checkIsAmp(amp):
+            raise RuntimeError("This method must be executed on an amp.")
         isr.updateVariance(
-            maskedImage = ccdExposure.getMaskedImage(),
-            gain = ccd.getElectronicParams().getGain(),
-            readNoise = ccd.getElectronicParams().getReadNoise(),
+            maskedImage = ampExposure.getMaskedImage(),
+            gain = amp.getElectronicParams().getGain(),
+            readNoise = amp.getElectronicParams().getReadNoise(),
         )
 
     def flatCorrection(self, exposure, dataRef):
@@ -407,7 +411,8 @@ class IsrTask(pipeBase.Task):
         if not self.checkIsAmp(amp):
             raise RuntimeError("This method must be executed on an amp.")
         expImage = ampExposure.getMaskedImage().getImage()
-        overscanImage = expImage.Factory(expImage, amp.getDiskBiasSec())
+        
+        overscanImage = expImage.Factory(expImage, amp.getDiskBiasSec(), afwImage.PARENT)
         isr.overscanCorrection(
             ampMaskedImage = ampExposure.getMaskedImage(),
             overscanImage = overscanImage,

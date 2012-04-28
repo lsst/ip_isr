@@ -291,6 +291,10 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
     @param[in]      expScale        exposure scale
     @param[in]      darkScale       dark scale
     """
+    if maskedImage.getBBox() != darkMaskedImage.getBBox():
+        raise RuntimeError("maskedImage bbox %s != darkMaskedImage bbox %s" % \
+            (maskedImage.getBBox(), darkMaskedImage.getBBox()))
+
     scale = expScale / darkScale
     maskedImage.scaledMinus(scale, darkMaskedImage)
 
@@ -314,6 +318,10 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     @param[in]      scalingType     how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
     @param[in]      userScale       scale to use if scalingType is 'USER', else ignored
     """
+    if maskedImage.getBBox() != flatMaskedImage.getBBox():
+        raise RuntimeError("maskedImage bbox %s != flatMaskedImage bbox %s" % \
+            (maskedImage.getBBox(), flatMaskedImage.getBBox()))
+
     # Figure out scale from the data
     # I'm not sure we should be doing this here, but maybe
     if scalingType == 'MEAN':
@@ -334,6 +342,10 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
     @param[in]      illumMaskedImage illumination correction masked image
     @param[in]      illumScale      scale value for illumination correction
     """
+    if maskedImage.getBBox() != illumMaskedImage.getBBox():
+        raise RuntimeError("maskedImage bbox %s != illumMaskedImage bbox %s" % \
+            (maskedImage.getBBox(), illumMaskedImage.getBBox()))
+
     maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
 
 def trimAmp(exposure, trimBbox=None):
