@@ -99,11 +99,6 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "Number of pixels by which to grow the saturation footprints",
         default = 1,
     )
-    growDefectFootprintSize = pexConfig.Field(
-        dtype = int,
-        doc = "Number of pixels by which to grow the defect (bad and nan) footprints",
-        default = 0,
-    )
     setGainAssembledCcd = pexConfig.Field(
         dtype = bool,
         doc = "update exposure metadata in the assembled ccd to reflect the effective gain of the assembled chip",
@@ -138,7 +133,7 @@ class IsrTask(pipeBase.Task):
         - Detect saturation, apply overscan correction, bias, dark and flat
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and any remaining NaNs
-        - Persist the ISR-corrected exposure as "visitCcd" if config.doWrite is True
+        - Persist the ISR-corrected exposure as "visitCCD" if config.doWrite is True
 
         @param sensorRef daf.persistence.butlerSubset.ButlerDataRef of the data to be processed
         @return a pipeBase.Struct with fields:
@@ -156,6 +151,8 @@ class IsrTask(pipeBase.Task):
             self.saturationDetection(ampExposure, amp)
 
             self.overscanCorrection(ampExposure, amp)
+        
+        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, sensorRef)
@@ -168,16 +165,12 @@ class IsrTask(pipeBase.Task):
 
             self.updateVariance(ampExposure, amp)
         
-        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
-        
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, sensorRef)
         
-        self.maskAndInterpDefect(ccdExposure)
+        self.defectMasking(ccdExposure)
         
-        self.saturationInterpolation(ccdExposure)
-        
-        self.maskAndInterpNan(ccdExposure)
+        self.nanMasking(ccdExposure)
 
         if self.config.doWrite:
             sensorRef.put(ccdExposure, "visitCCD")
@@ -328,8 +321,8 @@ class IsrTask(pipeBase.Task):
                 maskName = self.config.saturatedMaskName,
             )
     
-    def maskAndInterpDefect(self, ccdExposure):
-        """Mask defects and interpolate over them, in place
+    def defectMasking(self, ccdExposure):
+        """Mask defects using mask plane "BAD", in place
 
         @param[in,out]  ccdExposure     exposure to process
         
@@ -337,52 +330,73 @@ class IsrTask(pipeBase.Task):
         """
         maskedImage = ccdExposure.getMaskedImage()
         ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
-        fwhm = self.config.fwhm
-        grow = self.config.growDefectFootprintSize
         defectBaseList = ccd.getDefects()
         defectList = measAlg.DefectListT()
-        #mask bad pixels in the camera class
-        #create master list of defects and add those from the camera class
+        # mask bad pixels in the camera class
+        # create master list of defects and add those from the camera class
         for d in defectBaseList:
             bbox = d.getBBox()
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
-        isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
-        defectList = isr.getDefectListFromMask(maskedImage, maskName='BAD', growFootprints=grow)
+        isr.maskPixelsFromDefectList(
+            maskedImage = maskedImage,
+            defectList = defectList,
+            maskName = 'BAD',
+        )
+    
+    def defectInterpolation(self, ccdExposure):
+        """Interpolate over defects (the "BAD" mask plane), in place
+
+        @param[in,out]  ccdExposure     exposure to process
+        """
+        maskedImage = ccdExposure.getMaskedImage()
+        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
+        defectList = isr.getDefectListFromMask(
+            maskedImage = maskedImage,
+            maskName = 'BAD',
+            growFootprints = 0,
+        )
         if self.transposeForInterpolation:
             maskedImage = isr.transposeMaskedImage(maskedImage)
             defectList = isr.transposeDefectList(defectList)
             isr.interpolateDefectList(
                 maskedImage = maskedImage,
                 defectList = defectList,
-                fwhm = fwhm,
+                fwhm = self.config.fwhm,
             )
             maskedImage = isr.transposeMaskedImage(maskedImage)
             ccdExposure.setMaskedImage(maskedImage)
         else:
-            isr.interpolateDefectList(maskedImage, defectList, fwhm)
+            isr.interpolateDefectList(
+                maskedImage = maskedImage,
+                defectList = defectList,
+                fwhm = self.config.fwhm,
+            )
+    
+    def nanMasking(self, exposure):
+        """Mask unmasked NaNs using mask plane "UNMASKEDNAN", in place
+        """
+        maskedImage = exposure.getMaskedImage()
+        maskedImage.getMask().addMaskPlane("UNMASKEDNAN") 
+        unc = UnmaskedNanCounterF()
+        unc.apply(exposure.getMaskedImage())
+        numNans = unc.getNpix()
+        self.metadata.set("NUMNANS", numNans)
+        if numNans > 0:
+            self.log.log(self.log.WARN, "There are %i unmasked NaNs" % (numNans,))
 
-    def maskAndInterpNan(self, exposure):
-        """Mask NaNs and interpolate over them, in place
+    def nanInterpolation(self, exposure):
+        """Interpolate over mask plane "UNMASKEDNAN", in place
 
         @param[in,out]  exposure        exposure to process
         """
         maskedImage = exposure.getMaskedImage()
-        
-        #find unmasked bad pixels and mask them
-        maskedImage.getMask().addMaskPlane("UNMASKEDNAN") 
-        unc = UnmaskedNanCounterF()
-        unc.apply(exposure.getMaskedImage())
-        nnans = unc.getNpix()
-        self.metadata.set("NUMNANS", nnans)
-
-        #get footprints of bad pixels not in the camera class
-        if nnans > 0:
-            self.log.log(self.log.WARN, "There were %i unmasked NaNs" % (nnans,))
+        numNans = self.metadata.get("NUMNANS")
+        if numNans > 0:
             nanDefectList = isr.getDefectListFromMask(
                 maskedImage = maskedImage,
                 maskName = 'UNMASKEDNAN',
-                growFootprints = self.config.growDefectFootprintSize,
+                growFootprints = 0,
             )
             #interpolate all bad pixels
             if self.transposeForInterpolation:
