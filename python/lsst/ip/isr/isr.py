@@ -204,6 +204,7 @@ class Isr(object):
         var = maskedImage.getVariance()
         var <<= maskedImage.getImage()
         var /= gain
+        var += 25.
 
     def flatCorrection(self, maskedImage, flatMaskedImage, scalingtype, scaling = 1.0):
         flatscaling = 1.0
