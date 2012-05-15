@@ -146,11 +146,9 @@ class IsrTask(pipeBase.Task):
         ccdExposure = self.convertIntToFloat(ccdExposure)
         
         for amp in ccd:
-            ampExposure = ccdExposure.Factory(ccdExposure, amp.getDiskAllPixels(), afwImage.PARENT)
-    
-            self.saturationDetection(ampExposure, amp)
+            self.saturationDetection(ccdExposure, amp)
 
-            self.overscanCorrection(ampExposure, amp)
+            self.overscanCorrection(ccdExposure, amp)
         
         ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
@@ -257,42 +255,22 @@ class IsrTask(pipeBase.Task):
             userScale = self.config.flatUserScale,
         )
 
-    def saturationCorrection(self, ampExposure, amp):
-        """Perform saturation detection and interpolation as a single step.
-        
-        parm[in,out]    ampExposure exposure to process
-        @param[in]      amp         amplifier device data
-
-        @warning Only suitable for CCDs with a single amplifier; otherwise you don't correctly handle
-        bleed trails that cross amplifier boundaries. For more complex CCDs: call saturationDetection
-        for each amplifier, then saturationInterpolation on the assembled CCD.
-        """
-        if not self.checkIsAmp(amp):
-            raise RuntimeError("This method must be executed on an amp.")
-        isr.saturationCorrection(
-            maskedImage = ampExposure.getMaskedImage(),
-            saturation = amp.getElectronicParams().getSaturationLevel(),
-            fwhm = self.config.fwhm,
-            growFootprints = self.config.growSaturationFootprintSize,
-            maskName = self.config.saturatedMaskName,
-        )
-        return ampExposure
-
-    def saturationDetection(self, ampExposure, amp):
+    def saturationDetection(self, exposure, amp):
         """Detect saturated pixels and mask them using mask plane "SAT", in place
         
-        @param[in,out]  ampExposure amplifier ampExposure to process
+        @param[in,out]  exposure    exposure to process; only the amp DataSec is processed
         @param[in]      amp         amplifier device data
         """
         if not self.checkIsAmp(amp):
             raise RuntimeError("This method must be executed on an amp.")
+        maskedImage = exposure.getMaskedImage()
+        dataView = maskedImage.Factory(maskedImage, amp.getDiskDataSec(), afwImage.PARENT)
         isr.makeThresholdMask(
-            maskedImage = ampExposure.getMaskedImage(),
+            maskedImage = dataView,
             threshold = amp.getElectronicParams().getSaturationLevel(),
             growFootprints = 0,
             maskName = self.config.saturatedMaskName,
         )
-        return ampExposure
 
     def saturationInterpolation(self, ccdExposure):
         """Interpolate over saturated pixels, in place
@@ -395,19 +373,22 @@ class IsrTask(pipeBase.Task):
                     fwhm = self.config.fwhm,
                 )
 
-    def overscanCorrection(self, ampExposure, amp):
+    def overscanCorrection(self, exposure, amp):
         """Apply overscan correction, in place
 
-        @param[in,out]  ampExposure amplifier ampExposure to process
+        @param[in,out]  exposure    exposure to process; must include both DataSec and BiasSec pixels
         @param[in]      amp         amplifier device data
         """
         if not self.checkIsAmp(amp):
             raise RuntimeError("This method must be executed on an amp.")
-        expImage = ampExposure.getMaskedImage().getImage()
-        
+        maskedImage = exposure.getMaskedImage()
+        dataView = maskedImage.Factory(maskedImage, amp.getDiskDataSec(), afwImage.PARENT)
+
+        expImage = exposure.getMaskedImage().getImage()
         overscanImage = expImage.Factory(expImage, amp.getDiskBiasSec(), afwImage.PARENT)
+
         isr.overscanCorrection(
-            ampMaskedImage = ampExposure.getMaskedImage(),
+            ampMaskedImage = dataView,
             overscanImage = overscanImage,
             fitType = self.config.overscanFitType,
             polyOrder = self.config.overscanPolyOrder,
