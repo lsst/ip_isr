@@ -47,7 +47,7 @@ class IsrTaskConfig(pexConfig.Config):
     )
     doWrite = pexConfig.Field(
         dtype = bool,
-        doc = "Persist visitCCD?",
+        doc = "Persist postISRCCD?",
         default = True,
     )
     assembleCcd = pexConfig.ConfigurableField(
@@ -133,7 +133,7 @@ class IsrTask(pipeBase.Task):
         - Detect saturation, apply overscan correction, bias, dark and flat
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and any remaining NaNs
-        - Persist the ISR-corrected exposure as "visitCCD" if config.doWrite is True
+        - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
         @param sensorRef daf.persistence.butlerSubset.ButlerDataRef of the data to be processed
         @return a pipeBase.Struct with fields:
@@ -151,6 +151,7 @@ class IsrTask(pipeBase.Task):
             self.overscanCorrection(ccdExposure, amp)
         
         ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
+        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, sensorRef)
@@ -159,7 +160,7 @@ class IsrTask(pipeBase.Task):
             self.darkCorrection(ccdExposure, sensorRef)
         
         for amp in ccd:
-            ampExposure = ccdExposure.Factory(ccdExposure, amp.getDiskDataSec(), afwImage.PARENT)
+            ampExposure = ccdExposure.Factory(ccdExposure, amp.getAllPixels(True), afwImage.PARENT)
 
             self.updateVariance(ampExposure, amp)
         
@@ -173,9 +174,9 @@ class IsrTask(pipeBase.Task):
         self.maskAndInterpNan(ccdExposure)
 
         if self.config.doWrite:
-            sensorRef.put(ccdExposure, "visitCCD")
+            sensorRef.put(ccdExposure, "postISRCCD")
         
-        self.display("visitCCD", ccdExposure)
+        self.display("postISRCCD", ccdExposure)
 
         return pipeBase.Struct(
             exposure = ccdExposure,
@@ -190,7 +191,7 @@ class IsrTask(pipeBase.Task):
         return isinstance(amp, cameraGeom.Amp)
 
     def convertIntToFloat(self, exposure):
-        """Convert an exposure from uint16 to float and zero out the variance and mask planes
+        """Convert an exposure from uint16 to float, set variance plane to 1 and mask plane to 0
         """
         if not isinstance(exposure, afwImage.ExposureU):
             raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got %r" % (exposure,))
@@ -198,7 +199,7 @@ class IsrTask(pipeBase.Task):
         newexposure = exposure.convertF()
         maskedImage = newexposure.getMaskedImage()
         varArray = maskedImage.getVariance().getArray()
-        varArray[:,:] = 0
+        varArray[:,:] = 1
         maskArray = maskedImage.getMask().getArray()
         maskArray[:,:] = 0
         return newexposure
