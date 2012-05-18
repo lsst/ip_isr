@@ -21,65 +21,46 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-
 import os
-
 import unittest
-import lsst.utils.tests as tests
 
-import eups
+import lsst.utils.tests as tests
 import lsst.afw.detection as afwDetection
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
-import lsst.pex.policy as pexPolicy
-from lsst.ip.isr import Isr
-import lsst.pex.logging as logging
-
-import lsst.afw.display.ds9 as ds9
-
-Verbosity = 4
-logging.Trace_setVerbosity('lsst.ip.isr', Verbosity)
-
-isrDir     = eups.productDir('ip_isr')
-
-# Policy file
-InputIsrPolicy = os.path.join(isrDir, 'pipeline', 'isrPolicy.paf')
+import lsst.ip.isr as ipIsr
 
 class IsrTestCases(unittest.TestCase):
-    
     def setUp(self):
-        self.policy = pexPolicy.Policy.createPolicy(InputIsrPolicy)
         self.pmin = afwGeom.Point2I(1,1)
         self.pmax = afwGeom.Point2I(10,10)
-        self.isr = Isr()
+        self.flatScaleKeyword = "IMMODE"
+        self.filenameKeyword = "filename"
         
     def tearDown(self):
-        del self.policy
-	del self.pmin
-	del self.pmax
-        del self.isr
+        del self.pmin
+        del self.pmax
+        del self.flatScaleKeyword
+        del self.filenameKeyword
 
     def doFlat(self, scaling):
-        flatScaleKeyword = self.policy.getString('flatPolicy.flatScaleKeyword')
-        filenameKeyword  = self.policy.getString('filenameKeyword')
-        
-        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin,self.pmax))
-        mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin,self.pmax))
+        maskedImage.getImage().set(10)
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
         
         flat = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         flat.getImage().set(1)
         flatexposure = afwImage.ExposureF(flat, afwImage.Wcs())
         dmetadata = flatexposure.getMetadata()
-        dmetadata.setString(filenameKeyword, 'Unittest Flat')
+        dmetadata.setString(self.filenameKeyword, 'Unittest Flat')
 
-        self.isr.flatCorrection(exposure.getMaskedImage(), flatexposure.getMaskedImage(), 'USER', scaling)
+        ipIsr.flatCorrection(maskedImage, flatexposure.getMaskedImage(), 'USER', scaling)
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(mi.getImage().get(i,j), 10 / (1./scaling), 5)
+                self.assertAlmostEqual(maskedImage.getImage().get(i,j), 10 / (1./scaling), 5)
 
     def testFlat1(self):
         self.doFlat(scaling=10)
@@ -91,26 +72,23 @@ class IsrTestCases(unittest.TestCase):
         self.doFlat(scaling=3.7)
 
     def doIllum(self, scaling):
-        flatScaleKeyword = self.policy.getString('flatPolicy.flatScaleKeyword')
-        filenameKeyword  = self.policy.getString('filenameKeyword')
-        
-        mi = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
-        mi.getImage().set(10)
-        exposure = afwImage.ExposureF(mi, afwImage.Wcs())
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage.getImage().set(10)
+        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
         
         illum = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         illum.getImage().set(1)
         illumexposure = afwImage.ExposureF(illum, afwImage.Wcs())
         dmetadata = illumexposure.getMetadata()
-        dmetadata.setString(filenameKeyword, 'Unittest Illum')
+        dmetadata.setString(self.filenameKeyword, 'Unittest Illum')
 
-        self.isr.illuminationCorrection(exposure.getMaskedImage(), illumexposure.getMaskedImage(), scaling)
+        ipIsr.illuminationCorrection(maskedImage, illumexposure.getMaskedImage(), scaling)
 
-        height        = mi.getHeight()
-        width         = mi.getWidth()
+        height        = maskedImage.getHeight()
+        width         = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(mi.getImage().get(i,j), 10 / (1./scaling), 5)
+                self.assertAlmostEqual(maskedImage.getImage().get(i,j), 10 / (1./scaling), 5)
 
     def testIllum1(self):
         self.doIllum(scaling=10)
@@ -121,7 +99,6 @@ class IsrTestCases(unittest.TestCase):
     def testIllum3(self):
         self.doIllum(scaling=3.7)
     
-#####
         
 def suite():
     """Returns a suite containing all the test cases in this module."""

@@ -9,13 +9,12 @@ import eups
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
-from lsst.ip.isr import Isr
+import lsst.ip.isr as ipIsr
 import numpy
 import lsst.afw.display.ds9 as ds9
 
 class IsrSdqaTestCases(unittest.TestCase):
     def setUp(self):
-        self.isr = Isr()
         darr = []
         mi = afwImage.MaskedImageF(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(9,9)))
         mi.set(110, 0x0, 1)
@@ -49,12 +48,11 @@ class IsrSdqaTestCases(unittest.TestCase):
         del self.mi
         del self.bbox
         del self.dbox
-        del self.isr
 
     def testAmpSdqa(self):
         exposure = afwImage.ExposureF(self.mi)
         metadata = exposure.getMetadata()
-        self.isr.calculateSdqaAmpRatings(exposure.getMaskedImage(), metadata, self.bbox, self.dbox)
+        ipIsr.calculateSdqaAmpRatings(exposure.getMaskedImage(), metadata, self.bbox, self.dbox)
         self.assertEqual(metadata.get('overscanMin'), 100.)
         self.assertEqual(metadata.get('overscanMedian'), 100.)
         self.assertEqual(metadata.get('overscanMean'), 100.)
@@ -68,7 +66,7 @@ class IsrSdqaTestCases(unittest.TestCase):
             self.dbox, afwImage.PARENT))
         im = exposure.getMaskedImage().getImage()
         metadata = exposure.getMetadata()
-        self.isr.calculateSdqaCcdRatings(exposure.getMaskedImage(), metadata)
+        ipIsr.calculateSdqaCcdRatings(exposure.getMaskedImage(), metadata)
         self.assertEqual(metadata.get('imageClipMean4Sig3Pass'), 40.5)
         self.assertEqual(metadata.get('imageMedian'), 40.5)
         #Since values 0 and 1 are masked min is 2.

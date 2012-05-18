@@ -19,49 +19,71 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-
-import lsst.afw.image       as afwImage
+import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
-import lsst.afw.cameraGeom  as cameraGeom
+import lsst.afw.cameraGeom as cameraGeom
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
-#from .isr import Linearization
-from .isr import Isr
-from .ccdAssembler import CcdAssembler
-from . import isrLib
+from . import isr
+from .isrLib import UnmaskedNanCounterF
+from .assembleCcdTask import AssembleCcdTask
 
 class IsrTaskConfig(pexConfig.Config):
-    doWrite = pexConfig.Field(dtype=bool, doc="Write output?", default=True)
+    doBias = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply bias frame correction?",
+        default = True,
+    )
+    doDark = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply dark frame correction?",
+        default = True,
+    )
+    doFlat = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply flat field correction?",
+        default = True,
+    )
+    doWrite = pexConfig.Field(
+        dtype = bool,
+        doc = "Persist postISRCCD?",
+        default = True,
+    )
+    assembleCcd = pexConfig.ConfigurableField(
+        target = AssembleCcdTask,
+        doc = "CCD assembly task",
+    )
     fwhm = pexConfig.Field(
         dtype = float,
         doc = "FWHM of PSF (arcsec)",
         default = 1.0,
     )
-    #This is needed for both the detection and correction aspects
     saturatedMaskName = pexConfig.Field(
         dtype = str,
-        doc = "Name of mask plane to use in saturation detection",
+        doc = "Name of mask plane to use in saturation detection and interpolation",
         default = "SAT",
     )
     flatScalingType = pexConfig.ChoiceField(
         dtype = str,
         doc = "The method for scaling the flat on the fly.",
         default = 'USER',
-        allowed = {"USER": "User defined scaling",
-            "MEAN": "Scale by the inverse of the mean",
+        allowed = {
+            "USER":   "Scale by flatUserScale",
+            "MEAN":   "Scale by the inverse of the mean",
             "MEDIAN": "Scale by the inverse of the median",
         },
     )
-    flatScalingValue = pexConfig.Field(
+    flatUserScale = pexConfig.Field(
         dtype = float,
-        doc = "If scaling type is USER, a value for the scaling must be provided",
+        doc = "If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise",
         default = 1.0,
     )
     overscanFitType = pexConfig.ChoiceField(
         dtype = str,
         doc = "The method for fitting the overscan bias level.",
         default = 'MEDIAN',
-        allowed = {"POLY": "Fit polynomial to the longest axis of the overscan region",
+        allowed = {
+            "POLY": "Fit polynomial to the longest axis of the overscan region",
             "MEAN": "Correct using the mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
         },
@@ -74,11 +96,6 @@ class IsrTaskConfig(pexConfig.Config):
     growSaturationFootprintSize = pexConfig.Field(
         dtype = int,
         doc = "Number of pixels by which to grow the saturation footprints",
-        default = 1,
-    )
-    growDefectFootprintSize = pexConfig.Field(
-        dtype = int,
-        doc = "Number of pixels by which to grow the defect (bad and nan) footprints",
         default = 1,
     )
     setGainAssembledCcd = pexConfig.Field(
@@ -96,235 +113,283 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "renormalize the assembled chips to have unity gain.  False if setGain is False",
         default = True,
     )
-    methodList = pexConfig.ListField(
-        dtype = str,   
-        doc = "The list of ISR corrections to apply in the order they should be applied",
-        default = ["doConversionForIsr", "doSaturationDetection", "doOverscanCorrection", "doBiasSubtraction", "doVariance", "doDarkCorrection", "doFlatCorrection"],
-    )
     
-class IsrTask(pipeBase.Task):
+    
+class IsrTask(pipeBase.CmdLineTask):
     ConfigClass = IsrTaskConfig
     _DefaultName = "isr"
 
     def __init__(self, *args, **kwargs):
         pipeBase.Task.__init__(self, *args, **kwargs)
-        self.isr = Isr()
-        self.methodList = []
-        for methodname in self.config.methodList:
-            self.methodList.append(getattr(self, methodname))
+        self.makeSubtask("assembleCcd")
+        self.transposeForInterpolation = False
 
-    def run(self, exposure, calibSet):
-        """Do instrument signature removal on an exposure: saturation, bias, overscan, dark, flat, fringe correction
-
-        @param exposure Apply ISR to this Exposure
-        @param calibSet Dictionary of calibration products (bias/zero, dark, flat, fringe, linearization information)
-        @return a pipeBase.Struct with fields:
-        - postIsrExposure: the exposure after application of ISR
-        """
-
-        #The ISR routines operate in place.  A copy of the original exposure
-        #will be made and the reduced exposure will be returned.
-        workingExposure = exposure.Factory(exposure, True)
-        for m in self.methodList:
-            workingExposure = m(workingExposure, calibSet)
-        return pipeBase.Struct(postIsrExposure=workingExposure)
-
-    def runButler(self, butler, dataid):
-        """Run the ISR given a butler
-        @param butler Butler describing the data repository
-        @param dataid A data identifier of the amp to process
-        @return a pieBase.Struct see self.run for returned fields
-        """
-        calibSet = self.makeCalibDict(butler, dataid)
-        output = self.run(butler.get("raw", dataid), calibSet)
-        if self.config.doWrite:
-            butler.put(output.postIsrExposure, "postISR", dataId=dataid)
-        return output
+    @pipeBase.timeMethod
+    def run(self, sensorRef):
+        """Perform instrument signature removal on an exposure
         
-    def makeCalibDict(self, butler, dataId):
-        ret = {}
-        required = {"doBiasSubtraction": "bias",
-                    "doDarkCorrection": "dark",
-                    "doFlatCorrection": "flat",
-                    }
-        for method in required.keys():
-            if method in self.config.methodList:
-                calib = required[method]
-                ret[calib] = butler.get(calib, dataId)
-        return ret
+        Steps include:
+        - Detect saturation, apply overscan correction, bias, dark and flat
+        - Perform CCD assembly
+        - Interpolate over defects, saturated pixels and any remaining NaNs
+        - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
-    def doConversionForIsr(self, exposure, calibSet):
+        @param sensorRef daf.persistence.butlerSubset.ButlerDataRef of the data to be processed
+        @return a pipeBase.Struct with fields:
+        - exposure: the exposure after application of ISR
+        """
+        self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
+        ccdExposure = sensorRef.get('raw')
+        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
+    
+        ccdExposure = self.convertIntToFloat(ccdExposure)
+        
+        for amp in ccd:
+            self.saturationDetection(ccdExposure, amp)
+
+            self.overscanCorrection(ccdExposure, amp)
+        
+        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
+        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
+
+        if self.config.doBias:
+            self.biasCorrection(ccdExposure, sensorRef)
+        
+        if self.config.doDark:
+            self.darkCorrection(ccdExposure, sensorRef)
+        
+        for amp in ccd:
+            ampExposure = ccdExposure.Factory(ccdExposure, amp.getAllPixels(True), afwImage.PARENT)
+
+            self.updateVariance(ampExposure, amp)
+        
+        if self.config.doFlat:
+            self.flatCorrection(ccdExposure, sensorRef)
+        
+        self.maskAndInterpDefect(ccdExposure)
+        
+        self.saturationInterpolation(ccdExposure)
+        
+        self.maskAndInterpNan(ccdExposure)
+
+        if self.config.doWrite:
+            sensorRef.put(ccdExposure, "postISRCCD")
+        
+        self.display("postISRCCD", ccdExposure)
+
+        return pipeBase.Struct(
+            exposure = ccdExposure,
+        )
+
+    def checkIsAmp(self, amp):
+        """Check if a amp is of type cameraGeom.Amp
+
+        @param Detector cameraGeom.Detector to be checked
+        @return True if Amp, else False
+        """
+        return isinstance(amp, cameraGeom.Amp)
+
+    def convertIntToFloat(self, exposure):
+        """Convert an exposure from uint16 to float, set variance plane to 1 and mask plane to 0
+        """
         if not isinstance(exposure, afwImage.ExposureU):
-            raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got\
-                %s."%(exposure.__repr__()))
+            raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got %r" % (exposure,))
 
         newexposure = exposure.convertF()
-        mi = newexposure.getMaskedImage()
-        var = afwImage.ImageF(mi.getBBox(afwImage.PARENT))
-        mask = afwImage.MaskU(mi.getBBox(afwImage.PARENT))
-        mask.set(0)
-        newexposure.setMaskedImage(afwImage.MaskedImageF(mi.getImage(), mask, var))
+        maskedImage = newexposure.getMaskedImage()
+        varArray = maskedImage.getVariance().getArray()
+        varArray[:,:] = 1
+        maskArray = maskedImage.getMask().getArray()
+        maskArray[:,:] = 0
         return newexposure
-
-    def doVariance(self, exposure, calibSet):
-        for amp in self._getAmplifiers(exposure):
-            exp = exposure.Factory(exposure, amp.getDiskDataSec())
-            self.isr.updateVariance(exp.getMaskedImage(), amp.getElectronicParams().getGain())
-        return exposure
-
-    def doCrosstalkCorrection(self, exposure, calibSet):
-        pass
-
-    def doSaturationCorrection(self, exposure, calibSet):
-        fwhm = self.config.fwhm
-        grow = self.config.growSaturationFootprintSize
-        maskname = self.config.saturatedMaskName
-        for amp in self._getAmplifiers(exposure):
-            ep = amp.getElectronicParams()
-            satvalue = ep.getSaturationLevel()
-            exp = exposure.Factory(exposure, amp.getDiskDataSec())
-            self.isr.saturationCorrection(exp.getMaskedImage(), satvalue, fwhm, growFootprints=grow, maskName=maskname)
-        return exposure
-
-    def doSaturationDetection(self, exposure, calibSet):
-        for amp in self._getAmplifiers(exposure):
-            datasec = amp.getDiskDataSec()
-            exp = exposure.Factory(exposure, datasec)
-            ep = amp.getElectronicParams()
-            satvalue = ep.getSaturationLevel()
-            maskname = self.config.saturatedMaskName
-            self.isr.makeThresholdMask(exp.getMaskedImage(), satvalue, growFootprints=0, maskName=maskname)
-        return exposure
-
-    def doSaturationInterpolation(self, exposure, calibSet):
-        #Don't loop over amps since saturation can cross amp boundaries
-        maskname = self.config.saturatedMaskName
-        fwhm = self.config.fwhm
-        grow = self.config.growSaturationFootprintSize
-        self.isr.interpolateFromMask(exposure.getMaskedImage(), fwhm, growFootprints=grow, maskName=maskname)
-        return exposure
     
-    def doMaskAndInterpDefect(self, exposure, calibSet):
-        #Don't loop over amps since defects could cross amp boundaries
-        fwhm = self.config.fwhm
-        grow = self.config.growDefectFootprintSize
-        defectBaseList = cameraGeom.cast_Ccd(exposure.getDetector()).getDefects()
+    def biasCorrection(self, exposure, dataRef):
+        """Apply bias correction in place
+    
+        @param[in,out]  exposure        exposure to process
+        @param[in]      dataRef         data reference at same level as exposure
+        """
+        biasMaskedImage = dataRef.get("bias").getMaskedImage()
+        isr.biasCorrection(exposure.getMaskedImage(), biasMaskedImage)
+
+    def darkCorrection(self, exposure, dataRef):
+        """Apply dark correction in place
+    
+        @param[in,out]  exposure        exposure to process
+        @param[in]      dataRef         data reference at same level as exposure
+        """
+        darkExposure = dataRef.get("dark")
+        darkCalib = darkExposure.getCalib()
+        isr.darkCorrection(
+            maskedImage = exposure.getMaskedImage(),
+            darkMaskedImage = darkExposure.getMaskedImage(),
+            expScale = darkCalib.getExptime(),
+            darkScale = darkCalib.getExptime(),
+        )
+    
+    def updateVariance(self, ampExposure, amp):
+        """Set the variance plane based on the image plane, plus amplifier gain and read noise
+        
+        @param[in,out]  ampExposure     exposure to process
+        @param[in]      amp             amplifier detector information
+        """
+        if not self.checkIsAmp(amp):
+            raise RuntimeError("This method must be executed on an amp.")
+        isr.updateVariance(
+            maskedImage = ampExposure.getMaskedImage(),
+            gain = amp.getElectronicParams().getGain(),
+            readNoise = amp.getElectronicParams().getReadNoise(),
+        )
+
+    def flatCorrection(self, exposure, dataRef):
+        """Apply flat correction in place
+    
+        @param[in,out]  exposure        exposure to process
+        @param[in]      dataRef         data reference at same level as exposure
+        """
+        flatfield = dataRef.get("flat")
+        isr.flatCorrection(
+            maskedImage = exposure.getMaskedImage(),
+            flatMaskedImage = flatfield.getMaskedImage(),
+            scalingType = self.config.flatScalingType,
+            userScale = self.config.flatUserScale,
+        )
+
+    def saturationDetection(self, exposure, amp):
+        """Detect saturated pixels and mask them using mask plane "SAT", in place
+        
+        @param[in,out]  exposure    exposure to process; only the amp DataSec is processed
+        @param[in]      amp         amplifier device data
+        """
+        if not self.checkIsAmp(amp):
+            raise RuntimeError("This method must be executed on an amp.")
+        maskedImage = exposure.getMaskedImage()
+        dataView = maskedImage.Factory(maskedImage, amp.getDiskDataSec(), afwImage.PARENT)
+        isr.makeThresholdMask(
+            maskedImage = dataView,
+            threshold = amp.getElectronicParams().getSaturationLevel(),
+            growFootprints = 0,
+            maskName = self.config.saturatedMaskName,
+        )
+
+    def saturationInterpolation(self, ccdExposure):
+        """Interpolate over saturated pixels, in place
+        
+        @param[in,out]  ccdExposure     exposure to process
+
+        @warning:
+        - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
+        - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
+        """
+        if self.transposeForInterpolation:
+            maskedImage = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
+            isr.interpolateFromMask(
+                maskedImage = maskedImage,
+                fwhm = self.config.fwhm,
+                growFootprints = self.config.growSaturationFootprintSize,
+                maskName = self.config.saturatedMaskName,
+            )
+            maskedImage = isr.transposeMaskedImage(maskedImage)
+            ccdExposure.setMaskedImage(maskedImage)
+        else:
+            isr.interpolateFromMask(
+                maskedImage = ccdExposure.getMaskedImage(),
+                fwhm = self.config.fwhm,
+                growFootprints = self.config.growSaturationFootprintSize,
+                maskName = self.config.saturatedMaskName,
+            )
+    
+    def maskAndInterpDefect(self, ccdExposure):
+        """Mask defects using mask plane "BAD" and interpolate over them, in place
+
+        @param[in,out]  ccdExposure     exposure to process
+        
+        @warning: call this after CCD assembly, since defects may cross amplifier boundaries
+        """
+        maskedImage = ccdExposure.getMaskedImage()
+        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
+        defectBaseList = ccd.getDefects()
         defectList = measAlg.DefectListT()
-        #mask bad pixels in the camera class
-        #create master list of defects and add those from the camera class
+        # mask bad pixels in the camera class
+        # create master list of defects and add those from the camera class
         for d in defectBaseList:
             bbox = d.getBBox()
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
-        self.isr.maskPixelsFromDefectList(exposure.getMaskedImage(), defectList, maskName='BAD')
-        defectList = self.isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='BAD', growFootprints=grow)
-        self.isr.interpolateDefectList(exposure.getMaskedImage(), defectList, fwhm)
-        return exposure
+        isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
+        if self.transposeForInterpolation:
+            maskedImage = isr.transposeMaskedImage(maskedImage)
+            defectList = isr.transposeDefectList(defectList)
+            isr.interpolateDefectList(
+                maskedImage = maskedImage,
+                defectList = defectList,
+                fwhm = self.config.fwhm,
+            )
+            maskedImage = isr.transposeMaskedImage(maskedImage)
+            ccdExposure.setMaskedImage(maskedImage)
+        else:
+            isr.interpolateDefectList(
+                maskedImage = maskedImage,
+                defectList = defectList,
+                fwhm = self.config.fwhm,
+            )
 
-    def doMaskAndInterpNan(self, exposure, calibSet):
-        #Don't loop over amps since nans could cross amp boundaries
-        fwhm = self.config.fwhm
-        grow = self.config.growDefectFootprintSize
-        #find unmasked bad pixels and mask them
-        exposure.getMaskedImage().getMask().addMaskPlane("UNMASKEDNAN") 
-        unc = isrLib.UnmaskedNanCounterF()
+    def maskAndInterpNan(self, exposure):
+        """Mask unmasked NaNs using mask plane "UNMAKSEDNAN" and interpolate over them, in place
+
+        @param[in,out]  exposure        exposure to process
+        """
+        maskedImage = exposure.getMaskedImage()
+        
+        # Find and mask unmasked NaNs
+        maskedImage.getMask().addMaskPlane("UNMASKEDNAN") 
+        unc = UnmaskedNanCounterF()
         unc.apply(exposure.getMaskedImage())
-        nnans = unc.getNpix()
-        expmeta = exposure.getMetadata()
-        expmeta.set("NUMNANS", nnans)
-        if not nnans == 0:
-		raise RuntimeError("There were %i unmasked NaNs"%(nnans))
-        #get footprints of bad pixels not in the camera class
-        undefects = self.isr.getDefectListFromMask(exposure.getMaskedImage(), maskName='UNMASKEDNAN', growFootprints=grow)
-        #interpolate all bad pixels
-        self.isr.interpolateDefectList(exposure.getMaskedImage(), undefects, fwhm)
-        return exposure
+        numNans = unc.getNpix()
+        self.metadata.set("NUMNANS", numNans)
 
-    '''
-    def doLinearization(self, exposure, calibSet):
-        linearizer = Linearization(calibSet['linearityFile'])
-        linearizer.apply(exposure)
-        return exposure
-    '''
-    
-    def doOverscanCorrection(self, exposure, calibSet):
-        fittype = self.config.overscanFitType
-        polyorder = self.config.overscanPolyOrder
-        for amp in self._getAmplifiers(exposure):
-            expImage = exposure.getMaskedImage().getImage()
-            overscan = expImage.Factory(expImage, amp.getDiskBiasSec())
-            exp = exposure.Factory(exposure, amp.getDiskDataSec())
-            self.isr.overscanCorrection(exp.getMaskedImage(), overscan, fittype=fittype, polyorder=polyorder,
-                                        imageFactory=afwImage.ImageF)
-        return exposure
+        # Interpolate over these previously-unmasked NaNs
+        if numNans > 0:
+            self.log.log(self.log.WARN, "There were %i unmasked NaNs" % (numNans,))
+            nanDefectList = isr.getDefectListFromMask(
+                maskedImage = maskedImage,
+                maskName = 'UNMASKEDNAN',
+                growFootprints = 0,
+            )
+            if self.transposeForInterpolation:
+                maskedImage = isr.transposeMaskedImage(exposure.getMaskedImage())
+                defectList = isr.transposeDefectList(nanDefectList)
+                isr.interpolateDefectList(
+                    maskedImage = maskedImage,
+                    defectList = nanDefectList,
+                    fwhm = self.config.fwhm,
+                )
+                maskedImage = isr.transposeMaskedImage(maskedImage)
+                exposure.setMaskedImage(maskedImage)
+            else:
+                isr.interpolateDefectList(
+                    maskedImage = exposure.getMaskedImage(),
+                    defectList = nanDefectList,
+                    fwhm = self.config.fwhm,
+                )
 
-    def doBiasSubtraction(self, exposure, calibSet):
-        biasExposure = calibSet['bias']
-        for amp in self._getAmplifiers(exposure):
-            exp, bias = self._getCalibration(exposure, biasExposure, amp)
-            self.isr.biasCorrection(exp.getMaskedImage(), bias.getMaskedImage())
-        
-        return exposure 
+    def overscanCorrection(self, exposure, amp):
+        """Apply overscan correction, in place
 
-    def doDarkCorrection(self, exposure, calibSet):
-        darkexposure = calibSet['dark']
-        darkscaling = darkexposure.getCalib().getExptime()
-        expscaling = exposure.getCalib().getExptime()
-        
-        for amp in self._getAmplifiers(exposure):
-            exp, dark = self._getCalibration(exposure, darkexposure, amp)
-            self.isr.darkCorrection(exp.getMaskedImage(), dark.getMaskedImage(), expscaling, darkscaling)
-        return exposure
+        @param[in,out]  exposure    exposure to process; must include both DataSec and BiasSec pixels
+        @param[in]      amp         amplifier device data
+        """
+        if not self.checkIsAmp(amp):
+            raise RuntimeError("This method must be executed on an amp.")
+        maskedImage = exposure.getMaskedImage()
+        dataView = maskedImage.Factory(maskedImage, amp.getDiskDataSec(), afwImage.PARENT)
 
-    def doFringeCorrection(self, exposure, calibSet):
-        pass
+        expImage = exposure.getMaskedImage().getImage()
+        overscanImage = expImage.Factory(expImage, amp.getDiskBiasSec(), afwImage.PARENT)
 
-    def _getAmplifiers(self, exposure):
-        """Return list of all amplifiers in an Exposure"""
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
-        if amp is not None:
-            return [amp]
-        ccd = cameraGeom.cast_Ccd(exposure.getDetector())
-        assert ccd is not None
-        return [cameraGeom.cast_Amp(a) for a in ccd]
-
-    def _getCalibration(self, exposure, calibration, amp):
-        """Get a suitably-sized calibration exposure"""
-        exp = exposure
-        calib = calibration
-        if exp.getDimensions() != calib.getDimensions():
-            # Try just the exposure's pixels of interest
-            try:
-                exp = exp.Factory(exp, amp.getDiskDataSec()) # Exposure not trimmed or assembled
-            except:
-                pass
-        if exp.getDimensions() != calib.getDimensions():
-            # Try just the calibration's pixels of interest
-            try:
-                calib = calib.Factory(calib, amp.getDataSec(True)) # Calib is likely trimmed and assembled
-            except:
-                pass
-        if exp.getDimensions() != calib.getDimensions():
-            raise RuntimeError("Dimensions for exposure (%s) and calibration (%s) don't match" % \
-                               (exposure.getDimensions(), calibration.getDimensions()))
-        return exp, calib
-
-    def doFlatCorrection(self, exposure, calibSet):
-        flatfield = calibSet['flat']
-        scalingtype = self.config.flatScalingType
-        scalingvalue = self.config.flatScalingValue
-
-        for amp in self._getAmplifiers(exposure):
-            exp, flat = self._getCalibration(exposure, flatfield, amp)
-            self.isr.flatCorrection(exp.getMaskedImage(), flat.getMaskedImage(), scalingtype, scaling = scalingvalue)   
-        return exposure
-
-    def doIlluminationCorrection(self, exposure, calibSet):
-        pass
-
-    def doCcdAssembly(self, exposureList):
-        renorm = self.config.reNormAssembledCcd
-        setgain = self.config.setGainAssembledCcd
-        k2rm = self.config.keysToRemoveFromAssembledCcd
-        assembler = CcdAssembler(exposureList, reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
-        return assembler.assembleCcd()
+        isr.overscanCorrection(
+            ampMaskedImage = dataView,
+            overscanImage = overscanImage,
+            fitType = self.config.overscanFitType,
+            polyOrder = self.config.overscanPolyOrder,
+        )
