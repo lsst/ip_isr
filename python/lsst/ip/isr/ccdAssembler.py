@@ -29,7 +29,7 @@ from .isr import Isr
 
 class CcdAssembler(object):
     def __init__(self, exposureList, reNorm=True, setGain=True, keysToRemove=[],
-                 isTrimmed=True, display=False):
+                 isTrimmed=True, fluxMag0T1=1, display=False):
         if not isinstance(exposureList, list):
             # Support a single exposure as the 'exposureList'
             exposureList = [exposureList]
@@ -65,6 +65,7 @@ class CcdAssembler(object):
         self.filter = self.exposure.getFilter()
         self.metadata = self.exposure.getMetadata()
         self.calib = self.exposure.getCalib()
+        self.calib.setFluxMag0(fluxMag0T1) # initial guess (assuming 1s exposure)
         self.display = display
         self._setGain = setGain
 
@@ -105,7 +106,7 @@ class CcdAssembler(object):
         ccdExposure.setDetector(self.ccd)
         ccdExposure.getCalib().setExptime(self.calib.getExptime())
         ccdExposure.getCalib().setMidTime(self.calib.getMidTime())
-
+        ccdExposure.getCalib().setFluxMag0(self.calib.getExptime()*self.calib.getFluxMag0()[0])
 
     def assembleCcd(self):
         ccdImage = cameraGeomUtils.makeImageFromCcd(self.ccd, imageSource = self.ifactory,

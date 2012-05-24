@@ -81,6 +81,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "Number of pixels by which to grow the defect (bad and nan) footprints",
         default = 1,
     )
+    fluxMag0T1 = pexConfig.Field(
+        dtype = float,
+        doc = "The approximate flux of a zero-magnitude object in a one-second exposure",
+        default = 1e10,
+    )
     setGainAssembledCcd = pexConfig.Field(
         dtype = bool,
         doc = "update exposure metadata in the assembled ccd to reflect the effective gain of the assembled chip",
@@ -327,5 +332,7 @@ class IsrTask(pipeBase.Task):
         renorm = self.config.reNormAssembledCcd
         setgain = self.config.setGainAssembledCcd
         k2rm = self.config.keysToRemoveFromAssembledCcd
-        assembler = CcdAssembler(exposureList, reNorm=renorm, setGain=setgain, keysToRemove=k2rm)
+        fluxMag0T1 = self.config.fluxMag0T1
+        assembler = CcdAssembler(exposureList, reNorm=renorm, setGain=setgain, keysToRemove=k2rm,
+                                 fluxMag0T1=fluxMag0T1)
         return assembler.assembleCcd()
