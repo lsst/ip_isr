@@ -108,11 +108,6 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "fields to remove from the metadata of the assembled ccd.",
         default = [],
     )
-    reNormAssembledCcd = pexConfig.Field(
-        dtype = bool,
-        doc = "renormalize the assembled chips to have unity gain.  False if setGain is False",
-        default = True,
-    )
     
     
 class IsrTask(pipeBase.CmdLineTask):
