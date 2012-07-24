@@ -98,6 +98,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "Number of pixels by which to grow the saturation footprints",
         default = 1,
     )
+    fluxMag0T1 = pexConfig.Field(
+        dtype = float,
+        doc = "The approximate flux of a zero-magnitude object in a one-second exposure",
+        default = 1e10,
+    )
     setGainAssembledCcd = pexConfig.Field(
         dtype = bool,
         doc = "update exposure metadata in the assembled ccd to reflect the effective gain of the assembled chip",
@@ -167,6 +172,8 @@ class IsrTask(pipeBase.CmdLineTask):
         
         self.maskAndInterpNan(ccdExposure)
 
+        ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getExptime())
+
         if self.config.doWrite:
             sensorRef.put(ccdExposure, "postISRCCD")
         
@@ -197,7 +204,7 @@ class IsrTask(pipeBase.CmdLineTask):
         maskArray = maskedImage.getMask().getArray()
         maskArray[:,:] = 0
         return newexposure
-    
+
     def biasCorrection(self, exposure, dataRef):
         """Apply bias correction in place
     
