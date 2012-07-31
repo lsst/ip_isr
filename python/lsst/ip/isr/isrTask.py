@@ -172,7 +172,7 @@ class IsrTask(pipeBase.CmdLineTask):
         
         self.maskAndInterpNan(ccdExposure)
 
-        ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getExptime())
+        ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
         if self.config.doWrite:
             sensorRef.put(ccdExposure, "postISRCCD")
