@@ -215,7 +215,6 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         darkExposure = dataRef.get("dark")
         darkCalib = darkExposure.getCalib()
-        import pdb;pdb.set_trace()
         isr.darkCorrection(
             maskedImage = exposure.getMaskedImage(),
             darkMaskedImage = darkExposure.getMaskedImage(),
