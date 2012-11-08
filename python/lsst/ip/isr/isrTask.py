@@ -128,6 +128,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "fields to remove from the metadata of the assembled ccd.",
         default = [],
     )
+    doAssembleDetrends = pexConfig.Field(
+        dtype = bool,
+        default = False,
+        doc = "Assemble detrend/calibration frames?"
+        )
     
     
 class IsrTask(pipeBase.CmdLineTask):
@@ -180,7 +185,8 @@ class IsrTask(pipeBase.CmdLineTask):
             self.updateVariance(ampExposure, amp)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, sensorRef, assembler=self.assembleCcd)
+            self.fringe.run(ccdExposure, sensorRef,
+                            assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
         
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, sensorRef)
@@ -192,7 +198,8 @@ class IsrTask(pipeBase.CmdLineTask):
         self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, sensorRef, assembler=self.assembleCcd)
+            self.fringe.run(ccdExposure, sensorRef,
+                            assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
         
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
@@ -233,8 +240,8 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  exposure        exposure to process
         @param[in]      dataRef         data reference at same level as exposure
         """
-        biasMaskedImage = dataRef.get("bias").getMaskedImage()
-        isr.biasCorrection(exposure.getMaskedImage(), biasMaskedImage)
+        bias = self.getDetrend(dataRef, "bias")
+        isr.biasCorrection(exposure.getMaskedImage(), bias.getMaskedImage())
 
     def darkCorrection(self, exposure, dataRef):
         """Apply dark correction in place
@@ -242,7 +249,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  exposure        exposure to process
         @param[in]      dataRef         data reference at same level as exposure
         """
-        darkExposure = dataRef.get("dark")
+        darkExposure = self.getDetrend(dataRef, "dark")
         darkCalib = darkExposure.getCalib()
         isr.darkCorrection(
             maskedImage = exposure.getMaskedImage(),
@@ -271,13 +278,25 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  exposure        exposure to process
         @param[in]      dataRef         data reference at same level as exposure
         """
-        flatfield = dataRef.get("flat")
+        flatfield = self.getDetrend(dataRef, "flat")
         isr.flatCorrection(
             maskedImage = exposure.getMaskedImage(),
             flatMaskedImage = flatfield.getMaskedImage(),
             scalingType = self.config.flatScalingType,
             userScale = self.config.flatUserScale,
         )
+
+    def getDetrend(self, dataRef, detrend):
+        """Get a detrend exposure
+
+        @param[in]      dataRef         data reference for exposure
+        @param[in]      detrend         detrend/calibration to read
+        @return Detrend exposure
+        """
+        exp = dataRef.get(detrend)
+        if self.config.doAssembleDetrends:
+            exp = self.assembleCcd.assembleCcd(exp)
+        return exp
 
     def saturationDetection(self, exposure, amp):
         """Detect saturated pixels and mask them using mask plane "SAT", in place
