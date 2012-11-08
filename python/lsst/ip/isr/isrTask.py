@@ -27,6 +27,7 @@ import lsst.pipe.base as pipeBase
 from . import isr
 from .isrLib import UnmaskedNanCounterF
 from .assembleCcdTask import AssembleCcdTask
+from .fringe import FringeTask
 
 class IsrTaskConfig(pexConfig.Config):
     doBias = pexConfig.Field(
@@ -44,6 +45,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "Apply flat field correction?",
         default = True,
     )
+    doFringe = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply fringe correction?",
+        default = True,
+        )
     doWrite = pexConfig.Field(
         dtype = bool,
         doc = "Persist postISRCCD?",
@@ -53,6 +59,15 @@ class IsrTaskConfig(pexConfig.Config):
         target = AssembleCcdTask,
         doc = "CCD assembly task",
     )
+    fringeAfterFlat = pexConfig.Field(
+        dtype = bool,
+        doc = "Do fringe subtraction after flat-fielding?",
+        default = True,
+        )
+    fringe = pexConfig.ConfigurableField(
+        target = FringeTask,
+        doc = "Fringe subtraction task",
+        )
     fwhm = pexConfig.Field(
         dtype = float,
         doc = "FWHM of PSF (arcsec)",
@@ -122,6 +137,7 @@ class IsrTask(pipeBase.CmdLineTask):
     def __init__(self, *args, **kwargs):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.makeSubtask("assembleCcd")
+        self.makeSubtask("fringe")
         self.transposeForInterpolation = False
 
     @pipeBase.timeMethod
@@ -162,16 +178,22 @@ class IsrTask(pipeBase.CmdLineTask):
             ampExposure = ccdExposure.Factory(ccdExposure, amp.getAllPixels(True), afwImage.PARENT)
 
             self.updateVariance(ampExposure, amp)
+
+        if self.config.doFringe and not self.config.fringeAfterFlat:
+            self.fringe.run(ccdExposure, sensorRef, assembler=self.assembleCcd)
         
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, sensorRef)
-        
+
         self.maskAndInterpDefect(ccdExposure)
         
         self.saturationInterpolation(ccdExposure)
         
         self.maskAndInterpNan(ccdExposure)
 
+        if self.config.doFringe and self.config.fringeAfterFlat:
+            self.fringe.run(ccdExposure, sensorRef, assembler=self.assembleCcd)
+        
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
         if self.config.doWrite:
