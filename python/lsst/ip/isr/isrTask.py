@@ -223,8 +223,11 @@ class IsrTask(pipeBase.CmdLineTask):
     def convertIntToFloat(self, exposure):
         """Convert an exposure from uint16 to float, set variance plane to 1 and mask plane to 0
         """
-        if not isinstance(exposure, afwImage.ExposureU):
-            raise Exception("ipIsr.convertImageForIsr: Expecting Uint16 image. Got %r" % (exposure,))
+        if isinstance(exposure, afwImage.ExposureF):
+            # Nothing to be done
+            return exposure
+        if not hasattr(exposure, "convertF"):
+            raise RuntimeError("Unable to convert exposure (%s) to float" % type(exposure))
 
         newexposure = exposure.convertF()
         maskedImage = newexposure.getMaskedImage()
