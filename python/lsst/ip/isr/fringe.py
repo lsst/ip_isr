@@ -54,7 +54,7 @@ class FringeConfig(Config):
     iterations = Field(dtype=int, default=20, doc="Number of fitting iterations")
     clip = Field(dtype=float, default=3.0, doc="Sigma clip threshold")
     stats = ConfigField(dtype=FringeStatisticsConfig, doc="Statistics for measuring fringes")
-    pedestal = Field(dtype=bool, default=False, doc="Fit for a pedestal as well?")
+    pedestal = Field(dtype=bool, default=False, doc="Remove fringe pedestal?")
 
 class FringeTask(Task):
     """Task to remove fringes from a science exposure
