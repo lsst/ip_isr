@@ -191,14 +191,14 @@ class FringeTask(Task):
 
         origNum = len(science)
 
-        good = numpy.where(numpy.logical_and(numpy.isfinite(science), numpy.any(numpy.isfinite(fringes), 0)))
+        good = numpy.where(numpy.logical_and(numpy.isfinite(science), numpy.any(numpy.isfinite(fringes), 1)))
         science = science[good]
         fringes = fringes[good]
         oldNum = len(science)
 
         for i in range(self.config.iterations):
             solution = self._solve(science, fringes)
-            resid = science - numpy.tensordot(solution, fringes, 0).reshape([oldNum])
+            resid = science - numpy.sum(solution * fringes, 1)
             rms = stdev(resid)
             good = numpy.logical_not(abs(resid) > self.config.clip * rms)
             self.log.logdebug("Iteration %d: RMS=%f numGood=%d" % (i, rms, good.sum()))
