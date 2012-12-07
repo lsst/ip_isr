@@ -45,11 +45,11 @@ class IsrTestCases(unittest.TestCase):
     def testBias(self):
         maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
-        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, None)
 
         bias = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         bias.getImage().set(1)
-        biasexposure = afwImage.ExposureF(bias, afwImage.Wcs())
+        biasexposure = afwImage.ExposureF(bias, None)
         bmetadata = biasexposure.getMetadata()
         bmetadata.setDouble(self.meanCountsKeyword, 1.)
         bmetadata.setString(self.filenameKeyword, 'Unittest Bias')
@@ -65,12 +65,12 @@ class IsrTestCases(unittest.TestCase):
     def doDark(self, scaling):
         maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
-        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, None)
         metadata = exposure.getMetadata()
         
         dark = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         dark.getImage().set(1)
-        darkexposure = afwImage.ExposureF(dark, afwImage.Wcs())
+        darkexposure = afwImage.ExposureF(dark, None)
         dmetadata = darkexposure.getMetadata()
         dmetadata.setString(self.filenameKeyword, 'Unittest Dark')
 
