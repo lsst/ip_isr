@@ -296,7 +296,10 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in]      detrend         detrend/calibration to read
         @return Detrend exposure
         """
-        exp = dataRef.get(detrend)
+        try:
+            exp = dataRef.get(detrend)
+        except Exception, e:
+            raise RuntimeError("Unable to retrieve %s for %s: %s" % (detrend, dataRef.dataId, e))
         if self.config.doAssembleDetrends:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
