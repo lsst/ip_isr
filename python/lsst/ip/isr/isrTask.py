@@ -289,7 +289,7 @@ class IsrTask(pipeBase.CmdLineTask):
             userScale = self.config.flatUserScale,
         )
 
-    def getDetrend(self, dataRef, detrend):
+    def getDetrend(self, dataRef, detrend, immediate=True):
         """Get a detrend exposure
 
         @param[in]      dataRef         data reference for exposure
@@ -297,7 +297,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @return Detrend exposure
         """
         try:
-            exp = dataRef.get(detrend)
+            exp = dataRef.get(detrend, immediate=immediate)
         except Exception, e:
             raise RuntimeError("Unable to retrieve %s for %s: %s" % (detrend, dataRef.dataId, e))
         if self.config.doAssembleDetrends:
