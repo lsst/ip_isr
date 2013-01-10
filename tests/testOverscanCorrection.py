@@ -49,7 +49,7 @@ class IsrTestCases(unittest.TestCase):
         overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         
-        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, None)
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
@@ -77,7 +77,7 @@ class IsrTestCases(unittest.TestCase):
         overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
         overscan.set(2, 0x0, 1)
         
-        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, None)
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
@@ -108,7 +108,7 @@ class IsrTestCases(unittest.TestCase):
             for j,off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.getImage().set(j,i,2+i+off)
         
-        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, None)
 
         ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
 
@@ -141,7 +141,7 @@ class IsrTestCases(unittest.TestCase):
             for j,off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.getImage().set(i,j,2+i+off)
         
-        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, None)
 
         ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
 

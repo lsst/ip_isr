@@ -36,7 +36,7 @@ class IsrTestCases(unittest.TestCase):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(19,19))
         maskedImage       = afwImage.MaskedImageF(bbox)
         maskedImage.set(100, 0x0, 1)
-        exposure = afwImage.ExposureF(maskedImage, afwImage.Wcs())
+        exposure = afwImage.ExposureF(maskedImage, None)
         
         bbox     = afwGeom.Box2I(afwGeom.Point2I(9,5),
                                  afwGeom.Point2I(9,15))
