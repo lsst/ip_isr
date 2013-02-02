@@ -37,20 +37,12 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 // Everything we will need in the _wrap.cc file
 %{
-#include <boost/shared_ptr.hpp>
-
-#include "lsst/pex/exceptions.h"
-#include "lsst/pex/logging.h"
 #include "lsst/ip/isr.h"
-#include "lsst/pex/policy/Policy.h"
-#include "lsst/afw/detection.h"
-#include "lsst/afw/geom.h" // work around ticket #1121
-#include "lsst/afw/cameraGeom.h"
 %}
 
 %include "lsst/p_lsstSwig.i"
-%import  "lsst/afw/image/imageLib.i" 
-%import  "lsst/afw/math/mathLib.i" 
+%import  "lsst/afw/image/Image.i" 
+%import  "lsst/afw/image/MaskedImage.i" 
 %lsst_exceptions();
 
 %shared_ptr(lsst::ip::isr::CountMaskedPixels<float>);
