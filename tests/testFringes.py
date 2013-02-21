@@ -33,6 +33,10 @@ import lsst.afw.image.utils as afwImageUtils
 from lsst.pipe.base import Struct
 from lsst.ip.isr.fringe import FringeTask
 
+# Make test deterministic
+# Random numbers are used in FringeTask.generatePositions
+numpy.random.seed(0)
+
 try:
     debug
 except NameError:
