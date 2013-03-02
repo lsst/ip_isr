@@ -294,6 +294,8 @@ class IsrTask(pipeBase.CmdLineTask):
 
         @param[in]      dataRef         data reference for exposure
         @param[in]      detrend         detrend/calibration to read
+        @param[in]      immediate       if True, disable butler proxies to enable error
+                                        handling within this routine
         @return Detrend exposure
         """
         try:
