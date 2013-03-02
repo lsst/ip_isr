@@ -228,14 +228,15 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName = 'SAT'
     """
     # find saturated regions
     thresh = afwDetection.Threshold(threshold)
-    ds = afwDetection.FootprintSet(maskedImage, thresh)
-    fpList = ds.getFootprints()
+    fs = afwDetection.FootprintSet(maskedImage, thresh)
+
+    if growFootprints > 0:
+        fs = afwDetection.FootprintSet(fs, growFootprints)
+
+    fpList = fs.getFootprints()
     # set mask
     mask = maskedImage.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
-    if growFootprints > 0:
-        for fp in fpList:
-            fp = afwDetection.growFootprint(fp, growFootprints)
     afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
     return defectListFromFootprintList(fpList, growFootprints=0)

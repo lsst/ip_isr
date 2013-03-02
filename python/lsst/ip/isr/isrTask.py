@@ -289,14 +289,19 @@ class IsrTask(pipeBase.CmdLineTask):
             userScale = self.config.flatUserScale,
         )
 
-    def getDetrend(self, dataRef, detrend):
+    def getDetrend(self, dataRef, detrend, immediate=True):
         """Get a detrend exposure
 
         @param[in]      dataRef         data reference for exposure
         @param[in]      detrend         detrend/calibration to read
+        @param[in]      immediate       if True, disable butler proxies to enable error
+                                        handling within this routine
         @return Detrend exposure
         """
-        exp = dataRef.get(detrend)
+        try:
+            exp = dataRef.get(detrend, immediate=immediate)
+        except Exception, e:
+            raise RuntimeError("Unable to retrieve %s for %s: %s" % (detrend, dataRef.dataId, e))
         if self.config.doAssembleDetrends:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
