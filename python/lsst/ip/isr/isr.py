@@ -36,7 +36,7 @@ def createPsf(fwhm):
     @return psf
     """
     ksize = 4*int(fwhm) + 1
-    return afwDetection.createPsf('DoubleGaussian', ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
+    return measAlg.DoubleGaussianPsf(ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
 
 def calcEffectiveGain(maskedImage):
     """Calculate effective gain
