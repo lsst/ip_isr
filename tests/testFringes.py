@@ -58,7 +58,8 @@ class FringeDataRef(object):
     """Quacks like a ButlerDataRef, so we can provide an in-memory fringe frame"""
     def __init__(self, fringe):
         self.fringe = fringe
-    def get(self, name="fringe"):
+        self.dataId = {'test': True}
+    def get(self, name="fringe", immediate=False):
         assert(name == "fringe")
         return self.fringe
 
