@@ -107,7 +107,10 @@ class FringeTask(Task):
                        fluxes: fringe amplitues;
                        positions: array of (x,y) for fringe amplitude measurements)
         """
-        fringe = dataRef.get("fringe")
+        try:
+            fringe = dataRef.get("fringe", immediate=True)
+        except Exception as e:
+            raise RuntimeError("Unable to retrieve fringe for %s: %s" % (dataRef.dataId, e))
         if assembler is not None:
             fringe = assembler.assembleCcd(fringe)
 
