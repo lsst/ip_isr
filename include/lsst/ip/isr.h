@@ -231,6 +231,11 @@ namespace isr {
         lsst::afw::image::MaskPixel _unpMask;
     }; 
 
+    template <typename PixelT>
+    UnmaskedNanCounter<PixelT> makeUnmaskedNanCounter(lsst::afw::image::MaskedImage<PixelT>) {
+        return UnmaskedNanCounter<PixelT>();
+    }
+
     template<typename ImagePixelT, typename FunctionT>
     void fitOverscanImage(
         boost::shared_ptr<lsst::afw::math::Function1<FunctionT> > &overscanFunction,
