@@ -198,10 +198,14 @@ namespace isr {
         typedef typename lsst::afw::image::MaskedImage<PixelT>::x_iterator x_iterator;
 
         UnmaskedNanCounter() :
-        _npix(0),
-        _bpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("BAD")),
-        _unpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("UNMASKEDNAN"))
-        {};
+            _npix(0),
+            _bpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("BAD")),
+            _unpMask(0)
+        {
+            std::string const unmaskedNan = "UNMASKEDNAN"; // Additional bit plane to set
+            lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::addMaskPlane(unmaskedNan);
+            _unpMask = lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask(unmaskedNan);
+        }
 
         virtual ~UnmaskedNanCounter() {};
 
