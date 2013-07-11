@@ -215,7 +215,8 @@ namespace isr {
             reset();
             for (int y = 0; y != mi.getHeight(); ++y) {
                 for (x_iterator ptr = mi.row_begin(y), end = mi.row_end(y); ptr != end; ++ptr) {
-                    if (!(((*ptr).mask() & _bpMask)) && !(lsst::utils::lsst_isfinite((*ptr).image()))) {
+                    if (!((ptr.mask() & _bpMask)) && (!lsst::utils::lsst_isfinite(ptr.image()) ||
+                                                      !lsst::utils::lsst_isfinite(ptr.variance()))) {
                         _npix += 1;
                         (ptr).mask() |= _unpMask;
                         (ptr).mask() |= _bpMask;
