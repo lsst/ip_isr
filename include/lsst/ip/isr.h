@@ -190,42 +190,19 @@ namespace isr {
         int _count;
     };
 
-    
+    /// Mask NANs in an image
+    ///
+    /// NANs in the image or variance that are not already masked by
+    /// the 'allow' value are masked with the 'maskVal'.
+    ///
+    /// @return Number of pixels masked
     template <typename PixelT>
-    class UnmaskedNanCounter {
-    public:
-        typedef boost::shared_ptr<UnmaskedNanCounter> Ptr;
-        typedef typename lsst::afw::image::MaskedImage<PixelT>::x_iterator x_iterator;
+    size_t maskNans(
+        afw::image::MaskedImage<PixelT> const& mi, ///< Input image
+        afw::image::MaskPixel maskVal,  ///< Bit mask value to give a NaN
+        afw::image::MaskPixel allow=0 ///< Allow NANs with this bit mask (0 to disallow all NANs)
+        );
 
-        UnmaskedNanCounter() :
-        _npix(0),
-        _bpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("BAD")),
-        _unpMask(lsst::afw::image::Mask<lsst::afw::image::MaskPixel>::getPlaneBitMask("UNMASKEDNAN"))
-        {};
-
-        virtual ~UnmaskedNanCounter() {};
-
-        void reset() {_npix = 0;}
-
-        void apply(lsst::afw::image::MaskedImage<PixelT> const& mi) {
-            reset();
-            for (int y = 0; y != mi.getHeight(); ++y) {
-                for (x_iterator ptr = mi.row_begin(y), end = mi.row_end(y); ptr != end; ++ptr) {
-                    if (!(((*ptr).mask() & _bpMask)) && !(lsst::utils::lsst_isfinite((*ptr).image()))) {
-                        _npix += 1;
-                        (ptr).mask() |= _unpMask;
-                        (ptr).mask() |= _bpMask;
-                    }
-                }
-            }
-        }
-        int getNpix() const { return _npix; }
-
-    private:
-        int    _npix;
-        lsst::afw::image::MaskPixel _bpMask;
-        lsst::afw::image::MaskPixel _unpMask;
-    }; 
 
     template<typename ImagePixelT, typename FunctionT>
     void fitOverscanImage(
