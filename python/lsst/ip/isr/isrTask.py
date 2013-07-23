@@ -25,7 +25,7 @@ import lsst.afw.cameraGeom as cameraGeom
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from . import isr
-from .isrLib import UnmaskedNanCounterF
+from .isrLib import maskNans
 from .assembleCcdTask import AssembleCcdTask
 from .fringe import FringeTask
 
@@ -152,7 +152,7 @@ class IsrTask(pipeBase.CmdLineTask):
         Steps include:
         - Detect saturation, apply overscan correction, bias, dark and flat
         - Perform CCD assembly
-        - Interpolate over defects, saturated pixels and any remaining NaNs
+        - Interpolate over defects, saturated pixels and all NaNs
         - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
         @param sensorRef daf.persistence.butlerSubset.ButlerDataRef of the data to be processed
@@ -386,17 +386,22 @@ class IsrTask(pipeBase.CmdLineTask):
             )
 
     def maskAndInterpNan(self, exposure):
-        """Mask unmasked NaNs using mask plane "UNMAKSEDNAN" and interpolate over them, in place
+        """Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
+
+        We mask and interpolate over all NaNs, including those
+        that are masked with other bits (because those may or may
+        not be interpolated over later, and we want to remove all
+        NaNs).  Despite this behaviour, the "UNMASKEDNAN" mask plane
+        is used to preserve the historical name.
 
         @param[in,out]  exposure        exposure to process
         """
         maskedImage = exposure.getMaskedImage()
         
-        # Find and mask unmasked NaNs
+        # Find and mask NaNs
         maskedImage.getMask().addMaskPlane("UNMASKEDNAN") 
-        unc = UnmaskedNanCounterF()
-        unc.apply(exposure.getMaskedImage())
-        numNans = unc.getNpix()
+        maskVal = maskedImage.getMask().getPlaneBitMask("UNMASKEDNAN")
+        numNans = maskNans(maskedImage, maskVal)
         self.metadata.set("NUMNANS", numNans)
 
         # Interpolate over these previously-unmasked NaNs

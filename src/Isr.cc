@@ -57,6 +57,24 @@ void LookupTableReplace<ImageT>::apply(afw::image::MaskedImage<ImageT> &image, f
     }
 }
 
+template <typename PixelT>
+size_t maskNans(afw::image::MaskedImage<PixelT> const& mi, afw::image::MaskPixel maskVal,
+                afw::image::MaskPixel allow)
+{
+    typedef typename afw::image::MaskedImage<PixelT>::x_iterator x_iterator;
+    size_t nPix = 0;
+    for (int y = 0; y != mi.getHeight(); ++y) {
+        for (x_iterator ptr = mi.row_begin(y), end = mi.row_end(y); ptr != end; ++ptr) {
+            if (!(ptr.mask() & allow) && (!utils::lsst_isfinite(ptr.image()) ||
+                                          !utils::lsst_isfinite(ptr.variance()))) {
+                nPix += 1;
+                ptr.mask() |= maskVal;
+            }
+        }
+    }
+    return nPix;
+}
+
 template<typename ImagePixelT, typename FunctionT>
 void fitOverscanImage(
     boost::shared_ptr< afw::math::Function1<FunctionT> > &overscanFunction,
@@ -148,11 +166,10 @@ template class LookupTableMultiplicative<double>;
 template class LookupTableReplace<int>;
 // But we turn our images into floats immediately, so use it
 template class LookupTableReplace<float>;
-// Functor to count unmasked nan in a masked image.  It also masks the nans it
-// finds.
-template class UnmaskedNanCounter<float>;
-template class UnmaskedNanCounter<double>; 
-template class UnmaskedNanCounter<int>; 
-template class UnmaskedNanCounter<boost::uint16_t>; 
+// Function to mask nans in a masked image
+template size_t maskNans<float>(afw::image::MaskedImage<float> const&, afw::image::MaskPixel,
+                                afw::image::MaskPixel);
+template size_t maskNans<double>(afw::image::MaskedImage<double> const&, afw::image::MaskPixel,
+                                 afw::image::MaskPixel); 
 
 }}} // namespace lsst::ip::isr

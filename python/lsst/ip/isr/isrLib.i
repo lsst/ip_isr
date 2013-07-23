@@ -64,26 +64,19 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 %include "lsst/ip/isr.h"
 
-%template(CountMaskedPixelsF) lsst::ip::isr::CountMaskedPixels<float>;
-%template(CountMaskedPixelsD) lsst::ip::isr::CountMaskedPixels<double>;
-
-%template(LookupTableMultiplicativeF) lsst::ip::isr::LookupTableMultiplicative<float>;
-%template(LookupTableMultiplicativeD) lsst::ip::isr::LookupTableMultiplicative<double>;
+%define %instantiateFloatLike(TYPE, PIXELTYPE)
+%template(CountMaskedPixels##TYPE) lsst::ip::isr::CountMaskedPixels<PIXELTYPE>;
+%template(LookupTableMultiplicative##TYPE) lsst::ip::isr::LookupTableMultiplicative<PIXELTYPE>;
+%template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<PIXELTYPE, double>;
+%template(maskNans) lsst::ip::isr::maskNans<PIXELTYPE>;
+%enddef
 
 %template(LookupTableReplaceI) lsst::ip::isr::LookupTableReplace<int>;
 %template(LookupTableReplaceF) lsst::ip::isr::LookupTableReplace<float>;
 
-%template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<float, double>;
-%template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<double, double>;
+%instantiateFloatLike(F, float);
+%instantiateFloatLike(D, double);
 
-%template(UnmaskedNanCounterF)
-    lsst::ip::isr::UnmaskedNanCounter<float>;
-%template(UnmaskedNanCounterD)
-    lsst::ip::isr::UnmaskedNanCounter<double>; 
-%template(UnmaskedNanCounterI)
-    lsst::ip::isr::UnmaskedNanCounter<int>;
-%template(UnmaskedNanCounterU)
-    lsst::ip::isr::UnmaskedNanCounter<boost::uint16_t>; 
 /******************************************************************************/
 // Local Variables: ***
 // eval: (setq indent-tabs-mode nil) ***
