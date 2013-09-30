@@ -151,6 +151,8 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     psf = createPsf(fwhm)
     if fallbackValue is None:
         fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
+    if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict().keys():
+        maskedImage.getMask.addMaskPlane('INTRP')
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue)
 
 def defectListFromFootprintList(fpList, growFootprints=1):
@@ -241,21 +243,20 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName = 'SAT'
 
     return defectListFromFootprintList(fpList, growFootprints=0)
 
-def interpolateFromMask(maskedImage, fwhm, growFootprints = 1, maskName = 'SAT'):
+def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
     """Interpolate over defects identified by a particular mask plane
     
     @param[in,out]  maskedImage     masked image to process
     @param[in]      fwhm            FWHM of double Gaussian smoothing kernel
     @param[in]      growFootprints  amount by which to grow footprints of detected regions
     @param[in]      maskName        mask plane name
+    @param[in]      fallbackValue   value of last resort for interpolation
     """
     defectList = getDefectListFromMask(maskedImage, maskName, growFootprints)
-    if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict().keys():
-        maskedImage.getMask.addMaskPlane('INTRP')
-    psf = createPsf(fwhm)
-    measAlg.interpolateOverDefects(maskedImage, psf, defectList)
+    interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
-def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interpolate=True, maskName='SAT'):
+def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interpolate=True, maskName='SAT',
+                         fallbackValue=None):
     """Mark saturated pixels and optionally interpolate over them
 
     @param[in,out]  maskedImage     masked image to process
@@ -264,6 +265,7 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
     @param[in]      growFootprints  amount by which to grow footprints of detected regions
     @param[in]      interpolate     interpolate over saturated pixels?
     @param[in]      maskName        mask plane name
+    @param[in]      fallbackValue   value of last resort for interpolation
     """
     defectList = makeThresholdMask(
         maskedImage = maskedImage,
@@ -272,7 +274,7 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
         maskName = maskName,
     )
     if interpolate:
-        measAlg.interpolateOverDefects(maskedImage, createPsf(fwhm), defectList)
+        interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
 def biasCorrection(maskedImage, biasMaskedImage):
     """Apply bias correction in place
