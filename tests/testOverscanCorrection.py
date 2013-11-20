@@ -92,7 +92,7 @@ class IsrTestCases(unittest.TestCase):
                 else:
                     self.assertEqual(maskedImage.getImage().get(i,j), 8)
 
-    def testPolyOverscanCorrectionX(self):
+    def checkPolyOverscanCorrectionX(self, fitType):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
                             afwGeom.Point2I(12,9))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -110,7 +110,7 @@ class IsrTestCases(unittest.TestCase):
         
         exposure = afwImage.ExposureF(maskedImage, None)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType=fitType)
 
         height        = maskedImage.getHeight()
         width         = maskedImage.getWidth()
@@ -125,7 +125,7 @@ class IsrTestCases(unittest.TestCase):
                 else:
                     self.assertEqual(maskedImage.getImage().get(i,j), 10 - 2 - j)
 
-    def testPolyOverscanCorrectionY(self):
+    def checkPolyOverscanCorrectionY(self, fitType):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
                             afwGeom.Point2I(9,12))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -143,7 +143,7 @@ class IsrTestCases(unittest.TestCase):
         
         exposure = afwImage.ExposureF(maskedImage, None)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType=fitType)
 
         height        = maskedImage.getHeight()
         width         = maskedImage.getWidth()
@@ -157,6 +157,11 @@ class IsrTestCases(unittest.TestCase):
                     self.assertEqual(maskedImage.getImage().get(i,j), 0.5)
                 else:
                     self.assertEqual(maskedImage.getImage().get(i,j), 10 - 2 - i)
+
+    def testPolyOverscanCorrection(self):
+        for fitType in ("POLY", "CHEB", "LEG"):
+            self.checkPolyOverscanCorrectionX(fitType)
+            self.checkPolyOverscanCorrectionY(fitType)
 
         
 def suite():

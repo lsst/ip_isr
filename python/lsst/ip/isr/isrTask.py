@@ -98,7 +98,9 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "The method for fitting the overscan bias level.",
         default = 'MEDIAN',
         allowed = {
-            "POLY": "Fit polynomial to the longest axis of the overscan region",
+            "POLY": "Fit ordinary polynomial to the longest axis of the overscan region",
+            "CHEB": "Fit Chebyshev polynomial to the longest axis of the overscan region",
+            "LEG":  "Fit Legendre polynomial to the longest axis of the overscan region",
             "MEAN": "Correct using the mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
         },

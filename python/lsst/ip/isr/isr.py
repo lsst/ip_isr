@@ -372,25 +372,55 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
     @param[in]      fitType         type of fit for overscan correction; one of:
                                     - 'MEAN'
                                     - 'MEDIAN'
-                                    - 'POLY'
-    @param[in]      polyOrder       polynomial order (ignored unless fitType='POLY')
+                                    - 'POLY' (ordinary polynomial)
+                                    - 'CHEB' (Chebyshev polynomial)
+                                    - 'LEG' (Legendre polynomial)
+    @param[in]      polyOrder       polynomial order (ignored unless fitType indicates a polynomial)
     """
     ampImage = ampMaskedImage.getImage()
     if fitType == 'MEAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN).getValue(afwMath.MEAN)
     elif fitType == 'MEDIAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
-    elif fitType == 'POLY':
+    elif fitType in ('POLY', 'CHEB', 'LEG'):
         biasArray = overscanImage.getArray()
-        # Fit along the long axis, so take median of each short row and fit the resulting array
+        # Fit along the long axis, so collapse along each short row and fit the resulting array
         shortInd = numpy.argmin(biasArray.shape)
-        medianBiasArr = numpy.median(biasArray, axis=shortInd)
-        coeffs = numpy.polyfit(range(len(medianBiasArr)), medianBiasArr, deg=polyOrder)
-        fitBiasArr = numpy.polyval(coeffs, range(len(medianBiasArr)))
+        medianBiasArr = numpy.mean(biasArray, axis=shortInd)
+        num = len(medianBiasArr)
+        indices = 2.0*numpy.arange(num)/float(num) - 1.0
+
+        poly = numpy.polynomial
+        fitter, evaler = {"POLY": (poly.polynomial.polyfit, poly.polynomial.polyval),
+                          "CHEB": (poly.chebyshev.chebfit, poly.chebyshev.chebval),
+                          "LEG":  (poly.legendre.legfit, poly.legendre.legval),
+                          }[fitType]
+
+        coeffs = fitter(indices, medianBiasArr, polyOrder)
+        fitBiasArr = evaler(indices, coeffs)
+
+        import lsstDebug
+        if lsstDebug.Info(__name__).display:
+            import matplotlib.pyplot as plot
+            figure = plot.figure(1)
+            axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
+            axes.plot(indices, medianBiasArr, 'k+')
+            axes.plot(indices, fitBiasArr, 'r-')
+            figure.show()
+            prompt = "Press Enter or c to continue [chp]... "
+            while True:
+                ans = raw_input(prompt).lower()
+                if ans in ("", "c",):
+                    break
+                if ans in ("p",):
+                    import pdb; pdb.set_trace()
+                elif ans in ("h", ):
+                    print "h[elp] c[ontinue] p[db]"
+                figure.close()
+
         offImage = ampImage.Factory(ampImage.getDimensions())
         offArray = offImage.getArray()
         if shortInd == 1:
-            print "shortInd=1"
             offArray[:,:] = fitBiasArr[:,numpy.newaxis]
         else:
             offArray[:,:] = fitBiasArr[numpy.newaxis,:]
