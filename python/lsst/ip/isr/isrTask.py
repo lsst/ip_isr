@@ -110,8 +110,14 @@ class IsrTaskConfig(pexConfig.Config):
     )
     overscanPolyOrder = pexConfig.Field(
         dtype = int,
-        doc = "Order of polynomial to fit if overscan fit type is POLY",
+        doc = ("Order of polynomial or to fit if overscan fit type is a polynomial, " +
+               "or number of spline knots if overscan fit type is a spline."),
         default = 1,
+    )
+    overscanRej = pexConfig.Field(
+        dtype = float,
+        doc = "Rejection threshold (sigma) for collapsing overscan before fit",
+        default = 3.0,
     )
     growSaturationFootprintSize = pexConfig.Field(
         dtype = int,
@@ -453,4 +459,5 @@ class IsrTask(pipeBase.CmdLineTask):
             overscanImage = overscanImage,
             fitType = self.config.overscanFitType,
             polyOrder = self.config.overscanPolyOrder,
+            collapseRej = self.config.overscanRej,
         )

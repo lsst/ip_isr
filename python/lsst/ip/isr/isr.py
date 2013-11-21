@@ -365,7 +365,7 @@ def trimAmp(exposure, trimBbox=None):
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
 
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1):
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1, collapseRej=3.0):
     """Apply overscan correction in place
 
     @param[in,out]  ampMaskedImage  masked image to correct
@@ -379,6 +379,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
                                     - 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE' (splines)
     @param[in]      polyOrder       polynomial order or spline knots (ignored unless fitType
                                     indicates a polynomial or spline)
+    @param[in]      collapseRej     Rejection threshold (sigma) for collapsing dimension of overscan
     """
     ampImage = ampMaskedImage.getImage()
     if fitType == 'MEAN':
@@ -389,7 +390,22 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
         biasArray = overscanImage.getArray()
         # Fit along the long axis, so collapse along each short row and fit the resulting array
         shortInd = numpy.argmin(biasArray.shape)
-        medianBiasArr = numpy.mean(biasArray, axis=shortInd)
+        if shortInd == 0:
+            # Convert to some 'standard' representation to make things easier
+            biasArray = numpy.transpose(biasArray)
+
+        # Do a single round of clipping to weed out CR hits and signal leaking into the overscan
+        percentiles = numpy.percentile(biasArray, [25.0, 50.0, 75.0], axis=1)
+        medianBiasArr = percentiles[1]
+        stdevBiasArr = 0.74*(percentiles[2] - percentiles[0]) # robust stdev
+        diff = numpy.abs(biasArray - medianBiasArr[:,numpy.newaxis])
+        biasMaskedArr = numpy.ma.masked_where(diff > collapseRej*stdevBiasArr[:,numpy.newaxis], biasArray)
+        medianBiasArr = numpy.mean(biasMaskedArr, axis=1)
+        del biasArray, percentiles, stdevBiasArr, diff, biasMaskedArr
+
+        if shortInd == 0:
+            medianBiasArr = numpy.transpose(medianBiasArr)
+
         num = len(medianBiasArr)
         indices = 2.0*numpy.arange(num)/float(num) - 1.0
 
