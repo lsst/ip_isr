@@ -28,6 +28,7 @@ import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
+import lsst.pex.exceptions as pexExcept
 
 def createPsf(fwhm):
     """Make a double Gaussian PSF
@@ -375,14 +376,16 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
                                     - 'POLY' (ordinary polynomial)
                                     - 'CHEB' (Chebyshev polynomial)
                                     - 'LEG' (Legendre polynomial)
-    @param[in]      polyOrder       polynomial order (ignored unless fitType indicates a polynomial)
+                                    - 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE' (splines)
+    @param[in]      polyOrder       polynomial order or spline knots (ignored unless fitType
+                                    indicates a polynomial or spline)
     """
     ampImage = ampMaskedImage.getImage()
     if fitType == 'MEAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN).getValue(afwMath.MEAN)
     elif fitType == 'MEDIAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
-    elif fitType in ('POLY', 'CHEB', 'LEG'):
+    elif fitType in ('POLY', 'CHEB', 'LEG', 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
         biasArray = overscanImage.getArray()
         # Fit along the long axis, so collapse along each short row and fit the resulting array
         shortInd = numpy.argmin(biasArray.shape)
@@ -390,14 +393,27 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
         num = len(medianBiasArr)
         indices = 2.0*numpy.arange(num)/float(num) - 1.0
 
-        poly = numpy.polynomial
-        fitter, evaler = {"POLY": (poly.polynomial.polyfit, poly.polynomial.polyval),
-                          "CHEB": (poly.chebyshev.chebfit, poly.chebyshev.chebval),
-                          "LEG":  (poly.legendre.legfit, poly.legendre.legval),
-                          }[fitType]
+        if fitType in ('POLY', 'CHEB', 'LEG'):
+            # A numpy polynomial
+            poly = numpy.polynomial
+            fitter, evaler = {"POLY": (poly.polynomial.polyfit, poly.polynomial.polyval),
+                              "CHEB": (poly.chebyshev.chebfit, poly.chebyshev.chebval),
+                              "LEG":  (poly.legendre.legfit, poly.legendre.legval),
+                              }[fitType]
 
-        coeffs = fitter(indices, medianBiasArr, polyOrder)
-        fitBiasArr = evaler(indices, coeffs)
+            coeffs = fitter(indices, medianBiasArr, polyOrder)
+            fitBiasArr = evaler(indices, coeffs)
+        elif 'SPLINE' in fitType:
+            # An afw interpolation
+            numBins = polyOrder
+            values, binEdges = numpy.histogram(indices, bins=numBins, weights=medianBiasArr)
+            numPerBin, _ = numpy.histogram(indices, bins=numBins, weights=numpy.ones_like(medianBiasArr))
+            binCenters = 0.5*(binEdges[:-1] + binEdges[1:])
+            fitBiasArr = afwMath.vectorD(num)
+            interp = afwMath.makeInterpolate(tuple(binCenters.astype(float)),
+                                             tuple((values/numPerBin).astype(float)),
+                                             afwMath.stringToInterpStyle(fitType))
+            fitBiasArr = numpy.array([interp.interpolate(i) for i in indices])
 
         import lsstDebug
         if lsstDebug.Info(__name__).display:
