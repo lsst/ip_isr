@@ -389,8 +389,15 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
         biasArray = overscanImage.getArray()
         # Fit along the long axis, so collapse along each short row and fit the resulting array
         shortInd = numpy.argmin(biasArray.shape)
-        medianBiasArr = numpy.mean(biasArray, axis=shortInd)
-        num = len(medianBiasArr)
+        if shortInd == 0:
+            # Convert to some 'standard' representation to make things easier
+            biasArray = numpy.transpose(biasArray)
+
+        collapsed = numpy.mean(biasMaskedArr, axis=1)
+        if shortInd == 0:
+            collapsed = numpy.transpose(collapsed)
+
+        num = len(collapsed)
         indices = 2.0*numpy.arange(num)/float(num) - 1.0
 
         if fitType in ('POLY', 'CHEB', 'LEG'):
@@ -401,17 +408,19 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
                               "LEG":  (poly.legendre.legfit, poly.legendre.legval),
                               }[fitType]
 
-            coeffs = fitter(indices, medianBiasArr, polyOrder)
+            coeffs = fitter(indices, collapsed, polyOrder)
             fitBiasArr = evaler(indices, coeffs)
         elif 'SPLINE' in fitType:
             # An afw interpolation
             numBins = polyOrder
-            values, binEdges = numpy.histogram(indices, bins=numBins, weights=medianBiasArr)
-            numPerBin, _ = numpy.histogram(indices, bins=numBins, weights=numpy.ones_like(medianBiasArr))
-            binCenters = 0.5*(binEdges[:-1] + binEdges[1:])
-            fitBiasArr = afwMath.vectorD(num)
+            numPerBin, binEdges = numpy.histogram(indices, bins=numBins, weights=numpy.ones_like(collapsed))
+            # Binning is just a histogram, with weights equal to the values.
+            # Use a similar trick to get the bin centers (this deals with different numbers per bin).
+            values = numpy.histogram(indices, bins=numBins, weights=collapsed)[0]/numPerBin
+            binCenters = numpy.histogram(indices, bins=numBins, weights=indices)[0]/numPerBin
+
             interp = afwMath.makeInterpolate(tuple(binCenters.astype(float)),
-                                             tuple((values/numPerBin).astype(float)),
+                                             tuple(values.astype(float)),
                                              afwMath.stringToInterpStyle(fitType))
             fitBiasArr = numpy.array([interp.interpolate(i) for i in indices])
 
@@ -419,8 +428,9 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
         if lsstDebug.Info(__name__).display:
             import matplotlib.pyplot as plot
             figure = plot.figure(1)
+            figure.clear()
             axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
-            axes.plot(indices, medianBiasArr, 'k+')
+            axes.plot(indices, collapsed, 'k+')
             axes.plot(indices, fitBiasArr, 'r-')
             figure.show()
             prompt = "Press Enter or c to continue [chp]... "
