@@ -365,7 +365,7 @@ def trimAmp(exposure, trimBbox=None):
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
 
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1, collapseRej=3.0):
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0):
     """Apply overscan correction in place
 
     @param[in,out]  ampMaskedImage  masked image to correct
@@ -377,7 +377,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
                                     - 'CHEB' (Chebyshev polynomial)
                                     - 'LEG' (Legendre polynomial)
                                     - 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE' (splines)
-    @param[in]      polyOrder       polynomial order or spline knots (ignored unless fitType
+    @param[in]      order           polynomial order or spline knots (ignored unless fitType
                                     indicates a polynomial or spline)
     @param[in]      collapseRej     Rejection threshold (sigma) for collapsing dimension of overscan
     """
@@ -418,11 +418,11 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
                               "LEG":  (poly.legendre.legfit, poly.legendre.legval),
                               }[fitType]
 
-            coeffs = fitter(indices, collapsed, polyOrder)
+            coeffs = fitter(indices, collapsed, order)
             fitBiasArr = evaler(indices, coeffs)
         elif 'SPLINE' in fitType:
             # An afw interpolation
-            numBins = polyOrder
+            numBins = order
             numPerBin, binEdges = numpy.histogram(indices, bins=numBins, weights=numpy.ones_like(collapsed))
             # Binning is just a histogram, with weights equal to the values.
             # Use a similar trick to get the bin centers (this deals with different numbers per bin).

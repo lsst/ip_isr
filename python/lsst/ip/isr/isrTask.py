@@ -108,7 +108,7 @@ class IsrTaskConfig(pexConfig.Config):
             "MEDIAN": "Correct using the median of the overscan region",
         },
     )
-    overscanPolyOrder = pexConfig.Field(
+    overscanOrder = pexConfig.Field(
         dtype = int,
         doc = ("Order of polynomial or to fit if overscan fit type is a polynomial, " +
                "or number of spline knots if overscan fit type is a spline."),
@@ -458,6 +458,6 @@ class IsrTask(pipeBase.CmdLineTask):
             ampMaskedImage = dataView,
             overscanImage = overscanImage,
             fitType = self.config.overscanFitType,
-            polyOrder = self.config.overscanPolyOrder,
+            order = self.config.overscanOrder,
             collapseRej = self.config.overscanRej,
         )

@@ -165,8 +165,8 @@ class IsrTestCases(unittest.TestCase):
 
     def testSplineOverscanCorrection(self):
         for fitType in ("NATURAL_SPLINE", "CUBIC_SPLINE", "AKIMA_SPLINE"):
-            self.checkPolyOverscanCorrectionX(fitType=fitType, polyOrder=5)
-            self.checkPolyOverscanCorrectionY(fitType=fitType, polyOrder=5)
+            self.checkPolyOverscanCorrectionX(fitType=fitType, order=5)
+            self.checkPolyOverscanCorrectionY(fitType=fitType, order=5)
 
         
 def suite():
