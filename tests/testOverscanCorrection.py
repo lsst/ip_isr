@@ -36,7 +36,7 @@ class IsrTestCases(unittest.TestCase):
     def tearDown(self):
         del self.overscanKeyword
 
-    def testOverscanCorrectionY(self):
+    def testOverscanCorrectionY(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
                             afwGeom.Point2I(9,12))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -64,7 +64,7 @@ class IsrTestCases(unittest.TestCase):
                 else:
                     self.assertEqual(maskedImage.getImage().get(i,j), 8)
 
-    def testOverscanCorrectionX(self):
+    def testOverscanCorrectionX(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
                             afwGeom.Point2I(12,9))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -92,7 +92,7 @@ class IsrTestCases(unittest.TestCase):
                 else:
                     self.assertEqual(maskedImage.getImage().get(i,j), 8)
 
-    def testPolyOverscanCorrectionX(self):
+    def checkPolyOverscanCorrectionX(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
                             afwGeom.Point2I(12,9))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -107,10 +107,10 @@ class IsrTestCases(unittest.TestCase):
         for i in range(bbox.getDimensions()[1]):
             for j,off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.getImage().set(j,i,2+i+off)
-        
+
         exposure = afwImage.ExposureF(maskedImage, None)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), **kwargs)
 
         height        = maskedImage.getHeight()
         width         = maskedImage.getWidth()
@@ -125,7 +125,7 @@ class IsrTestCases(unittest.TestCase):
                 else:
                     self.assertEqual(maskedImage.getImage().get(i,j), 10 - 2 - j)
 
-    def testPolyOverscanCorrectionY(self):
+    def checkPolyOverscanCorrectionY(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0,0),
                             afwGeom.Point2I(9,12))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -143,7 +143,7 @@ class IsrTestCases(unittest.TestCase):
         
         exposure = afwImage.ExposureF(maskedImage, None)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="POLY")
+        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), **kwargs)
 
         height        = maskedImage.getHeight()
         width         = maskedImage.getWidth()
@@ -157,6 +157,16 @@ class IsrTestCases(unittest.TestCase):
                     self.assertEqual(maskedImage.getImage().get(i,j), 0.5)
                 else:
                     self.assertEqual(maskedImage.getImage().get(i,j), 10 - 2 - i)
+
+    def testPolyOverscanCorrection(self):
+        for fitType in ("POLY", "CHEB", "LEG"):
+            self.checkPolyOverscanCorrectionX(fitType=fitType)
+            self.checkPolyOverscanCorrectionY(fitType=fitType)
+
+    def testSplineOverscanCorrection(self):
+        for fitType in ("NATURAL_SPLINE", "CUBIC_SPLINE", "AKIMA_SPLINE"):
+            self.checkPolyOverscanCorrectionX(fitType=fitType, order=5)
+            self.checkPolyOverscanCorrectionY(fitType=fitType, order=5)
 
         
 def suite():

@@ -28,6 +28,7 @@ import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
+import lsst.pex.exceptions as pexExcept
 
 def createPsf(fwhm):
     """Make a double Gaussian PSF
@@ -364,7 +365,7 @@ def trimAmp(exposure, trimBbox=None):
     # n.b. what other changes are needed here?
     # e.g. wcs info, overscan, etc
 
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1):
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0):
     """Apply overscan correction in place
 
     @param[in,out]  ampMaskedImage  masked image to correct
@@ -372,25 +373,89 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrde
     @param[in]      fitType         type of fit for overscan correction; one of:
                                     - 'MEAN'
                                     - 'MEDIAN'
-                                    - 'POLY'
-    @param[in]      polyOrder       polynomial order (ignored unless fitType='POLY')
+                                    - 'POLY' (ordinary polynomial)
+                                    - 'CHEB' (Chebyshev polynomial)
+                                    - 'LEG' (Legendre polynomial)
+                                    - 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE' (splines)
+    @param[in]      order           polynomial order or spline knots (ignored unless fitType
+                                    indicates a polynomial or spline)
+    @param[in]      collapseRej     Rejection threshold (sigma) for collapsing dimension of overscan
     """
     ampImage = ampMaskedImage.getImage()
     if fitType == 'MEAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN).getValue(afwMath.MEAN)
     elif fitType == 'MEDIAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
-    elif fitType == 'POLY':
+    elif fitType in ('POLY', 'CHEB', 'LEG', 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
         biasArray = overscanImage.getArray()
-        # Fit along the long axis, so take median of each short row and fit the resulting array
+        # Fit along the long axis, so collapse along each short row and fit the resulting array
         shortInd = numpy.argmin(biasArray.shape)
-        medianBiasArr = numpy.median(biasArray, axis=shortInd)
-        coeffs = numpy.polyfit(range(len(medianBiasArr)), medianBiasArr, deg=polyOrder)
-        fitBiasArr = numpy.polyval(coeffs, range(len(medianBiasArr)))
+        if shortInd == 0:
+            # Convert to some 'standard' representation to make things easier
+            biasArray = numpy.transpose(biasArray)
+
+        # Do a single round of clipping to weed out CR hits and signal leaking into the overscan
+        percentiles = numpy.percentile(biasArray, [25.0, 50.0, 75.0], axis=1)
+        medianBiasArr = percentiles[1]
+        stdevBiasArr = 0.74*(percentiles[2] - percentiles[0]) # robust stdev
+        diff = numpy.abs(biasArray - medianBiasArr[:,numpy.newaxis])
+        biasMaskedArr = numpy.ma.masked_where(diff > collapseRej*stdevBiasArr[:,numpy.newaxis], biasArray)
+        collapsed = numpy.mean(biasMaskedArr, axis=1)
+        del biasArray, percentiles, stdevBiasArr, diff, biasMaskedArr
+
+        if shortInd == 0:
+            collapsed = numpy.transpose(collapsed)
+
+        num = len(collapsed)
+        indices = 2.0*numpy.arange(num)/float(num) - 1.0
+
+        if fitType in ('POLY', 'CHEB', 'LEG'):
+            # A numpy polynomial
+            poly = numpy.polynomial
+            fitter, evaler = {"POLY": (poly.polynomial.polyfit, poly.polynomial.polyval),
+                              "CHEB": (poly.chebyshev.chebfit, poly.chebyshev.chebval),
+                              "LEG":  (poly.legendre.legfit, poly.legendre.legval),
+                              }[fitType]
+
+            coeffs = fitter(indices, collapsed, order)
+            fitBiasArr = evaler(indices, coeffs)
+        elif 'SPLINE' in fitType:
+            # An afw interpolation
+            numBins = order
+            numPerBin, binEdges = numpy.histogram(indices, bins=numBins, weights=numpy.ones_like(collapsed))
+            # Binning is just a histogram, with weights equal to the values.
+            # Use a similar trick to get the bin centers (this deals with different numbers per bin).
+            values = numpy.histogram(indices, bins=numBins, weights=collapsed)[0]/numPerBin
+            binCenters = numpy.histogram(indices, bins=numBins, weights=indices)[0]/numPerBin
+
+            interp = afwMath.makeInterpolate(tuple(binCenters.astype(float)),
+                                             tuple(values.astype(float)),
+                                             afwMath.stringToInterpStyle(fitType))
+            fitBiasArr = numpy.array([interp.interpolate(i) for i in indices])
+
+        import lsstDebug
+        if lsstDebug.Info(__name__).display:
+            import matplotlib.pyplot as plot
+            figure = plot.figure(1)
+            figure.clear()
+            axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
+            axes.plot(indices, collapsed, 'k+')
+            axes.plot(indices, fitBiasArr, 'r-')
+            figure.show()
+            prompt = "Press Enter or c to continue [chp]... "
+            while True:
+                ans = raw_input(prompt).lower()
+                if ans in ("", "c",):
+                    break
+                if ans in ("p",):
+                    import pdb; pdb.set_trace()
+                elif ans in ("h", ):
+                    print "h[elp] c[ontinue] p[db]"
+                figure.close()
+
         offImage = ampImage.Factory(ampImage.getDimensions())
         offArray = offImage.getArray()
         if shortInd == 1:
-            print "shortInd=1"
             offArray[:,:] = fitBiasArr[:,numpy.newaxis]
         else:
             offArray[:,:] = fitBiasArr[numpy.newaxis,:]

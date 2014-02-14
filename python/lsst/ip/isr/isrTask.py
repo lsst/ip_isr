@@ -98,15 +98,26 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "The method for fitting the overscan bias level.",
         default = 'MEDIAN',
         allowed = {
-            "POLY": "Fit polynomial to the longest axis of the overscan region",
+            "POLY": "Fit ordinary polynomial to the longest axis of the overscan region",
+            "CHEB": "Fit Chebyshev polynomial to the longest axis of the overscan region",
+            "LEG":  "Fit Legendre polynomial to the longest axis of the overscan region",
+            "NATURAL_SPLINE": "Fit natural spline to the longest axis of the overscan region",
+            "CUBIC_SPLINE": "Fit cubic spline to the longest axis of the overscan region",
+            "AKIMA_SPLINE": "Fit Akima spline to the longest axis of the overscan region",
             "MEAN": "Correct using the mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
         },
     )
-    overscanPolyOrder = pexConfig.Field(
+    overscanOrder = pexConfig.Field(
         dtype = int,
-        doc = "Order of polynomial to fit if overscan fit type is POLY",
+        doc = ("Order of polynomial or to fit if overscan fit type is a polynomial, " +
+               "or number of spline knots if overscan fit type is a spline."),
         default = 1,
+    )
+    overscanRej = pexConfig.Field(
+        dtype = float,
+        doc = "Rejection threshold (sigma) for collapsing overscan before fit",
+        default = 3.0,
     )
     growSaturationFootprintSize = pexConfig.Field(
         dtype = int,
@@ -447,5 +458,6 @@ class IsrTask(pipeBase.CmdLineTask):
             ampMaskedImage = dataView,
             overscanImage = overscanImage,
             fitType = self.config.overscanFitType,
-            polyOrder = self.config.overscanPolyOrder,
+            order = self.config.overscanOrder,
+            collapseRej = self.config.overscanRej,
         )
