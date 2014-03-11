@@ -304,7 +304,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in]      amp         amplifier device data
         """
         maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getDiskDataSec(), afwImage.PARENT)
+        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox(), afwImage.PARENT)
         isr.makeThresholdMask(
             maskedImage = dataView,
             threshold = amp.getSaturation(),
@@ -343,11 +343,10 @@ class IsrTask(pipeBase.CmdLineTask):
         """Mask defects using mask plane "BAD" and interpolate over them, in place
 
         @param[in,out]  ccdExposure     exposure to process
+        @param[in] defectBaseList a list of defects to mask and interpolate
         
         @warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
-        if defects is None:
-            return
         maskedImage = ccdExposure.getMaskedImage()
         defectList = measAlg.DefectListT()
         for d in defectBaseList:
@@ -355,22 +354,18 @@ class IsrTask(pipeBase.CmdLineTask):
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
         isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
-        if self.transposeForInterpolation:
+        if self.transposeImageForInterpolation:
             maskedImage = isr.transposeMaskedImage(maskedImage)
+        if self.transposeDefectsForInterpolation:
             defectList = isr.transposeDefectList(defectList)
-            isr.interpolateDefectList(
-                maskedImage = maskedImage,
-                defectList = defectList,
-                fwhm = self.config.fwhm,
-            )
+        isr.interpolateDefectList(
+            maskedImage = maskedImage,
+            defectList = defectList,
+            fwhm = self.config.fwhm,
+        )
+        if self.transposeImageForInterpolation:
             maskedImage = isr.transposeMaskedImage(maskedImage)
             ccdExposure.setMaskedImage(maskedImage)
-        else:
-            isr.interpolateDefectList(
-                maskedImage = maskedImage,
-                defectList = defectList,
-                fwhm = self.config.fwhm,
-            )
 
     def maskAndInterpNan(self, exposure):
         """Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
@@ -422,7 +417,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  exposure    exposure to process; must include both DataSec and BiasSec pixels
         @param[in]      amp         amplifier device data
         """
-        if not amp.getHasRawAmpInfo():
+        if not amp.getHasRawInfo():
             raise RuntimeError("This method must be executed on an amp with raw information.")
         maskedImage = exposure.getMaskedImage()
         dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox(), afwImage.PARENT)

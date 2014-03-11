@@ -67,23 +67,27 @@ class AssembleCcdTask(pipeBase.Task):
         @param assembleInput -- Either a dictionary of amp exposures or a single exposure containing all raw
                                 amps.  If a dictionary of amp exposures, the key should be the amp name.
         """
-        if hasatter(assembleInput, "has_key"):
+        if hasattr(assembleInput, "has_key"):
+            # Get a detector object for this set of amps
+            def getDetector():
+                return assembleInput.itervalues().next().getDetector()
             # Sent a dictionary of input exposures, assume one amp per key keyed on amp name
             def getNextExposure(amp):
                 return assembleInput[amp.getName()]
-        elif has_atter(assembleInput, "getMaskedImage"):
+        elif hasattr(assembleInput, "getMaskedImage"):
+            def getDetector():
+                return assembleInput.getDetector()
             # A single exposure was sent.  Use this to assemble.
             def getNextExposure(amp):
                 return assembleInput
         else:
             raise TypeError("Expected either a dictionary of amp exposures or a single raw exposure")
 
-        exp_o = getNextExposure()
-        ccd = exp_o.getDetector()
+        ccd = getDetector()
         if ccd is None:
             raise RuntimeError("No ccd detector found")
 
-        if self.config.doTrim:
+        if not self.config.doTrim:
             outBox = cameraGeomUtils.calcRawCcdBBox(ccd)
         else:
             outBox = ccd.getBBox()
@@ -91,15 +95,15 @@ class AssembleCcdTask(pipeBase.Task):
         outMI = outExposure.getMaskedImage()
 
         if self.config.doTrim:
-            assemble = camearGeom.assembleAmplifierImage
+            assemble = cameraGeom.assembleAmplifierImage
         else:
             assemble = cameraGeom.assembleAmplifierRawImage
         
         for amp in ccd:
             inMI = getNextExposure(amp).getMaskedImage()
             assemble(outMI, inMI, amp)
-
-        self.postprocessExposure(outExposure=outExposure, inExposure=ampExposureList[0])
+        outExposure.setDetector(ccd)
+        self.postprocessExposure(outExposure=outExposure, inExposure=getNextExposure(ccd[0]))
     
         return outExposure
     
