@@ -351,19 +351,6 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
 
     maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
 
-def trimAmp(exposure, trimBbox=None):
-    """Return a new Exposure that is a subsection of the input exposure.
-
-    NOTE: do we need to deal with the WCS in any way, shape, or form?
-    """
-    if trimBbox is not None:
-        return exposureFactory(exposure, trimBbox, LOCAL)
-    else:
-        amp = cameraGeom.cast_Amp(exposure.getDetector())
-        return exposureFactory(exposure, amp.getDiskDataSec(false), LOCAL)
-    # n.b. what other changes are needed here?
-    # e.g. wcs info, overscan, etc
-
 def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', polyOrder=1):
     """Apply overscan correction in place
 

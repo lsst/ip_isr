@@ -20,6 +20,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import lsst.afw.cameraGeom as cameraGeom
+import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.image as afwImage
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
@@ -61,106 +62,47 @@ class AssembleCcdTask(pipeBase.Task):
         
         self.allKeysToRemove = ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN') + tuple(self.config.keysToRemove)
     
-    def assembleCcd(self, inExposure):
-        """Assemble a CCD by copying data sections and (usually) trimming out the rest
-
-        @param[in,out] inExposure   input exposure; the setTrimmed flag of the ccd device info may be modified
-        @return assembled exposure
+    def assembleCcd(self, assembleInput):
+        """Assemble a set of amps into a single CCD size image
+        @param assembleInput -- Either a dictionary of amp exposures or a single exposure containing all raw
+                                amps.  If a dictionary of amp exposures, the key should be the amp name.
         """
-        ccd = cameraGeom.cast_Ccd(inExposure.getDetector())
+        if hasatter(assembleInput, "has_key"):
+            # Sent a dictionary of input exposures, assume one amp per key keyed on amp name
+            def getNextExposure(amp):
+                return assembleInput[amp.getName()]
+        elif has_atter(assembleInput, "getMaskedImage"):
+            # A single exposure was sent.  Use this to assemble.
+            def getNextExposure(amp):
+                return assembleInput
+        else:
+            raise TypeError("Expected either a dictionary of amp exposures or a single raw exposure")
+
+        exp_o = getNextExposure()
+        ccd = exp_o.getDetector()
         if ccd is None:
-            raise RuntimeError("Detector not a ccd")
-        ccd.setTrimmed(self.config.doTrim)
+            raise RuntimeError("No ccd detector found")
 
-        outExposure = afwImage.ExposureF(ccd.getAllPixels(self.config.doTrim))
+        if self.config.doTrim:
+            outBox = cameraGeomUtils.calcRawCcdBBox(ccd)
+        else:
+            outBox = ccd.getBBox()
+        outExposure = afwImage.ExposureF(outBox)
         outMI = outExposure.getMaskedImage()
-        inMI = inExposure.getMaskedImage()
 
-        # Precompute amplifier information to avoid recomputing it for each image plane.
-        ampInfoList = []
+        if self.config.doTrim:
+            assemble = camearGeom.assembleAmplifierImage
+        else:
+            assemble = cameraGeom.assembleAmplifierRawImage
+        
         for amp in ccd:
-            outBBox = amp.getAllPixels(self.config.doTrim)
-            if self.config.doTrim:
-                inBBox = amp.getDiskDataSec()
-            else:
-                inBBox = amp.getDiskAllPixels()
-            ampInfoList.append(pipeBase.Struct(
-                amp = amp,
-                outBBox = outBBox,
-                inBBox = inBBox,
-            ))
-        
-        # Process one image plane at a time, since that is probably better for cache performance
-        # and is a requirement of amp.prepareAmpData.
-        # Unfortunately image planes cannot be accessed by index or name,
-        # so use getattr to access each image plane getter function
-        for imagePlaneGetterName in ("getImage", "getMask", "getVariance"):
-            outImage = getattr(outMI, imagePlaneGetterName)()
-            inImage = getattr(inMI, imagePlaneGetterName)()
-            for ampInfo in ampInfoList:
-                outView = outImage.Factory(outImage, ampInfo.outBBox, afwImage.LOCAL)
-                inView = inImage.Factory(inImage, ampInfo.inBBox, afwImage.PARENT)
-                outView <<= ampInfo.amp.prepareAmpData(inView)
-
-        outExposure.setDetector(ccd)
-
-        self.postprocessExposure(outExposure=outExposure, inExposure=inExposure)
-        
-        return outExposure
-    
-    def assembleAmpList(self, ampExposureList):
-        """Assemble a collection of amplifier exposures into a CCD
-
-        @param[in,out]  ampExposureList collection of amp exposures to assemble;
-                                        the setTrimmed flag of the ccd device info may be modified
-        @return assembled exposure
-        """
-        ampExp0 = ampExposureList[0]
-        amp0 = cameraGeom.cast_Amp(ampExp0.getDetector())
-        if amp0 is None:
-            raise RuntimeError("No amp detector found in first amp exposure")
-        ccd = cameraGeom.cast_Ccd(amp0.getParent())
-        if ccd is None:
-            raise RuntimeError("No ccd detector found in amp detector")
-        ccd.setTrimmed(self.config.doTrim)
-
-        outExposure = afwImage.ExposureF(ccd.getAllPixels(self.config.doTrim))
-        outMI = outExposure.getMaskedImage()
-        
-        # Precompute amplifier information to avoid recomputing it for each image plane.
-        ampInfoList = []
-        for ampExp in ampExposureList:
-            amp = cameraGeom.cast_Amp(ampExp.getDetector())
-            outBBox = amp.getAllPixels(self.config.doTrim)
-            if self.config.doTrim:
-                inBBox = amp.getDiskDataSec()
-            else:
-                inBBox = amp.getDiskAllPixels()
-            ampInfoList.append(pipeBase.Struct(
-                amp = amp,
-                outBBox = outBBox,
-                inBBox = inBBox,
-                ampMaskedImage = ampExp.getMaskedImage(),
-            ))
-        
-        # Process one image plane at a time, since that is probably better for cache performance
-        # and since it is the only way amp.prepareAmpData works.
-        # Unfortunately image planes cannot be accessed by index or name,
-        # so use getattr to access each image plane getter function
-        for imagePlaneGetterName in ("getImage", "getMask", "getVariance"):
-            outImage = getattr(outMI, imagePlaneGetterName)()
-            for ampInfo in ampInfoList:
-                outView = outImage.Factory(outImage, ampInfo.outBBox, afwImage.LOCAL)
-                inImage = getattr(ampInfo.ampMaskedImage, imagePlaneGetterName)()
-                inView = inImage.Factory(inImage, ampInfo.inBBox, afwImage.PARENT)
-                outView <<= ampInfo.amp.prepareAmpData(inView)
-
-        outExposure.setDetector(ccd)
+            inMI = getNextExposure(amp).getMaskedImage()
+            assemble(outMI, inMI, amp)
 
         self.postprocessExposure(outExposure=outExposure, inExposure=ampExposureList[0])
     
         return outExposure
-
+    
     def postprocessExposure(self, outExposure, inExposure):
         """Set exposure non-image attributes, including wcs and metadata and display exposure (if requested)
         
@@ -199,11 +141,11 @@ class AssembleCcdTask(pipeBase.Task):
         """
         if inExposure.hasWcs():
             wcs = inExposure.getWcs()
-            ccd = cameraGeom.cast_Ccd(outExposure.getDetector())
-            amp0 = cameraGeom.cast_Amp(ccd[0])
+            ccd = outExposure.getDetector()
+            amp0 = ccd[0]
             if amp0 is None:
                 raise RuntimeError("No amplifier detector information found")
-            amp0.prepareWcsData(wcs)
+            cameraGeomUtils.prepareWcsData(wcs, amp0)
             outExposure.setWcs(wcs)
         else:
             self.log.log(self.log.WARN, "No WCS found in input exposure")
@@ -217,12 +159,12 @@ class AssembleCcdTask(pipeBase.Task):
         """
         if outExposure.getMaskedImage().getVariance().getArray().max() == 0:
             raise RuntimeError("Can't calculate the effective gain since the variance plane is set to zero")
-        ccd = cameraGeom.cast_Ccd(outExposure.getDetector())
+        ccd = outExposure.getDetector()
         exposureMetadata = outExposure.getMetadata()
         gain = 0
         namps = 0
         for amp in ccd:
-            gain += cameraGeom.cast_Amp(amp).getElectronicParams().getGain()
+            gain += amp.getGain()
             namps += 1.
         gain /= float(namps)
         if self.config.doRenorm:
