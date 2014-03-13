@@ -143,7 +143,6 @@ class IsrTask(pipeBase.CmdLineTask):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.makeSubtask("assembleCcd")
         self.makeSubtask("fringe")
-        self.transposeForInterpolation = False
 
     @pipeBase.timeMethod
     def run(self, sensorRef):
@@ -321,23 +320,12 @@ class IsrTask(pipeBase.CmdLineTask):
         - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
         - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
         """
-        if self.transposeForInterpolation:
-            maskedImage = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
-            isr.interpolateFromMask(
-                maskedImage = maskedImage,
-                fwhm = self.config.fwhm,
-                growFootprints = self.config.growSaturationFootprintSize,
-                maskName = self.config.saturatedMaskName,
-            )
-            maskedImage = isr.transposeMaskedImage(maskedImage)
-            ccdExposure.setMaskedImage(maskedImage)
-        else:
-            isr.interpolateFromMask(
-                maskedImage = ccdExposure.getMaskedImage(),
-                fwhm = self.config.fwhm,
-                growFootprints = self.config.growSaturationFootprintSize,
-                maskName = self.config.saturatedMaskName,
-            )
+        isr.interpolateFromMask(
+            maskedImage = ccdExposure.getMaskedImage(),
+            fwhm = self.config.fwhm,
+            growFootprints = self.config.growSaturationFootprintSize,
+            maskName = self.config.saturatedMaskName,
+        )
     
     def maskAndInterpDefect(self, ccdExposure, defectBaseList):
         """Mask defects using mask plane "BAD" and interpolate over them, in place
@@ -354,18 +342,11 @@ class IsrTask(pipeBase.CmdLineTask):
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
         isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
-        if self.transposeImageForInterpolation:
-            maskedImage = isr.transposeMaskedImage(maskedImage)
-        if self.transposeDefectsForInterpolation:
-            defectList = isr.transposeDefectList(defectList)
         isr.interpolateDefectList(
             maskedImage = maskedImage,
             defectList = defectList,
             fwhm = self.config.fwhm,
         )
-        if self.transposeImageForInterpolation:
-            maskedImage = isr.transposeMaskedImage(maskedImage)
-            ccdExposure.setMaskedImage(maskedImage)
 
     def maskAndInterpNan(self, exposure):
         """Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
@@ -394,22 +375,11 @@ class IsrTask(pipeBase.CmdLineTask):
                 maskName = 'UNMASKEDNAN',
                 growFootprints = 0,
             )
-            if self.transposeForInterpolation:
-                maskedImage = isr.transposeMaskedImage(exposure.getMaskedImage())
-                defectList = isr.transposeDefectList(nanDefectList)
-                isr.interpolateDefectList(
-                    maskedImage = maskedImage,
-                    defectList = nanDefectList,
-                    fwhm = self.config.fwhm,
-                )
-                maskedImage = isr.transposeMaskedImage(maskedImage)
-                exposure.setMaskedImage(maskedImage)
-            else:
-                isr.interpolateDefectList(
-                    maskedImage = exposure.getMaskedImage(),
-                    defectList = nanDefectList,
-                    fwhm = self.config.fwhm,
-                )
+            isr.interpolateDefectList(
+                maskedImage = exposure.getMaskedImage(),
+                defectList = nanDefectList,
+                fwhm = self.config.fwhm,
+            )
 
     def overscanCorrection(self, exposure, amp):
         """Apply overscan correction, in place
