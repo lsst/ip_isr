@@ -67,23 +67,21 @@ class AssembleCcdTask(pipeBase.Task):
         @param assembleInput -- Either a dictionary of amp exposures or a single exposure containing all raw
                                 amps.  If a dictionary of amp exposures, the key should be the amp name.
         """
+        ccd = None
         if hasattr(assembleInput, "has_key"):
             # Get a detector object for this set of amps
-            def getDetector():
-                return assembleInput.itervalues().next().getDetector()
+            ccd = assembleInput.itervalues().next().getDetector()
             # Sent a dictionary of input exposures, assume one amp per key keyed on amp name
             def getNextExposure(amp):
                 return assembleInput[amp.getName()]
         elif hasattr(assembleInput, "getMaskedImage"):
-            def getDetector():
-                return assembleInput.getDetector()
+            ccd = assembleInput.getDetector()
             # A single exposure was sent.  Use this to assemble.
             def getNextExposure(amp):
                 return assembleInput
         else:
             raise TypeError("Expected either a dictionary of amp exposures or a single raw exposure")
 
-        ccd = getDetector()
         if ccd is None:
             raise RuntimeError("No ccd detector found")
 
@@ -165,12 +163,12 @@ class AssembleCcdTask(pipeBase.Task):
             raise RuntimeError("Can't calculate the effective gain since the variance plane is set to zero")
         ccd = outExposure.getDetector()
         exposureMetadata = outExposure.getMetadata()
-        gain = 0
+        gain = 0.
         namps = 0
         for amp in ccd:
             gain += amp.getGain()
-            namps += 1.
-        gain /= float(namps)
+            namps += 1
+        gain /= namps
         if self.config.doRenorm:
             mi = outExposure.getMaskedImage()
             mi *= gain
