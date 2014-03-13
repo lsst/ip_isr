@@ -154,7 +154,6 @@ class IsrTask(pipeBase.CmdLineTask):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.makeSubtask("assembleCcd")
         self.makeSubtask("fringe")
-        self.transposeForInterpolation = False
 
     @pipeBase.timeMethod
     def run(self, sensorRef):
@@ -172,7 +171,7 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')
-        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
+        ccd = ccdExposure.getDetector()
     
         ccdExposure = self.convertIntToFloat(ccdExposure)
         
@@ -182,7 +181,7 @@ class IsrTask(pipeBase.CmdLineTask):
             self.overscanCorrection(ccdExposure, amp)
         
         ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
-        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
+        ccd = ccdExposure.getDetector()
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, sensorRef)
@@ -202,7 +201,8 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, sensorRef)
 
-        self.maskAndInterpDefect(ccdExposure)
+        defects = sensorRef.get('defects')
+        self.maskAndInterpDefect(ccdExposure, defects)
         
         self.saturationInterpolation(ccdExposure)
         
@@ -222,14 +222,6 @@ class IsrTask(pipeBase.CmdLineTask):
         return pipeBase.Struct(
             exposure = ccdExposure,
         )
-
-    def checkIsAmp(self, amp):
-        """Check if a amp is of type cameraGeom.Amp
-
-        @param Detector cameraGeom.Detector to be checked
-        @return True if Amp, else False
-        """
-        return isinstance(amp, cameraGeom.Amp)
 
     def convertIntToFloat(self, exposure):
         """Convert an exposure from uint16 to float, set variance plane to 1 and mask plane to 0
@@ -278,12 +270,10 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  ampExposure     exposure to process
         @param[in]      amp             amplifier detector information
         """
-        if not self.checkIsAmp(amp):
-            raise RuntimeError("This method must be executed on an amp.")
         isr.updateVariance(
             maskedImage = ampExposure.getMaskedImage(),
-            gain = amp.getElectronicParams().getGain(),
-            readNoise = amp.getElectronicParams().getReadNoise(),
+            gain = amp.getGain(),
+            readNoise = amp.getReadNoise(),
         )
 
     def flatCorrection(self, exposure, dataRef):
@@ -323,13 +313,11 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  exposure    exposure to process; only the amp DataSec is processed
         @param[in]      amp         amplifier device data
         """
-        if not self.checkIsAmp(amp):
-            raise RuntimeError("This method must be executed on an amp.")
         maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getDiskDataSec(), afwImage.PARENT)
+        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox(), afwImage.PARENT)
         isr.makeThresholdMask(
             maskedImage = dataView,
-            threshold = amp.getElectronicParams().getSaturationLevel(),
+            threshold = amp.getSaturation(),
             growFootprints = 0,
             maskName = self.config.saturatedMaskName,
         )
@@ -343,58 +331,33 @@ class IsrTask(pipeBase.CmdLineTask):
         - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
         - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
         """
-        if self.transposeForInterpolation:
-            maskedImage = isr.transposeMaskedImage(ccdExposure.getMaskedImage())
-            isr.interpolateFromMask(
-                maskedImage = maskedImage,
-                fwhm = self.config.fwhm,
-                growFootprints = self.config.growSaturationFootprintSize,
-                maskName = self.config.saturatedMaskName,
-            )
-            maskedImage = isr.transposeMaskedImage(maskedImage)
-            ccdExposure.setMaskedImage(maskedImage)
-        else:
-            isr.interpolateFromMask(
-                maskedImage = ccdExposure.getMaskedImage(),
-                fwhm = self.config.fwhm,
-                growFootprints = self.config.growSaturationFootprintSize,
-                maskName = self.config.saturatedMaskName,
-            )
+        isr.interpolateFromMask(
+            maskedImage = ccdExposure.getMaskedImage(),
+            fwhm = self.config.fwhm,
+            growFootprints = self.config.growSaturationFootprintSize,
+            maskName = self.config.saturatedMaskName,
+        )
     
-    def maskAndInterpDefect(self, ccdExposure):
+    def maskAndInterpDefect(self, ccdExposure, defectBaseList):
         """Mask defects using mask plane "BAD" and interpolate over them, in place
 
         @param[in,out]  ccdExposure     exposure to process
+        @param[in] defectBaseList a list of defects to mask and interpolate
         
         @warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
         maskedImage = ccdExposure.getMaskedImage()
-        ccd = cameraGeom.cast_Ccd(ccdExposure.getDetector())
-        defectBaseList = ccd.getDefects()
         defectList = measAlg.DefectListT()
-        # mask bad pixels in the camera class
-        # create master list of defects and add those from the camera class
         for d in defectBaseList:
             bbox = d.getBBox()
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
         isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
-        if self.transposeForInterpolation:
-            maskedImage = isr.transposeMaskedImage(maskedImage)
-            defectList = isr.transposeDefectList(defectList)
-            isr.interpolateDefectList(
-                maskedImage = maskedImage,
-                defectList = defectList,
-                fwhm = self.config.fwhm,
-            )
-            maskedImage = isr.transposeMaskedImage(maskedImage)
-            ccdExposure.setMaskedImage(maskedImage)
-        else:
-            isr.interpolateDefectList(
-                maskedImage = maskedImage,
-                defectList = defectList,
-                fwhm = self.config.fwhm,
-            )
+        isr.interpolateDefectList(
+            maskedImage = maskedImage,
+            defectList = defectList,
+            fwhm = self.config.fwhm,
+        )
 
     def maskAndInterpNan(self, exposure):
         """Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
@@ -423,22 +386,11 @@ class IsrTask(pipeBase.CmdLineTask):
                 maskName = 'UNMASKEDNAN',
                 growFootprints = 0,
             )
-            if self.transposeForInterpolation:
-                maskedImage = isr.transposeMaskedImage(exposure.getMaskedImage())
-                defectList = isr.transposeDefectList(nanDefectList)
-                isr.interpolateDefectList(
-                    maskedImage = maskedImage,
-                    defectList = nanDefectList,
-                    fwhm = self.config.fwhm,
-                )
-                maskedImage = isr.transposeMaskedImage(maskedImage)
-                exposure.setMaskedImage(maskedImage)
-            else:
-                isr.interpolateDefectList(
-                    maskedImage = exposure.getMaskedImage(),
-                    defectList = nanDefectList,
-                    fwhm = self.config.fwhm,
-                )
+            isr.interpolateDefectList(
+                maskedImage = exposure.getMaskedImage(),
+                defectList = nanDefectList,
+                fwhm = self.config.fwhm,
+            )
 
     def overscanCorrection(self, exposure, amp):
         """Apply overscan correction, in place
@@ -446,13 +398,13 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  exposure    exposure to process; must include both DataSec and BiasSec pixels
         @param[in]      amp         amplifier device data
         """
-        if not self.checkIsAmp(amp):
-            raise RuntimeError("This method must be executed on an amp.")
+        if not amp.getHasRawInfo():
+            raise RuntimeError("This method must be executed on an amp with raw information.")
         maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getDiskDataSec(), afwImage.PARENT)
+        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox(), afwImage.PARENT)
 
         expImage = exposure.getMaskedImage().getImage()
-        overscanImage = expImage.Factory(expImage, amp.getDiskBiasSec(), afwImage.PARENT)
+        overscanImage = expImage.Factory(expImage, amp.getRawHorizontalOverscanBBox(), afwImage.PARENT)
 
         isr.overscanCorrection(
             ampMaskedImage = dataView,
