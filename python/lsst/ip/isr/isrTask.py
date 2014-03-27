@@ -190,7 +190,7 @@ class IsrTask(pipeBase.CmdLineTask):
             self.darkCorrection(ccdExposure, sensorRef)
         
         for amp in ccd:
-            ampExposure = ccdExposure.Factory(ccdExposure, amp.getAllPixels(True), afwImage.PARENT)
+            ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox(), afwImage.PARENT)
 
             self.updateVariance(ampExposure, amp)
 
