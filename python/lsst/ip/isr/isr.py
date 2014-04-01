@@ -58,10 +58,11 @@ def transposeMaskedImage(maskedImage):
     @param[in] maskedImage  afw.image.MaskedImage to process
     @return transposed masked image
     """
-    imarr = maskedImage.getImage().getArray().T.__copy__()
-    vararr = maskedImage.getVariance().getArray().T.__copy__()
-    maskarr = maskedImage.getMask().getArray().T.__copy__()
-    return afwImage.makeMaskedImageFromArrays(imarr, maskarr, vararr)
+    transposed = maskedImage.Factory(afwGeom.Extent2I(maskedImage.getHeight(), maskedImage.getWidth()))
+    transposed.getImage().getArray()[:] = maskedImage.getImage().getArray().T
+    transposed.getMask().getArray()[:] = maskedImage.getMask().getArray().T
+    transposed.getVariance().getArray()[:] = maskedImage.getVariance().getArray().T
+    return transposed
 
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     """Interpolate over defects specified in a defect list
