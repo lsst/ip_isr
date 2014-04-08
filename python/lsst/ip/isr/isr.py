@@ -345,8 +345,21 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         elif 'SPLINE' in fitType:
             # An afw interpolation
             numBins = order
+            #
+            # numpy.histogram needs a real array for the mask, but numpy.ma "optimises" the case
+            # no-values-are-masked by replacing the mask array by a scalar, numpy.ma.nomask
+            #
+            # Issue DM-415
+            #
+            collapsedMask = collapsed.mask
+            try:
+                if collapsedMask == numpy.ma.nomask:
+                    collapsedMask = numpy.array(len(collapsed)*[numpy.ma.nomask])
+            except ValueError:      # If collapsedMask is an array the test fails [needs .all()]
+                pass
+
             numPerBin, binEdges = numpy.histogram(indices, bins=numBins,
-                                                  weights=1-medianBiasArr.mask.astype(int))
+                                                  weights=1-collapsedMask.astype(int))
             # Binning is just a histogram, with weights equal to the values.
             # Use a similar trick to get the bin centers (this deals with different numbers per bin).
             values = numpy.histogram(indices, bins=numBins, weights=collapsed)[0]/numPerBin
