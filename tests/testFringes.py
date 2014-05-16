@@ -33,10 +33,6 @@ import lsst.afw.image.utils as afwImageUtils
 from lsst.pipe.base import Struct
 from lsst.ip.isr.fringe import FringeTask
 
-# Make test deterministic
-# Random numbers are used in FringeTask.generatePositions
-numpy.random.seed(0)
-
 try:
     debug
 except NameError:
@@ -60,8 +56,10 @@ class FringeDataRef(object):
         self.fringe = fringe
         self.dataId = {'test': True}
     def get(self, name="fringe", immediate=False):
-        assert(name == "fringe")
-        return self.fringe
+        if name == "fringe":
+            return self.fringe
+        if name == "ccdExposureId":
+            return 1000
 
 class MultipleFringeDataRef(object):
     """Something like a ButlerDataRef that holds multiple fringe frames.
@@ -77,7 +75,8 @@ class MultipleFringeTask(FringeTask):
     """A FringeTask that reads multiple fringe frames"""
     def readFringes(self, dataRef, assembler=None):
         fringeList = dataRef.get()
-        positions = self.generatePositions(fringeList[0])
+        rng = numpy.random.RandomState(seed=0)
+        positions = self.generatePositions(fringeList[0], rng)
         fluxes = numpy.ndarray([len(positions), len(fringeList)])
         for i, f in enumerate(fringeList):
             fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")

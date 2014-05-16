@@ -43,6 +43,8 @@ class FringeStatisticsConfig(Config):
     stat = Field(dtype=int, default=afwMath.MEDIAN, doc="Statistic to use")
     clip = Field(dtype=float, default=3.0, doc="Sigma clip threshold")
     iterations = Field(dtype=int, default=3, doc="Number of fitting iterations")
+    rngSeedOffset = Field(dtype=int, default=0,
+                          doc="Offset to the random number generator seed (full seed includes exposure ID)")
 
 
 class FringeConfig(Config):
@@ -107,6 +109,9 @@ class FringeTask(Task):
                        fluxes: fringe amplitues;
                        positions: array of (x,y) for fringe amplitude measurements)
         """
+        seed = dataRef.get("ccdExposureId", immediate=True) + self.config.stats.rngSeedOffset
+        rng = numpy.random.RandomState(seed=seed)
+
         try:
             fringe = dataRef.get("fringe", immediate=True)
         except Exception as e:
@@ -123,7 +128,7 @@ class FringeTask(Task):
             self.log.info("Removing fringe pedestal: %f" % pedestal)
             mi -= pedestal
 
-        positions = self.generatePositions(fringe)
+        positions = self.generatePositions(fringe, rng)
         fluxes = self.measureExposure(fringe, positions, title="Fringe frame")
 
         return Struct(fringes=[fringe],
@@ -131,14 +136,14 @@ class FringeTask(Task):
                       positions=positions
                       )
 
-    def generatePositions(self, exposure):
+    def generatePositions(self, exposure, rng):
         """Generate a random distribution of positions for measuring fringe amplitudes"""
         start = self.config.large
         num = self.config.num
         width = exposure.getWidth() - self.config.large
         height = exposure.getHeight() - self.config.large
-        return numpy.array([numpy.random.randint(start, width, size=num),
-                            numpy.random.randint(start, height, size=num)]).swapaxes(0, 1)
+        return numpy.array([rng.randint(start, width, size=num),
+                            rng.randint(start, height, size=num)]).swapaxes(0, 1)
 
     @timeMethod
     def measureExposure(self, exposure, positions, title="Fringe"):
