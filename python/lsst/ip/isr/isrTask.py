@@ -21,7 +21,6 @@
 #
 import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
-import lsst.afw.cameraGeom as cameraGeom
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from . import isr
