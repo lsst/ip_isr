@@ -335,7 +335,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     elif scalingType == 'USER':
         flatScale = userScale
     else:
-        raise pexExcept.LsstException, '%s : %s not implemented' % ("flatCorrection", scalingType)
+        raise pexExcept.Exception, '%s : %s not implemented' % ("flatCorrection", scalingType)
     
     maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
 
@@ -447,7 +447,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         else:
             offArray[:,:] = fitBiasArr[numpy.newaxis,:]
     else:
-        raise pexExcept.LsstException, '%s : %s an invalid overscan type' % \
+        raise pexExcept.Exception, '%s : %s an invalid overscan type' % \
             ("overscanCorrection", fitType)
     ampImage -= offImage
 
