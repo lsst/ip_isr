@@ -116,16 +116,19 @@ class AssembleCcdTask(pipeBase.Task):
     \code
     python examples/runAssembleTask.py
     \endcode
+
     \dontinclude runAssembleTask.py
     Import the task.  There are other imports.  Read the source file for more info.
     \skipline AssembleCcdTask
 
-    Create some input images with the help of some utilities
+    \dontinclude exampleUtils.py
+    Create some input images with the help of some utilities in examples/exampleUtils.py
     \skip makeAssemblyInput
     \until inputData
     The above numbers can be changed.  The assumption that the readout corner is flipped on every other amp is
     hardcoded in createDetector.
 
+    \dontinclude runAssembleTask.py
     Run the assembler task
     \skip runAssembler
     \until frame += 1
