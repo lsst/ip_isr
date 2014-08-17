@@ -180,7 +180,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     \section ip_isr_isr_Initialize Task initialization
 
-    \copydoc \_\_init\-\-
+    \copydoc \_\_init\_\_
 
     \section ip_isr_isr_IO Inputs/Outputs to the assembleCcd method
 
