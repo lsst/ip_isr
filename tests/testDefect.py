@@ -78,7 +78,7 @@ class DefectTestCases(unittest.TestCase):
         ipIsr.interpolateDefectList(ccdImage, defectList, 2.)
         im = ccdImage.getImage()
         for d in defectList:
-            intrp = im.Factory(im, d.getBBox())
+            intrp = im.Factory(im, d.getBBox(), afwImage.PARENT)
             self.assertTrue((intrp.getArray() == self.setVal).all())
 
         if display:
