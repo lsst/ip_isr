@@ -295,9 +295,9 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
     @param[in]      expScale        exposure scale
     @param[in]      darkScale       dark scale
     """
-    if maskedImage.getBBox() != darkMaskedImage.getBBox():
+    if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != darkMaskedImage bbox %s" % \
-            (maskedImage.getBBox(), darkMaskedImage.getBBox()))
+            (maskedImage.getBBox(afwImage.LOCAL), darkMaskedImage.getBBox(afwImage.LOCAL)))
 
     scale = expScale / darkScale
     maskedImage.scaledMinus(scale, darkMaskedImage)
@@ -322,9 +322,9 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     @param[in]      scalingType     how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
     @param[in]      userScale       scale to use if scalingType is 'USER', else ignored
     """
-    if maskedImage.getBBox() != flatMaskedImage.getBBox():
+    if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != flatMaskedImage bbox %s" % \
-            (maskedImage.getBBox(), flatMaskedImage.getBBox()))
+            (maskedImage.getBBox(afwImage.LOCAL), flatMaskedImage.getBBox(afwImage.LOCAL)))
 
     # Figure out scale from the data
     # I'm not sure we should be doing this here, but maybe
