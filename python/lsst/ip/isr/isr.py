@@ -346,9 +346,9 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
     @param[in]      illumMaskedImage illumination correction masked image
     @param[in]      illumScale      scale value for illumination correction
     """
-    if maskedImage.getBBox() != illumMaskedImage.getBBox():
+    if maskedImage.getBBox(afwImage.PARENT) != illumMaskedImage.getBBox(afwImage.PARENT):
         raise RuntimeError("maskedImage bbox %s != illumMaskedImage bbox %s" % \
-            (maskedImage.getBBox(), illumMaskedImage.getBBox()))
+            (maskedImage.getBBox(afwImage.PARENT), illumMaskedImage.getBBox(afwImage.PARENT)))
 
     maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
 
