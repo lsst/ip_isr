@@ -21,7 +21,6 @@
 # the GNU General Public License along with this program.  If not, 
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-import os
 import unittest
 
 import lsst.utils.tests as tests
@@ -46,7 +45,7 @@ class IsrTestCases(unittest.TestCase):
         bbox     = afwGeom.Box2I(afwGeom.Point2I(0,10),
                                  afwGeom.Point2I(9,12))
         biassec  = '[1:10,11:13]'
-        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         
         exposure = afwImage.ExposureF(maskedImage, None)
@@ -74,7 +73,7 @@ class IsrTestCases(unittest.TestCase):
         bbox     = afwGeom.Box2I(afwGeom.Point2I(10,0),
                                  afwGeom.Point2I(12,9))
         biassec  = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         
         exposure = afwImage.ExposureF(maskedImage, None)
@@ -102,7 +101,7 @@ class IsrTestCases(unittest.TestCase):
         bbox     = afwGeom.Box2I(afwGeom.Point2I(10,0),
                                  afwGeom.Point2I(12,9))
         biassec  = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[1]):
             for j,off in enumerate([-0.5, 0.0, 0.5]):
@@ -135,7 +134,7 @@ class IsrTestCases(unittest.TestCase):
         bbox     = afwGeom.Box2I(afwGeom.Point2I(0,10),
                                  afwGeom.Point2I(9,12))
         biassec  = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT)
+        overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[0]):
             for j,off in enumerate([-0.5, 0.0, 0.5]):

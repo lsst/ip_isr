@@ -85,9 +85,9 @@ def calculateSdqaCcdRatings(maskedImage, metadata):
     badmask = afwImage.MaskU(mask, True)
     satmask &= satbitmask
     badmask &= badbitmask
-    satmaskim = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
+    satmaskim = afwImage.ImageU(satmask.getBBox())
     satmaskim <<= satmask
-    badmaskim = afwImage.ImageU(badmask.getBBox(afwImage.PARENT))
+    badmaskim = afwImage.ImageU(badmask.getBBox())
     badmaskim <<= badmask
     thresh = afwDetection.Threshold(0.5)
     fs = afwDetection.FootprintSet(satmaskim, thresh)
@@ -123,7 +123,7 @@ def calculateSdqaAmpRatings(maskedImage, metadata, biasBBox, dataBBox):
     sctrl.setAndMask(satbitmask)
     satmask = trimmi.getMask()
     satmask &= satbitmask
-    satmaskim = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
+    satmaskim = afwImage.ImageU(satmask.getBBox())
     satmaskim <<= satmask
     thresh = afwDetection.Threshold(0.5)
     fs = afwDetection.FootprintSet(satmaskim, thresh)
@@ -215,7 +215,7 @@ def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
     workmask = afwImage.MaskU(mask, True)
     workmask &= mask.getPlaneBitMask(maskName)
     thresh = afwDetection.Threshold(0.5)
-    maskimg = afwImage.ImageU(workmask.getBBox(afwImage.PARENT))
+    maskimg = afwImage.ImageU(workmask.getBBox())
     maskimg <<= workmask
     ds = afwDetection.FootprintSet(maskimg, thresh)
     fpList = ds.getFootprints()

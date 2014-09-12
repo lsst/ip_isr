@@ -21,7 +21,6 @@
 #
 import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
-import lsst.afw.cameraGeom as cameraGeom
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from . import isr
@@ -310,7 +309,7 @@ class IsrTask(pipeBase.CmdLineTask):
             self.darkCorrection(ccdExposure, sensorRef)
         
         for amp in ccd:
-            ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox(), afwImage.PARENT)
+            ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
 
             self.updateVariance(ampExposure, amp)
 
@@ -434,7 +433,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in]      amp         amplifier device data
         """
         maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox(), afwImage.PARENT)
+        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox())
         isr.makeThresholdMask(
             maskedImage = dataView,
             threshold = amp.getSaturation(),
@@ -521,10 +520,10 @@ class IsrTask(pipeBase.CmdLineTask):
         if not amp.getHasRawInfo():
             raise RuntimeError("This method must be executed on an amp with raw information.")
         maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox(), afwImage.PARENT)
+        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox())
 
         expImage = exposure.getMaskedImage().getImage()
-        overscanImage = expImage.Factory(expImage, amp.getRawHorizontalOverscanBBox(), afwImage.PARENT)
+        overscanImage = expImage.Factory(expImage, amp.getRawHorizontalOverscanBBox())
 
         isr.overscanCorrection(
             ampMaskedImage = dataView,
