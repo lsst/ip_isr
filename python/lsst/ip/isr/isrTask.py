@@ -206,7 +206,9 @@ class IsrTaskConfig(pexConfig.Config):
             "but camera-specific ISR tasks will override it",
         default = "raw",
     )
-
+    fallbackFilterName = pexConfig.Field(dtype=str,
+            doc="Fallback default filter name for calibrations", optional=True)
+ 
 ## \addtogroup LSST_task_documentation
 ## \{
 ## \page IsrTask
@@ -601,9 +603,17 @@ class IsrTask(pipeBase.CmdLineTask):
         \return exposure
         """
         try:
-            exp = dataRef.get(datasetType, immediate=immediate)
-        except Exception, e:
-            raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, e))
+            exp=dataRef.get(datasetType, immediate=immediate)
+        except:
+            try:
+                exp=dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
+                self.log.warn("Using fallback calibration from filter %s" % self.config.fallbackFilterName)
+            except Exception as e:
+                extraMessage = ''
+                if not self.config.fallbackFilterName:
+                    extraMessage += ' and no fallback filter specified'
+                raise RuntimeError("Unable to retrieve %s for %s%s: %s" % (datasetType, dataRef.dataId,
+                                                                            extraMessage, e))
         if self.config.doAssembleIsrExposures:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
