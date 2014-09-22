@@ -102,7 +102,7 @@ void fitOverscanImage(
         the following is the new way to do this
         **/
         afw::geom::Box2I bbox = afw::geom::Box2I(afw::geom::Point2I(0,y), afw::geom::Point2I(width,y));
-        MaskedImage mi         = MaskedImage(overscan, bbox, afw::image::PARENT);
+        MaskedImage mi         = MaskedImage(overscan, bbox);
         afw::math::Statistics stats = afw::math::makeStatistics(*(mi.getImage()), afw::math::MEAN | afw::math::STDEV);
 
         values[y]    = stats.getValue(afw::math::MEAN);

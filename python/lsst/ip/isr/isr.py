@@ -85,9 +85,9 @@ def calculateSdqaCcdRatings(maskedImage, metadata):
     badmask = afwImage.MaskU(mask, True)
     satmask &= satbitmask
     badmask &= badbitmask
-    satmaskim = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
+    satmaskim = afwImage.ImageU(satmask.getBBox())
     satmaskim <<= satmask
-    badmaskim = afwImage.ImageU(badmask.getBBox(afwImage.PARENT))
+    badmaskim = afwImage.ImageU(badmask.getBBox())
     badmaskim <<= badmask
     thresh = afwDetection.Threshold(0.5)
     fs = afwDetection.FootprintSet(satmaskim, thresh)
@@ -123,7 +123,7 @@ def calculateSdqaAmpRatings(maskedImage, metadata, biasBBox, dataBBox):
     sctrl.setAndMask(satbitmask)
     satmask = trimmi.getMask()
     satmask &= satbitmask
-    satmaskim = afwImage.ImageU(satmask.getBBox(afwImage.PARENT))
+    satmaskim = afwImage.ImageU(satmask.getBBox())
     satmaskim <<= satmask
     thresh = afwDetection.Threshold(0.5)
     fs = afwDetection.FootprintSet(satmaskim, thresh)
@@ -215,7 +215,7 @@ def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
     workmask = afwImage.MaskU(mask, True)
     workmask &= mask.getPlaneBitMask(maskName)
     thresh = afwDetection.Threshold(0.5)
-    maskimg = afwImage.ImageU(workmask.getBBox(afwImage.PARENT))
+    maskimg = afwImage.ImageU(workmask.getBBox())
     maskimg <<= workmask
     ds = afwDetection.FootprintSet(maskimg, thresh)
     fpList = ds.getFootprints()
@@ -295,9 +295,9 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
     @param[in]      expScale        exposure scale
     @param[in]      darkScale       dark scale
     """
-    if maskedImage.getBBox() != darkMaskedImage.getBBox():
+    if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != darkMaskedImage bbox %s" % \
-            (maskedImage.getBBox(), darkMaskedImage.getBBox()))
+            (maskedImage.getBBox(afwImage.LOCAL), darkMaskedImage.getBBox(afwImage.LOCAL)))
 
     scale = expScale / darkScale
     maskedImage.scaledMinus(scale, darkMaskedImage)
@@ -322,9 +322,9 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     @param[in]      scalingType     how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
     @param[in]      userScale       scale to use if scalingType is 'USER', else ignored
     """
-    if maskedImage.getBBox() != flatMaskedImage.getBBox():
+    if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != flatMaskedImage bbox %s" % \
-            (maskedImage.getBBox(), flatMaskedImage.getBBox()))
+            (maskedImage.getBBox(afwImage.LOCAL), flatMaskedImage.getBBox(afwImage.LOCAL)))
 
     # Figure out scale from the data
     # I'm not sure we should be doing this here, but maybe
@@ -346,9 +346,9 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
     @param[in]      illumMaskedImage illumination correction masked image
     @param[in]      illumScale      scale value for illumination correction
     """
-    if maskedImage.getBBox() != illumMaskedImage.getBBox():
+    if maskedImage.getBBox(afwImage.LOCAL) != illumMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != illumMaskedImage bbox %s" % \
-            (maskedImage.getBBox(), illumMaskedImage.getBBox()))
+            (maskedImage.getBBox(afwImage.LOCAL), illumMaskedImage.getBBox(afwImage.LOCAL)))
 
     maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
 

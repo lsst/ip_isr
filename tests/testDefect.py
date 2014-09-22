@@ -59,14 +59,14 @@ class DefectTestCases(unittest.TestCase):
             ]:
             bbox = afwGeom.Box2I(afwGeom.Point2I(x0, y0), afwGeom.Point2I(x1, y1))
             defectList.append(measAlg.Defect(bbox))
-            bad = ccdImage.Factory(ccdImage, bbox)
+            bad = ccdImage.Factory(ccdImage, bbox, afwImage.LOCAL)
             bad.set(100)
 
         ipIsr.maskPixelsFromDefectList(ccdImage, defectList, maskName='BAD')
         mask = ccdImage.getMask()
         bitMask = mask.getPlaneBitMask('BAD')
         for d in defectList:
-            bad = mask.Factory(mask, d.getBBox())
+            bad = mask.Factory(mask, d.getBBox(), afwImage.LOCAL)
             self.assertTrue((bad.getArray()&bitMask == bitMask).all())
 
         if display:
