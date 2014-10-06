@@ -78,7 +78,7 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
         fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict().keys():
         maskedImage.getMask.addMaskPlane('INTRP')
-    measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue)
+    measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
 
 def defectListFromFootprintList(fpList, growFootprints=1):
     """Compute a defect list from a footprint list, optionally growing the footprints
