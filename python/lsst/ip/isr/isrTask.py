@@ -433,7 +433,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in]      amp         amplifier device data
         """
         maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox())
+        dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
         isr.makeThresholdMask(
             maskedImage = dataView,
             threshold = amp.getSaturation(),
