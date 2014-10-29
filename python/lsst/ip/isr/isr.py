@@ -63,83 +63,6 @@ def transposeMaskedImage(maskedImage):
     maskarr = maskedImage.getMask().getArray().T.__copy__()
     return afwImage.makeMaskedImageFromArrays(imarr, maskarr, vararr)
 
-
-def calculateSdqaCcdRatings(maskedImage, metadata):
-    metrics = {}
-    metrics['nSaturatePix'] = 0
-    metrics['nBadCalibPix'] = 0
-    metrics['imageClipMean4Sig3Pass'] = None
-    metrics['imageSigma'] = None
-    metrics['imageMedian'] = None
-    metrics['imageMin'] = None
-    metrics['imageMax'] = None
-    mask = maskedImage.getMask()
-    badbitmask = mask.getPlaneBitMask('BAD')
-    satbitmask = mask.getPlaneBitMask('SAT')
-    intrpbitmask = mask.getPlaneBitMask('INTRP')
-    sctrl = afwMath.StatisticsControl()
-    sctrl.setNumIter(3)
-    sctrl.setNumSigmaClip(4)
-    sctrl.setAndMask(satbitmask | badbitmask | intrpbitmask)
-    satmask = afwImage.MaskU(mask, True)
-    badmask = afwImage.MaskU(mask, True)
-    satmask &= satbitmask
-    badmask &= badbitmask
-    satmaskim = afwImage.ImageU(satmask.getBBox())
-    satmaskim <<= satmask
-    badmaskim = afwImage.ImageU(badmask.getBBox())
-    badmaskim <<= badmask
-    thresh = afwDetection.Threshold(0.5)
-    fs = afwDetection.FootprintSet(satmaskim, thresh)
-    for f in fs.getFootprints():
-        metrics['nSaturatePix'] += f.getNpix()
-    fs = afwDetection.FootprintSet(badmaskim, thresh)
-    for f in fs.getFootprints():
-        metrics['nBadCalibPix'] += f.getNpix()
-    stats = afwMath.makeStatistics(maskedImage, afwMath.MEANCLIP | \
-        afwMath.STDEVCLIP | afwMath.MEDIAN | afwMath.MIN |\
-        afwMath.MAX, sctrl)
-    metrics['imageClipMean4Sig3Pass'] = stats.getValue(afwMath.MEANCLIP)
-    metrics['imageSigma'] = stats.getValue(afwMath.STDEVCLIP)
-    metrics['imageMedian'] = stats.getValue(afwMath.MEDIAN)
-    metrics['imageMin'] = stats.getValue(afwMath.MIN)
-    metrics['imageMax'] = stats.getValue(afwMath.MAX)
-    for k in metrics.keys():
-        metadata.set(k, metrics[k])
-
-def calculateSdqaAmpRatings(maskedImage, metadata, biasBBox, dataBBox):
-    metrics = {}
-    metrics['nSaturatePix'] = 0
-    metrics['overscanMean'] = None
-    metrics['overscanStdDev'] = None
-    metrics['overscanMedian'] = None
-    metrics['overscanMin'] = None
-    metrics['overscanMax'] = None
-    trimmi = afwImage.MaskedImageF(maskedImage, dataBBox, False)
-    biasmi = afwImage.MaskedImageF(maskedImage, biasBBox, False)
-    mask = maskedImage.getMask()
-    satbitmask = mask.getPlaneBitMask('SAT')
-    sctrl = afwMath.StatisticsControl()
-    sctrl.setAndMask(satbitmask)
-    satmask = trimmi.getMask()
-    satmask &= satbitmask
-    satmaskim = afwImage.ImageU(satmask.getBBox())
-    satmaskim <<= satmask
-    thresh = afwDetection.Threshold(0.5)
-    fs = afwDetection.FootprintSet(satmaskim, thresh)
-    for f in fs.getFootprints():
-        metrics['nSaturatePix'] += f.getNpix()
-    stats = afwMath.makeStatistics(biasmi, afwMath.MEAN | \
-        afwMath.STDEV | afwMath.MEDIAN | afwMath.MIN |\
-        afwMath.MAX,sctrl)
-    metrics['overscanMean'] = stats.getValue(afwMath.MEAN)
-    metrics['overscanStdDev'] = stats.getValue(afwMath.STDEV)
-    metrics['overscanMedian'] = stats.getValue(afwMath.MEDIAN)
-    metrics['overscanMin'] = stats.getValue(afwMath.MIN)
-    metrics['overscanMax'] = stats.getValue(afwMath.MAX)
-    for k in metrics.keys():
-        metadata.set(k, metrics[k])
-
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     """Interpolate over defects specified in a defect list
 
@@ -287,7 +210,7 @@ def biasCorrection(maskedImage, biasMaskedImage):
 
 def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
     """Apply dark correction in place
-    
+
     maskedImage -= dark * expScaling / darkScaling
 
     @param[in,out]  maskedImage     masked image to correct
@@ -336,7 +259,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
         flatScale = userScale
     else:
         raise pexExcept.Exception, '%s : %s not implemented' % ("flatCorrection", scalingType)
-    
+
     maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
 
 def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
@@ -450,30 +373,4 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         raise pexExcept.Exception, '%s : %s an invalid overscan type' % \
             ("overscanCorrection", fitType)
     ampImage -= offImage
-
-# def fringeCorrection(maskedImage, fringe):
-#     raise NotImplementedError()
-
-# def pupilCorrection(maskedImage, pupil):
-#     raise NotImplementedError()
-
-# class Linearization(object):
-#     def __init__(linearityFile=None):
-#         if linearityFile is not None:
-#             self.readFile(linearityFile)
-#         else:
-#             self.makeLinearReplace()
-#     def getImageFactoryFromExposure(exposure):
-#         return exposure.getMaskedImage().getImage().Factory
-#     def apply(exposure):
-#         self.getImageFactoryFromExposure(exposure)
-#         if type is "LUT":
-#             imageData = exposure.getMaskedImage(). 
-#         mi = exposure.getMaskedImage()
-#         	
-#     def readFile(filename):
-#     def writeFile(filename):
-#     def makeLinearReplace(self):
-#         self.type = 
-#     def makeLinearMult(self):
 
