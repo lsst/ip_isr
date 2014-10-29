@@ -60,6 +60,18 @@ def populateAmpBoxes(nx, ny, nprescan, nhoverscan, nvoverscan, nextended, flipx,
     ytot = allBox.getDimensions().getY()
     rShiftExt = afwGeom.ExtentI(ix*xtot, iy*ytot)
     if not isPerAmp:
+        #Set read corner in assembled coordinates
+        if flipx and flipy:
+            record.setReadoutCorner(afwTable.UR)
+        elif flipx and not flipy:
+            record.setReadoutCorner(afwTable.LR)
+        elif not flipx and flipy:
+            record.setReadoutCorner(afwTable.UL)
+        elif not flipx and not flipy:
+            record.setReadoutCorner(afwTable.LL)
+        else:
+            raise ValueError("Cannont determine read corner given flipx: %s, flipy: %s"%(flipx, flipy))
+
         allBox.shift(rShiftExt)
 
         if flipx:
@@ -86,23 +98,12 @@ def populateAmpBoxes(nx, ny, nprescan, nhoverscan, nvoverscan, nextended, flipx,
         rawYoff = 0
 
     else:
+        record.setReadoutCorner(afwTable.LL)
         rawXoff = rShiftExt.getX()
         rawYoff = rShiftExt.getY()
 
     record.setBBox(bbox)
     record.setName("A:%i,%i"%(ix, iy))
-
-    #The readout corner is in the assemble coordinates
-    if flipx and flipy:
-        record.setReadoutCorner(afwTable.UR)
-    elif flipx and not flipy:
-        record.setReadoutCorner(afwTable.LR)
-    elif not flipx and flipy:
-        record.setReadoutCorner(afwTable.UL)
-    elif not flipx and not flipy:
-        record.setReadoutCorner(afwTable.LL)
-    else:
-        raise ValueError("Cannont determine read corner given flipx: %s, flipy: %s"%(flipx, flipy))
 
     record.setGain(1.)
     record.setSaturation(100000)
