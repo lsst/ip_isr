@@ -277,7 +277,7 @@ class IsrTask(pipeBase.CmdLineTask):
     @pipeBase.timeMethod
     def run(self, sensorRef):
         """!Perform instrument signature removal on an exposure
-        
+
         Steps include:
         - Detect saturation, apply overscan correction, bias, dark and flat
         - Perform CCD assembly
@@ -291,23 +291,23 @@ class IsrTask(pipeBase.CmdLineTask):
         self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')
         ccd = ccdExposure.getDetector()
-    
+
         ccdExposure = self.convertIntToFloat(ccdExposure)
         for amp in ccd:
             self.saturationDetection(ccdExposure, amp)
 
             self.overscanCorrection(ccdExposure, amp)
-        
+
         ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
-        
+
         ccd = ccdExposure.getDetector()
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, sensorRef)
-        
+
         if self.config.doDark:
             self.darkCorrection(ccdExposure, sensorRef)
-        
+
         for amp in ccd:
             ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
 
@@ -316,26 +316,26 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doFringe and not self.config.fringeAfterFlat:
             self.fringe.run(ccdExposure, sensorRef,
                             assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
-        
+
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, sensorRef)
 
         defects = sensorRef.get('defects')
         self.maskAndInterpDefect(ccdExposure, defects)
-        
+
         self.saturationInterpolation(ccdExposure)
-        
+
         self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.fringe.run(ccdExposure, sensorRef,
                             assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
-        
+
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
         if self.config.doWrite:
             sensorRef.put(ccdExposure, "postISRCCD")
-        
+
         self.display("postISRCCD", ccdExposure)
 
         return pipeBase.Struct(
@@ -361,7 +361,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     def biasCorrection(self, exposure, dataRef):
         """!Apply bias correction in place
-    
+
         \param[in,out]  exposure        exposure to process
         \param[in]      dataRef         data reference at same level as exposure
         """
@@ -370,7 +370,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     def darkCorrection(self, exposure, dataRef):
         """!Apply dark correction in place
-    
+
         \param[in,out]  exposure        exposure to process
         \param[in]      dataRef         data reference at same level as exposure
         """
@@ -382,10 +382,10 @@ class IsrTask(pipeBase.CmdLineTask):
             expScale = exposure.getCalib().getExptime(),
             darkScale = darkCalib.getExptime(),
         )
-    
+
     def updateVariance(self, ampExposure, amp):
         """!Set the variance plane based on the image plane, plus amplifier gain and read noise
-        
+
         \param[in,out]  ampExposure     exposure to process
         \param[in]      amp             amplifier detector information
         """
@@ -397,7 +397,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     def flatCorrection(self, exposure, dataRef):
         """!Apply flat correction in place
-    
+
         \param[in,out]  exposure        exposure to process
         \param[in]      dataRef         data reference at same level as exposure
         """
@@ -428,7 +428,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     def saturationDetection(self, exposure, amp):
         """!Detect saturated pixels and mask them using mask plane "SAT", in place
-        
+
         \param[in,out]  exposure    exposure to process; only the amp DataSec is processed
         \param[in]      amp         amplifier device data
         """
@@ -443,7 +443,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     def saturationInterpolation(self, ccdExposure):
         """!Interpolate over saturated pixels, in place
-        
+
         \param[in,out]  ccdExposure     exposure to process
 
         \warning:
@@ -456,13 +456,13 @@ class IsrTask(pipeBase.CmdLineTask):
             growFootprints = self.config.growSaturationFootprintSize,
             maskName = self.config.saturatedMaskName,
         )
-    
+
     def maskAndInterpDefect(self, ccdExposure, defectBaseList):
         """!Mask defects using mask plane "BAD" and interpolate over them, in place
 
         \param[in,out]  ccdExposure     exposure to process
         \param[in] defectBaseList a list of defects to mask and interpolate
-        
+
         \warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
         maskedImage = ccdExposure.getMaskedImage()
@@ -490,7 +490,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in,out]  exposure        exposure to process
         """
         maskedImage = exposure.getMaskedImage()
-        
+
         # Find and mask NaNs
         maskedImage.getMask().addMaskPlane("UNMASKEDNAN") 
         maskVal = maskedImage.getMask().getPlaneBitMask("UNMASKEDNAN")

@@ -1,6 +1,7 @@
 from lsst.ip.isr import IsrTask
 import lsst.afw.display.ds9 as ds9
 import exampleUtils
+import sys
 
 def runIsr():
     '''Run the task to do ISR on a ccd'''
@@ -36,3 +37,4 @@ if __name__ == "__main__":
     exposure = runIsr()
     if args.displayResult:
         ds9.mtv(exposure.getMaskedImage())
+        ds9.scale(min=4990., max=5010., type='SQRT')
