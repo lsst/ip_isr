@@ -2,7 +2,7 @@ import numpy
 
 from lsst.afw.cameraGeom import DetectorConfig, PIXELS
 from lsst.afw.cameraGeom.cameraFactory import makeDetector
-from lsst.ip.isr import AssembleCcdTask
+import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.geom as afwGeom
 import lsst.afw.coord as afwCoord
 import lsst.afw.table as afwTable
@@ -170,19 +170,6 @@ def createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAm
     plateScale = 1.
     return makeDetector(detConfig, ampCatalog, fpTransform, plateScale)
 
-def makeFakeAmp(amp):
-    '''!Make an image that of an amp in with the serial register along the x-direction
-    and the parallel direction along the y-axis.  Mark the location of the first pixel read.
-    \param[in] amp -- lsst.afw.table.AmpInfoTable containing the amp information
-    \return an image of the amp with the science pixels set to the gain value.
-    '''
-    im = afwImage.ImageF(amp.getRawBBox().getDimensions())
-    im.set(amp.getGain())
-    markBox = afwGeom.BoxI(amp.getRawDataBBox().getMin(), afwGeom.ExtentI(10, 10))
-    subim = afwImage.ImageF(im, markBox)
-    subim.set(0)
-    return im
-
 def makeFakeWcs():
     '''!Make a wcs to put in an exposure
     \return a Wcs object
@@ -190,21 +177,25 @@ def makeFakeWcs():
     return afwImage.makeWcs(afwCoord.IcrsCoord(45.0*afwGeom.degrees, 45.0*afwGeom.degrees),
                            afwGeom.Point2D(0.0, 0.0), 1.0, 0.0, 0.0, 1.0)
 
+def makeExpFromIm(im, detector):
+    wcs = makeFakeWcs()
+    var = afwImage.ImageF(im)
+    mask = afwImage.MaskU(im.getDimensions())
+    mi = afwImage.makeMaskedImage(im, mask, var)
+    exp = afwImage.makeExposure(mi)
+    exp.setDetector(detector)
+    exp.setWcs(wcs)
+    return exp
+
 def makeAmpInput(detector):
     '''!Make a dictionary of amp images for assembly
     \param[in] detector -- An lsst.afw.cameraGeom.Detector describing the detector to create
     \return a dictionary of amp exposures keyed on the amp names
     '''
     inputData = {}
-    wcs = makeFakeWcs()
     for amp in detector:
-        im = makeFakeAmp(amp)
-        var = afwImage.ImageF(im)
-        mask = afwImage.MaskU(im.getDimensions())
-        mi = afwImage.makeMaskedImage(im, mask, var)
-        exp = afwImage.makeExposure(mi)
-        exp.setDetector(detector)
-        exp.setWcs(wcs)
+        im = cameraGeomUtils.makeImageFromAmp(amp, imageFactory=afwImage.ImageF)
+        exp = makeExpFromIm(im, detector)
         inputData[amp.getName()] = exp
     return inputData
 
@@ -237,20 +228,14 @@ def makeAssemblyInput(isPerAmp, doTrim=False):
     #number of pixels in the extended register
     ext = 1
 
-    #First get the per amp input data and assemble if necessary
-    detector = createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, True)
-    inputData = makeAmpInput(detector)
-    if not isPerAmp:
-        assembleConfig = AssembleCcdTask.ConfigClass()
-        assembleConfig.doTrim = doTrim #Preserve non-science pixels
-        assembleTask = AssembleCcdTask(config=assembleConfig)
-        ccdAssemblyInput = assembleTask.assembleCcd(inputData)
-        #create a detector describing a mosaiced amp grid and set it on output data
-        detector = createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAmp)
+    detector = createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAmp)
+    if isPerAmp:
+        return makeAmpInput(detector)
+    else:
+        im = cameraGeomUtils.makeImageFromCcd(detector, isTrimmed=doTrim, imageFactory=afwImage.ImageF)
+        ccdAssemblyInput = makeExpFromIm(im, detector)
         ccdAssemblyInput.setDetector(detector)
         return ccdAssemblyInput
-    else:
-        return inputData
 
 def makeRaw(darkval, oscan, gradient, exptime):
     '''!Make a raw image for input to ISR
