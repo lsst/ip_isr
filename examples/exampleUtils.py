@@ -101,6 +101,9 @@ def populateAmpBoxes(nx, ny, nprescan, nhoverscan, nvoverscan, nextended, flipx,
         rawYoff = 0
 
     else:
+        #We assume that single amp images have the first pixel read in the
+        #lower left and that the pixels are arrange such that the
+        #serial is along the x-axis.
         record.setReadoutCorner(afwTable.LL)
         rawXoff = rShiftExt.getX()
         rawYoff = rShiftExt.getY()
