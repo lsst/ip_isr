@@ -74,7 +74,7 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     """
     psf = createPsf(fwhm)
     if fallbackValue is None:
-        fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
+        fallbackValue = afwMath.makeStatistics(maskedImage, afwMath.MEANCLIP).getValue()
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict().keys():
         maskedImage.getMask.addMaskPlane('INTRP')
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue)
