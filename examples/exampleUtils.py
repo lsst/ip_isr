@@ -8,6 +8,18 @@ import lsst.afw.coord as afwCoord
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 
+def getReadCorner(flipx, flipy):
+    """Get the read corner from flips of the pixel grid
+    \param[in] flipx: Flip the x-axis?
+    \param[in] flipy: Flip the y-axis?
+    \return The read corner in assembled coordinates.
+    """
+    cornerMap = {(True, True):afwTable.UR,
+                 (True, False):afwTable.LR,
+                 (False, True):afwTable.UL,
+                 (False, False):afwTable.LL}
+    return cornerMap[(bool(flipx), bool(flipy))]
+
 def populateAmpBoxes(nx, ny, nprescan, nhoverscan, nvoverscan, nextended, flipx, flipy, ix, iy,
                       isPerAmp, record):
     '''!Fill ampInfo tables
@@ -61,16 +73,7 @@ def populateAmpBoxes(nx, ny, nprescan, nhoverscan, nvoverscan, nextended, flipx,
     rShiftExt = afwGeom.ExtentI(ix*xtot, iy*ytot)
     if not isPerAmp:
         #Set read corner in assembled coordinates
-        if flipx and flipy:
-            record.setReadoutCorner(afwTable.UR)
-        elif flipx and not flipy:
-            record.setReadoutCorner(afwTable.LR)
-        elif not flipx and flipy:
-            record.setReadoutCorner(afwTable.UL)
-        elif not flipx and not flipy:
-            record.setReadoutCorner(afwTable.LL)
-        else:
-            raise ValueError("Cannont determine read corner given flipx: %s, flipy: %s"%(flipx, flipy))
+        record.setReadoutCorner(getReadCorner(flipx, flipy))
 
         allBox.shift(rShiftExt)
 
