@@ -1,6 +1,6 @@
 #
 # LSST Data Management System
-# Copyright 2008, 2009, 2010 LSST Corporation.
+# Copyright 2008-2015 LSST Corporation.
 #
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -138,10 +138,15 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "fields to remove from the metadata of the assembled ccd.",
         default = [],
     )
-    doAssembleDetrends = pexConfig.Field(
+    doAssembleIsrExposures = pexConfig.Field(
         dtype = bool,
         default = False,
-        doc = "Assemble detrend/calibration frames?"
+        doc = "Assemble amp-level calibration exposures into ccd-level exposure?"
+        )
+    doAssembleCcd = pexConfig.Field(
+        dtype = bool,
+        default = True,
+        doc = "Assemble amp-level exposures into a ccd-level exposure?"
         )
 
 ## \addtogroup LSST_task_documentation
@@ -169,19 +174,21 @@ class IsrTask(pipeBase.CmdLineTask):
     \section ip_isr_isr_Purpose Description
 
     The process for correcting imaging data is very similar from camera to camera.
-    This task provides a vanilla implementation of doing these corrections, including 
-    the ability to turn certain corrections off if they are not needed.  The input
-    is a daf.persistence.butlerSubset.ButlerDataRef.  The data reference can return
-    the raw input and all the calibration products.  The raw input is a single chip
-    sized mosaic of all amps including overscans and other non-science pixels. This
-    task may not meet all needs and it is expected that it will be subclassed for specific
-    applications.
+    This task provides a vanilla implementation of doing these corrections, including
+    the ability to turn certain corrections off if they are not needed.
+    The inputs to the primary method, run, are a raw exposure to be corrected and the
+    calibration data products. The raw input is a single chip sized mosaic of all amps
+    including overscans and other non-science pixels.
+    The method runDataRef() is intended for use by a lsst.pipe.base.cmdLineTask.CmdLineTask
+    and takes as input only a daf.persistence.butlerSubset.ButlerDataRef.
+    This task may not meet all needs and it is expected that it will be subclassed for
+    specific applications.
 
     \section ip_isr_isr_Initialize Task initialization
 
     \copydoc \_\_init\_\_
 
-    \section ip_isr_isr_IO Inputs/Outputs to the assembleCcd method
+    \section ip_isr_isr_IO Inputs/Outputs to the run method
 
     \copydoc run
 
@@ -240,7 +247,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     Now make the fake data reference and run it through ISR.
     \skip sensorRef
-    \until isrTask.run
+    \until isrTask.runDataRef
 
     <HR>
     To investigate the \ref ip_isr_isr_Debug, put something like
@@ -274,53 +281,88 @@ class IsrTask(pipeBase.CmdLineTask):
         self.makeSubtask("assembleCcd")
         self.makeSubtask("fringe")
 
+
+    def readIsrData(self, dataRef):
+        """!Retrieve necessary frames for instrument signature removal
+        \param[in] dataRef -- a daf.persistence.butlerSubset.ButlerDataRef
+                              of the detector data to be processed
+        \return a pipeBase.Struct with fields containing kwargs expected by run()
+         - bias: exposure of bias frame
+         - dark: exposure of dark frame
+         - flat: exposure of flat field
+         - defects: list of detects
+         - fringes: exposure of fringe frame or list of fringe exposure
+        """
+        biasExposure = self.getIsrExposure(dataRef, "bias") if self.config.doBias else None
+        darkExposure = self.getIsrExposure(dataRef, "dark") if self.config.doDark else None
+        flatExposure = self.getIsrExposure(dataRef, "flat") if self.config.doFlat else None
+
+        defectList = dataRef.get("defects")
+
+        if self.config.doFringe:
+            fringes = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
+                                              if self.config.doAssembleIsrExposures else None)
+        else:
+            fringes = None
+
+        #Struct should include only kwargs to run()
+        return pipeBase.Struct(bias = biasExposure,
+                               dark = darkExposure,
+                               flat = flatExposure,
+                               defects = defectList,
+                               fringes = fringes,
+                               )
+
     @pipeBase.timeMethod
-    def run(self, sensorRef):
+    def run(self, ccdExposure, bias=None, dark=None,  flat=None, defects=None, fringes=None):
         """!Perform instrument signature removal on an exposure
 
         Steps include:
         - Detect saturation, apply overscan correction, bias, dark and flat
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and all NaNs
-        - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
-        \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the detector data to be processed
-        \return a pipeBase.Struct with fields:
-        - exposure: the exposure after application of ISR
+        \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data
+        \param[in] bias -- exposure of bias frame
+        \param[in] dark -- exposure of dark frame
+        \param[in] flat -- exposure of flatfield
+        \param[in] defects -- list of detects
+        \param[in] fringes -- exposure of fringe frame or list of fringe exposure
+
+        \return a pipeBase.Struct with field:
+         - exposure
         """
-        self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
-        ccdExposure = sensorRef.get('raw')
-        ccd = ccdExposure.getDetector()
 
+        ccd = ccdExposure.getDetector()
         ccdExposure = self.convertIntToFloat(ccdExposure)
+
         for amp in ccd:
-            self.saturationDetection(ccdExposure, amp)
+            #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
+            if ccdExposure.getBBox().contains(amp.getBBox()):
+                self.saturationDetection(ccdExposure, amp)
+                self.overscanCorrection(ccdExposure, amp)
 
-            self.overscanCorrection(ccdExposure, amp)
-
-        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
-
-        ccd = ccdExposure.getDetector()
+        if self.config.doAssembleCcd:
+            ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
         if self.config.doBias:
-            self.biasCorrection(ccdExposure, sensorRef)
+            self.biasCorrection(ccdExposure, bias)
 
         if self.config.doDark:
-            self.darkCorrection(ccdExposure, sensorRef)
+            self.darkCorrection(ccdExposure, dark)
 
         for amp in ccd:
-            ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-
-            self.updateVariance(ampExposure, amp)
+            #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
+            if ccdExposure.getBBox().contains(amp.getBBox()):
+                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                self.updateVariance(ampExposure, amp)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, sensorRef,
-                            assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
+            self.fringe.removeFringe(ccdExposure, fringes)
 
         if self.config.doFlat:
-            self.flatCorrection(ccdExposure, sensorRef)
+            self.flatCorrection(ccdExposure, flat)
 
-        defects = sensorRef.get('defects')
         self.maskAndInterpDefect(ccdExposure, defects)
 
         self.saturationInterpolation(ccdExposure)
@@ -328,10 +370,33 @@ class IsrTask(pipeBase.CmdLineTask):
         self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, sensorRef,
-                            assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
+            self.fringe.removeFringe(ccdExposure, fringes)
 
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
+
+        return pipeBase.Struct(
+            exposure = ccdExposure,
+        )
+
+
+    @pipeBase.timeMethod
+    def runDataRef(self, sensorRef):
+        """!Perform instrument signature removal on a ButlerDataRef of a Sensor
+
+        - Read in necessary detrending/isr/calibration data
+        - Process raw exposure in run()
+        - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
+
+        \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the
+                                detector data to be processed
+        \return a pipeBase.Struct with fields:
+        - exposure: the exposure after application of ISR
+        """
+        self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
+        ccdExposure = sensorRef.get('raw')
+        isrData = self.readIsrData(sensorRef)
+
+        ccdExposure = self.run(ccdExposure, **isrData.getDict()).exposure
 
         if self.config.doWrite:
             sensorRef.put(ccdExposure, "postISRCCD")
@@ -359,22 +424,20 @@ class IsrTask(pipeBase.CmdLineTask):
         maskArray[:,:] = 0
         return newexposure
 
-    def biasCorrection(self, exposure, dataRef):
+    def biasCorrection(self, exposure, biasExposure):
         """!Apply bias correction in place
 
         \param[in,out]  exposure        exposure to process
-        \param[in]      dataRef         data reference at same level as exposure
+        \param[in]      biasExposure    bias exposure of same size as exposure
         """
-        bias = self.getDetrend(dataRef, "bias")
-        isr.biasCorrection(exposure.getMaskedImage(), bias.getMaskedImage())
+        isr.biasCorrection(exposure.getMaskedImage(), biasExposure.getMaskedImage())
 
-    def darkCorrection(self, exposure, dataRef):
+    def darkCorrection(self, exposure, darkExposure):
         """!Apply dark correction in place
 
         \param[in,out]  exposure        exposure to process
-        \param[in]      dataRef         data reference at same level as exposure
+        \param[in]      darkExposure    dark exposure of same size as exposure
         """
-        darkExposure = self.getDetrend(dataRef, "dark")
         darkCalib = darkExposure.getCalib()
         isr.darkCorrection(
             maskedImage = exposure.getMaskedImage(),
@@ -395,34 +458,33 @@ class IsrTask(pipeBase.CmdLineTask):
             readNoise = amp.getReadNoise(),
         )
 
-    def flatCorrection(self, exposure, dataRef):
+    def flatCorrection(self, exposure, flatExposure):
         """!Apply flat correction in place
 
         \param[in,out]  exposure        exposure to process
-        \param[in]      dataRef         data reference at same level as exposure
+        \param[in]      flatExposure    flatfield exposure same size as exposure
         """
-        flatfield = self.getDetrend(dataRef, "flat")
         isr.flatCorrection(
             maskedImage = exposure.getMaskedImage(),
-            flatMaskedImage = flatfield.getMaskedImage(),
+            flatMaskedImage = flatExposure.getMaskedImage(),
             scalingType = self.config.flatScalingType,
             userScale = self.config.flatUserScale,
         )
 
-    def getDetrend(self, dataRef, detrend, immediate=True):
-        """!Get a detrend exposure
+    def getIsrExposure(self, dataRef, datasetType, immediate=True):
+        """!Retrieve a calibration dataset for removing instrument signature
 
         \param[in]      dataRef         data reference for exposure
-        \param[in]      detrend         detrend/calibration to read
+        \param[in]      datasetType     type of dataset to retrieve (e.g. 'bias', 'flat')
         \param[in]      immediate       if True, disable butler proxies to enable error
                                         handling within this routine
-        \return Detrend exposure
+        \return exposure
         """
         try:
-            exp = dataRef.get(detrend, immediate=immediate)
+            exp = dataRef.get(datasetType, immediate=immediate)
         except Exception, e:
-            raise RuntimeError("Unable to retrieve %s for %s: %s" % (detrend, dataRef.dataId, e))
-        if self.config.doAssembleDetrends:
+            raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, e))
+        if self.config.doAssembleIsrExposures:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
 

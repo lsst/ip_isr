@@ -209,6 +209,9 @@ def biasCorrection(maskedImage, biasMaskedImage):
     @param[in,out] maskedImage  masked image to correct
     @param[in] biasMaskedImage  bias, as a masked image
     """
+    if maskedImage.getBBox(afwImage.LOCAL) != biasMaskedImage.getBBox(afwImage.LOCAL):
+        raise RuntimeError("maskedImage bbox %s != biasMaskedImage bbox %s" % \
+            (maskedImage.getBBox(afwImage.LOCAL), biasMaskedImage.getBBox(afwImage.LOCAL)))
     maskedImage -= biasMaskedImage
 
 def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
