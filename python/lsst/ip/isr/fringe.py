@@ -69,6 +69,13 @@ class FringeTask(Task):
 
     @timeMethod
     def run(self, exposure, dataRef, assembler=None):
+        if not self.checkFilter(exposure):
+            return
+        fringes = self.readFringes(dataRef, assembler=assembler)
+        self.removeFringe(exposure, fringes, assembler=assembler)
+
+    @timeMethod
+    def removeFringe(self, exposure, fringes, assembler=None):
         """Remove fringes from the provided science exposure
 
         Fringes are only subtracted if the science exposure has a filter
@@ -83,7 +90,6 @@ class FringeTask(Task):
 
         if not self.checkFilter(exposure):
             return
-        fringes = self.readFringes(dataRef, assembler=assembler)
         expFringes = self.measureExposure(exposure, fringes.positions, title="Science")
         solution = self.solve(expFringes, fringes.fluxes)
         self.subtract(exposure, fringes.fringes, solution)

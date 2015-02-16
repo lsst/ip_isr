@@ -1,6 +1,6 @@
 #
 # LSST Data Management System
-# Copyright 2008, 2009, 2010 LSST Corporation.
+# Copyright 2008-2015 LSST Corporation.
 #
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -274,56 +274,72 @@ class IsrTask(pipeBase.CmdLineTask):
         self.makeSubtask("assembleCcd")
         self.makeSubtask("fringe")
 
+
+    def readDetrendData(self, dataRef):
+        biasExposure = self.getDetrend(dataRef, "bias") if self.config.doBias else None
+        darkExposure = self.getDetrend(dataRef, "dark") if self.config.doDark else None
+        flatExposure = self.getDetrend(dataRef, "flat") if self.config.doFlat else None
+        defectList = dataRef.get("defects")
+
+        if self.config.doFringe:
+            fringes = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
+                                              if self.config.doAssembleDetrends else None)
+        else:
+            fringes = None
+
+        return {"biasExposure": biasExposure,
+                "darkExposure": darkExposure,
+                "flatExposure": flatExposure,
+                "defects": defectList,
+                "fringes": fringes,
+                 }
+
     @pipeBase.timeMethod
-    def run(self, sensorRef):
-        """!Perform instrument signature removal on an exposure
+    def doIsr(self, ccdExposure, biasExposure=None, darkExposure=None,  flatExposure=None,
+              defects=None, fringes=None):
+        """!Perform instrument signature removal on an exposure in place
 
         Steps include:
         - Detect saturation, apply overscan correction, bias, dark and flat
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and all NaNs
-        - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
-        \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the detector data to be processed
-        \return a pipeBase.Struct with fields:
-        - exposure: the exposure after application of ISR
+       \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data 
+       \param[in] biasExposure -- exposure of bias frame
+       \param[in] darkExposure -- exposure of dark frame
+       \param[in] flatExposure -- exposure of flatfield
+       \param[in] defects -- defects
+       \param[in] fringes -- fringes
         """
-        self.log.log(self.log.INFO, "Performing ISR on sensor %s" % (sensorRef.dataId))
-        ccdExposure = sensorRef.get('raw')
-        ccd = ccdExposure.getDetector()
 
+        ccd = ccdExposure.getDetector()
         ccdExposure = self.convertIntToFloat(ccdExposure)
+
         for amp in ccd:
             self.saturationDetection(ccdExposure, amp)
-
             self.overscanCorrection(ccdExposure, amp)
 
         ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
+        #why do we getDetector() again?
         ccd = ccdExposure.getDetector()
 
         if self.config.doBias:
-            biasExposure = self.getDetrend(sensorRef, "bias")
             self.biasCorrection(ccdExposure, biasExposure)
 
         if self.config.doDark:
-            darkExposure = self.getDetrend(sensorRef, "dark")
             self.darkCorrection(ccdExposure, darkExposure)
 
         for amp in ccd:
             ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-
             self.updateVariance(ampExposure, amp)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, sensorRef,
-                            assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
+            self.fringe.removeFringe(ccdExposure, fringes)
 
         if self.config.doFlat:
-            flatExposure = self.getDetrend(sensorRef, "flat")
             self.flatCorrection(ccdExposure, flatExposure)
 
-        defects = sensorRef.get('defects')
         self.maskAndInterpDefect(ccdExposure, defects)
 
         self.saturationInterpolation(ccdExposure)
@@ -331,10 +347,32 @@ class IsrTask(pipeBase.CmdLineTask):
         self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, sensorRef,
-                            assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
+            self.fringe.removeFringe(ccdExposure, fringes)
 
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
+
+        return pipeBase.Struct(
+            exposure = ccdExposure,
+        )
+
+
+    @pipeBase.timeMethod
+    def run(self, sensorRef):
+        """!Perform instrument signature removal on a ButlerDataRef of a Sensor
+
+        - Read in necessary detrending/calibration data
+        - Process raw exposure in place in doIsr()
+        - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
+
+        \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the detector data to be processed
+        \return a pipeBase.Struct with fields:
+        - exposure: the exposure after application of ISR
+        """
+        self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
+        ccdExposure = sensorRef.get('raw')
+        detrendData = self.readDetrendData(sensorRef)
+
+        ccdExposure = self.doIsr(ccdExposure, **detrendData).exposure
 
         if self.config.doWrite:
             sensorRef.put(ccdExposure, "postISRCCD")
