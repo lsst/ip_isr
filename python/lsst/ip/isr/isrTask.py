@@ -303,10 +303,12 @@ class IsrTask(pipeBase.CmdLineTask):
         ccd = ccdExposure.getDetector()
 
         if self.config.doBias:
-            self.biasCorrection(ccdExposure, sensorRef)
+            biasExposure = self.getDetrend(sensorRef, "bias")
+            self.biasCorrection(ccdExposure, biasExposure)
 
         if self.config.doDark:
-            self.darkCorrection(ccdExposure, sensorRef)
+            darkExposure = self.getDetrend(sensorRef, "dark")
+            self.darkCorrection(ccdExposure, darkExposure)
 
         for amp in ccd:
             ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
@@ -318,7 +320,8 @@ class IsrTask(pipeBase.CmdLineTask):
                             assembler=self.assembleCcd if self.config.doAssembleDetrends else None)
 
         if self.config.doFlat:
-            self.flatCorrection(ccdExposure, sensorRef)
+            flatExposure = self.getDetrend(sensorRef, "flat")
+            self.flatCorrection(ccdExposure, flatExposure)
 
         defects = sensorRef.get('defects')
         self.maskAndInterpDefect(ccdExposure, defects)
@@ -359,22 +362,20 @@ class IsrTask(pipeBase.CmdLineTask):
         maskArray[:,:] = 0
         return newexposure
 
-    def biasCorrection(self, exposure, dataRef):
+    def biasCorrection(self, exposure, biasExposure):
         """!Apply bias correction in place
 
         \param[in,out]  exposure        exposure to process
-        \param[in]      dataRef         data reference at same level as exposure
+        \param[in]      biasExposure    bias exposure of same size as exposure
         """
-        bias = self.getDetrend(dataRef, "bias")
-        isr.biasCorrection(exposure.getMaskedImage(), bias.getMaskedImage())
+        isr.biasCorrection(exposure.getMaskedImage(), biasExposure.getMaskedImage())
 
-    def darkCorrection(self, exposure, dataRef):
+    def darkCorrection(self, exposure, darkExposure):
         """!Apply dark correction in place
 
         \param[in,out]  exposure        exposure to process
-        \param[in]      dataRef         data reference at same level as exposure
+        \param[in]      darkExposure    dark exposure of same size as exposure
         """
-        darkExposure = self.getDetrend(dataRef, "dark")
         darkCalib = darkExposure.getCalib()
         isr.darkCorrection(
             maskedImage = exposure.getMaskedImage(),
@@ -395,16 +396,15 @@ class IsrTask(pipeBase.CmdLineTask):
             readNoise = amp.getReadNoise(),
         )
 
-    def flatCorrection(self, exposure, dataRef):
+    def flatCorrection(self, exposure, flatExposure):
         """!Apply flat correction in place
 
         \param[in,out]  exposure        exposure to process
-        \param[in]      dataRef         data reference at same level as exposure
+        \param[in]      flatExposure    flatfield exposure same size as exposure
         """
-        flatfield = self.getDetrend(dataRef, "flat")
         isr.flatCorrection(
             maskedImage = exposure.getMaskedImage(),
-            flatMaskedImage = flatfield.getMaskedImage(),
+            flatMaskedImage = flatExposure.getMaskedImage(),
             scalingType = self.config.flatScalingType,
             userScale = self.config.flatUserScale,
         )
