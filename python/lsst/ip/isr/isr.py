@@ -58,10 +58,11 @@ def transposeMaskedImage(maskedImage):
     @param[in] maskedImage  afw.image.MaskedImage to process
     @return transposed masked image
     """
-    imarr = maskedImage.getImage().getArray().T.__copy__()
-    vararr = maskedImage.getVariance().getArray().T.__copy__()
-    maskarr = maskedImage.getMask().getArray().T.__copy__()
-    return afwImage.makeMaskedImageFromArrays(imarr, maskarr, vararr)
+    transposed = maskedImage.Factory(afwGeom.Extent2I(maskedImage.getHeight(), maskedImage.getWidth()))
+    transposed.getImage().getArray()[:] = maskedImage.getImage().getArray().T
+    transposed.getMask().getArray()[:] = maskedImage.getMask().getArray().T
+    transposed.getVariance().getArray()[:] = maskedImage.getVariance().getArray().T
+    return transposed
 
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     """Interpolate over defects specified in a defect list
@@ -77,7 +78,7 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
         fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict().keys():
         maskedImage.getMask.addMaskPlane('INTRP')
-    measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue)
+    measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
 
 def defectListFromFootprintList(fpList, growFootprints=1):
     """Compute a defect list from a footprint list, optionally growing the footprints
@@ -278,7 +279,8 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
 
     maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
 
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0):
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0,
+                       statControl=None):
     """Apply overscan correction in place
 
     @param[in,out] ampMaskedImage  masked image to correct
@@ -293,14 +295,22 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
     @param[in] order  polynomial order or spline knots (ignored unless fitType
                       indicates a polynomial or spline)
     @param[in] collapseRej  Rejection threshold (sigma) for collapsing dimension of overscan
+    @param[in] statControl  Statistics control object
     """
     ampImage = ampMaskedImage.getImage()
+    if statControl is None:
+        statControl = afwMath.StatisticsControl()
     if fitType == 'MEAN':
-        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN).getValue(afwMath.MEAN)
+        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN, statControl).getValue(afwMath.MEAN)
     elif fitType == 'MEDIAN':
-        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN, statControl).getValue(afwMath.MEDIAN)
     elif fitType in ('POLY', 'CHEB', 'LEG', 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
-        biasArray = overscanImage.getArray()
+        if hasattr(overscanImage, "getImage"):
+            biasArray = overscanImage.getImage().getArray()
+            biasArray = numpy.ma.masked_where(overscanImage.getMask().getArray() & statControl.getAndMask(),
+                                              biasArray)
+        else:
+            biasArray = overscanImage.getArray()
         # Fit along the long axis, so collapse along each short row and fit the resulting array
         shortInd = numpy.argmin(biasArray.shape)
         if shortInd == 0:
@@ -335,14 +345,27 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         elif 'SPLINE' in fitType:
             # An afw interpolation
             numBins = order
-            numPerBin, binEdges = numpy.histogram(indices, bins=numBins, weights=numpy.ones_like(collapsed))
+            #
+            # numpy.histogram needs a real array for the mask, but numpy.ma "optimises" the case
+            # no-values-are-masked by replacing the mask array by a scalar, numpy.ma.nomask
+            #
+            # Issue DM-415
+            #
+            collapsedMask = collapsed.mask
+            try:
+                if collapsedMask == numpy.ma.nomask:
+                    collapsedMask = numpy.array(len(collapsed)*[numpy.ma.nomask])
+            except ValueError:      # If collapsedMask is an array the test fails [needs .all()]
+                pass
+
+            numPerBin, binEdges = numpy.histogram(indices, bins=numBins,
+                                                  weights=1-collapsedMask.astype(int))
             # Binning is just a histogram, with weights equal to the values.
             # Use a similar trick to get the bin centers (this deals with different numbers per bin).
             values = numpy.histogram(indices, bins=numBins, weights=collapsed)[0]/numPerBin
             binCenters = numpy.histogram(indices, bins=numBins, weights=indices)[0]/numPerBin
-
-            interp = afwMath.makeInterpolate(tuple(binCenters.astype(float)),
-                                             tuple(values.astype(float)),
+            interp = afwMath.makeInterpolate(binCenters.astype(float),
+                                             values.astype(float),
                                              afwMath.stringToInterpStyle(fitType))
             fitBiasArr = numpy.array([interp.interpolate(i) for i in indices])
 
