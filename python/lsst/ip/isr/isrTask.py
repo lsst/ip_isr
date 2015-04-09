@@ -186,9 +186,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
     \copydoc \_\_init\_\_
 
-    \section ip_isr_isr_IO Inputs/Outputs to the assembleCcd method
+    \section ip_isr_isr_IO Inputs/Outputs to the apply method
 
-    \copydoc run
+    \copydoc apply
 
     \section ip_isr_isr_Config Configuration parameters
 
@@ -245,7 +245,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     Now make the fake data reference and run it through ISR.
     \skip sensorRef
-    \until isrTask.run
+    \until isrTask.applyToSensorRef
 
     <HR>
     To investigate the \ref ip_isr_isr_Debug, put something like
@@ -384,7 +384,8 @@ class IsrTask(pipeBase.CmdLineTask):
         - Process raw exposure in apply()
         - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
-        \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the detector data to be processed
+        \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the
+                                detector data to be processed
         \return a pipeBase.Struct with fields:
         - exposure: the exposure after application of ISR
         """
