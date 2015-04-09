@@ -141,7 +141,12 @@ class IsrTaskConfig(pexConfig.Config):
     doAssembleIsrFrames = pexConfig.Field(
         dtype = bool,
         default = False,
-        doc = "Assemble detrend/calibration frames?"
+        doc = "Assemble detrend/calibration/isr frames?"
+        )
+    doAssembleCcd = pexConfig.Field(
+        dtype = bool,
+        default = True,
+        doc = "Assemble amps into ccd"
         )
 
 ## \addtogroup LSST_task_documentation
@@ -316,25 +321,27 @@ class IsrTask(pipeBase.CmdLineTask):
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and all NaNs
 
-       \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data 
+       \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data
        \param[in] biasExposure -- exposure of bias frame
        \param[in] darkExposure -- exposure of dark frame
        \param[in] flatExposure -- exposure of flatfield
        \param[in] defects -- defects
        \param[in] fringes -- fringes
+
+       \return a pipeBase.Struct with field:
+        - exposure
         """
 
         ccd = ccdExposure.getDetector()
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
         for amp in ccd:
-            self.saturationDetection(ccdExposure, amp)
-            self.overscanCorrection(ccdExposure, amp)
+            if ccdExposure.getBBox().contains(amp.getBBox()):
+                self.saturationDetection(ccdExposure, amp)
+                self.overscanCorrection(ccdExposure, amp)
 
-        ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
-
-        #why do we getDetector() again?
-        ccd = ccdExposure.getDetector()
+        if self.config.doAssembleCcd:
+            ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, biasExposure)
@@ -343,8 +350,9 @@ class IsrTask(pipeBase.CmdLineTask):
             self.darkCorrection(ccdExposure, darkExposure)
 
         for amp in ccd:
-            ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-            self.updateVariance(ampExposure, amp)
+            if ccdExposure.getBBox().contains(amp.getBBox()):
+                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                self.updateVariance(ampExposure, amp)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
             self.fringe.removeFringe(ccdExposure, fringes)
