@@ -281,15 +281,15 @@ class IsrTask(pipeBase.CmdLineTask):
 
 
     def readIsrData(self, dataRef):
-        """!Retrieve necessary frames to for instrument signature removal
+        """!Retrieve necessary frames for instrument signature removal
         \param[in] dataRef -- a daf.persistence.butlerSubset.ButlerDataRef
                               of the detector data to be processed
-        \return a pipeBase.Struct with fields:
-         - biasExposure:
-         - darkExposure:
-         - flatExposure:
-         - defects:
-         - fringes: 
+        \return a pipeBase.Struct with fields containing kwargs expected by apply()
+         - biasExposure: exposure of bias frame
+         - darkExposure: exposure of dark frame
+         - flatExposure: exposure of flat field
+         - defects: List of detects
+         - fringes: pipebase.Struct containing fringes exposures, fluxes array, and positions array
         """
         biasExposure = self.getIsrFrames(dataRef, "bias") if self.config.doBias else None
         darkExposure = self.getIsrFrames(dataRef, "dark") if self.config.doDark else None
@@ -380,7 +380,7 @@ class IsrTask(pipeBase.CmdLineTask):
     def applyToSensorRef(self, sensorRef):
         """!Perform instrument signature removal on a ButlerDataRef of a Sensor
 
-        - Read in necessary detrending/calibration data
+        - Read in necessary detrending/isr/calibration data
         - Process raw exposure in apply()
         - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
