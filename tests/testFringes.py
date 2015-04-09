@@ -137,7 +137,7 @@ class FringeTestCase(unittest.TestCase):
                 ds9.mtv(f, frame=frame, title="Fringe frame %d" % (i+1))
                 frame += 1
 
-        task.run(exp, dataRef)
+        task.removeFringesWithDataRef(exp, dataRef)
 
         mi = exp.getMaskedImage()
 

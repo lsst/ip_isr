@@ -68,21 +68,35 @@ class FringeTask(Task):
     ConfigClass = FringeConfig
 
     @timeMethod
-    def run(self, exposure, dataRef, assembler=None):
-        if not self.checkFilter(exposure):
-            return
-        fringes = self.readFringes(dataRef, assembler=assembler)
-        self.removeFringe(exposure, fringes, assembler=assembler)
+    def removeFringesWithDataRef(self, exposure, dataRef, assembler=None):
+        """Remove fringes from the provided science exposure.
 
-    @timeMethod
-    def removeFringe(self, exposure, fringes, assembler=None):
-        """Remove fringes from the provided science exposure
-
+        Retrieve fringes from butler dataRef provided and remove from
+        provided science exposure.
         Fringes are only subtracted if the science exposure has a filter
         listed in the configuration.
 
         @param exposure    Science exposure from which to remove fringes
         @param dataRef     Data reference for the science exposure
+        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
+        """
+        if not self.checkFilter(exposure):
+            return
+        fringes = self.readFringes(dataRef, assembler=assembler)
+        self.removeFringes(exposure, fringes, assembler=assembler)
+
+    @timeMethod
+    def removeFringes(self, exposure, fringes, assembler=None):
+        """Remove fringes from the provided science exposure.
+
+        Primary method of FringeTask.  Fringes are only subtracted if the
+        science exposure has a filter listed in the configuration.
+
+        @param exposure    Science exposure from which to remove fringes
+        @param fringes     PipeBase.Struct with fields:
+                           - fringes: list of fringe frames;
+                           - fluxes: fringe amplitues;
+                           - positions: array of (x,y) for fringe amplitude measurements)
         @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
         """
         import lsstDebug
