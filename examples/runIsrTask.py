@@ -19,7 +19,7 @@ def runIsr():
     isrTask = IsrTask(config=isrConfig)
 
     sensorRef = exampleUtils.FakeDataRef()
-    output = isrTask.run(sensorRef)
+    output = isrTask.applyToSensorRef(sensorRef)
     return output.exposure
 
 if __name__ == "__main__":

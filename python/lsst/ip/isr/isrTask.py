@@ -138,7 +138,7 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "fields to remove from the metadata of the assembled ccd.",
         default = [],
     )
-    doAssembleDetrends = pexConfig.Field(
+    doAssembleIsrFrames = pexConfig.Field(
         dtype = bool,
         default = False,
         doc = "Assemble detrend/calibration frames?"
@@ -275,29 +275,41 @@ class IsrTask(pipeBase.CmdLineTask):
         self.makeSubtask("fringe")
 
 
-    def readDetrendData(self, dataRef):
-        biasExposure = self.getDetrend(dataRef, "bias") if self.config.doBias else None
-        darkExposure = self.getDetrend(dataRef, "dark") if self.config.doDark else None
-        flatExposure = self.getDetrend(dataRef, "flat") if self.config.doFlat else None
+    def readIsrData(self, dataRef):
+        """!Retrieve necessary frames to for instrument signature removal
+        \param[in] dataRef -- a daf.persistence.butlerSubset.ButlerDataRef
+                              of the detector data to be processed
+        \return a pipeBase.Struct with fields:
+         - biasExposure:
+         - darkExposure:
+         - flatExposure:
+         - defects:
+         - fringes: 
+        """
+        biasExposure = self.getIsrFrames(dataRef, "bias") if self.config.doBias else None
+        darkExposure = self.getIsrFrames(dataRef, "dark") if self.config.doDark else None
+        flatExposure = self.getIsrFrames(dataRef, "flat") if self.config.doFlat else None
+
         defectList = dataRef.get("defects")
 
         if self.config.doFringe:
             fringes = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
-                                              if self.config.doAssembleDetrends else None)
+                                              if self.config.doAssembleIsrFrames else None)
         else:
             fringes = None
 
-        return {"biasExposure": biasExposure,
-                "darkExposure": darkExposure,
-                "flatExposure": flatExposure,
-                "defects": defectList,
-                "fringes": fringes,
-                 }
+        #Struct should include only kwargs to apply()
+        return pipeBase.Struct(biasExposure = biasExposure,
+                               darkExposure = darkExposure,
+                               flatExposure = flatExposure,
+                               defects = defectList,
+                               fringes = fringes,
+                               )
 
     @pipeBase.timeMethod
-    def doIsr(self, ccdExposure, biasExposure=None, darkExposure=None,  flatExposure=None,
+    def apply(self, ccdExposure, biasExposure=None, darkExposure=None,  flatExposure=None,
               defects=None, fringes=None):
-        """!Perform instrument signature removal on an exposure in place
+        """!Perform instrument signature removal on an exposure
 
         Steps include:
         - Detect saturation, apply overscan correction, bias, dark and flat
@@ -357,11 +369,11 @@ class IsrTask(pipeBase.CmdLineTask):
 
 
     @pipeBase.timeMethod
-    def run(self, sensorRef):
+    def applyToSensorRef(self, sensorRef):
         """!Perform instrument signature removal on a ButlerDataRef of a Sensor
 
         - Read in necessary detrending/calibration data
-        - Process raw exposure in place in doIsr()
+        - Process raw exposure in apply()
         - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
         \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the detector data to be processed
@@ -370,9 +382,9 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')
-        detrendData = self.readDetrendData(sensorRef)
+        isrData = self.readIsrData(sensorRef)
 
-        ccdExposure = self.doIsr(ccdExposure, **detrendData).exposure
+        ccdExposure = self.apply(ccdExposure, **isrData.getDict()).exposure
 
         if self.config.doWrite:
             sensorRef.put(ccdExposure, "postISRCCD")
@@ -447,20 +459,20 @@ class IsrTask(pipeBase.CmdLineTask):
             userScale = self.config.flatUserScale,
         )
 
-    def getDetrend(self, dataRef, detrend, immediate=True):
-        """!Get a detrend exposure
+    def getIsrFrames(self, dataRef, datasetType, immediate=True):
+        """!Retrieve a calibration dataset for removing instrument signature
 
         \param[in]      dataRef         data reference for exposure
-        \param[in]      detrend         detrend/calibration to read
+        \param[in]      datasetType     type of dataset to retrieve (e.g. 'bias', 'flat')
         \param[in]      immediate       if True, disable butler proxies to enable error
                                         handling within this routine
-        \return Detrend exposure
+        \return exposure
         """
         try:
-            exp = dataRef.get(detrend, immediate=immediate)
+            exp = dataRef.get(datasetType, immediate=immediate)
         except Exception, e:
-            raise RuntimeError("Unable to retrieve %s for %s: %s" % (detrend, dataRef.dataId, e))
-        if self.config.doAssembleDetrends:
+            raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, e))
+        if self.config.doAssembleIsrFrames:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
 
