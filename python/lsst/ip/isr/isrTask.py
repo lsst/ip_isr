@@ -146,7 +146,7 @@ class IsrTaskConfig(pexConfig.Config):
     doAssembleCcd = pexConfig.Field(
         dtype = bool,
         default = True,
-        doc = "Assemble amps into ccd"
+        doc = "Assemble amp-level exposures into a ccd-level exposure?"
         )
 
 ## \addtogroup LSST_task_documentation
@@ -174,13 +174,15 @@ class IsrTask(pipeBase.CmdLineTask):
     \section ip_isr_isr_Purpose Description
 
     The process for correcting imaging data is very similar from camera to camera.
-    This task provides a vanilla implementation of doing these corrections, including 
-    the ability to turn certain corrections off if they are not needed.  The input
-    is a daf.persistence.butlerSubset.ButlerDataRef.  The data reference can return
-    the raw input and all the calibration products.  The raw input is a single chip
-    sized mosaic of all amps including overscans and other non-science pixels. This
-    task may not meet all needs and it is expected that it will be subclassed for specific
-    applications.
+    This task provides a vanilla implementation of doing these corrections, including
+    the ability to turn certain corrections off if they are not needed.
+    The inputs to the primary method, apply, are a raw exposure to be corrected and the
+    calibration products. The raw input is a single chip sized mosaic of all amps
+    including overscans and other non-science pixels.
+    The method applyToSensorRef() is intended for use by a lsst.pipe.base.cmdLineTask.CmdLineTask
+    and takes as input only a daf.persistence.butlerSubset.ButlerDataRef.
+    This task may not meet all needs and it is expected that it will be subclassed for
+    specific applications.
 
     \section ip_isr_isr_Initialize Task initialization
 
@@ -321,15 +323,15 @@ class IsrTask(pipeBase.CmdLineTask):
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and all NaNs
 
-       \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data
-       \param[in] biasExposure -- exposure of bias frame
-       \param[in] darkExposure -- exposure of dark frame
-       \param[in] flatExposure -- exposure of flatfield
-       \param[in] defects -- defects
-       \param[in] fringes -- fringes
+        \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data
+        \param[in] biasExposure -- exposure of bias frame
+        \param[in] darkExposure -- exposure of dark frame
+        \param[in] flatExposure -- exposure of flatfield
+        \param[in] defects -- List of detects
+        \param[in] fringes -- pipebase.Struct containing fringes exposures, fluxes array, and positions array
 
-       \return a pipeBase.Struct with field:
-        - exposure
+        \return a pipeBase.Struct with field:
+         - exposure
         """
 
         ccd = ccdExposure.getDetector()
