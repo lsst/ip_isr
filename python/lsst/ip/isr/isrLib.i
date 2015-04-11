@@ -49,6 +49,8 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %}
 
 %include "lsst/p_lsstSwig.i"
+%initializeNumPy(ip_isr)
+
 %import  "lsst/afw/image/imageLib.i" 
 %import  "lsst/afw/math/mathLib.i" 
 %lsst_exceptions();
