@@ -398,6 +398,27 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             offArray[:,:] = fitBiasArr[:,numpy.newaxis]
         else:
             offArray[:,:] = fitBiasArr[numpy.newaxis,:]
+
+        # We don't trust any extrapolation: mask those pixels as SUSPECT
+        mask = ampMaskedImage.getMask()
+        maskArray = mask.getArray() if shortInd == 1 else mask.getArray().transpose()
+        suspect = mask.getPlaneBitMask("SUSPECT")
+        try:
+            if medianBiasArr.mask == numpy.ma.nomask:
+                # There is no mask, so the whole array is fine
+                pass
+        except ValueError:      # If medianBiasArr.mask is an array the test fails [needs .all()]
+            for low in xrange(num):
+                if not medianBiasArr.mask[low]:
+                    break
+            if low > 0:
+                maskArray[:low,:] |= suspect
+            for high in xrange(1, num):
+                if not medianBiasArr.mask[-high]:
+                    break
+            if high > 1:
+                maskArray[-high:,:] |= suspect
+
     else:
         raise pexExcept.Exception, '%s : %s an invalid overscan type' % \
             ("overscanCorrection", fitType)
