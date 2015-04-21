@@ -367,8 +367,8 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             # Use a similar trick to get the bin centers (this deals with different numbers per bin).
             values = numpy.histogram(indices, bins=numBins, weights=collapsed)[0]/numPerBin
             binCenters = numpy.histogram(indices, bins=numBins, weights=indices)[0]/numPerBin
-            interp = afwMath.makeInterpolate(binCenters.astype(float),
-                                             values.astype(float),
+            interp = afwMath.makeInterpolate(binCenters.astype(float)[numPerBin > 0],
+                                             values.astype(float)[numPerBin > 0],
                                              afwMath.stringToInterpStyle(fitType))
             fitBiasArr = numpy.array([interp.interpolate(i) for i in indices])
 
