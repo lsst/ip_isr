@@ -67,24 +67,33 @@ class FringeTask(Task):
     """
     ConfigClass = FringeConfig
 
-    @timeMethod
-    def runDataRef(self, exposure, dataRef, assembler=None):
-        """Remove fringes from the provided science exposure.
+    def readFringes(self, dataRef, assembler=None):
+        """Read the fringe frame(s)
 
-        Retrieve fringes from butler dataRef provided and remove from
-        provided science exposure.
-        Fringes are only subtracted if the science exposure has a filter
-        listed in the configuration.
+        The current implementation assumes only a single fringe frame and
+        will have to be updated to support multi-mode fringe subtraction.
 
-        @param exposure    Science exposure from which to remove fringes
+        This implementation could be optimised by persisting the fringe
+        positions and fluxes.
+
         @param dataRef     Data reference for the science exposure
         @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
+        @return Struct(fringes: fringe exposure or list of fringe exposures;
+                       seed: 32-bit uint derived from ccdExposureId for random number generator
         """
-        if not self.checkFilter(exposure):
-            return
-        fringeStruct = self.readFringes(dataRef, assembler=assembler)
-        self.run(exposure,  **fringeStruct.getDict())
+        try:
+            fringe = dataRef.get("fringe", immediate=True)
+        except Exception as e:
+            raise RuntimeError("Unable to retrieve fringe for %s: %s" % (dataRef.dataId, e))
+        if assembler is not None:
+            fringe = assembler.assembleCcd(fringe)
 
+        seed = self.config.stats.rngSeedOffset + dataRef.get("ccdExposureId", immediate=True)
+        #Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
+        seed %= 2**32
+
+        return Struct(fringes = fringe,
+                      seed = seed)
 
     @timeMethod
     def run(self, exposure, fringes, seed=None):
@@ -129,38 +138,27 @@ class FringeTask(Task):
         if display:
             ds9.mtv(exposure, title="Fringe subtracted", frame=getFrame())
 
+    @timeMethod
+    def runDataRef(self, exposure, dataRef, assembler=None):
+        """Remove fringes from the provided science exposure.
+
+        Retrieve fringes from butler dataRef provided and remove from
+        provided science exposure.
+        Fringes are only subtracted if the science exposure has a filter
+        listed in the configuration.
+
+        @param exposure    Science exposure from which to remove fringes
+        @param dataRef     Data reference for the science exposure
+        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
+        """
+        if not self.checkFilter(exposure):
+            return
+        fringeStruct = self.readFringes(dataRef, assembler=assembler)
+        self.run(exposure,  **fringeStruct.getDict())
+
     def checkFilter(self, exposure):
         """Check whether we should fringe-subtract the science exposure"""
         return exposure.getFilter().getName() in self.config.filters
-
-    def readFringes(self, dataRef, assembler=None):
-        """Read the fringe frame(s)
-
-        The current implementation assumes only a single fringe frame and
-        will have to be updated to support multi-mode fringe subtraction.
-
-        This implementation could be optimised by persisting the fringe
-        positions and fluxes.
-
-        @param dataRef     Data reference for the science exposure
-        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
-        @return Struct(fringes: fringe exposure or list of fringe exposures;
-                       seed: 32-bit uint derived from ccdExposureId for random number generator
-        """
-        try:
-            fringe = dataRef.get("fringe", immediate=True)
-        except Exception as e:
-            raise RuntimeError("Unable to retrieve fringe for %s: %s" % (dataRef.dataId, e))
-        if assembler is not None:
-            fringe = assembler.assembleCcd(fringe)
-
-        seed = self.config.stats.rngSeedOffset + dataRef.get("ccdExposureId", immediate=True)
-        #Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
-        seed %= 2**32
-
-        return Struct(fringes = fringe,
-                      seed = seed)
-
 
     def removePedestal(self, fringe):
         """Remove pedestal from fringe exposure"""
