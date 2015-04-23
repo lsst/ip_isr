@@ -314,6 +314,10 @@ class FringeTask(Task):
         @param fringes     List of fringe frames
         @param solution    Array of scale factors for the fringe frames
         """
+        if len(solution) != len(fringes):
+            raise RuntimeError("Number of fringe frames (%s) != number of scale factors (%s)"% \
+                                   (len(fringes), len(solution)))
+
         for s, f in zip(solution, fringes):
             science.getMaskedImage().scaledMinus(s, f.getMaskedImage())
 
