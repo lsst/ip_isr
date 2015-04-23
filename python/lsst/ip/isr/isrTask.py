@@ -333,6 +333,18 @@ class IsrTask(pipeBase.CmdLineTask):
          - exposure
         """
 
+        #Validate Input
+        if self.config.doBias and bias is None:
+            raise RuntimeError("Must supply a bias exposure if config.doBias True")
+        if self.config.doDark and dark is None:
+            raise RuntimeError("Must supply a dark exposure if config.doDark True")
+        if self.config.doFlat and flat is None:
+            raise RuntimeError("Must supply a flat exposure if config.doFlat True")
+        if self.config.doFringe and fringes is None:
+            raise RuntimeError("Must supply fringe list or exposure if config.doFringe True")
+
+        defects = [] if defects is None else defects
+
         ccd = ccdExposure.getDetector()
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
@@ -581,6 +593,11 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         if not amp.getHasRawInfo():
             raise RuntimeError("This method must be executed on an amp with raw information.")
+
+        if amp.getRawHorizontalOverscanBBox().getArea() == 0:
+            self.log.info("No Overscan region. Not performing Overscan Correction.")
+            return None
+
         maskedImage = exposure.getMaskedImage()
         dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox())
 
