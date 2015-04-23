@@ -593,6 +593,11 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         if not amp.getHasRawInfo():
             raise RuntimeError("This method must be executed on an amp with raw information.")
+
+        if amp.getRawHorizontalOverscanBBox().getArea() == 0:
+            self.log.info("No Overscan region. Not performing Overscan Correction.")
+            return None
+
         maskedImage = exposure.getMaskedImage()
         dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox())
 
