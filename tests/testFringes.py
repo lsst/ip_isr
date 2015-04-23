@@ -61,29 +61,6 @@ class FringeDataRef(object):
         if name == "ccdExposureId":
             return 1000
 
-class MultipleFringeDataRef(object):
-    """Something like a ButlerDataRef that holds multiple fringe frames.
-
-    This is only used by the MultipleFringeTask.
-    """
-    def __init__(self, fringeList):
-        self.fringeList = fringeList
-    def get(self):
-        return self.fringeList
-
-class MultipleFringeTask(FringeTask):
-    """A FringeTask that reads multiple fringe frames"""
-    def readFringes(self, dataRef, assembler=None):
-        fringeList = dataRef.get()
-        rng = numpy.random.RandomState(seed=0)
-        positions = self.generatePositions(fringeList[0], rng)
-        fluxes = numpy.ndarray([len(positions), len(fringeList)])
-        for i, f in enumerate(fringeList):
-            fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")
-
-        return Struct(fringes=fringeList, fluxes=fluxes, positions=positions)
-
-
 def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
     """Create a fringe frame
 
@@ -118,7 +95,7 @@ class FringeTestCase(unittest.TestCase):
     def tearDown(self):
         afwImageUtils.resetFilters()
 
-    def checkFringe(self, task, exp, dataRef, precision):
+    def checkFringe(self, task, exp, fringes, precision):
         """Run fringe subtraction and verify
 
         @param task         Task to run
@@ -137,7 +114,7 @@ class FringeTestCase(unittest.TestCase):
                 ds9.mtv(f, frame=frame, title="Fringe frame %d" % (i+1))
                 frame += 1
 
-        task.removeFringesWithDataRef(exp, dataRef)
+        task.run(exp, fringes)
 
         mi = exp.getMaskedImage()
 
@@ -167,8 +144,7 @@ class FringeTestCase(unittest.TestCase):
         eMi *= scale
 
         task = FringeTask(name="fringe", config=self.config)
-        dataRef = FringeDataRef(fringe)
-        self.checkFringe(task, exp, dataRef, precision)
+        self.checkFringe(task, exp, fringe, precision)
 
     def testPedestal(self):
         """Test subtraction of a fringe frame with a pedestal"""
@@ -195,10 +171,9 @@ class FringeTestCase(unittest.TestCase):
         exp = afwImage.makeExposure(mi)
         exp.setFilter(afwImage.Filter('FILTER'))
 
-        task = MultipleFringeTask(name="multiFringe", config=self.config)
-        dataRef = MultipleFringeDataRef(fringeList)
+        task = FringeTask(name="multiFringe", config=self.config)
+        self.checkFringe(task, exp, fringeList, precision=1.0e-2)
 
-        self.checkFringe(task, exp, dataRef, precision=1.0e-2)
 
 def suite():
     """Returns a suite containing all the test cases in this module."""
