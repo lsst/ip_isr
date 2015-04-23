@@ -349,6 +349,7 @@ class IsrTask(pipeBase.CmdLineTask):
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
         for amp in ccd:
+            #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.saturationDetection(ccdExposure, amp)
                 self.overscanCorrection(ccdExposure, amp)
@@ -363,6 +364,7 @@ class IsrTask(pipeBase.CmdLineTask):
             self.darkCorrection(ccdExposure, dark)
 
         for amp in ccd:
+            #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                 self.updateVariance(ampExposure, amp)
