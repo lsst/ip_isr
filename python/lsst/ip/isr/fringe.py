@@ -67,35 +67,8 @@ class FringeTask(Task):
     """
     ConfigClass = FringeConfig
 
-    @timeMethod
-    def run(self, exposure, dataRef, assembler=None):
-        """Remove fringes from the provided science exposure
-
-        Fringes are only subtracted if the science exposure has a filter
-        listed in the configuration.
-
-        @param exposure    Science exposure from which to remove fringes
-        @param dataRef     Data reference for the science exposure
-        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
-        """
-        import lsstDebug
-        display = lsstDebug.Info(__name__).display
-
-        if not self.checkFilter(exposure):
-            return
-        fringes = self.readFringes(dataRef, assembler=assembler)
-        expFringes = self.measureExposure(exposure, fringes.positions, title="Science")
-        solution = self.solve(expFringes, fringes.fluxes)
-        self.subtract(exposure, fringes.fringes, solution)
-        if display:
-            ds9.mtv(exposure, title="Fringe subtracted", frame=getFrame())
-
-    def checkFilter(self, exposure):
-        """Check whether we should fringe-subtract the science exposure"""
-        return exposure.getFilter().getName() in self.config.filters
-
     def readFringes(self, dataRef, assembler=None):
-        """Read the fringe frame(s) and measure fringe amplitudes.
+        """Read the fringe frame(s)
 
         The current implementation assumes only a single fringe frame and
         will have to be updated to support multi-mode fringe subtraction.
@@ -105,13 +78,9 @@ class FringeTask(Task):
 
         @param dataRef     Data reference for the science exposure
         @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
-        @return Struct(fringes: list of fringe frames;
-                       fluxes: fringe amplitues;
-                       positions: array of (x,y) for fringe amplitude measurements)
+        @return Struct(fringes: fringe exposure or list of fringe exposures;
+                       seed: 32-bit uint derived from ccdExposureId for random number generator
         """
-        seed = dataRef.get("ccdExposureId", immediate=True) + self.config.stats.rngSeedOffset
-        rng = numpy.random.RandomState(seed=seed)
-
         try:
             fringe = dataRef.get("fringe", immediate=True)
         except Exception as e:
@@ -119,22 +88,87 @@ class FringeTask(Task):
         if assembler is not None:
             fringe = assembler.assembleCcd(fringe)
 
+        seed = self.config.stats.rngSeedOffset + dataRef.get("ccdExposureId", immediate=True)
+        #Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
+        seed %= 2**32
+
+        return Struct(fringes = fringe,
+                      seed = seed)
+
+    @timeMethod
+    def run(self, exposure, fringes, seed=None):
+        """Remove fringes from the provided science exposure.
+
+        Primary method of FringeTask.  Fringes are only subtracted if the
+        science exposure has a filter listed in the configuration.
+
+        @param exposure    Science exposure from which to remove fringes
+        @param fringes     Exposure or list of Exposures
+        @param seed        32-bit unsigned integer for random number generator
+        """
+        import lsstDebug
+        display = lsstDebug.Info(__name__).display
+
+        if not self.checkFilter(exposure):
+            return
+
         if self.config.pedestal:
-            stats = afwMath.StatisticsControl()
-            stats.setNumSigmaClip(self.config.stats.clip)
-            stats.setNumIter(self.config.stats.iterations)
-            mi = fringe.getMaskedImage()
-            pedestal = afwMath.makeStatistics(mi, afwMath.MEDIAN, stats).getValue()
-            self.log.info("Removing fringe pedestal: %f" % pedestal)
-            mi -= pedestal
+            self.removePedestal(fringes)
 
-        positions = self.generatePositions(fringe, rng)
-        fluxes = self.measureExposure(fringe, positions, title="Fringe frame")
+        if seed is None:
+            seed = self.config.stats.rngSeedOffset
+        rng = numpy.random.RandomState(seed=seed)
 
-        return Struct(fringes=[fringe],
-                      fluxes=fluxes.reshape([len(positions), 1]),
-                      positions=positions
-                      )
+        if hasattr(fringes, '__iter__'):
+            #multiple fringe frames (placeholder implementation)
+            positions = self.generatePositions(fringes[0], rng)
+            fluxes = numpy.ndarray([len(positions), len(fringes)])
+            for i, f in enumerate(fringes):
+                fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")
+        else:
+            #single fringe frame
+            positions = self.generatePositions(fringes, rng)
+            fluxes = self.measureExposure(fringes, positions, title="Fringe frame")
+            fluxes = fluxes.reshape([len(positions), 1])
+            fringes = [fringes]
+
+        expFringes = self.measureExposure(exposure, positions, title="Science")
+        solution = self.solve(expFringes, fluxes)
+        self.subtract(exposure, fringes, solution)
+        if display:
+            ds9.mtv(exposure, title="Fringe subtracted", frame=getFrame())
+
+    @timeMethod
+    def runDataRef(self, exposure, dataRef, assembler=None):
+        """Remove fringes from the provided science exposure.
+
+        Retrieve fringes from butler dataRef provided and remove from
+        provided science exposure.
+        Fringes are only subtracted if the science exposure has a filter
+        listed in the configuration.
+
+        @param exposure    Science exposure from which to remove fringes
+        @param dataRef     Data reference for the science exposure
+        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
+        """
+        if not self.checkFilter(exposure):
+            return
+        fringeStruct = self.readFringes(dataRef, assembler=assembler)
+        self.run(exposure,  **fringeStruct.getDict())
+
+    def checkFilter(self, exposure):
+        """Check whether we should fringe-subtract the science exposure"""
+        return exposure.getFilter().getName() in self.config.filters
+
+    def removePedestal(self, fringe):
+        """Remove pedestal from fringe exposure"""
+        stats = afwMath.StatisticsControl()
+        stats.setNumSigmaClip(self.config.stats.clip)
+        stats.setNumIter(self.config.stats.iterations)
+        mi = fringe.getMaskedImage()
+        pedestal = afwMath.makeStatistics(mi, afwMath.MEDIAN, stats).getValue()
+        self.log.info("Removing fringe pedestal: %f" % pedestal)
+        mi -= pedestal
 
     def generatePositions(self, exposure, rng):
         """Generate a random distribution of positions for measuring fringe amplitudes"""
@@ -280,6 +314,10 @@ class FringeTask(Task):
         @param fringes     List of fringe frames
         @param solution    Array of scale factors for the fringe frames
         """
+        if len(solution) != len(fringes):
+            raise RuntimeError("Number of fringe frames (%s) != number of scale factors (%s)"% \
+                                   (len(fringes), len(solution)))
+
         for s, f in zip(solution, fringes):
             science.getMaskedImage().scaledMinus(s, f.getMaskedImage())
 
