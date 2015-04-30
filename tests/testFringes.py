@@ -174,6 +174,31 @@ class FringeTestCase(unittest.TestCase):
         task = FringeTask(name="multiFringe", config=self.config)
         self.checkFringe(task, exp, fringeList, precision=1.0e-2)
 
+    def testRunDataRef(self, pedestal=0.0, precision=1.0e-4):
+        """Test the .runDataRef method for complete test converage
+
+        @param pedestal    Pedestal to add into fringe frame
+        @param precision   Precision for assertAlmostEqual
+        """
+        xFreq = numpy.pi / 10.0
+        xOffset = 1.0
+        yFreq = numpy.pi / 15.0
+        yOffset = 0.5
+        scale = 1.0
+        fringe = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
+        fMi = fringe.getMaskedImage()
+        fMi += pedestal
+        exp = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
+        eMi = exp.getMaskedImage()
+        eMi *= scale
+
+        task = FringeTask(name="fringe", config=self.config)
+        dataRef = FringeDataRef(fringe)
+        task.runDataRef(exp, dataRef)
+
+        mi = exp.getMaskedImage()
+        mi -= afwMath.makeStatistics(mi, afwMath.MEAN).getValue()
+        self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), precision)
 
 def suite():
     """Returns a suite containing all the test cases in this module."""
