@@ -430,14 +430,12 @@ class IsrTask(pipeBase.CmdLineTask):
         ccdExposure = sensorRef.get('raw')
         isrData = self.readIsrData(sensorRef)
 
-        ccdExposure = self.run(ccdExposure, **isrData.getDict()).exposure
+        result = self.run(ccdExposure, **isrData.getDict())
 
         if self.config.doWrite:
-            sensorRef.put(ccdExposure, "postISRCCD")
+            sensorRef.put(result.exposure, "postISRCCD")
 
-        return pipeBase.Struct(
-            exposure = ccdExposure,
-        )
+        return result
 
     def convertIntToFloat(self, exposure):
         """Convert an exposure from uint16 to float, set variance plane to 1 and mask plane to 0
