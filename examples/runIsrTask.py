@@ -12,21 +12,31 @@ def runIsr():
     isrConfig.doDark = True
     isrConfig.doFlat = True
     isrConfig.doFringe = False #There is no fringe frame for this example
-    isrConfig.doWrite = True
 
     isrConfig.assembleCcd.doRenorm = False #We'll take care of gain in the flats
     isrConfig.assembleCcd.setGain = False 
     isrTask = IsrTask(config=isrConfig)
 
-    sensorRef = exampleUtils.FakeDataRef()
-    output = isrTask.runDataRef(sensorRef)
+    #Make raw, flat and dark exposures
+    DARKVAL = 2. #e-/sec
+    OSCAN = 1000. #DN
+    GRADIENT = .10
+    EXPTIME = 15 #seconds
+    DARKEXPTIME = 40. #seconds
+
+    darkExposure = exampleUtils.makeDark(DARKVAL, DARKEXPTIME)
+    flatExposure = exampleUtils.makeFlat(GRADIENT)
+    rawExposure = exampleUtils.makeRaw(DARKVAL, OSCAN, GRADIENT, EXPTIME)
+
+    output = isrTask.run(rawExposure, dark=darkExposure, flat=flatExposure)
     return output.exposure
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Demonstrate the use of IsrTask")
     parser.add_argument('--debug', '-d', action="store_true", help="Load debug.py?", default=False)
-    parser.add_argument('--displayResult', '-R', action="store_true", help="Display the result?", default=False)
+    parser.add_argument('--ds9', action="store_true", help="Display the result?", default=False)
+    parser.add_argument('--write', '-w', action="store_true", help="Write the result?", default=False)
     args = parser.parse_args()
 
     if args.debug:
@@ -34,9 +44,14 @@ if __name__ == "__main__":
             import debug
         except ImportError as e:
             print >> sys.stderr, e
+
     exposure = runIsr()
-    if args.displayResult:
+
+    if args.ds9:
         im = exposure.getMaskedImage().getImage()
         im_median = numpy.median(im.getArray())
         ds9.mtv(im)
         ds9.scale(min=im_median*0.90, max=im_median*1.1, type='SQRT')
+
+    if args.write:
+        exposure.writeFits("postISRCCD.fits")

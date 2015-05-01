@@ -199,11 +199,11 @@ class IsrTask(pipeBase.CmdLineTask):
     \section ip_isr_isr_Debug Debug variables
 
     The \link lsst.pipe.base.cmdLineTask.CmdLineTask command line task\endlink interface supports a
-    flag \c -d to import \b debug.py from your \c PYTHONPATH; see <a
+    flag \c --debug, \c -d to import \b debug.py from your \c PYTHONPATH; see <a
     href="http://lsst-web.ncsa.illinois.edu/~buildbot/doxygen/x_masterDoxyDoc/base_debug.html">
     Using lsstDebug to control debugging output</a> for more about \b debug.py files.
 
-    The available variables in AssembleCcdTask are:
+    The available variables in IsrTask are:
     <DL>
       <DT> \c display
       <DD> A dictionary containing debug point names as keys with frame number as value. Valid keys are:
@@ -213,59 +213,79 @@ class IsrTask(pipeBase.CmdLineTask):
         </DL>
     </DL>  
 
-    \section ip_isr_isr_Example A complete example of using IsrTask
-
-    This code is in runIsrTask.py in the examples directory, and can be run as \em e.g.
-    \code
-    python examples/runIsrTask.py
-    \endcode
-<HR>
-    \dontinclude runIsrTask.py
-    Import the task.  There are other imports.  Read the source file for more info.
-    \skipline IsrTask
-
-    \dontinclude exampleUtils.py
-    Create the input data reference with the help of some utilities in examples/exampleUtils.py.  This
-    is a mock data reference that has all the right methods to run through ISR.  We will only
-    do overscan, dark and flat correction, so it only needs to know how to get those products (and an
-    empty list of defects).
-    \skip FakeDataRef
-    \until writeFits
-    The above numbers can be changed to modify the gradient in the flat, for example.  
-
-    \dontinclude exampleUtils.py
-    The data are constructed by hand so that all effects will be corrected for essentially perfectly
-    \skip makeRaw
-    \until return flatExposure
-
-
-    \dontinclude runIsrTask.py
-    Construct the task and set some config parameters.  Specifically, we don't want to
-    do zero or fringe correction.  We also don't want the assembler messing with the gain.
-    \skip runIsr
-    \until config=isrConfig
-
-    Now make the fake data reference and run it through ISR.
-    \skip sensorRef
-    \until isrTask.runDataRef
-
-    <HR>
-    To investigate the \ref ip_isr_isr_Debug, put something like
+    For example, put something like
     \code{.py}
     import lsstDebug
     def DebugInfo(name):
         di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
         if name == "lsst.ip.isr.isrTask":
-            di.display = {'postISRCCD':2} 
+            di.display = {'postISRCCD':2}
         return di
-
     lsstDebug.Info = DebugInfo
     \endcode
-    into your debug.py file and run runAssembleTask.py with the \c --debug flag.
+    into your debug.py file and run the commandline task with the \c --debug flag.
 
+    \section ip_isr_isr_Example A complete example of using IsrTask
 
-    Conversion notes:
-        Display code should be updated once we settle on a standard way of controlling what is displayed.
+    This code is in runIsrTask.py in the examples directory and can be run as \em e.g.
+    \code
+    python examples/runIsrTask.py
+
+    # optional arguments:
+    # --debug, -d  Load debug.py?
+    # --ds9        Display the result?
+    # --write      Write the result?
+    \endcode
+
+    <HR>
+    Stepping through the example:
+
+    \dontinclude runIsrTask.py
+    Import the task.  There are other imports.  Read the source file for more info.
+    \skipline IsrTask
+    \skipline exampleUtils
+
+    Create the raw input data with the help of some utilities in \link exampleUtils.py \endlink
+    also in the examples directory.
+    \dontinclude runIsrTask.py
+    We will only do overscan, dark and flat correction.
+    The data are constructed by hand so that all effects will be corrected for essentially perfectly.
+    \skip DARKVAL
+    \until rawExposure
+    The above numbers can be changed to modify the gradient in the flat, for example.
+    For the parameters in this particular example,
+    the image after ISR will be a constant 5000 counts
+    (with some variation in floating point represenation).
+
+    \note  Alternatively, images can be read from disk, either using the Butler or manually:
+    \code
+    import lsst.afw.image as afwImage
+    darkExposure = afwImage.ExposureF("/path/to/dark.fits")
+    flatExposure = afwImage.ExposureF("/path/to/flat.fits")
+    rawExposure = afwImage.ExposureF("/path/to/raw.fits")
+    \endcode
+    However, IsrTask.run() requires Exposures which have a \link lsst.afw.cameraGeom.Detector \endlink.
+    Detector objects describe details such as data dimensions, number of amps,
+    orientation and overscan dimensions.
+    If requesting images from the Butler, Exposures will automatically have detector information.
+    If running IsrTask on arbitrary images from a camera without an obs_ package,
+    a lsst.afw.cameraGeom.Detector can be generated using lsst.afw.cameraGeom.fitsUtils.DetectorBuilder
+    and set by calling
+    \code
+    rawExposure.setDetector(myDetectorObject)
+    \endcode
+    See \link lsst.afw.cameraGeom.fitsUtils.DetectorBuilder \endlink for more details.
+
+     \dontinclude runIsrTask.py
+    Construct the task and set some config parameters.  Specifically, we don't want to
+    do zero or fringe correction.  We also don't want the assembler messing with the gain.
+    \skip Create
+    \until config=isrConfig
+
+    Finally, run the exposures through ISR.
+    \skipline isrTask.run
+
+    <HR>
     """
     ConfigClass = IsrTaskConfig
     _DefaultName = "isr"
@@ -386,6 +406,8 @@ class IsrTask(pipeBase.CmdLineTask):
 
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
+        self.display("postISRCCD", ccdExposure)
+
         return pipeBase.Struct(
             exposure = ccdExposure,
         )
@@ -408,16 +430,12 @@ class IsrTask(pipeBase.CmdLineTask):
         ccdExposure = sensorRef.get('raw')
         isrData = self.readIsrData(sensorRef)
 
-        ccdExposure = self.run(ccdExposure, **isrData.getDict()).exposure
+        result = self.run(ccdExposure, **isrData.getDict())
 
         if self.config.doWrite:
-            sensorRef.put(ccdExposure, "postISRCCD")
+            sensorRef.put(result.exposure, "postISRCCD")
 
-        self.display("postISRCCD", ccdExposure)
-
-        return pipeBase.Struct(
-            exposure = ccdExposure,
-        )
+        return result
 
     def convertIntToFloat(self, exposure):
         """Convert an exposure from uint16 to float, set variance plane to 1 and mask plane to 0
@@ -594,7 +612,7 @@ class IsrTask(pipeBase.CmdLineTask):
         if not amp.getHasRawInfo():
             raise RuntimeError("This method must be executed on an amp with raw information.")
 
-        if amp.getRawHorizontalOverscanBBox().getArea() == 0:
+        if amp.getRawHorizontalOverscanBBox().isEmpty():
             self.log.info("No Overscan region. Not performing Overscan Correction.")
             return None
 
