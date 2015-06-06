@@ -368,6 +368,10 @@ class IsrTask(pipeBase.CmdLineTask):
         ccd = ccdExposure.getDetector()
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
+        if not ccd:
+            assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd"
+            ccd = []
+
         for amp in ccd:
             #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
