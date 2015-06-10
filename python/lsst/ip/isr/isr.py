@@ -132,7 +132,7 @@ def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
     """Compute a defect list from a specified mask plane
 
     @param[in] maskedImage  masked image to process
-    @param[in] maskName  mask plane name
+    @param[in] maskName  mask plane name, or list of names
     @param[in] growFootprints  amount by which to grow footprints of detected regions
     @return meas.algrithms.DefectListT of regions in mask
     """
