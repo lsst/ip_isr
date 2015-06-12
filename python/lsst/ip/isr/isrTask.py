@@ -19,6 +19,8 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+import math
+import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
 import lsst.pex.config as pexConfig
@@ -58,6 +60,21 @@ class IsrTaskConfig(pexConfig.Config):
         target = AssembleCcdTask,
         doc = "CCD assembly task",
     )
+    gain = pexConfig.Field(
+        dtype = float,
+        doc = "The gain to use if no Detector is present in the Exposure (ignored if NaN)",
+        default = float("NaN"),
+        )
+    readNoise = pexConfig.Field(
+        dtype = float,
+        doc = "The read noise to use if no Detector is present in the Exposure",
+        default = 0.0,
+        )
+    saturation = pexConfig.Field(
+        dtype = float,
+        doc = "The saturation level to use if no Detector is present in the Exposure (ignored if NaN)",
+        default = float("NaN"),
+        )
     fringeAfterFlat = pexConfig.Field(
         dtype = bool,
         doc = "Do fringe subtraction after flat-fielding?",
@@ -264,7 +281,8 @@ class IsrTask(pipeBase.CmdLineTask):
     flatExposure = afwImage.ExposureF("/path/to/flat.fits")
     rawExposure = afwImage.ExposureF("/path/to/raw.fits")
     \endcode
-    However, IsrTask.run() requires Exposures which have a \link lsst.afw.cameraGeom.Detector \endlink.
+    In order to perform overscanCorrection IsrTask.run() requires Exposures which have
+    a \link lsst.afw.cameraGeom.Detector \endlink.
     Detector objects describe details such as data dimensions, number of amps,
     orientation and overscan dimensions.
     If requesting images from the Butler, Exposures will automatically have detector information.
@@ -275,6 +293,12 @@ class IsrTask(pipeBase.CmdLineTask):
     rawExposure.setDetector(myDetectorObject)
     \endcode
     See \link lsst.afw.cameraGeom.fitsUtils.DetectorBuilder \endlink for more details.
+
+    \note The updateVariance and saturationDetection steps are not run for Exposures
+    without a \link lsst.afw.cameraGeom.Detector \endlink, unless \ref IsrTaskConfig.gain,
+    \ref IsrTaskConfig.readNoise,
+    and/or \ref IsrTaskConfig.saturation
+    are set in the config, in which case they are applied to the entire image rather than per amp.
 
      \dontinclude runIsrTask.py
     Construct the task and set some config parameters.  Specifically, we don't want to
@@ -367,6 +391,10 @@ class IsrTask(pipeBase.CmdLineTask):
 
         ccd = ccdExposure.getDetector()
         ccdExposure = self.convertIntToFloat(ccdExposure)
+
+        if not ccd:
+            assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd"
+            ccd = [FakeAmp(ccdExposure, self.config)]
 
         for amp in ccd:
             #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
@@ -482,11 +510,12 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in,out]  ampExposure     exposure to process
         \param[in]      amp             amplifier detector information
         """
-        isr.updateVariance(
-            maskedImage = ampExposure.getMaskedImage(),
-            gain = amp.getGain(),
-            readNoise = amp.getReadNoise(),
-        )
+        if not math.isnan(amp.getGain()):
+            isr.updateVariance(
+                maskedImage = ampExposure.getMaskedImage(),
+                gain = amp.getGain(),
+                readNoise = amp.getReadNoise(),
+            )
 
     def flatCorrection(self, exposure, flatExposure):
         """!Apply flat correction in place
@@ -524,14 +553,15 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in,out]  exposure    exposure to process; only the amp DataSec is processed
         \param[in]      amp         amplifier device data
         """
-        maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
-        isr.makeThresholdMask(
-            maskedImage = dataView,
-            threshold = amp.getSaturation(),
-            growFootprints = 0,
-            maskName = self.config.saturatedMaskName,
-        )
+        if not math.isnan(amp.getSaturation()):
+            maskedImage = exposure.getMaskedImage()
+            dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
+            isr.makeThresholdMask(
+                maskedImage = dataView,
+                threshold = amp.getSaturation(),
+                growFootprints = 0,
+                maskName = self.config.saturatedMaskName,
+            )
 
     def saturationInterpolation(self, ccdExposure):
         """!Interpolate over saturated pixels, in place
@@ -629,3 +659,33 @@ class IsrTask(pipeBase.CmdLineTask):
             order = self.config.overscanOrder,
             collapseRej = self.config.overscanRej,
         )
+
+class FakeAmp(object):
+    """A Detector-like object that supports returning gain and saturation level"""
+    def __init__(self, exposure, config):
+        self._bbox = exposure.getBBox(afwImage.LOCAL)
+        self._RawHorizontalOverscanBBox = afwGeom.Box2I()
+        self._gain = config.gain
+        self._readNoise = config.readNoise
+        self._saturation = config.saturation
+
+    def getBBox(self):
+        return self._bbox
+
+    def getRawBBox(self):
+        return self._bbox
+
+    def getHasRawInfo(self):
+        return True                     # but see getRawHorizontalOverscanBBox()
+
+    def getRawHorizontalOverscanBBox(self):
+        return self._RawHorizontalOverscanBBox
+    
+    def getGain(self):
+        return self._gain
+
+    def getReadNoise(self):
+        return self._readNoise
+
+    def getSaturation(self):
+        return self._saturation
