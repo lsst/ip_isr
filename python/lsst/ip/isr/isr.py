@@ -287,7 +287,9 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
     """Apply overscan correction in place
 
     @param[in,out] ampMaskedImage  masked image to correct
-    @param[in] overscanImage  overscan data as an afw.image.IMage
+    @param[in] overscanImage  overscan data as an afw.image.Image or afw.image.MaskedImage.
+                              If a masked image is passed in the mask plane will be used
+                              to constrain the fit of the bias level.
     @param[in] fitType  type of fit for overscan correction; one of:
                         - 'MEAN'
                         - 'MEDIAN'
@@ -400,6 +402,11 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             offArray[:,:] = fitBiasArr[numpy.newaxis,:]
 
         # We don't trust any extrapolation: mask those pixels as SUSPECT
+        # This will occur when the top and or bottom edges of the overscan
+        # contain saturated values. The values will be extrapolated from
+        # the surrounding pixels, but we cannot entirely trust the value of
+        # the extrapolation, and will mark the image mask plane to flag the
+        # image as such.
         mask = ampMaskedImage.getMask()
         maskArray = mask.getArray() if shortInd == 1 else mask.getArray().transpose()
         suspect = mask.getPlaneBitMask("SUSPECT")
