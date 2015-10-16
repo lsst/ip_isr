@@ -141,7 +141,7 @@ def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
     workmask &= mask.getPlaneBitMask(maskName)
     thresh = afwDetection.Threshold(0.5)
     maskimg = afwImage.ImageU(workmask.getBBox())
-    maskimg <<= workmask
+    maskimg[:] = workmask
     ds = afwDetection.FootprintSet(maskimg, thresh)
     fpList = ds.getFootprints()
     return defectListFromFootprintList(fpList, growFootprints)
@@ -239,7 +239,7 @@ def updateVariance(maskedImage, gain, readNoise):
     @param[in] readNoise  amplifier read noise (ADU/pixel)
     """
     var = maskedImage.getVariance()
-    var <<= maskedImage.getImage()
+    var[:] = maskedImage.getImage()
     var /= gain
     var += readNoise**2
 
