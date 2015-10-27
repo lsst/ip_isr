@@ -238,6 +238,15 @@ class FringeTask(Task):
         fringes = fringes[good]
         oldNum = len(science)
 
+        # Up-front rejection to get rid of extreme, potentially troublesome values
+        # (e.g., fringe apertures that fall on objects).
+        good = select(science, self.config.clip)
+        for ff in range(fringes.shape[1]):
+            good &= select(fringes[:,ff], self.config.clip)
+        science = science[good]
+        fringes = fringes[good]
+        oldNum = len(science)
+
         for i in range(self.config.iterations):
             solution = self._solve(science, fringes)
             resid = science - numpy.sum(solution * fringes, 1)
@@ -345,3 +354,10 @@ def stdev(vector):
     q1, q3 = numpy.percentile(vector, (25, 75))
     return 0.74*(q3-q1)
 
+def select(vector, clip):
+    """Select values within 'clip' standard deviations of the median
+
+    Returns a boolean array.
+    """
+    q1, q2, q3 = numpy.percentile(vector, (25, 50, 75))
+    return numpy.abs(vector - q2) < clip*0.74*(q3 - q1)
