@@ -256,7 +256,7 @@ class FringeTask(Task):
                         fig.canvas._tkcanvas._root().lift() # == Tk's raise
                     except:
                         pass
-                    ax = fig.add_axes((0.1, 0.1, 0.8, 0.8))
+                    ax = fig.add_subplot(1, 1, 1)
                     adjust = science.copy()
                     others = set(range(fringes.shape[1]))
                     others.discard(j)
