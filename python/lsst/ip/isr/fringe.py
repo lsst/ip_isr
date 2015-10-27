@@ -119,7 +119,9 @@ class FringeTask(Task):
         if not hasattr(fringes, '__iter__'):
             fringes = [fringes]
 
+        mask = exposure.getMaskedImage().getMask()
         for fringe in fringes:
+            fringe.getMaskedImage().getMask().__ior__(mask)
             if self.config.pedestal:
                 self.removePedestal(fringe)
 
