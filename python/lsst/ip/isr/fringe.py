@@ -342,8 +342,6 @@ def stdev(vector):
     @param vector  Array of values
     @return Standard deviation
     """
-    num = len(vector)
-    vector = vector.copy()
-    vector.sort()
-    return 0.74 * (vector[int(0.75 * num)] - vector[int(0.25 * num)])
+    q1, q3 = numpy.percentile(vector, (25, 75))
+    return 0.74*(q3-q1)
 
