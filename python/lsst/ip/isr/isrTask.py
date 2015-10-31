@@ -371,7 +371,8 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in] dark -- exposure of dark frame
         \param[in] flat -- exposure of flatfield
         \param[in] defects -- list of detects
-        \param[in] fringes -- exposure of fringe frame or list of fringe exposure
+        \param[in] fringes -- a pipeBase.Struct with field fringes containing
+                              exposure of fringe frame or list of fringe exposure
 
         \return a pipeBase.Struct with field:
          - exposure
@@ -418,7 +419,7 @@ class IsrTask(pipeBase.CmdLineTask):
                 self.updateVariance(ampExposure, amp)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
-            self.fringe.removeFringe(ccdExposure, fringes)
+            self.fringe.run(ccdExposure, **fringes.getDict())
 
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, flat)
@@ -430,7 +431,7 @@ class IsrTask(pipeBase.CmdLineTask):
         self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
-            self.fringe.removeFringe(ccdExposure, fringes)
+            self.fringe.run(ccdExposure, **fringes.getDict())
 
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
