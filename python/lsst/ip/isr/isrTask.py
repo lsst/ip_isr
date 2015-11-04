@@ -326,10 +326,13 @@ class IsrTask(pipeBase.CmdLineTask):
         self.makeSubtask("fringe")
 
 
-    def readIsrData(self, dataRef):
+    def readIsrData(self, dataRef, rawExposure):
         """!Retrieve necessary frames for instrument signature removal
         \param[in] dataRef -- a daf.persistence.butlerSubset.ButlerDataRef
                               of the detector data to be processed
+        \param[in] rawExposure -- a reference raw exposure that will later be
+                                  corrected with the retrieved calibration data;
+                                  should not be modified in this method.
         \return a pipeBase.Struct with fields containing kwargs expected by run()
          - bias: exposure of bias frame
          - dark: exposure of dark frame
@@ -343,7 +346,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         defectList = dataRef.get("defects")
 
-        if self.config.doFringe:
+        if self.config.doFringe and self.fringe.checkFilter(rawExposure):
             fringes = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
                                               if self.config.doAssembleIsrExposures else None)
         else:
@@ -385,8 +388,6 @@ class IsrTask(pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a dark exposure if config.doDark True")
         if self.config.doFlat and flat is None:
             raise RuntimeError("Must supply a flat exposure if config.doFlat True")
-        if self.config.doFringe and fringes is None:
-            raise RuntimeError("Must supply fringe list or exposure if config.doFringe True")
 
         defects = [] if defects is None else defects
 
@@ -457,7 +458,7 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')
-        isrData = self.readIsrData(sensorRef)
+        isrData = self.readIsrData(sensorRef, ccdExposure)
 
         result = self.run(ccdExposure, **isrData.getDict())
 
