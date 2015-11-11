@@ -338,7 +338,8 @@ class IsrTask(pipeBase.CmdLineTask):
          - dark: exposure of dark frame
          - flat: exposure of flat field
          - defects: list of detects
-         - fringes: exposure of fringe frame or list of fringe exposure
+         - fringeStruct: a pipeBase.Struct with field fringes containing
+                         exposure of fringe frame or list of fringe exposure
         """
         biasExposure = self.getIsrExposure(dataRef, "bias") if self.config.doBias else None
         darkExposure = self.getIsrExposure(dataRef, "dark") if self.config.doDark else None
@@ -347,17 +348,17 @@ class IsrTask(pipeBase.CmdLineTask):
         defectList = dataRef.get("defects")
 
         if self.config.doFringe and self.fringe.checkFilter(rawExposure):
-            fringes = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
+            fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
                                               if self.config.doAssembleIsrExposures else None)
         else:
-            fringes = None
+            fringeStruct = pipeBase.Struct(fringes = None)
 
         #Struct should include only kwargs to run()
         return pipeBase.Struct(bias = biasExposure,
                                dark = darkExposure,
                                flat = flatExposure,
                                defects = defectList,
-                               fringes = fringes,
+                               fringes = fringeStruct,
                                )
 
     @pipeBase.timeMethod
@@ -388,6 +389,10 @@ class IsrTask(pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a dark exposure if config.doDark True")
         if self.config.doFlat and flat is None:
             raise RuntimeError("Must supply a flat exposure if config.doFlat True")
+        if fringes is None:
+            fringes = pipeBase.Struct(fringes=None)
+        if self.config.doFringe and not isinstance(fringes, pipeBase.Struct):
+            raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct")
 
         defects = [] if defects is None else defects
 
