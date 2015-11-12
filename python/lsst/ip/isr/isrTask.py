@@ -48,7 +48,8 @@ class IsrTaskConfig(pexConfig.Config):
     )
     doFringe = pexConfig.Field(
         dtype = bool,
-        doc = "Apply fringe correction?",
+        doc = "Apply fringe correction? If True, do fringe correction on " +
+              "exposures that have filters listed in config.fringe.filters",
         default = True,
         )
     doWrite = pexConfig.Field(
@@ -326,10 +327,11 @@ class IsrTask(pipeBase.CmdLineTask):
         self.makeSubtask("fringe")
 
 
-    def readIsrData(self, dataRef):
+    def readIsrData(self, dataRef, getFringeData):
         """!Retrieve necessary frames for instrument signature removal
         \param[in] dataRef -- a daf.persistence.butlerSubset.ButlerDataRef
                               of the detector data to be processed
+        \param[in] getFringeData -- a bool indicating whether to retrieve fringe data
         \return a pipeBase.Struct with fields containing kwargs expected by run()
          - bias: exposure of bias frame
          - dark: exposure of dark frame
@@ -345,7 +347,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         # The current implementation assumes only a single fringe frame and
         # will have to be updated to support multi-mode fringe subtraction.
-        fringes = self.getIsrExposure(dataRef, "fringe") if self.config.doFringe else None
+        fringes = self.getIsrExposure(dataRef, "fringe") if getFringeData else None
 
         #Struct should include only kwargs to run()
         return pipeBase.Struct(bias = biasExposure,
@@ -383,8 +385,6 @@ class IsrTask(pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a dark exposure if config.doDark True")
         if self.config.doFlat and flat is None:
             raise RuntimeError("Must supply a flat exposure if config.doFlat True")
-        if self.config.doFringe and fringes is None:
-            raise RuntimeError("Must supply fringe list or exposure if config.doFringe True")
 
         defects = [] if defects is None else defects
 
@@ -455,7 +455,8 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')
-        isrData = self.readIsrData(sensorRef)
+        getFringeData = self.config.doFringe and self.fringe.checkFilter(ccdExposure)
+        isrData = self.readIsrData(sensorRef, getFringeData)
 
         result = self.run(ccdExposure, **isrData.getDict())
 
