@@ -67,36 +67,8 @@ class FringeTask(Task):
     """
     ConfigClass = FringeConfig
 
-    def readFringes(self, dataRef, assembler=None):
-        """Read the fringe frame(s)
-
-        The current implementation assumes only a single fringe frame and
-        will have to be updated to support multi-mode fringe subtraction.
-
-        This implementation could be optimised by persisting the fringe
-        positions and fluxes.
-
-        @param dataRef     Data reference for the science exposure
-        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
-        @return Struct(fringes: fringe exposure or list of fringe exposures;
-                       seed: 32-bit uint derived from ccdExposureId for random number generator
-        """
-        try:
-            fringe = dataRef.get("fringe", immediate=True)
-        except Exception as e:
-            raise RuntimeError("Unable to retrieve fringe for %s: %s" % (dataRef.dataId, e))
-        if assembler is not None:
-            fringe = assembler.assembleCcd(fringe)
-
-        seed = self.config.stats.rngSeedOffset + dataRef.get("ccdExposureId", immediate=True)
-        #Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
-        seed %= 2**32
-
-        return Struct(fringes = fringe,
-                      seed = seed)
-
     @timeMethod
-    def run(self, exposure, fringes, seed=None):
+    def run(self, exposure, fringes):
         """Remove fringes from the provided science exposure.
 
         Primary method of FringeTask.  Fringes are only subtracted if the
@@ -104,7 +76,6 @@ class FringeTask(Task):
 
         @param exposure    Science exposure from which to remove fringes
         @param fringes     Exposure or list of Exposures
-        @param seed        32-bit unsigned integer for random number generator
         """
         import lsstDebug
         display = lsstDebug.Info(__name__).display
@@ -115,8 +86,13 @@ class FringeTask(Task):
         if self.config.pedestal:
             self.removePedestal(fringes)
 
-        if seed is None:
-            seed = self.config.stats.rngSeedOffset
+        try:
+            seed = int(exp.getCalib().getMidTime().toPython().strftime("%Y%m%d%H%M"))
+        except ValueError:
+            seed = 0
+        seed += self.config.stats.rngSeedOffset
+        #Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
+        seed %= 2**32
         rng = numpy.random.RandomState(seed=seed)
 
         if hasattr(fringes, '__iter__'):
@@ -153,8 +129,8 @@ class FringeTask(Task):
         """
         if not self.checkFilter(exposure):
             return
-        fringeStruct = self.readFringes(dataRef, assembler=assembler)
-        self.run(exposure,  **fringeStruct.getDict())
+        fringes = self.readFringes(dataRef, assembler=assembler)
+        self.run(exposure,  fringes)
 
     def checkFilter(self, exposure):
         """Check whether we should fringe-subtract the science exposure"""

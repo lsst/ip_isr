@@ -343,11 +343,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
         defectList = dataRef.get("defects")
 
-        if self.config.doFringe:
-            fringes = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
-                                              if self.config.doAssembleIsrExposures else None)
-        else:
-            fringes = None
+        # The current implementation assumes only a single fringe frame and
+        # will have to be updated to support multi-mode fringe subtraction.
+        fringes = self.getIsrExposure(dataRef, "fringe") if self.config.doFringe else None
 
         #Struct should include only kwargs to run()
         return pipeBase.Struct(bias = biasExposure,
@@ -419,7 +417,7 @@ class IsrTask(pipeBase.CmdLineTask):
                 self.updateVariance(ampExposure, amp)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, **fringes.getDict())
+            self.fringe.run(ccdExposure, fringes)
 
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, flat)
@@ -431,7 +429,7 @@ class IsrTask(pipeBase.CmdLineTask):
         self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
-            self.fringe.run(ccdExposure, **fringes.getDict())
+            self.fringe.run(ccdExposure, fringes)
 
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
