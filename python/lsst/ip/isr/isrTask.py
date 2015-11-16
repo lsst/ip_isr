@@ -29,6 +29,8 @@ from . import isr
 from .isrLib import maskNans
 from .assembleCcdTask import AssembleCcdTask
 from .fringe import FringeTask
+from lsst.afw.geom.polygon import Polygon
+from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE
 
 class IsrTaskConfig(pexConfig.Config):
     doBias = pexConfig.Field(
@@ -666,6 +668,25 @@ class IsrTask(pipeBase.CmdLineTask):
             order = self.config.overscanOrder,
             collapseRej = self.config.overscanRej,
         )
+
+    def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
+        """!Set the valid polygon as the intersection of fpPolygon and the ccd corners
+
+        \param[in,out]  exposure    exposure to process
+        \param[in]      fpPolygon   Polygon in focal plane coordinates
+        """
+        # Get ccd corners in focal plane coordinates
+        ccd = ccdExposure.getDetector()
+        fpCorners = ccd.getCorners(FOCAL_PLANE)
+        ccdPolygon = Polygon(fpCorners)
+
+        # Get intersection of ccd corners with fpPolygon
+        intersect = ccdPolygon.intersectionSingle(fpPolygon)
+
+        # Transform back to pixel positions and build new polygon
+        ccdPoints = [ccd.transform(ccd.makeCameraPoint(x, FOCAL_PLANE), PIXELS).getPoint() for x in intersect]
+        validPolygon = Polygon(ccdPoints)
+        ccdExposure.getInfo().setValidPolygon(validPolygon)
 
 class FakeAmp(object):
     """A Detector-like object that supports returning gain and saturation level"""
