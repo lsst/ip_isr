@@ -150,9 +150,13 @@ class FringeTestCase(unittest.TestCase):
         """Test subtraction of a fringe frame with a pedestal"""
         self.config.pedestal = True
         self.testSingle(pedestal=10000.0, precision=1.0e-3) # Not sure why this produces less precision
+        self.testMultiple(pedestal=10000.0)
 
-    def testMultiple(self):
-        """Test subtraction of multiple fringe frames"""
+    def testMultiple(self, pedestal=0.0):
+        """Test subtraction of multiple fringe frames
+
+        @param pedestal    Pedestal to add into fringe frame
+        """
         xFreqList = [0.1, 0.13, 0.06]
         xOffsetList = [0.0, 0.1, 0.2]
         yFreqList = [0.09, 0.12, 0.07]
@@ -161,6 +165,9 @@ class FringeTestCase(unittest.TestCase):
                       for xFreq, xOffset, yFreq, yOffset in
                       zip(xFreqList, xOffsetList, yFreqList, yOffsetList)]
 
+        for fringe in fringeList:
+            fMi = fringe.getMaskedImage()
+            fMi += pedestal
         # Generate science frame
         scales = [0.33, 0.33, 0.33]
         image = afwImage.ImageF(self.size, self.size)

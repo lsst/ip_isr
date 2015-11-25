@@ -112,25 +112,23 @@ class FringeTask(Task):
         if not self.checkFilter(exposure):
             return
 
-        if self.config.pedestal:
-            self.removePedestal(fringes)
-
         if seed is None:
             seed = self.config.stats.rngSeedOffset
         rng = numpy.random.RandomState(seed=seed)
 
-        if hasattr(fringes, '__iter__'):
-            #multiple fringe frames (placeholder implementation)
-            positions = self.generatePositions(fringes[0], rng)
-            fluxes = numpy.ndarray([len(positions), len(fringes)])
-            for i, f in enumerate(fringes):
-                fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")
-        else:
-            #single fringe frame
-            positions = self.generatePositions(fringes, rng)
-            fluxes = self.measureExposure(fringes, positions, title="Fringe frame")
-            fluxes = fluxes.reshape([len(positions), 1])
+        if not hasattr(fringes, '__iter__'):
             fringes = [fringes]
+
+        for fringe in fringes:
+            if self.config.pedestal:
+                self.removePedestal(fringe)
+
+        # Placeholder implementation for multiple fringe frames
+        # This needs to be revisited in DM-4441
+        positions = self.generatePositions(fringes[0], rng)
+        fluxes = numpy.ndarray([self.config.num, len(fringes)])
+        for i, f in enumerate(fringes):
+            fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")
 
         expFringes = self.measureExposure(exposure, positions, title="Science")
         solution = self.solve(expFringes, fluxes)
