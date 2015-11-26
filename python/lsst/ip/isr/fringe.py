@@ -112,25 +112,25 @@ class FringeTask(Task):
         if not self.checkFilter(exposure):
             return
 
-        if self.config.pedestal:
-            self.removePedestal(fringes)
-
         if seed is None:
             seed = self.config.stats.rngSeedOffset
         rng = numpy.random.RandomState(seed=seed)
 
-        if hasattr(fringes, '__iter__'):
-            #multiple fringe frames (placeholder implementation)
-            positions = self.generatePositions(fringes[0], rng)
-            fluxes = numpy.ndarray([len(positions), len(fringes)])
-            for i, f in enumerate(fringes):
-                fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")
-        else:
-            #single fringe frame
-            positions = self.generatePositions(fringes, rng)
-            fluxes = self.measureExposure(fringes, positions, title="Fringe frame")
-            fluxes = fluxes.reshape([len(positions), 1])
+        if not hasattr(fringes, '__iter__'):
             fringes = [fringes]
+
+        mask = exposure.getMaskedImage().getMask()
+        for fringe in fringes:
+            fringe.getMaskedImage().getMask().__ior__(mask)
+            if self.config.pedestal:
+                self.removePedestal(fringe)
+
+        # Placeholder implementation for multiple fringe frames
+        # This needs to be revisited in DM-4441
+        positions = self.generatePositions(fringes[0], rng)
+        fluxes = numpy.ndarray([self.config.num, len(fringes)])
+        for i, f in enumerate(fringes):
+            fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")
 
         expFringes = self.measureExposure(exposure, positions, title="Science")
         solution = self.solve(expFringes, fluxes)
@@ -238,6 +238,15 @@ class FringeTask(Task):
         fringes = fringes[good]
         oldNum = len(science)
 
+        # Up-front rejection to get rid of extreme, potentially troublesome values
+        # (e.g., fringe apertures that fall on objects).
+        good = select(science, self.config.clip)
+        for ff in range(fringes.shape[1]):
+            good &= select(fringes[:,ff], self.config.clip)
+        science = science[good]
+        fringes = fringes[good]
+        oldNum = len(science)
+
         for i in range(self.config.iterations):
             solution = self._solve(science, fringes)
             resid = science - numpy.sum(solution * fringes, 1)
@@ -256,7 +265,7 @@ class FringeTask(Task):
                         fig.canvas._tkcanvas._root().lift() # == Tk's raise
                     except:
                         pass
-                    ax = fig.add_axes((0.1, 0.1, 0.8, 0.8))
+                    ax = fig.add_subplot(1, 1, 1)
                     adjust = science.copy()
                     others = set(range(fringes.shape[1]))
                     others.discard(j)
@@ -342,8 +351,13 @@ def stdev(vector):
     @param vector  Array of values
     @return Standard deviation
     """
-    num = len(vector)
-    vector = vector.copy()
-    vector.sort()
-    return 0.74 * (vector[int(0.75 * num)] - vector[int(0.25 * num)])
+    q1, q3 = numpy.percentile(vector, (25, 75))
+    return 0.74*(q3-q1)
 
+def select(vector, clip):
+    """Select values within 'clip' standard deviations of the median
+
+    Returns a boolean array.
+    """
+    q1, q2, q3 = numpy.percentile(vector, (25, 50, 75))
+    return numpy.abs(vector - q2) < clip*0.74*(q3 - q1)
