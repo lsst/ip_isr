@@ -1,6 +1,6 @@
 #
 # LSST Data Management System
-# Copyright 2008-2015 LSST Corporation.
+# Copyright 2008-2016 AURA/LSST.
 #
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -25,6 +25,8 @@ import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
+from lsstDebug import getDebugFrame
+from lsst.afw.display import getDisplay
 from . import isr
 from .isrLib import maskNans
 from .assembleCcdTask import AssembleCcdTask
@@ -443,7 +445,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
 
-        self.display("postISRCCD", ccdExposure)
+        frame = getDebugFrame(self._display, "postISRCCD")
+        if frame:
+            getDisplay(frame).mtv(ccdExposure)
 
         return pipeBase.Struct(
             exposure = ccdExposure,
