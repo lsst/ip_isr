@@ -1,6 +1,6 @@
 # 
 # LSST Data Management System
-# Copyright 2008, 2009, 2010 LSST Corporation.
+# Copyright 2008-2016 AURA/LSST.
 # 
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -24,6 +24,8 @@ import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.image as afwImage
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
+from lsstDebug import getDebugFrame
+from lsst.afw.display import getDisplay
 from .isr import calcEffectiveGain
 
 __all__ = ["AssembleCcdTask"]
@@ -252,7 +254,9 @@ class AssembleCcdTask(pipeBase.Task):
 
         outExposure.setFilter(inExposure.getFilter())
 
-        self.display("assembledExposure", exposure=outExposure)
+        frame = getDebugFrame(self._display, "assembledExposure")
+        if frame:
+            getDisplay(frame).mtv(outExposure)
 
     def setWcs(self, outExposure, inExposure):
         """Set output WCS = input WCS, adjusted as required for datasecs not starting at lower left corner
