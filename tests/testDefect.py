@@ -86,7 +86,34 @@ class DefectTestCases(unittest.TestCase):
             for d in defectList:
                 displayUtils.drawBBox(d.getBBox(), ctype=ds9.CYAN, borderWidth=.5)
             ds9.incrDefaultFrame()
-        
+
+    def testDefectsFromMaskedImage(self):
+        """Test creation of a DefectList from a MaskedImage."""
+        mim = afwImage.MaskedImageF(10, 10)
+
+        # Nothing masked -> no defects.
+        defectList = ipIsr.getDefectListFromMask(mim, "BAD", growFootprints=0)
+        self.assertEqual(len(defectList), 0)
+
+        # Mask a single pixel.
+        mask = mim.getMask()
+        mask.set(5, 5, mask.getPlaneBitMask("BAD"))
+        defectList = ipIsr.getDefectListFromMask(mim, "BAD", growFootprints=0)
+        self.assertEqual(len(defectList), 1)
+        self.assertEqual(defectList[0].getX0(), 5)
+        self.assertEqual(defectList[0].getY0(), 5)
+
+        # Setting a different plane does not register as a defect.
+        mask.set(1, 1, mask.getPlaneBitMask("SUSPECT"))
+        defectList = ipIsr.getDefectListFromMask(mim, "SUSPECT", growFootprints=0)
+        self.assertEqual(len(defectList), 1)
+
+        # But adding another BAD pixel does.
+        mask.set(9, 9, mask.getPlaneBitMask("BAD"))
+        defectList = ipIsr.getDefectListFromMask(mim, "BAD", growFootprints=0)
+        self.assertEqual(len(defectList), 2)
+
+
 def suite():
     """Returns a suite containing all the test cases in this module."""
     tests.init()
