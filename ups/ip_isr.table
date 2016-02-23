@@ -1,4 +1,5 @@
 setupRequired(meas_algorithms)
+setupRequired(numpy)
 setupRequired(pipe_base)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
