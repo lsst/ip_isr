@@ -1,6 +1,8 @@
 setupRequired(meas_algorithms)
 setupRequired(numpy)
 setupRequired(pipe_base)
+setupRequired(scons)
+setupRequired(sconsUtils)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
 envPrepend(LSST_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
