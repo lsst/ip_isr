@@ -200,6 +200,12 @@ class IsrTaskConfig(pexConfig.Config):
         default = True,
         doc = "Should the gain be applied when applying the brighter fatter correction?"
         )
+    datasetType = pexConfig.Field(
+        dtype = str,
+        doc = "Dataset type for input data; users will typically leave this alone, "
+            "but camera-specific ISR tasks will override it",
+        default = "raw",
+    )
 
 ## \addtogroup LSST_task_documentation
 ## \{
