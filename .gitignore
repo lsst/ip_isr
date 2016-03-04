@@ -1,3 +1,4 @@
+_build.*
 .sconsign.dblite
 config.log
 .sconf_temp
@@ -13,5 +14,6 @@ doc/html
 doc/*.tag
 doc/*.inc
 doc/doxygen.conf
+doc/xml
 tests/.tests
 version.py
