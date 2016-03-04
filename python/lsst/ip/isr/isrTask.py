@@ -772,7 +772,7 @@ class IsrTask(pipeBase.CmdLineTask):
         image = exposure.getMaskedImage().getImage()
 
         # The image needs to be units of electrons/holes
-        with self.gainContext(exposure, image, applyGain) as exp:
+        with self.gainContext(exposure, image, applyGain):
 
             kLx = numpy.shape(kernel)[0]
             kLy = numpy.shape(kernel)[1]
