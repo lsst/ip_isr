@@ -13,7 +13,6 @@ def runIsr():
     isrConfig.doFlat = True
     isrConfig.doFringe = False #There is no fringe frame for this example
 
-    isrConfig.assembleCcd.doRenorm = False #We'll take care of gain in the flats
     isrConfig.assembleCcd.setGain = False 
     isrTask = IsrTask(config=isrConfig)
 
