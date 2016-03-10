@@ -37,9 +37,13 @@ class AssembleCcdConfig(pexConfig.Config):
         default = True,
     )
     doRenorm = pexConfig.Field(
-        doc = "renormalize to a gain of 1? (ignored if setGain false)",
+        doc = "renormalize to a gain of 1? (ignored if setGain false). "
+            "Setting to True gives 1 ADU per electron. "
+            "Setting to True is not recommended for mosaic cameras because it breaks normalization across "
+            "the focal plane. However, if the CCDs are sufficiently flat then the resulting error "
+            "may be acceptable.",
         dtype = bool,
-        default = True,
+        default = False,
     )
     doTrim = pexConfig.Field(
         doc = "trim out non-data regions?",
