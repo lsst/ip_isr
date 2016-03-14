@@ -206,7 +206,9 @@ class IsrTaskConfig(pexConfig.Config):
             "but camera-specific ISR tasks will override it",
         default = "raw",
     )
-
+    fallbackFilterName = pexConfig.Field(dtype=str,
+            doc="Fallback default filter name for calibrations", optional=True)
+ 
 ## \addtogroup LSST_task_documentation
 ## \{
 ## \page IsrTask
@@ -601,9 +603,17 @@ class IsrTask(pipeBase.CmdLineTask):
         \return exposure
         """
         try:
-            exp = dataRef.get(datasetType, immediate=immediate)
-        except Exception, e:
-            raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, e))
+            exp=dataRef.get(datasetType, immediate=immediate)
+        except:
+            try:
+                exp=dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
+                self.log.warn("Using fallback calibration from filter %s" % self.config.fallbackFilterName)
+            except Exception as e:
+                extraMessage = ''
+                if not self.config.fallbackFilterName:
+                    extraMessage += ' and no fallback filter specified'
+                raise RuntimeError("Unable to retrieve %s for %s%s: %s" % (datasetType, dataRef.dataId,
+                                                                            extraMessage, e))
         if self.config.doAssembleIsrExposures:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
@@ -616,13 +626,15 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         if not math.isnan(amp.getSaturation()):
             maskedImage = exposure.getMaskedImage()
-            dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
-            isr.makeThresholdMask(
-                maskedImage = dataView,
-                threshold = amp.getSaturation(),
-                growFootprints = 0,
-                maskName = self.config.saturatedMaskName,
-            )
+            for box in (amp.getRawBBox(), amp.getRawHorizontalOverscanBBox(),
+                        amp.getRawVerticalOverscanBBox()):
+                dataView=maskedImage.Factory(maskedImage, box)
+                isr.makeThresholdMask(
+                    maskedImage=dataView,
+                    threshold=amp.getSaturation(),
+                    growFootprints=0,
+                    maskName=self.config.saturatedMaskName,
+                )
 
     def saturationInterpolation(self, ccdExposure):
         """!Interpolate over saturated pixels, in place
