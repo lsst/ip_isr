@@ -22,6 +22,7 @@
 import math
 import numpy
 
+import lsst.afw.detection as afwDetect
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
@@ -38,6 +39,35 @@ from lsst.afw.geom.polygon import Polygon
 from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE
 from contextlib import contextmanager
 
+
+class CrosstalkCoeffsConfig(pexConfig.Config):
+    """Specify crosstalk coefficients for a CCD"""
+
+    values = pexConfig.ListField(
+        dtype = float,
+        doc = "Crosstalk coefficients",
+        default = [0, 0,
+                   0, 0],
+    )
+    shape = pexConfig.ListField(
+        dtype = int,
+        doc = "Shape of coeffs array",
+        default = [2, 2],
+        minLength = 1,                  # really 2, but there's a bug in pex_config
+        maxLength = 2,
+    )
+
+    def getCoeffs(self):
+        """Return a 2-D numpy array of crosstalk coefficients of the proper shape"""
+        return numpy.array(self.values).reshape(self.shape)
+
+
+class CrosstalkConfig(pexConfig.Config):
+    minPixelToMask = pexConfig.Field(dtype=float, default=45000,
+                                     doc="Set crosstalk mask plane for pixels over this value")
+    crosstalkMaskPlane = pexConfig.Field(dtype=str, default="CROSSTALK", doc="Name for crosstalk mask plane")
+    coeffs = pexConfig.ConfigField(dtype=CrosstalkCoeffsConfig, doc="Crosstalk coefficients")
+
 class IsrTaskConfig(pexConfig.Config):
     doBias = pexConfig.Field(
         dtype = bool,
@@ -48,6 +78,11 @@ class IsrTaskConfig(pexConfig.Config):
         dtype = bool,
         doc = "Apply dark frame correction?",
         default = True,
+    )
+    doCrosstalk = pexConfig.Field(
+        dtype = bool,
+        doc = "Apply crosstalk correction?",
+        default = False,
     )
     doFlat = pexConfig.Field(
         dtype = bool,
@@ -208,7 +243,9 @@ class IsrTaskConfig(pexConfig.Config):
     )
     fallbackFilterName = pexConfig.Field(dtype=str,
             doc="Fallback default filter name for calibrations", optional=True)
- 
+
+    crosstalkCoeffs = pexConfig.ConfigField(dtype=CrosstalkCoeffsConfig, doc="Crosstalk coefficients")
+
 ## \addtogroup LSST_task_documentation
 ## \{
 ## \page IsrTask
@@ -461,6 +498,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, bias)
+
+        if self.config.doCrosstalk:
+            self.subtractXTalk(ccdExposure.getMaskedImage(), self.config.crosstalkCoeffs.getCoeffs())
 
         if self.config.doBrighterFatter:
             self.brighterFatterCorrection(ccdExposure, bfKernel,
@@ -861,6 +901,74 @@ class IsrTask(pipeBase.CmdLineTask):
                 for amp in ccd:
                     sim = image.Factory(image, amp.getBBox())
                     sim /= amp.getGain()
+
+    def subtractXTalk(self, mi, coeffs, minPixelToMask=45000, crosstalkStr="CROSSTALK"):
+        """Subtract the crosstalk from MaskedImage mi given a set of coefficients.
+
+        The pixels affected by signal over minPixelToMask have the crosstalkStr bit set.
+        """
+        sctrl = afwMath.StatisticsControl()
+        sctrl.setAndMask(mi.getMask().getPlaneBitMask("BAD"))
+        bkgd = afwMath.makeStatistics(mi, afwMath.MEDIAN, sctrl).getValue()
+        #
+        # These are the pixels that are bright enough to cause crosstalk (more precisely,
+        # the ones that we label as causing crosstalk; in reality all pixels cause crosstalk)
+        #
+
+        nAmp = coeffs.shape[0]
+
+        # mask plane used to record the bright pixels that we need to mask
+        tempStr = "TEMP"
+        mi.getMask().addMaskPlane(tempStr)
+        try:
+            fs = afwDetect.FootprintSet(mi, afwDetect.Threshold(minPixelToMask), tempStr)
+
+            mi.getMask().addMaskPlane(crosstalkStr)
+            # afwDisplay.getDisplay().setMaskPlaneColor(crosstalkStr, afwDisplay.MAGENTA)
+
+            # The crosstalkStr bit will now be set whenever we subtract crosstalk
+            fs.setMask(mi.getMask(), crosstalkStr)
+            crosstalk = mi.getMask().getPlaneBitMask(crosstalkStr)
+
+            width, height = mi.getDimensions()
+            for i in range(nAmp):
+                bbox = afwGeom.BoxI(afwGeom.PointI(i*(width//nAmp), 0), afwGeom.ExtentI(width//nAmp, height))
+                ampI = mi.Factory(mi, bbox)
+                for j in range(nAmp):
+                    if i == j:
+                        continue
+
+                    bbox = afwGeom.BoxI(afwGeom.PointI(j*(width//nAmp), 0),
+                                        afwGeom.ExtentI(width//nAmp, height))
+                    if (i + j)%2 == 1:
+                        # no need for a deep copy
+                        ampJ = afwMath.flipImage(mi.Factory(mi, bbox), True, False)
+                    else:
+                        ampJ = mi.Factory(mi, bbox, afwImage.LOCAL, True)
+
+                    msk = ampJ.getMask()
+                    if numpy.all(msk.getArray() & msk.getPlaneBitMask("BAD")):
+                        # Bad amplifier; ignore it completely --- its effect will come out in the bias
+                        continue
+                    msk &= crosstalk
+
+                    ampJ -= bkgd
+                    ampJ *= coeffs[j][i]
+
+                    ampI -= ampJ
+            #
+            # Clear the crosstalkStr bit in the original bright pixels, where tempStr is set
+            #
+            msk = mi.getMask()
+            temp = msk.getPlaneBitMask(tempStr)
+            xtalk_temp = crosstalk | temp
+            np_msk = msk.getArray()
+            mask_indicies = numpy.where(numpy.bitwise_and(np_msk, xtalk_temp) == xtalk_temp)
+            np_msk[mask_indicies] &= getattr(numpy, np_msk.dtype.name)(~crosstalk)
+
+        finally:
+            msk.removeAndClearMaskPlane(tempStr, True)  # added in afw #1853
+
 
 class FakeAmp(object):
     """A Detector-like object that supports returning gain and saturation level"""
