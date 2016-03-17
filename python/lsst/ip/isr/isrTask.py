@@ -626,15 +626,13 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         if not math.isnan(amp.getSaturation()):
             maskedImage = exposure.getMaskedImage()
-            for box in (amp.getRawBBox(), amp.getRawHorizontalOverscanBBox(),
-                        amp.getRawVerticalOverscanBBox()):
-                dataView=maskedImage.Factory(maskedImage, box)
-                isr.makeThresholdMask(
-                    maskedImage=dataView,
-                    threshold=amp.getSaturation(),
-                    growFootprints=0,
-                    maskName=self.config.saturatedMaskName,
-                )
+            dataView=maskedImage.Factory(maskedImage, amp.getRawBBox())
+            isr.makeThresholdMask(
+                maskedImage=dataView,
+                threshold=amp.getSaturation(),
+                growFootprints=0,
+                maskName=self.config.saturatedMaskName,
+            )
 
     def saturationInterpolation(self, ccdExposure):
         """!Interpolate over saturated pixels, in place
