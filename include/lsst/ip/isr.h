@@ -45,7 +45,7 @@
 #include <string>
 #include <vector>
 
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 #include <lsst/afw/math.h>
 #include <lsst/afw/math/Statistics.h>
@@ -206,7 +206,7 @@ namespace isr {
 
     template<typename ImagePixelT, typename FunctionT>
     void fitOverscanImage(
-        boost::shared_ptr<lsst::afw::math::Function1<FunctionT> > &overscanFunction,
+        std::shared_ptr<lsst::afw::math::Function1<FunctionT> > &overscanFunction,
         lsst::afw::image::MaskedImage<ImagePixelT> const& overscan,
         double ssize=1.,
         int sigma=1

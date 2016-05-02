@@ -37,7 +37,7 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 // Everything we will need in the _wrap.cc file
 %{
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 #include "lsst/pex/exceptions.h"
 #include "lsst/pex/logging.h"
