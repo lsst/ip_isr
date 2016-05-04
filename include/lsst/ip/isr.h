@@ -42,10 +42,9 @@
 #ifndef LSST_IP_ISR_ISR_H
 #define LSST_IP_ISR_ISR_H
 	
+#include <memory>
 #include <string>
 #include <vector>
-
-#include <memory>
 
 #include <lsst/afw/math.h>
 #include <lsst/afw/math/Statistics.h>
