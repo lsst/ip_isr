@@ -77,7 +77,7 @@ size_t maskNans(afw::image::MaskedImage<PixelT> const& mi, afw::image::MaskPixel
 
 template<typename ImagePixelT, typename FunctionT>
 void fitOverscanImage(
-    boost::shared_ptr< afw::math::Function1<FunctionT> > &overscanFunction,
+    std::shared_ptr< afw::math::Function1<FunctionT> > &overscanFunction,
     afw::image::MaskedImage<ImagePixelT> const& overscan,
     double ssize,
     int sigma
@@ -142,14 +142,14 @@ std::string between(std::string &s, char ldelim, char rdelim) {
 
 template
 void fitOverscanImage(
-     boost::shared_ptr<afw::math::Function1<double> > &overscanFunction, 
+     std::shared_ptr<afw::math::Function1<double> > &overscanFunction, 
     afw::image::MaskedImage<float> const& overscan,
     double ssize,
     int sigma);
 
 template
 void fitOverscanImage(
-     boost::shared_ptr<afw::math::Function1<double> > &overscanFunction,
+     std::shared_ptr<afw::math::Function1<double> > &overscanFunction,
     afw::image::MaskedImage<double> const& overscan,
     double ssize,
     int sigma);
