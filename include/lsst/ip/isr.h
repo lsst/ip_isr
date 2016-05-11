@@ -45,11 +45,11 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cmath>
 
 #include <lsst/afw/math.h>
 #include <lsst/afw/math/Statistics.h>
 #include <lsst/afw/image.h>
-#include <lsst/utils/ieee.h>
 #include <lsst/pex/exceptions/Exception.h>
 
 /** \brief Remove all non-astronomical counts from the Chunk Exposure's pixels.

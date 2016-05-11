@@ -22,6 +22,7 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
  
+#include <cmath>
 
 #include "lsst/pex/logging/Trace.h"
 #include "lsst/afw/math.h"
@@ -65,8 +66,8 @@ size_t maskNans(afw::image::MaskedImage<PixelT> const& mi, afw::image::MaskPixel
     size_t nPix = 0;
     for (int y = 0; y != mi.getHeight(); ++y) {
         for (x_iterator ptr = mi.row_begin(y), end = mi.row_end(y); ptr != end; ++ptr) {
-            if (!(ptr.mask() & allow) && (!utils::lsst_isfinite(ptr.image()) ||
-                                          !utils::lsst_isfinite(ptr.variance()))) {
+            if (!(ptr.mask() & allow) && (!std::isfinite(ptr.image()) ||
+                                          !std::isfinite(ptr.variance()))) {
                 nPix += 1;
                 ptr.mask() |= maskVal;
             }
