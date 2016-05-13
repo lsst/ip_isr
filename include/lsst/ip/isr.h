@@ -25,6 +25,7 @@
 #ifndef LSST_IP_ISR_H
 #define LSST_IP_ISR_H
 
+#include "lsst/ip/isr/applyLookupTable.h"
 #include "lsst/ip/isr/isr.h"
 
 #endif
