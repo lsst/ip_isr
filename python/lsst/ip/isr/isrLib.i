@@ -41,7 +41,7 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 #include "lsst/pex/exceptions.h"
 #include "lsst/pex/logging.h"
-#include "lsst/ip/isr.h"
+#include "lsst/ip/isr/isr.h"
 #include "lsst/pex/policy/Policy.h"
 #include "lsst/afw/detection.h"
 #include "lsst/afw/geom.h" // work around ticket #1121
@@ -64,7 +64,7 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %shared_ptr(lsst::ip::isr::LookupTableReplace<float>);
 %shared_ptr(lsst::ip::isr::LookupTableReplace<double>);
 
-%include "lsst/ip/isr.h"
+%include "lsst/ip/isr/isr.h"
 
 %define %instantiateFloatLike(TYPE, PIXELTYPE)
 %template(CountMaskedPixels##TYPE) lsst::ip::isr::CountMaskedPixels<PIXELTYPE>;
