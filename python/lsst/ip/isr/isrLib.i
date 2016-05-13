@@ -41,6 +41,7 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 #include "lsst/pex/exceptions.h"
 #include "lsst/pex/logging.h"
+#include "lsst/ip/isr/applyLookupTable.h"
 #include "lsst/ip/isr/isr.h"
 #include "lsst/pex/policy/Policy.h"
 #include "lsst/afw/detection.h"
@@ -49,6 +50,9 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 
 %include "lsst/p_lsstSwig.i"
 %initializeNumPy(ip_isr)
+%{
+#include "ndarray/swig.h"
+%}
 
 %import  "lsst/afw/image/imageLib.i" 
 %import  "lsst/afw/math/mathLib.i" 
@@ -63,9 +67,11 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %shared_ptr(lsst::ip::isr::LookupTableReplace<float>);
 %shared_ptr(lsst::ip::isr::LookupTableReplace<double>);
 
+%include "lsst/ip/isr/applyLookupTable.h"
 %include "lsst/ip/isr/isr.h"
 
 %define %instantiateFloatLike(TYPE, PIXELTYPE)
+%template(applyLookupTable) lsst::ip::isr::applyLookupTable<PIXELTYPE>;
 %template(CountMaskedPixels##TYPE) lsst::ip::isr::CountMaskedPixels<PIXELTYPE>;
 %template(LookupTableMultiplicative##TYPE) lsst::ip::isr::LookupTableMultiplicative<PIXELTYPE>;
 %template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<PIXELTYPE, double>;
