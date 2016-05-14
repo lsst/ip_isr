@@ -89,67 +89,6 @@ namespace isr {
         ISR_BACKSUBid = 0x1000, ///< Cosmic ray rejection
     };
 
-    /** Multiplicative linearization lookup table
-     *
-     * @ingroup isr
-     */
-    template <typename ImageT>
-    class LookupTableMultiplicative {
-    public:
-        typedef typename lsst::afw::image::MaskedImage<ImageT>::x_iterator x_iterator;
-        typedef typename lsst::afw::image::MaskedImage<ImageT>::Pixel PixelT;
-
-        LookupTableMultiplicative(std::vector<double> table) : 
-            _table(table), _max(table.size()) {};
-        virtual ~LookupTableMultiplicative() {};
-
-        void apply(lsst::afw::image::MaskedImage<ImageT> &image, float gain=1.0) {
-
-            for (int y = 0; y != image.getHeight(); ++y) {
-                for (x_iterator ptr = image.row_begin(y), end = image.row_end(y); ptr != end; ++ptr) {
-                    int ind = static_cast<int>(ptr.image() + 0.5);  // Rounded pixel value
-                    if (ind >= _max){
-                        throw LSST_EXCEPT(lsst::pex::exceptions::Exception, 
-                                          "Pixel value out of range in LookupTableMultiplicative::apply");
-                    }
-                    PixelT p = PixelT((*ptr).image() * _table[ind], 
-                                      (*ptr).mask(), 
-                                      (*ptr).variance() * _table[ind] * _table[ind]);
-                    *ptr = p;
-                }
-            }
-        }
-
-        // Return the lookup table
-        std::vector<double> getTable() const { return _table; }
-    private:
-        std::vector<double> _table;
-        int _max;
-    };
-
-    /** Linearization lookup table with replacement
-     *
-     * @ingroup isr
-     */
-    template <typename ImageT>
-    class LookupTableReplace {
-    public:
-        typedef typename lsst::afw::image::MaskedImage<ImageT>::x_iterator x_iterator;
-        typedef typename lsst::afw::image::MaskedImage<ImageT>::Pixel PixelT;
-
-        LookupTableReplace(std::vector<double> table) : 
-            _table(table), _max(table.size()) {};
-        virtual ~LookupTableReplace() {};
-
-        void apply(lsst::afw::image::MaskedImage<ImageT> &image, float gain=1.0) const;
-
-        // Return the lookup table
-        std::vector<double> getTable() const { return _table; }
-    private:
-        std::vector<double> _table;
-        int _max;
-    };
-
     template <typename ImageT, typename MaskT=lsst::afw::image::MaskPixel>
     class CountMaskedPixels {
     public:
@@ -202,7 +141,6 @@ namespace isr {
         double ssize=1.,
         int sigma=1
         );
-    
 
 }}} // namespace lsst::ip::isr
 	

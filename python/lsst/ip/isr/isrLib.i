@@ -61,25 +61,15 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 %shared_ptr(lsst::ip::isr::CountMaskedPixels<float>);
 %shared_ptr(lsst::ip::isr::CountMaskedPixels<double>);
 
-%shared_ptr(lsst::ip::isr::LookupTableMultiplicative<float>);
-%shared_ptr(lsst::ip::isr::LookupTableMultiplicative<double>);
-
-%shared_ptr(lsst::ip::isr::LookupTableReplace<float>);
-%shared_ptr(lsst::ip::isr::LookupTableReplace<double>);
-
 %include "lsst/ip/isr/applyLookupTable.h"
 %include "lsst/ip/isr/isr.h"
 
 %define %instantiateFloatLike(TYPE, PIXELTYPE)
 %template(applyLookupTable) lsst::ip::isr::applyLookupTable<PIXELTYPE>;
 %template(CountMaskedPixels##TYPE) lsst::ip::isr::CountMaskedPixels<PIXELTYPE>;
-%template(LookupTableMultiplicative##TYPE) lsst::ip::isr::LookupTableMultiplicative<PIXELTYPE>;
 %template(fitOverscanImage) lsst::ip::isr::fitOverscanImage<PIXELTYPE, double>;
 %template(maskNans) lsst::ip::isr::maskNans<PIXELTYPE>;
 %enddef
-
-%template(LookupTableReplaceI) lsst::ip::isr::LookupTableReplace<int>;
-%template(LookupTableReplaceF) lsst::ip::isr::LookupTableReplace<float>;
 
 %instantiateFloatLike(F, float);
 %instantiateFloatLike(D, double);
