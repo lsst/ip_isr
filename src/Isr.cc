@@ -27,7 +27,7 @@
 #include "lsst/pex/logging/Trace.h"
 #include "lsst/afw/math.h"
 #include "lsst/afw/math/Statistics.h"
-#include "lsst/ip/isr/isr.h"
+#include "lsst/ip/isr.h"
 
 namespace lsst { namespace ip { namespace isr {
 
