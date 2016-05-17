@@ -105,9 +105,8 @@ class FringeTestCase(unittest.TestCase):
             global frame
             ds9.mtv(exp, frame=frame, title="Science exposure")
             frame += 1
-            fringe = dataRef.get()
-            if not isinstance(fringe, list):
-                fringe = [fringe]
+            if not isinstance(fringes, list):
+                fringe = [fringes]
             for i, f in enumerate(fringe):
                 ds9.mtv(f, frame=frame, title="Fringe frame %d" % (i+1))
                 frame += 1
