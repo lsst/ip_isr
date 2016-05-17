@@ -25,3 +25,4 @@ from .isrLib import *
 from .isr import *
 from .assembleCcdTask import *
 from .isrTask import *
+from .linearize import *

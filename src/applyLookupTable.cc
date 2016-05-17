@@ -23,7 +23,6 @@
  */
 
 #include <cstdint>
-#include <iostream>
 
 #include "lsst/pex/exceptions.h"
 #include "lsst/ip/isr/applyLookupTable.h"

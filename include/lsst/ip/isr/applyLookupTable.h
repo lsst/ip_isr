@@ -55,7 +55,8 @@ namespace isr {
     int applyLookupTable(
         afw::image::Image<PixelT> &image,
         ndarray::Array<PixelT, 1, 1> const &table,
-        PixelT indOffset);
+        PixelT indOffset
+    );
 
 }}} // lsst::ip::isr
 
