@@ -160,7 +160,8 @@ class IsrTaskConfig(pexConfig.Config):
     )
     setGainAssembledCcd = pexConfig.Field(
         dtype = bool,
-        doc = "update exposure metadata in the assembled ccd to reflect the effective gain of the assembled chip",
+        doc = "update exposure metadata in the assembled ccd to reflect the "\
+                "effective gain of the assembled chip",
         default = True,
     )
     keysToRemoveFromAssembledCcd = pexConfig.ListField(
@@ -213,7 +214,7 @@ class IsrTaskConfig(pexConfig.Config):
     )
     fallbackFilterName = pexConfig.Field(dtype=str,
             doc="Fallback default filter name for calibrations", optional=True)
- 
+
 ## \addtogroup LSST_task_documentation
 ## \{
 ## \page IsrTask
@@ -273,10 +274,10 @@ class IsrTask(pipeBase.CmdLineTask):
       <DT> \c display
       <DD> A dictionary containing debug point names as keys with frame number as value. Valid keys are:
         <DL>
-          <DT> postISRCCD 
-          <DD> display exposure after ISR has been applied 
+          <DT> postISRCCD
+          <DD> display exposure after ISR has been applied
         </DL>
-    </DL>  
+    </DL>
 
     For example, put something like
     \code{.py}
@@ -716,7 +717,7 @@ class IsrTask(pipeBase.CmdLineTask):
         maskedImage = exposure.getMaskedImage()
 
         # Find and mask NaNs
-        maskedImage.getMask().addMaskPlane("UNMASKEDNAN") 
+        maskedImage.getMask().addMaskPlane("UNMASKEDNAN")
         maskVal = maskedImage.getMask().getPlaneBitMask("UNMASKEDNAN")
         numNans = maskNans(maskedImage, maskVal)
         self.metadata.set("NUMNANS", numNans)
@@ -911,7 +912,7 @@ class FakeAmp(object):
 
     def getRawHorizontalOverscanBBox(self):
         return self._RawHorizontalOverscanBBox
-    
+
     def getGain(self):
         return self._gain
 

@@ -109,7 +109,7 @@ def transposeDefectList(defectList):
     retDefectList = measAlg.DefectListT()
     for defect in defectList:
         bbox = defect.getBBox()
-        nbbox = afwGeom.Box2I(afwGeom.Point2I(bbox.getMinY(), bbox.getMinX()), 
+        nbbox = afwGeom.Box2I(afwGeom.Point2I(bbox.getMinY(), bbox.getMinX()),
              afwGeom.Extent2I(bbox.getDimensions()[1], bbox.getDimensions()[0]))
         retDefectList.push_back(measAlg.Defect(nbbox))
     return retDefectList
@@ -256,7 +256,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     if scalingType == 'MEAN':
         flatScale = afwMath.makeStatistics(flatMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
     elif scalingType == 'MEDIAN':
-        flatScale = afwMath.makeStatistics(flatMaskedImage.getImage(), afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+        flatScale = afwMath.makeStatistics(flatMaskedImage.getImage(),afwMath.MEDIAN).getValue(afwMath.MEDIAN)
     elif scalingType == 'USER':
         flatScale = userScale
     else:
@@ -384,7 +384,8 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                 if ans in ("", "c",):
                     break
                 if ans in ("p",):
-                    import pdb; pdb.set_trace()
+                    import pdb
+                    pdb.set_trace()
                 elif ans in ("h", ):
                     print "h[elp] c[ontinue] p[db]"
                 figure.close()

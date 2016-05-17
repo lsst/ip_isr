@@ -1,7 +1,7 @@
-# 
+#
 # LSST Data Management System
 # Copyright 2008-2016 AURA/LSST.
-# 
+#
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
 #
@@ -9,14 +9,14 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
-# You should have received a copy of the LSST License Statement and 
-# the GNU General Public License along with this program.  If not, 
+#
+# You should have received a copy of the LSST License Statement and
+# the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import lsst.afw.cameraGeom as cameraGeom
@@ -83,8 +83,8 @@ class AssembleCcdTask(pipeBase.Task):
     This task assembles sections of an image into a larger mosaic.  The sub-sections
     are typically amplifier sections and are to be assembled into a detector size pixel grid.
     The assembly is driven by the entries in the raw amp information.  The task can be configured
-    to return a detector image with non-data (e.g. overscan) pixels included.  The task can also 
-    renormalize the pixel values to a nominal gain of 1.  The task also removes exposure metadata that 
+    to return a detector image with non-data (e.g. overscan) pixels included.  The task can also
+    renormalize the pixel values to a nominal gain of 1.  The task also removes exposure metadata that
     has context in raw amps, but not in trimmed detectors (e.g. 'BIASSEC').
 
     \section ip_isr_assemble_Initialize Task initialization
@@ -111,10 +111,10 @@ class AssembleCcdTask(pipeBase.Task):
       <DT> \c display
       <DD> A dictionary containing debug point names as keys with frame number as value. Valid keys are:
         <DL>
-          <DT> assembledExposure 
-          <DD> display assembled exposure 
+          <DT> assembledExposure
+          <DD> display assembled exposure
         </DL>
-    </DL>  
+    </DL>
 
     \section ip_isr_assemble_Example A complete example of using AssembleCcdTask
 
@@ -146,7 +146,7 @@ class AssembleCcdTask(pipeBase.Task):
     def DebugInfo(name):
         di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
         if name == "lsst.ip.isr.assembleCcdTask":
-            di.display = {'assembledExposure':2} 
+            di.display = {'assembledExposure':2}
         return di
 
     lsstDebug.Info = DebugInfo
@@ -159,7 +159,7 @@ class AssembleCcdTask(pipeBase.Task):
     """
     ConfigClass = AssembleCcdConfig
     _DefaultName = "assembleCcd"
-    
+
     def __init__(self, **kwargs):
         """!Initialize the AssembleCcdTask
 
@@ -169,12 +169,12 @@ class AssembleCcdTask(pipeBase.Task):
         pipeBase.Task.__init__(self, **kwargs)
 
         self.allKeysToRemove = ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN') + tuple(self.config.keysToRemove)
-    
+
     def assembleCcd(self, assembleInput):
         """!Assemble a set of amps into a single CCD size image
-        \param[in] assembleInput -- Either a dictionary of amp lsst.afw.image.Exposures or a single 
+        \param[in] assembleInput -- Either a dictionary of amp lsst.afw.image.Exposures or a single
                                     lsst.afw.image.Exposure containing all raw
-                                    amps.  If a dictionary of amp exposures, 
+                                    amps.  If a dictionary of amp exposures,
                                     the key should be the amp name.
         \return assembledCcd -- An lsst.afw.image.Exposure of the assembled amp sections.
 
@@ -221,20 +221,20 @@ class AssembleCcdTask(pipeBase.Task):
             assemble = cameraGeom.assembleAmplifierImage
         else:
             assemble = cameraGeom.assembleAmplifierRawImage
-        
+
         for amp in ccd:
             inMI = getNextExposure(amp).getMaskedImage()
             assemble(outMI, inMI, amp)
         outExposure.setDetector(ccd)
         self.postprocessExposure(outExposure=outExposure, inExposure=getNextExposure(ccd[0]))
-    
+
         return outExposure
-    
+
     def postprocessExposure(self, outExposure, inExposure):
         """Set exposure non-image attributes, including wcs and metadata and display exposure (if requested)
-        
+
         Call after assembling the pixels
-        
+
         @param[in,out]  outExposure assembled exposure:
                                     - removes unwanted keywords
                                     - sets calib, filter, and detector

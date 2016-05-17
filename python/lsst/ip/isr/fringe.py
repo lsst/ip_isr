@@ -289,7 +289,8 @@ class FringeTask(Task):
                     if ans in ("", "c",):
                         break
                     if ans in ("p",):
-                        import pdb; pdb.set_trace()
+                        import pdb
+                        pdb.set_trace()
                     elif ans in ("h", ):
                         print "h[elp] c[ontinue] p[db]"
 
