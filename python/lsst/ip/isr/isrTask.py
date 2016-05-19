@@ -604,16 +604,16 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         try:
             exp=dataRef.get(datasetType, immediate=immediate)
-        except:
+        except Exception as exc1:
+            if not self.config.fallbackFilterName:
+                raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, exc1))
             try:
-                exp=dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
-                self.log.warn("Using fallback calibration from filter %s" % self.config.fallbackFilterName)
-            except Exception as e:
-                extraMessage = ''
-                if not self.config.fallbackFilterName:
-                    extraMessage += ' and no fallback filter specified'
-                raise RuntimeError("Unable to retrieve %s for %s%s: %s" % (datasetType, dataRef.dataId,
-                                                                            extraMessage, e))
+                exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
+            except Exception as exc2:
+                raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s" %
+                                   (datasetType, dataRef.dataId, self.config.fallbackFilterName, exc1, exc2))
+            self.log.warn("Using fallback calibration from filter %s" % self.config.fallbackFilterName)
+
         if self.config.doAssembleIsrExposures:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
