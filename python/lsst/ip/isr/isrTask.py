@@ -35,7 +35,7 @@ from .isrLib import maskNans
 from .assembleCcdTask import AssembleCcdTask
 from .fringe import FringeTask
 from lsst.afw.geom.polygon import Polygon
-from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE
+from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, NullLinearityType
 from contextlib import contextmanager
 
 class IsrTaskConfig(pexConfig.Config):
@@ -179,6 +179,11 @@ class IsrTaskConfig(pexConfig.Config):
         default = True,
         doc = "Assemble amp-level exposures into a ccd-level exposure?"
         )
+    doLinearize = pexConfig.Field(
+        dtype = bool,
+        doc = "Correct for nonlinearity of the detector's response?",
+        default = False,  # False because very few cameras have linearity correction
+    )
     doBrighterFatter = pexConfig.Field(
         dtype = bool,
         default = False,
@@ -389,7 +394,10 @@ class IsrTask(pipeBase.CmdLineTask):
          - fringeStruct: a pipeBase.Struct with field fringes containing
                          exposure of fringe frame or list of fringe exposure
         """
+        ccd = rawExposure.getDetector()
+
         biasExposure = self.getIsrExposure(dataRef, "bias") if self.config.doBias else None
+        linearizer = dataRef.get("linearizer") if self.doLinearize(ccd) else None
         darkExposure = self.getIsrExposure(dataRef, "dark") if self.config.doDark else None
         flatExposure = self.getIsrExposure(dataRef, "flat") if self.config.doFlat else None
         brighterFatterKernel = dataRef.get("brighterFatterKernel") if self.config.doBrighterFatter else None
@@ -404,6 +412,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         #Struct should include only kwargs to run()
         return pipeBase.Struct(bias = biasExposure,
+                               linearizer = linearizer,
                                dark = darkExposure,
                                flat = flatExposure,
                                defects = defectList,
@@ -412,7 +421,8 @@ class IsrTask(pipeBase.CmdLineTask):
                                )
 
     @pipeBase.timeMethod
-    def run(self, ccdExposure, bias=None, dark=None,  flat=None, defects=None, fringes=None, bfKernel=None):
+    def run(self, ccdExposure, bias=None, linearizer=None, dark=None, flat=None, defects=None,
+        fringes=None, bfKernel=None):
         """!Perform instrument signature removal on an exposure
 
         Steps include:
@@ -422,6 +432,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data
         \param[in] bias -- exposure of bias frame
+        \param[in] linearizer -- linearizing functor; a subclass of lsst.ip.isr.LinearizeBase
         \param[in] dark -- exposure of dark frame
         \param[in] flat -- exposure of flatfield
         \param[in] defects -- list of detects
@@ -432,10 +443,13 @@ class IsrTask(pipeBase.CmdLineTask):
         \return a pipeBase.Struct with field:
          - exposure
         """
+        ccd = ccdExposure.getDetector()
 
         #Validate Input
         if self.config.doBias and bias is None:
             raise RuntimeError("Must supply a bias exposure if config.doBias True")
+        if self.doLinearize(ccd) and linearizer is None:
+            raise RuntimeError("Must supply a linearizer if config.doBias True")
         if self.config.doDark and dark is None:
             raise RuntimeError("Must supply a dark exposure if config.doDark True")
         if self.config.doFlat and flat is None:
@@ -449,7 +463,6 @@ class IsrTask(pipeBase.CmdLineTask):
 
         defects = [] if defects is None else defects
 
-        ccd = ccdExposure.getDetector()
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
         if not ccd:
@@ -468,6 +481,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, bias)
+
+        if self.doLinearize(ccd):
+            linearizer(image=ccdExposure.getMaskedImage().getImage(), detector=ccd, log=self.log)
 
         if self.config.doBrighterFatter:
             self.brighterFatterCorrection(ccdExposure, bfKernel,
@@ -573,6 +589,16 @@ class IsrTask(pipeBase.CmdLineTask):
             expScale = exposure.getCalib().getExptime(),
             darkScale = darkCalib.getExptime(),
         )
+
+    def doLinearize(self, detector):
+        """!Is linearization wanted for this detector?
+
+        Checks config.doLinearize and the linearity type of the first amplifier.
+
+        \param[in]  detector  detector information (an lsst.afw.cameraGeom.Detector)
+        """
+        return self.config.doLinearize and \
+            detector.getAmpInfoCatalog()[0].getLinearityType() != NullLinearityType
 
     def updateVariance(self, ampExposure, amp):
         """!Set the variance plane based on the image plane, plus amplifier gain and read noise
