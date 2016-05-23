@@ -102,6 +102,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc = "Name of mask plane to use in saturation detection and interpolation",
         default = "SAT",
     )
+    suspectMaskName = pexConfig.Field(
+        dtype = str,
+        doc = "Name of mask plane to use for suspect pixels",
+        default = "SUSPECT",
+    )
     flatScalingType = pexConfig.ChoiceField(
         dtype = str,
         doc = "The method for scaling the flat on the fly.",
@@ -454,6 +459,7 @@ class IsrTask(pipeBase.CmdLineTask):
             #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.saturationDetection(ccdExposure, amp)
+                self.suspectDetection(ccdExposure, amp)
                 self.overscanCorrection(ccdExposure, amp)
 
         if self.config.doAssembleCcd:
@@ -619,7 +625,7 @@ class IsrTask(pipeBase.CmdLineTask):
         return exp
 
     def saturationDetection(self, exposure, amp):
-        """!Detect saturated pixels and mask them using mask plane "SAT", in place
+        """!Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place
 
         \param[in,out]  exposure    exposure to process; only the amp DataSec is processed
         \param[in]      amp         amplifier device data
@@ -648,6 +654,31 @@ class IsrTask(pipeBase.CmdLineTask):
             fwhm = self.config.fwhm,
             growFootprints = self.config.growSaturationFootprintSize,
             maskName = self.config.saturatedMaskName,
+        )
+
+    def suspectDetection(self, exposure, amp):
+        """!Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place
+
+        Suspect pixels are pixels whose value is greater than amp.getSuspectLevel().
+        This is intended to indicate pixels that may be affected by unknown systematics;
+        for example if non-linearity corrections above a certain level are unstable
+        then that would be a useful value for suspectLevel. A value of `nan` indicates
+        that no such level exists and no pixels are to be masked as suspicious.
+
+        \param[in,out]  exposure    exposure to process; only the amp DataSec is processed
+        \param[in]      amp         amplifier device data
+        """
+        suspectLevel = amp.getSuspectLevel()
+        if math.isnan(suspectLevel):
+            return
+
+        maskedImage = exposure.getMaskedImage()
+        dataView=maskedImage.Factory(maskedImage, amp.getRawBBox())
+        isr.makeThresholdMask(
+            maskedImage=dataView,
+            threshold=suspectLevel,
+            growFootprints=0,
+            maskName=self.config.suspectMaskName,
         )
 
     def maskAndInterpDefect(self, ccdExposure, defectBaseList):
