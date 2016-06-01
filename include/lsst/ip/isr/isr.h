@@ -52,43 +52,6 @@ namespace lsst {
 namespace ip {
 namespace isr {
 
-    /** Signature strings associated with each stage of the ISR
-     * 
-     * @note Added to Exposure metadata after stage processing
-     *
-     * @note As implementation detail, no more than 8 characters for fits
-     * compliance?
-     */
-    std::string const& ISR_LIN     = "ISR_LIN";    ///< Linearization
-    std::string const& ISR_OSCAN   = "ISR_OSCAN";  ///< Overscan
-    std::string const& ISR_TRIM    = "ISR_TRIM";   ///< Trim
-    std::string const& ISR_BIAS    = "ISR_BIAS";   ///< Bias 
-    std::string const& ISR_DFLAT   = "ISR_DFLAT";  ///< Dome flat
-    std::string const& ISR_ILLUM   = "ISR_ILLUM";  ///< Illumination correction
-    std::string const& ISR_BADP    = "ISR_BADP";   ///< Bad pixel mask
-    std::string const& ISR_SAT     = "ISR_SAT";    ///< Saturated pixels
-    std::string const& ISR_FRING   = "ISR_FRING";  ///< Fringe correction
-    std::string const& ISR_DARK    = "ISR_DARK";   ///< Dark correction
-    std::string const& ISR_PUPIL   = "ISR_PUPIL";  ///< Pupil correction
-    std::string const& ISR_CRREJ   = "ISR_CRREJ";  ///< Cosmic ray rejection
-    std::string const& ISR_BACKSUB = "ISR_BACKSUB";  ///< Background subtraction
-
-    enum StageId {
-        ISR_LINid   = 0x1,   ///< Linearization
-        ISR_OSCANid = 0x2,   ///< Overscan
-        ISR_TRIMid  = 0x4,   ///< Trim
-        ISR_BIASid  = 0x8,   ///< Bias 
-        ISR_DFLATid = 0x10,  ///< Dome flat
-        ISR_ILLUMid = 0x20,  ///< Illumination correction
-        ISR_BADPid  = 0x40,  ///< Bad pixel mask
-        ISR_SATid   = 0x80,  ///< Saturated pixels
-        ISR_FRINid  = 0x100, ///< Fringe correction
-        ISR_DARKid  = 0x200, ///< Dark correction
-        ISR_PUPILid = 0x400, ///< Pupil correction
-        ISR_CRREJid = 0x800, ///< Cosmic ray rejection
-        ISR_BACKSUBid = 0x1000, ///< Cosmic ray rejection
-    };
-
     template <typename ImageT, typename MaskT=lsst::afw::image::MaskPixel>
     class CountMaskedPixels {
     public:
