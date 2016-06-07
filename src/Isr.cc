@@ -27,36 +27,9 @@
 #include "lsst/pex/logging/Trace.h"
 #include "lsst/afw/math.h"
 #include "lsst/afw/math/Statistics.h"
-#include "lsst/ip/isr.h"
+#include "lsst/ip/isr/isr.h"
 
 namespace lsst { namespace ip { namespace isr {
-
-// Functions
-template <typename ImageT>
-void LookupTableReplace<ImageT>::apply(afw::image::MaskedImage<ImageT> &image, float gain) const {
-    double igain = 1.0 / gain;
-    int nPixTooHigh = 0;
-    int nPixTooLow = 0;
-    for (int y = 0; y != image.getHeight(); ++y) {
-        for (x_iterator ptr = image.row_begin(y), end = image.row_end(y); ptr != end; ++ptr) {
-            int ind = static_cast<int>(ptr.image() + 0.5);  // Rounded pixel value
-            if (ind < 0) {
-                ind = 0;
-                ++nPixTooLow;
-            } else if (ind >= _max) {
-                ind = _max - 1;
-                ++nPixTooHigh;
-            }
-            PixelT p = PixelT(_table[ind],  (*ptr).mask(), _table[ind] * igain);
-            *ptr = p;
-        }
-    }
-    if ((nPixTooHigh > 0) || (nPixTooLow > 0)) {
-        // log message
-        pex::logging::TTrace<1>("lsst.ip.isr.LookupTableReplace.apply", 
-            "Data truncated; %d pixels were < 0; %d pixels were >= %d", nPixTooLow, nPixTooHigh, _max);
-    }
-}
 
 template <typename PixelT>
 size_t maskNans(afw::image::MaskedImage<PixelT> const& mi, afw::image::MaskPixel maskVal,
@@ -158,15 +131,6 @@ void fitOverscanImage(
 template class CountMaskedPixels<float>;
 template class CountMaskedPixels<double>;
 
-// Integer classes make no sense for multiplicative table
-//   unless you change the image type
-template class LookupTableMultiplicative<float>;
-template class LookupTableMultiplicative<double>;
-
-// Only integer images make sense for a replacement table
-template class LookupTableReplace<int>;
-// But we turn our images into floats immediately, so use it
-template class LookupTableReplace<float>;
 // Function to mask nans in a masked image
 template size_t maskNans<float>(afw::image::MaskedImage<float> const&, afw::image::MaskPixel,
                                 afw::image::MaskPixel);

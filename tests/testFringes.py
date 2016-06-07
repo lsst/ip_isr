@@ -16,11 +16,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and 
-# the GNU General Public License along with this program.  If not, 
+# You should have received a copy of the LSST License Statement and
+# the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-import os
 import sys
 import unittest
 
@@ -30,7 +29,6 @@ import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.afw.display.ds9 as ds9
 import lsst.afw.image.utils as afwImageUtils
-from lsst.pipe.base import Struct
 from lsst.ip.isr.fringe import FringeTask
 
 try:
@@ -107,9 +105,8 @@ class FringeTestCase(unittest.TestCase):
             global frame
             ds9.mtv(exp, frame=frame, title="Science exposure")
             frame += 1
-            fringe = dataRef.get()
-            if not isinstance(fringe, list):
-                fringe = [fringe]
+            if not isinstance(fringes, list):
+                fringe = [fringes]
             for i, f in enumerate(fringe):
                 ds9.mtv(f, frame=frame, title="Fringe frame %d" % (i+1))
                 frame += 1
