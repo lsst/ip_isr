@@ -182,7 +182,7 @@ class IsrTaskConfig(pexConfig.Config):
     doLinearize = pexConfig.Field(
         dtype = bool,
         doc = "Correct for nonlinearity of the detector's response?",
-        default = False,  # False because very few cameras have linearity correction
+        default = True,
     )
     doBrighterFatter = pexConfig.Field(
         dtype = bool,
