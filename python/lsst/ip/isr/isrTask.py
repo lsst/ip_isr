@@ -397,7 +397,8 @@ class IsrTask(pipeBase.CmdLineTask):
         ccd = rawExposure.getDetector()
 
         biasExposure = self.getIsrExposure(dataRef, "bias") if self.config.doBias else None
-        linearizer = dataRef.get("linearizer") if self.doLinearize(ccd) else None
+        # immediate=True required for functors and linearizers are functors
+        linearizer = dataRef.get("linearizer", immediate=True) if self.doLinearize(ccd) else None
         darkExposure = self.getIsrExposure(dataRef, "dark") if self.config.doDark else None
         flatExposure = self.getIsrExposure(dataRef, "flat") if self.config.doFlat else None
         brighterFatterKernel = dataRef.get("brighterFatterKernel") if self.config.doBrighterFatter else None
