@@ -39,7 +39,7 @@ int applyLookupTable(
 ) {
     int numOutOfRange = 0;
     auto const maxLookupCol = table.size() - 1;
-    for (auto col = 0, imHeight = image.getHeight(); col < imHeight; ++col) {
+    for (int col = 0, imHeight = image.getHeight(); col < imHeight; ++col) {
         for (auto imPtr = image.row_begin(col), end = image.row_end(col); imPtr != end; ++imPtr) {
             auto lookupCol = static_cast<int>(indOffset + *imPtr);
             if (lookupCol < 0) {
