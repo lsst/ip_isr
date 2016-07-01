@@ -28,6 +28,7 @@ import lsst.meas.algorithms as measAlg
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 import lsst.afw.math as afwMath
+from lsst.daf.persistence import ButlerDataRef
 from lsstDebug import getDebugFrame
 from lsst.afw.display import getDisplay
 from . import isr
@@ -444,6 +445,11 @@ class IsrTask(pipeBase.CmdLineTask):
         \return a pipeBase.Struct with field:
          - exposure
         """
+
+        # parseAndRun expects to be able to call run() with a dataRef; see DM-6640
+        if isinstance(ccdExposure, ButlerDataRef):
+            return self.runDataRef(ccdExposure)
+
         ccd = ccdExposure.getDetector()
 
         #Validate Input
