@@ -174,8 +174,7 @@ def createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAm
     detConfig.transformDict.nativeSys = PIXELS.getSysName()
 
     fpTransform = afwGeom.xyTransformRegistry['identity']()
-    plateScale = 1.
-    return makeDetector(detConfig, ampCatalog, fpTransform, plateScale)
+    return makeDetector(detConfig, ampCatalog, fpTransform)
 
 def makeFakeWcs():
     '''!Make a wcs to put in an exposure
