@@ -44,7 +44,7 @@ class LinearizeBase(object):
 
         @param[in] image  image to be corrected (an lsst.afw.image.Image)
         @param[in] detector  detector information (an instance of lsst::afw::cameraGeom::Detector)
-        @param[in] log  logger (an lsst.pex.logging.Log), or None to disable logging;
+        @param[in] log  logger (an lsst.log.Log), or None to disable logging;
                     a warning is logged if amplifiers are skipped or other worrisome events occur
 
         @return an lsst.pipe.base.Struct containing at least the following fields:
@@ -137,7 +137,7 @@ class LinearizeLookupTable(LinearizeBase):
                     the name, serial and number of amplifiers must match persisted data;
                     the bbox from each amplifier is read;
                     the linearization coefficients are ignored in favor of the persisted values
-        @param[in] log  logger (an lsst.pex.logging.Log), or None to disable logging;
+        @param[in] log  logger (an lsst.log.Log), or None to disable logging;
                     a warning is logged if any pixels are out of range of their lookup table
 
         @return an lsst.pipe.base.Struct containing:
@@ -158,8 +158,8 @@ class LinearizeLookupTable(LinearizeBase):
             numOutOfRange += applyLookupTable(ampView, tableRow, colIndOffset)
 
         if numOutOfRange > 0 and log is not None:
-            log.warn("%s pixels of detector \"%s\" were out of range of the linearization table" %
-                (numOutOfRange, detector.getName()))
+            log.warn("%s pixels of detector \"%s\" were out of range of the linearization table",
+                     numOutOfRange, detector.getName())
         numAmps = len(ampInfoCat)
         return Struct(
             numAmps = numAmps,
@@ -201,7 +201,7 @@ class LinearizeSquared(LinearizeBase):
 
         @param[in] image  image to be corrected (an lsst.afw.image.Image)
         @param[in] detector  detector info about image (an lsst.afw.cameraGeom.Detector)
-        @param[in] log  logger (an lsst.pex.logging.Log), or None to disable logging;
+        @param[in] log  logger (an lsst.log.Log), or None to disable logging;
                     a warning is logged if any amplifiers are skipped because the square coefficient is 0
 
         @return an lsst.pipe.base.Struct containing at least the following fields:
@@ -223,8 +223,8 @@ class LinearizeSquared(LinearizeBase):
 
         numAmps = len(ampInfoCat)
         if numAmps > numLinearized and log is not None:
-            log.warn("%s of %s amps in detector \"%s\" were not linearized (coefficient = 0)" %
-                     (numAmps - numLinearized, numAmps, detector.getName()))
+            log.warn("%s of %s amps in detector \"%s\" were not linearized (coefficient = 0)",
+                     numAmps - numLinearized, numAmps, detector.getName())
         return Struct(
             numAmps = numAmps,
             numLinearized = numLinearized,
