@@ -757,7 +757,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         # Interpolate over these previously-unmasked NaNs
         if numNans > 0:
-            self.log.log(self.log.WARN, "There were %i unmasked NaNs" % (numNans,))
+            self.log.warn("There were %i unmasked NaNs", numNans)
             nanDefectList = isr.getDefectListFromMask(
                 maskedImage = maskedImage,
                 maskName = 'UNMASKEDNAN',
