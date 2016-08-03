@@ -24,7 +24,6 @@
  
 #include <cmath>
 
-#include "lsst/pex/logging/Trace.h"
 #include "lsst/afw/math.h"
 #include "lsst/afw/math/Statistics.h"
 #include "lsst/ip/isr/isr.h"
