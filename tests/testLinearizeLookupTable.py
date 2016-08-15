@@ -139,19 +139,19 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
 
         # amp 0 is a constant correction of 0; one image value is out of range, but it doesn't matter
         imArr0 = im.Factory(im, ampInfoCat[0].getBBox()).getArray()
-        self.assertTrue(np.allclose(imArr0.flatten(), (-1, 0, 1, 2)))
+        self.assertClose(imArr0.flatten(), (-1, 0, 1, 2))
 
         # amp 1 is a correction of (5, 4, 3, 2), but the first image value is under range
         imArr1 = im.Factory(im, ampInfoCat[1].getBBox()).getArray()
-        self.assertTrue(np.allclose(imArr1.flatten(), (4, 5, 5, 5)))
+        self.assertClose(imArr1.flatten(), (4, 5, 5, 5))
 
         # amp 2 is a constant correction of +1; all image values are in range, but it doesn't matter
         imArr2 = im.Factory(im, ampInfoCat[2].getBBox()).getArray()
-        self.assertTrue(np.allclose(imArr2.flatten(), (0, 1, 2, 3)))
+        self.assertClose(imArr2.flatten(), (0, 1, 2, 3))
 
         # amp 3 is a correction of (7, 6, 5, 4); all image values in range
         imArr1 = im.Factory(im, ampInfoCat[3].getBBox()).getArray()
-        self.assertTrue(np.allclose(imArr1.flatten(), (6, 6, 6, 6)))
+        self.assertClose(imArr1.flatten(), (6, 6, 6, 6))
 
     def testPickle(self):
         """!Test that a LinearizeLookupTable can be pickled and unpickled
@@ -231,19 +231,14 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         return np.array(table, dtype=dtype)
 
 
-def suite():
-    """!Returns a suite containing all the test cases in this module."""
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
+
+
+def setup_module(module):
     lsst.utils.tests.init()
 
-    suites = []
-    suites += unittest.makeSuite(LinearizeLookupTableTestCase)
-    suites += unittest.makeSuite(lsst.utils.tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
-
-
-def run(exit=False):
-    """!Run the tests"""
-    lsst.utils.tests.run(suite(), exit)
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()
