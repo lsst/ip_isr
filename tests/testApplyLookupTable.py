@@ -8,8 +8,6 @@ import lsst.afw.image as afwImage
 from lsst.afw.image.testUtils import makeRampImage
 from lsst.ip.isr import applyLookupTable
 
-np.random.seed(42)
-
 
 def referenceApply(image, table, indOffset):
     """!Reference implementation of applyLookupTable
@@ -41,6 +39,9 @@ def referenceApply(image, table, indOffset):
 
 
 class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
+
+    def setUp(self):
+        np.random.seed(42)
 
     def testBasics(self):
         """!Test basic functionality of applyLookupTable
