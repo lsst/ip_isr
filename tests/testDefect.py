@@ -23,7 +23,7 @@
 #
 import unittest
 
-import lsst.utils.tests as tests
+import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
 import lsst.afw.geom as afwGeom
@@ -37,7 +37,7 @@ except NameError:
     display = False
 
 
-class DefectTestCases(unittest.TestCase):
+class DefectTestCases(lsst.utils.tests.TestCase):
 
     def setUp(self):
         self.setVal = 10.
@@ -81,7 +81,7 @@ class DefectTestCases(unittest.TestCase):
         im = ccdImage.getImage()
         for d in defectList:
             intrp = im.Factory(im, d.getBBox())
-            self.assertTrue((intrp.getArray() == self.setVal).all())
+            self.assertImagesEqual(intrp, self.setVal)
 
         if display:
             ds9.mtv(ccdImage.getImage(), title="Defects Interpolated")
@@ -116,19 +116,14 @@ class DefectTestCases(unittest.TestCase):
         self.assertEqual(len(defectList), 2)
 
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    tests.init()
-
-    suites = []
-    suites += unittest.makeSuite(DefectTestCases)
-    suites += unittest.makeSuite(tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
 
 
-def run(exit=False):
-    """Run the tests"""
-    tests.run(suite(), exit)
+def setup_module(module):
+    lsst.utils.tests.init()
+
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()
