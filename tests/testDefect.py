@@ -22,6 +22,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import unittest
+import numpy as np
 
 import lsst.utils.tests
 import lsst.afw.image as afwImage
@@ -31,10 +32,8 @@ import lsst.afw.display.ds9 as ds9
 import lsst.afw.display.utils as displayUtils
 import lsst.ip.isr as ipIsr
 
-try:
-    type(display)
-except NameError:
-    display = False
+# set to True to display images in ds9
+display = False
 
 
 class DefectTestCases(lsst.utils.tests.TestCase):
@@ -81,7 +80,9 @@ class DefectTestCases(lsst.utils.tests.TestCase):
         im = ccdImage.getImage()
         for d in defectList:
             intrp = im.Factory(im, d.getBBox())
-            self.assertImagesEqual(intrp, self.setVal)
+            expect = np.empty_like(intrp.getArray())
+            expect[:] = self.setVal
+            self.assertImagesEqual(intrp, expect)
 
         if display:
             ds9.mtv(ccdImage.getImage(), title="Defects Interpolated")
