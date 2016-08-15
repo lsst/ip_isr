@@ -20,11 +20,10 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-import sys
 import unittest
 
 import numpy
-import lsst.utils.tests as tests
+import lsst.utils.tests
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.afw.display.ds9 as ds9
@@ -85,7 +84,7 @@ def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
 frame = 1  # ds9 frame
 
 
-class FringeTestCase(unittest.TestCase):
+class FringeTestCase(lsst.utils.tests.TestCase):
     """Tests of the FringeTask"""
 
     def setUp(self):
@@ -101,13 +100,13 @@ class FringeTestCase(unittest.TestCase):
     def tearDown(self):
         afwImageUtils.resetFilters()
 
-    def checkFringe(self, task, exp, fringes, precision):
+    def checkFringe(self, task, exp, fringes, stddevMax):
         """Run fringe subtraction and verify
 
         @param task         Task to run
         @param exp          Science exposure
         @param dataRef      Data reference that will provide the fringes
-        @param precision    Precision for assertAlmostEqual
+        @param stddevMax    Maximum allowable standard deviation
         """
         if debug:
             global frame
@@ -128,13 +127,13 @@ class FringeTestCase(unittest.TestCase):
             frame += 1
 
         mi -= afwMath.makeStatistics(mi, afwMath.MEAN).getValue()
-        self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), precision)
+        self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), stddevMax)
 
-    def testSingle(self, pedestal=0.0, precision=1.0e-4):
+    def testSingle(self, pedestal=0.0, stddevMax=1.0e-4):
         """Test subtraction of a single fringe frame
 
         @param pedestal    Pedestal to add into fringe frame
-        @param precision   Precision for assertAlmostEqual
+        @param stddevMax    Maximum allowable standard deviation
         """
         xFreq = numpy.pi / 10.0
         xOffset = 1.0
@@ -149,12 +148,12 @@ class FringeTestCase(unittest.TestCase):
         eMi *= scale
 
         task = FringeTask(name="fringe", config=self.config)
-        self.checkFringe(task, exp, fringe, precision)
+        self.checkFringe(task, exp, fringe, stddevMax)
 
     def testPedestal(self):
         """Test subtraction of a fringe frame with a pedestal"""
         self.config.pedestal = True
-        self.testSingle(pedestal=10000.0, precision=1.0e-3)  # Not sure why this produces less precision
+        self.testSingle(pedestal=10000.0, stddevMax=1.0e-3)  # Not sure why this produces worse sttdev
         self.testMultiple(pedestal=10000.0)
 
     def testMultiple(self, pedestal=0.0):
@@ -184,13 +183,13 @@ class FringeTestCase(unittest.TestCase):
         exp.setFilter(afwImage.Filter('FILTER'))
 
         task = FringeTask(name="multiFringe", config=self.config)
-        self.checkFringe(task, exp, fringeList, precision=1.0e-2)
+        self.checkFringe(task, exp, fringeList, stddevMax=1.0e-2)
 
-    def testRunDataRef(self, pedestal=0.0, precision=1.0e-4):
+    def testRunDataRef(self, pedestal=0.0, stddevMax=1.0e-4):
         """Test the .runDataRef method for complete test converage
 
         @param pedestal    Pedestal to add into fringe frame
-        @param precision   Precision for assertAlmostEqual
+        @param stddevMax   Maximum allowable standard deviation
         """
         xFreq = numpy.pi / 10.0
         xOffset = 1.0
@@ -210,25 +209,17 @@ class FringeTestCase(unittest.TestCase):
 
         mi = exp.getMaskedImage()
         mi -= afwMath.makeStatistics(mi, afwMath.MEAN).getValue()
-        self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), precision)
+        self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), stddevMax)
 
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    tests.init()
-    checkDebug()
-
-    suites = []
-    suites += unittest.makeSuite(FringeTestCase)
-    suites += unittest.makeSuite(tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
 
 
-def run(exit=False):
-    """Run the tests"""
-    tests.run(suite(), exit)
+def setup_module(module):
+    lsst.utils.tests.init()
+
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2 and sys.argv[1] == "--debug":
-        debug = True
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()
