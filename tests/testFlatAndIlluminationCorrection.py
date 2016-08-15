@@ -28,10 +28,12 @@ import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
+
 class IsrTestCases(unittest.TestCase):
+
     def setUp(self):
-        self.pmin = afwGeom.Point2I(1,1)
-        self.pmax = afwGeom.Point2I(10,10)
+        self.pmin = afwGeom.Point2I(1, 1)
+        self.pmax = afwGeom.Point2I(10, 10)
         self.flatScaleKeyword = "IMMODE"
         self.filenameKeyword = "filename"
 
@@ -42,7 +44,7 @@ class IsrTestCases(unittest.TestCase):
         del self.filenameKeyword
 
     def doFlat(self, scaling):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin,self.pmax))
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
 
         flat = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
@@ -53,11 +55,11 @@ class IsrTestCases(unittest.TestCase):
 
         ipIsr.flatCorrection(maskedImage, flatexposure.getMaskedImage(), 'USER', scaling)
 
-        height        = maskedImage.getHeight()
-        width         = maskedImage.getWidth()
+        height = maskedImage.getHeight()
+        width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(maskedImage.getImage().get(i,j), 10 / (1./scaling), 5)
+                self.assertAlmostEqual(maskedImage.getImage().get(i, j), 10 / (1./scaling), 5)
 
     def testFlat1(self):
         self.doFlat(scaling=10)
@@ -80,11 +82,11 @@ class IsrTestCases(unittest.TestCase):
 
         ipIsr.illuminationCorrection(maskedImage, illumexposure.getMaskedImage(), scaling)
 
-        height        = maskedImage.getHeight()
-        width         = maskedImage.getWidth()
+        height = maskedImage.getHeight()
+        width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(maskedImage.getImage().get(i,j), 10 / (1./scaling), 5)
+                self.assertAlmostEqual(maskedImage.getImage().get(i, j), 10 / (1./scaling), 5)
 
     def testIllum1(self):
         self.doIllum(scaling=10)
@@ -104,6 +106,7 @@ def suite():
     suites += unittest.makeSuite(IsrTestCases)
     suites += unittest.makeSuite(tests.MemoryTestCase)
     return unittest.TestSuite(suites)
+
 
 def run(exit=False):
     """Run the tests"""

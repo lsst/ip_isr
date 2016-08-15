@@ -32,6 +32,7 @@ def refLinearizeSquared(image, detector):
 
 class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
     """!Unit tests for LinearizeSquared"""
+
     def setUp(self):
         # the following values are all arbitrary, but sane and varied
         self.bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85))
@@ -74,10 +75,10 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         # make a 4x4 image with 4 identical 2x2 subregions that flatten to -1, 0, 1, 2
         im = afwImage.ImageF(bbox)
         imArr = im.getArray()
-        imArr[:,:] = np.array(((-1, 0, -1, 0),
-                               ( 1, 2,  1, 2),
-                               (-1, 0, -1, 0),
-                               ( 1, 2,  1, 2)), dtype=imArr.dtype)
+        imArr[:, :] = np.array(((-1, 0, -1, 0),
+                                (1, 2, 1, 2),
+                                (-1, 0, -1, 0),
+                                (1, 2, 1, 2)), dtype=imArr.dtype)
 
         sqCoeffs = np.array(((0, 0.11), (-0.15, -12)))
         detector = self.makeDetector(bbox=bbox, numAmps=numAmps, sqCoeffs=sqCoeffs)
@@ -141,7 +142,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
                 ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
                 ampInfo.setBBox(boxArr[i, j])
                 ampInfo.setLinearityType(linearityType)
-                ampInfo.setLinearityCoeffs([sqCoeffs[i,j]])
+                ampInfo.setLinearityCoeffs([sqCoeffs[i, j]])
         detName = "det_a"
         detId = 1
         detSerial = "123"
@@ -169,6 +170,7 @@ def suite():
     suites += unittest.makeSuite(LinearizeSquaredTestCase)
     suites += unittest.makeSuite(lsst.utils.tests.MemoryTestCase)
     return unittest.TestSuite(suites)
+
 
 def run(exit=False):
     """!Run the tests"""

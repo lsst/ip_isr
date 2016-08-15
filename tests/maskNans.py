@@ -34,7 +34,9 @@ try:
 except NameError:
     debug = False
 
+
 class MaskNansTestCase(unittest.TestCase):
+
     def setUp(self):
         self.size = 100
         self.freqImage = 34
@@ -45,10 +47,10 @@ class MaskNansTestCase(unittest.TestCase):
 
     def check(self, ImageClass):
         image = ImageClass(self.size, self.size)
-        x,y = numpy.indices((self.size, self.size))
-        image.getImage().getArray()[y,x] = numpy.where(x*y % self.freqImage, 0, numpy.nan)
-        image.getMask().getArray()[y,x] = numpy.where(x*y % self.freqMask, 0, self.allowMask)
-        image.getVariance().getArray()[y,x] = numpy.where(x*y % self.freqVariance, 0, numpy.nan)
+        x, y = numpy.indices((self.size, self.size))
+        image.getImage().getArray()[y, x] = numpy.where(x*y % self.freqImage, 0, numpy.nan)
+        image.getMask().getArray()[y, x] = numpy.where(x*y % self.freqMask, 0, self.allowMask)
+        image.getVariance().getArray()[y, x] = numpy.where(x*y % self.freqVariance, 0, numpy.nan)
 
         if debug:
             ds9.mtv(image.getImage(), frame=1, title="Image")
@@ -75,6 +77,7 @@ class MaskNansTestCase(unittest.TestCase):
         for ImageClass in (afwImage.MaskedImageF, afwImage.MaskedImageD):
             self.check(ImageClass)
 
+
 def suite():
     """Returns a suite containing all the test cases in this module."""
     tests.init()
@@ -83,6 +86,7 @@ def suite():
     suites += unittest.makeSuite(MaskNansTestCase)
     suites += unittest.makeSuite(tests.MemoryTestCase)
     return unittest.TestSuite(suites)
+
 
 def run(exit=False):
     """Run the tests"""

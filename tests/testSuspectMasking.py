@@ -29,7 +29,9 @@ import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
 import lsst.ip.isr as ipIsr
 
+
 class IsrTestCases(lsst.utils.tests.TestCase):
+
     def setUp(self):
         ampInfoShema = afwTable.AmpInfoTable.makeMinimalSchema()
         ampInfoCat = afwTable.AmpInfoCatalog(ampInfoShema)
@@ -121,6 +123,7 @@ def makeRampMaskedImage(bbox, minVal, maxVal, imgClass=afwImage.MaskedImageF):
     maskArr[:] = 0
     return mi
 
+
 def suite():
     """Returns a suite containing all the test cases in this module."""
     lsst.utils.tests.init()
@@ -129,6 +132,7 @@ def suite():
     suites += unittest.makeSuite(IsrTestCases)
     suites += unittest.makeSuite(lsst.utils.tests.MemoryTestCase)
     return unittest.TestSuite(suites)
+
 
 def run(exit=False):
     """Run the tests"""

@@ -41,6 +41,7 @@ from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.afw.geom.polygon import Polygon
 from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE
 
+
 def makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints):
     theta = numpy.linspace(0, 2*numpy.pi, num=numPolygonPoints, endpoint=False)
     x = fpRadius*numpy.cos(theta) + fpCenterX
@@ -49,12 +50,14 @@ def makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints):
     polygon = Polygon([afwGeom.Point2D(x, y) for x, y in reversed(points)])
     return polygon
 
+
 def makeSquarePolygon(fpX0, fpY0, fpSize):
-    x = [fpX0, fpX0, fpX0 + fpSize -1, fpX0 + fpSize -1, fpX0]
-    y = [fpY0, fpY0 + fpSize -1, fpY0 + fpSize -1, fpY0, fpY0]
+    x = [fpX0, fpX0, fpX0 + fpSize - 1, fpX0 + fpSize - 1, fpX0]
+    y = [fpY0, fpY0 + fpSize - 1, fpY0 + fpSize - 1, fpY0, fpY0]
     points = numpy.array([x, y]).transpose()
     polygon = Polygon([afwGeom.Point2D(x, y) for x, y in points])
     return polygon
+
 
 class setValidPolygonIntersectTestCase(unittest.TestCase):
     """A test case for setting of valid focal plane polygon intersection with ccd corners """
@@ -115,6 +118,7 @@ class setValidPolygonIntersectTestCase(unittest.TestCase):
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+
 def suite():
     """Returns a suite containing all the test cases in this module."""
     tests.init()
@@ -124,7 +128,8 @@ def suite():
     suites += unittest.makeSuite(tests.MemoryTestCase)
     return unittest.TestSuite(suites)
 
-def run(exit = False):
+
+def run(exit=False):
     """Run the tests"""
     tests.run(suite(), exit)
 

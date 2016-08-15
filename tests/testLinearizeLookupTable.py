@@ -39,6 +39,7 @@ def refLinearize(image, detector, table):
 
 class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
     """!Unit tests for LinearizeLookupTable"""
+
     def setUp(self):
         # the following values are all arbitrary, but sane and varied
         self.bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85))
@@ -95,7 +96,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             llt(image, detBadSerial)
 
         # bad number of amplifiers
-        badNumAmps=(self.numAmps[0]-1, self.numAmps[1])
+        badNumAmps = (self.numAmps[0]-1, self.numAmps[1])
         detBadNumMaps = self.makeDetector(numAmps=badNumAmps)
         with self.assertRaises(RuntimeError):
             llt(image, detBadNumMaps)
@@ -113,10 +114,10 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         # make a 4x4 image with 4 identical 2x2 subregions that flatten to -1, 0, 1, 2
         im = afwImage.ImageF(bbox)
         imArr = im.getArray()
-        imArr[:,:] = np.array(((-1, 0, -1, 0),
-                               ( 1, 2,  1, 2),
-                               (-1, 0, -1, 0),
-                               ( 1, 2,  1, 2)), dtype=imArr.dtype)
+        imArr[:, :] = np.array(((-1, 0, -1, 0),
+                                (1, 2, 1, 2),
+                                (-1, 0, -1, 0),
+                                (1, 2, 1, 2)), dtype=imArr.dtype)
 
         def castAndReshape(arr):
             arr = np.array(arr, dtype=float)
@@ -172,7 +173,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         self.assertImagesNearlyEqual(refImage, measImage)
 
     def makeDetector(self, bbox=None, numAmps=None, rowInds=None, colIndOffsets=None,
-        detName="det_a", detSerial="123", linearityType="LookupTable"):
+                     detName="det_a", detSerial="123", linearityType="LookupTable"):
         """!Make a detector
 
         @param[in] bbox  bounding box for image
@@ -199,7 +200,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
                 ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
                 ampInfo.setBBox(boxArr[i, j])
                 ampInfo.setLinearityType(linearityType)
-                ampInfo.setLinearityCoeffs([rowInds[i,j], colIndOffsets[i,j], 0, 0])
+                ampInfo.setLinearityCoeffs([rowInds[i, j], colIndOffsets[i, j], 0, 0])
         detId = 1
         orientation = cameraGeom.Orientation()
         pixelSize = afwGeom.Extent2D(1, 1)
@@ -238,6 +239,7 @@ def suite():
     suites += unittest.makeSuite(LinearizeLookupTableTestCase)
     suites += unittest.makeSuite(lsst.utils.tests.MemoryTestCase)
     return unittest.TestSuite(suites)
+
 
 def run(exit=False):
     """!Run the tests"""

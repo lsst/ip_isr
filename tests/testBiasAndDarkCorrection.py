@@ -28,10 +28,12 @@ import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
+
 class IsrTestCases(unittest.TestCase):
+
     def setUp(self):
-        self.pmin = afwGeom.Point2I(1,1)
-        self.pmax = afwGeom.Point2I(10,10)
+        self.pmin = afwGeom.Point2I(1, 1)
+        self.pmax = afwGeom.Point2I(10, 10)
         self.meanCountsKeyword = "IMMODE"
         self.filenameKeyword = "filename"
 
@@ -55,10 +57,10 @@ class IsrTestCases(unittest.TestCase):
         ipIsr.biasCorrection(maskedImage, biasexposure.getMaskedImage())
 
         height = maskedImage.getHeight()
-        width  = maskedImage.getWidth()
+        width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertEqual(maskedImage.getImage().get(i,j), 9)
+                self.assertEqual(maskedImage.getImage().get(i, j), 9)
 
     def doDark(self, scaling):
         maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
@@ -72,11 +74,11 @@ class IsrTestCases(unittest.TestCase):
 
         ipIsr.darkCorrection(maskedImage, darkexposure.getMaskedImage(), 1., scaling)
 
-        height        = maskedImage.getHeight()
-        width         = maskedImage.getWidth()
+        height = maskedImage.getHeight()
+        width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(maskedImage.getImage().get(i,j), 10 - 1./scaling, 5)
+                self.assertAlmostEqual(maskedImage.getImage().get(i, j), 10 - 1./scaling, 5)
 
     def testDark1(self):
         self.doDark(scaling=10)
@@ -96,6 +98,7 @@ def suite():
     suites += unittest.makeSuite(IsrTestCases)
     suites += unittest.makeSuite(tests.MemoryTestCase)
     return unittest.TestSuite(suites)
+
 
 def run(exit=False):
     """Run the tests"""
