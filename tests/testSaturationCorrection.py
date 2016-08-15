@@ -21,16 +21,15 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-import os
 import unittest
 
-import lsst.utils.tests as tests
+import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
 
-class IsrTestCases(unittest.TestCase):
+class IsrTestCases(lsst.utils.tests.TestCase):
 
     def testSaturation(self):
         saturation = 1000
@@ -38,7 +37,6 @@ class IsrTestCases(unittest.TestCase):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Point2I(19, 19))
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(100, 0x0, 1)
-        exposure = afwImage.ExposureF(maskedImage, None)
 
         bbox = afwGeom.Box2I(afwGeom.Point2I(9, 5),
                              afwGeom.Point2I(9, 15))
@@ -59,7 +57,6 @@ class IsrTestCases(unittest.TestCase):
         )
 
         mask = maskedImage.getMask()
-        bitmaskBad = mask.getPlaneBitMask('BAD')
         bitmaskSat = mask.getPlaneBitMask('SAT')
         bitmaskInterp = mask.getPlaneBitMask('INTRP')
         height = maskedImage.getHeight()
@@ -90,19 +87,14 @@ class IsrTestCases(unittest.TestCase):
                     self.assertEqual(mask.get(i, j), 0)
 
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    tests.init()
-
-    suites = []
-    suites += unittest.makeSuite(IsrTestCases)
-    suites += unittest.makeSuite(tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
 
 
-def run(exit=False):
-    """Run the tests"""
-    tests.run(suite(), exit)
+def setup_module(module):
+    lsst.utils.tests.init()
+
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()
