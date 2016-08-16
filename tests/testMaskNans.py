@@ -20,21 +20,19 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-import sys
 import unittest
 
 import numpy
-import lsst.utils.tests as tests
+import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.afw.display.ds9 as ds9
 from lsst.ip.isr import maskNans
 
-try:
-    debug
-except NameError:
-    debug = False
+debug = False
 
-class MaskNansTestCase(unittest.TestCase):
+
+class MaskNansTestCase(lsst.utils.tests.TestCase):
+
     def setUp(self):
         self.size = 100
         self.freqImage = 34
@@ -45,10 +43,10 @@ class MaskNansTestCase(unittest.TestCase):
 
     def check(self, ImageClass):
         image = ImageClass(self.size, self.size)
-        x,y = numpy.indices((self.size, self.size))
-        image.getImage().getArray()[y,x] = numpy.where(x*y % self.freqImage, 0, numpy.nan)
-        image.getMask().getArray()[y,x] = numpy.where(x*y % self.freqMask, 0, self.allowMask)
-        image.getVariance().getArray()[y,x] = numpy.where(x*y % self.freqVariance, 0, numpy.nan)
+        x, y = numpy.indices((self.size, self.size))
+        image.getImage().getArray()[y, x] = numpy.where(x*y % self.freqImage, 0, numpy.nan)
+        image.getMask().getArray()[y, x] = numpy.where(x*y % self.freqMask, 0, self.allowMask)
+        image.getVariance().getArray()[y, x] = numpy.where(x*y % self.freqVariance, 0, numpy.nan)
 
         if debug:
             ds9.mtv(image.getImage(), frame=1, title="Image")
@@ -69,26 +67,23 @@ class MaskNansTestCase(unittest.TestCase):
             ds9.mtv(image.getMask(), frame=4, title="UNC-ed mask")
 
         self.assertEqual(numNans, numExpected)
-        self.assertTrue(numpy.all(image.getMask().getArray() == maskExpected))
+        self.assertMasksEqual(image.getMask(), maskExpected)
 
-    def test(self):
-        for ImageClass in (afwImage.MaskedImageF, afwImage.MaskedImageD):
-            self.check(ImageClass)
+    def testMaskImageF(self):
+        self.check(afwImage.MaskedImageF)
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    tests.init()
+    def testMaskImageD(self):
+        self.check(afwImage.MaskedImageD)
 
-    suites = []
-    suites += unittest.makeSuite(MaskNansTestCase)
-    suites += unittest.makeSuite(tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
 
-def run(exit=False):
-    """Run the tests"""
-    tests.run(suite(), exit)
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
+
+
+def setup_module(module):
+    lsst.utils.tests.init()
+
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2 and sys.argv[1] == "--debug":
-        debug = True
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()

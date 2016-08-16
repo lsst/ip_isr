@@ -32,6 +32,7 @@ def refLinearizeSquared(image, detector):
 
 class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
     """!Unit tests for LinearizeSquared"""
+
     def setUp(self):
         # the following values are all arbitrary, but sane and varied
         self.bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85))
@@ -74,10 +75,10 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         # make a 4x4 image with 4 identical 2x2 subregions that flatten to -1, 0, 1, 2
         im = afwImage.ImageF(bbox)
         imArr = im.getArray()
-        imArr[:,:] = np.array(((-1, 0, -1, 0),
-                               ( 1, 2,  1, 2),
-                               (-1, 0, -1, 0),
-                               ( 1, 2,  1, 2)), dtype=imArr.dtype)
+        imArr[:, :] = np.array(((-1, 0, -1, 0),
+                                (1, 2, 1, 2),
+                                (-1, 0, -1, 0),
+                                (1, 2, 1, 2)), dtype=imArr.dtype)
 
         sqCoeffs = np.array(((0, 0.11), (-0.15, -12)))
         detector = self.makeDetector(bbox=bbox, numAmps=numAmps, sqCoeffs=sqCoeffs)
@@ -90,13 +91,14 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         imArr0 = im.Factory(im, ampInfoCat[0].getBBox()).getArray()
         linCoeff0 = ampInfoCat[0].getLinearityCoeffs()[0]
         self.assertEqual(0, linCoeff0)
-        self.assertTrue(np.allclose(imArr0.flatten(), (-1, 0, 1, 2)))
+        self.assertClose(imArr0.flatten(), (-1, 0, 1, 2))
 
         # test all amps
         for ampInfo in ampInfoCat:
             imArr = im.Factory(im, ampInfo.getBBox()).getArray()
             linCoeff = ampInfo.getLinearityCoeffs()[0]
-            self.assertTrue(np.allclose(imArr.flatten(), (-1 + linCoeff, 0, 1 + linCoeff, 2 + 4*linCoeff)))
+            expect = np.array((-1 + linCoeff, 0, 1 + linCoeff, 2 + 4*linCoeff), dtype=imArr.dtype)
+            self.assertClose(imArr.flatten(), expect)
 
     def testPickle(self):
         """!Test that a LinearizeSquared can be pickled and unpickled
@@ -141,7 +143,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
                 ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
                 ampInfo.setBBox(boxArr[i, j])
                 ampInfo.setLinearityType(linearityType)
-                ampInfo.setLinearityCoeffs([sqCoeffs[i,j]])
+                ampInfo.setLinearityCoeffs([sqCoeffs[i, j]])
         detName = "det_a"
         detId = 1
         detSerial = "123"
@@ -161,18 +163,14 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         )
 
 
-def suite():
-    """!Returns a suite containing all the test cases in this module."""
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
+
+
+def setup_module(module):
     lsst.utils.tests.init()
 
-    suites = []
-    suites += unittest.makeSuite(LinearizeSquaredTestCase)
-    suites += unittest.makeSuite(lsst.utils.tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
-
-def run(exit=False):
-    """!Run the tests"""
-    lsst.utils.tests.run(suite(), exit)
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()

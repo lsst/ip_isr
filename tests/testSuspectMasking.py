@@ -29,7 +29,9 @@ import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
 import lsst.ip.isr as ipIsr
 
+
 class IsrTestCases(lsst.utils.tests.TestCase):
+
     def setUp(self):
         ampInfoShema = afwTable.AmpInfoTable.makeMinimalSchema()
         ampInfoCat = afwTable.AmpInfoCatalog(ampInfoShema)
@@ -61,7 +63,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         maskArr = maskedImage.getMask().getArray()
         suspectMask = maskedImage.getMask().getPlaneBitMask("SUSPECT")
         measSetArr = maskArr == suspectMask
-        self.assertTrue(np.all(desSetArr == measSetArr))
+        self.assertImagesEqual(desSetArr, measSetArr)
         self.assertMaskedImagesNearlyEqual(inMaskedImage, maskedImage, doMask=False)
 
     def testNanLevel(self):
@@ -99,7 +101,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         maskArr = maskedImage.getMask().getArray()
         suspectMask = maskedImage.getMask().getPlaneBitMask(AltMaskName)
         measSetArr = maskArr == suspectMask
-        self.assertTrue(np.all(desSetArr == measSetArr))
+        self.assertImagesEqual(desSetArr, measSetArr)
         self.assertMaskedImagesNearlyEqual(inMaskedImage, maskedImage, doMask=False)
 
 
@@ -121,18 +123,15 @@ def makeRampMaskedImage(bbox, minVal, maxVal, imgClass=afwImage.MaskedImageF):
     maskArr[:] = 0
     return mi
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
+
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
+
+
+def setup_module(module):
     lsst.utils.tests.init()
 
-    suites = []
-    suites += unittest.makeSuite(IsrTestCases)
-    suites += unittest.makeSuite(lsst.utils.tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
-
-def run(exit=False):
-    """Run the tests"""
-    lsst.utils.tests.run(suite(), exit)
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()

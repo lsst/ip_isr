@@ -23,15 +23,17 @@
 #
 import unittest
 
-import lsst.utils.tests as tests
+import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
+
 class IsrTestCases(unittest.TestCase):
+
     def setUp(self):
-        self.pmin = afwGeom.Point2I(1,1)
-        self.pmax = afwGeom.Point2I(10,10)
+        self.pmin = afwGeom.Point2I(1, 1)
+        self.pmax = afwGeom.Point2I(10, 10)
         self.meanCountsKeyword = "IMMODE"
         self.filenameKeyword = "filename"
 
@@ -55,10 +57,10 @@ class IsrTestCases(unittest.TestCase):
         ipIsr.biasCorrection(maskedImage, biasexposure.getMaskedImage())
 
         height = maskedImage.getHeight()
-        width  = maskedImage.getWidth()
+        width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertEqual(maskedImage.getImage().get(i,j), 9)
+                self.assertEqual(maskedImage.getImage().get(i, j), 9)
 
     def doDark(self, scaling):
         maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
@@ -72,11 +74,11 @@ class IsrTestCases(unittest.TestCase):
 
         ipIsr.darkCorrection(maskedImage, darkexposure.getMaskedImage(), 1., scaling)
 
-        height        = maskedImage.getHeight()
-        width         = maskedImage.getWidth()
+        height = maskedImage.getHeight()
+        width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(maskedImage.getImage().get(i,j), 10 - 1./scaling, 5)
+                self.assertAlmostEqual(maskedImage.getImage().get(i, j), 10 - 1./scaling, 5)
 
     def testDark1(self):
         self.doDark(scaling=10)
@@ -88,18 +90,14 @@ class IsrTestCases(unittest.TestCase):
         self.doDark(scaling=3.7)
 
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    tests.init()
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
 
-    suites = []
-    suites += unittest.makeSuite(IsrTestCases)
-    suites += unittest.makeSuite(tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
 
-def run(exit=False):
-    """Run the tests"""
-    tests.run(suite(), exit)
+def setup_module(module):
+    lsst.utils.tests.init()
+
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()

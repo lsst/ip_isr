@@ -33,7 +33,7 @@ or
 import numpy
 
 import unittest
-import lsst.utils.tests as tests
+import lsst.utils.tests
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 from lsst.ip.isr.isrTask import IsrTask
@@ -41,22 +41,25 @@ from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.afw.geom.polygon import Polygon
 from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE
 
+
 def makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints):
     theta = numpy.linspace(0, 2*numpy.pi, num=numPolygonPoints, endpoint=False)
-    x = fpRadius*numpy.cos(theta) + fpCenterX
-    y = fpRadius*numpy.sin(theta) + fpCenterY
-    points = numpy.array([x, y]).transpose()
+    xx = fpRadius*numpy.cos(theta) + fpCenterX
+    yy = fpRadius*numpy.sin(theta) + fpCenterY
+    points = numpy.array([xx, yy]).transpose()
     polygon = Polygon([afwGeom.Point2D(x, y) for x, y in reversed(points)])
     return polygon
 
+
 def makeSquarePolygon(fpX0, fpY0, fpSize):
-    x = [fpX0, fpX0, fpX0 + fpSize -1, fpX0 + fpSize -1, fpX0]
-    y = [fpY0, fpY0 + fpSize -1, fpY0 + fpSize -1, fpY0, fpY0]
-    points = numpy.array([x, y]).transpose()
+    xx = [fpX0, fpX0, fpX0 + fpSize - 1, fpX0 + fpSize - 1, fpX0]
+    yy = [fpY0, fpY0 + fpSize - 1, fpY0 + fpSize - 1, fpY0, fpY0]
+    points = numpy.array([xx, yy]).transpose()
     polygon = Polygon([afwGeom.Point2D(x, y) for x, y in points])
     return polygon
 
-class setValidPolygonIntersectTestCase(unittest.TestCase):
+
+class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
     """A test case for setting of valid focal plane polygon intersection with ccd corners """
 
     def testSetPolygonIntersect(self):
@@ -113,20 +116,15 @@ class setValidPolygonIntersectTestCase(unittest.TestCase):
         # Check that the polygon contains the upper right ccd edge
         self.assertTrue(exposure.getInfo().getValidPolygon().contains(afwGeom.Point2D(pixX1, pixY1)))
 
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    tests.init()
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
 
-    suites = []
-    suites += unittest.makeSuite(setValidPolygonIntersectTestCase)
-    suites += unittest.makeSuite(tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
 
-def run(exit = False):
-    """Run the tests"""
-    tests.run(suite(), exit)
+def setup_module(module):
+    lsst.utils.tests.init()
+
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()

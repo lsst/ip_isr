@@ -21,85 +21,80 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-import os
 import unittest
 
-import lsst.utils.tests as tests
+import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
-class IsrTestCases(unittest.TestCase):
+
+class IsrTestCases(lsst.utils.tests.TestCase):
+
     def testSaturation(self):
         saturation = 1000
 
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Point2I(19,19))
-        maskedImage       = afwImage.MaskedImageF(bbox)
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Point2I(19, 19))
+        maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(100, 0x0, 1)
-        exposure = afwImage.ExposureF(maskedImage, None)
 
-        bbox     = afwGeom.Box2I(afwGeom.Point2I(9,5),
-                                 afwGeom.Point2I(9,15))
-        submi    = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT, False)
+        bbox = afwGeom.Box2I(afwGeom.Point2I(9, 5),
+                             afwGeom.Point2I(9, 15))
+        submi = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT, False)
         submi.set(saturation, 0x0, 1)
 
         ipIsr.makeThresholdMask(
-            maskedImage = maskedImage,
-            threshold = saturation,
-            growFootprints = 0,
-            maskName = 'SAT',
+            maskedImage=maskedImage,
+            threshold=saturation,
+            growFootprints=0,
+            maskName='SAT',
         )
         ipIsr.interpolateFromMask(
-            maskedImage = maskedImage,
-            fwhm = 5.0,
-            growFootprints = 1,
-            maskName = 'SAT',
+            maskedImage=maskedImage,
+            fwhm=5.0,
+            growFootprints=1,
+            maskName='SAT',
         )
 
         mask = maskedImage.getMask()
-        bitmaskBad    = mask.getPlaneBitMask('BAD')
-        bitmaskSat    = mask.getPlaneBitMask('SAT')
+        bitmaskSat = mask.getPlaneBitMask('SAT')
         bitmaskInterp = mask.getPlaneBitMask('INTRP')
-        height        = maskedImage.getHeight()
-        width         = maskedImage.getWidth()
+        height = maskedImage.getHeight()
+        width = maskedImage.getWidth()
 
         for j in range(height):
             for i in range(width):
                 # Grown saturation mask; one around the mask at 9
                 if i >= 8 and i <= 10:
-                    if (i,j) in [(8,4),(8,16),(10,4),(10,16)]:
-                        #Should not be saturated or interpolated at all
-                        self.assertEqual(mask.get(i,j) & bitmaskInterp, 0)
-                        self.assertEqual(mask.get(i,j) & bitmaskSat, 0)
-                    elif (j >4 and j < 16) and (i == 8 or i == 10):
+                    if (i, j) in [(8, 4), (8, 16), (10, 4), (10, 16)]:
+                        # Should not be saturated or interpolated at all
+                        self.assertEqual(mask.get(i, j) & bitmaskInterp, 0)
+                        self.assertEqual(mask.get(i, j) & bitmaskSat, 0)
+                    elif (j > 4 and j < 16) and (i == 8 or i == 10):
                         # Not saturated but interpolated over
-                        self.assertEqual(mask.get(i,j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask.get(i, j) & bitmaskInterp, bitmaskInterp)
                     elif (j == 4 or j == 16):
                         # Interpolated over; bottom/top
-                        self.assertEqual(mask.get(i,j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask.get(i, j) & bitmaskInterp, bitmaskInterp)
                     elif (j > 4 and j < 16 and i == 9):
                         # Both saturated and interpolated over; guts of it
-                        self.assertEqual(mask.get(i,j) & bitmaskInterp, bitmaskInterp)
-                        self.assertEqual(mask.get(i,j) & bitmaskSat,    bitmaskSat)
+                        self.assertEqual(mask.get(i, j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask.get(i, j) & bitmaskSat, bitmaskSat)
                     else:
                         # Neither; above or below the mask
-                        self.assertEqual(mask.get(i,j), 0)
+                        self.assertEqual(mask.get(i, j), 0)
                 else:
-                    self.assertEqual(mask.get(i,j), 0)
+                    self.assertEqual(mask.get(i, j), 0)
 
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    tests.init()
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
 
-    suites = []
-    suites += unittest.makeSuite(IsrTestCases)
-    suites += unittest.makeSuite(tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
 
-def run(exit=False):
-    """Run the tests"""
-    tests.run(suite(), exit)
+def setup_module(module):
+    lsst.utils.tests.init()
+
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()

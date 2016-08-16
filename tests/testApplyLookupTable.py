@@ -8,7 +8,6 @@ import lsst.afw.image as afwImage
 from lsst.afw.image.testUtils import makeRampImage
 from lsst.ip.isr import applyLookupTable
 
-np.random.seed(42)
 
 def referenceApply(image, table, indOffset):
     """!Reference implementation of applyLookupTable
@@ -38,7 +37,12 @@ def referenceApply(image, table, indOffset):
     imArr += table[indArr]
     return numBadPoints
 
+
 class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
+
+    def setUp(self):
+        np.random.seed(42)
+
     def testBasics(self):
         """!Test basic functionality of applyLookupTable
         """
@@ -99,21 +103,17 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         desImArr[0] -= 1
         desImArr[-1] += 1
         desImArr.shape = imArr.shape
-        self.assertTrue(np.allclose(desImArr, imArr))
+        self.assertClose(desImArr, imArr)
 
 
-def suite():
-    """!Returns a suite containing all the test cases in this module."""
+class MemoryTester(lsst.utils.tests.MemoryTestCase):
+    pass
+
+
+def setup_module(module):
     lsst.utils.tests.init()
 
-    suites = []
-    suites += unittest.makeSuite(ApplyLookupTableTestCase)
-    suites += unittest.makeSuite(lsst.utils.tests.MemoryTestCase)
-    return unittest.TestSuite(suites)
-
-def run(exit=False):
-    """!Run the tests"""
-    lsst.utils.tests.run(suite(), exit)
 
 if __name__ == "__main__":
-    run(True)
+    lsst.utils.tests.init()
+    unittest.main()
