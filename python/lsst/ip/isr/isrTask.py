@@ -954,3 +954,6 @@ class FakeAmp(object):
 
     def getSaturation(self):
         return self._saturation
+
+    def getSuspectLevel(self):
+        return float("NaN")
