@@ -4,7 +4,6 @@ import cPickle
 import numpy as np
 
 import lsst.utils.tests
-import lsst.pex.logging as pexLog
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.afw.table as afwTable
@@ -12,6 +11,7 @@ import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
 from lsst.ip.isr import applyLookupTable, LinearizeLookupTable
+from lsst.log import Log
 
 
 def refLinearize(image, detector, table):
@@ -75,7 +75,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             self.assertImagesNearlyEqual(refImage, measImage)
 
             # make sure logging is accepted
-            log = pexLog.Log(pexLog.getDefaultLog(), "lsst.ip.isr.LinearizeLookupTable")
+            log = Log.getLogger("ip.isr.LinearizeLookupTable")
             linRes = llt(image=measImage, detector=self.detector, log=log)
 
     def testErrorHandling(self):

@@ -167,7 +167,7 @@ class FringeTask(Task):
         stats.setNumIter(self.config.stats.iterations)
         mi = fringe.getMaskedImage()
         pedestal = afwMath.makeStatistics(mi, afwMath.MEDIAN, stats).getValue()
-        self.log.info("Removing fringe pedestal: %f" % pedestal)
+        self.log.info("Removing fringe pedestal: %f", pedestal)
         mi -= pedestal
 
     def generatePositions(self, exposure, rng):
@@ -252,8 +252,8 @@ class FringeTask(Task):
             resid = science - numpy.sum(solution * fringes, 1)
             rms = stdev(resid)
             good = numpy.logical_not(abs(resid) > self.config.clip * rms)
-            self.log.logdebug("Iteration %d: RMS=%f numGood=%d" % (i, rms, good.sum()))
-            self.log.logdebug("Solution %d: %s" % (i, solution))
+            self.log.debug("Iteration %d: RMS=%f numGood=%d", i, rms, good.sum())
+            self.log.debug("Solution %d: %s", i, solution)
             newNum = good.sum()
 
             if doPlot:
@@ -304,7 +304,7 @@ class FringeTask(Task):
 
         # Final solution without rejection
         solution = self._solve(science, fringes)
-        self.log.info("Fringe solution: %s RMS: %f Good: %d/%d" % (solution, rms, len(science), origNum))
+        self.log.info("Fringe solution: %s RMS: %f Good: %d/%d", solution, rms, len(science), origNum)
         return solution
 
     def _solve(self, science, fringes):
