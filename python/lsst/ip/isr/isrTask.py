@@ -822,7 +822,7 @@ class IsrTask(pipeBase.CmdLineTask):
         redistribute the charge.  The gradient of the kernel is the deflection
         field due to the accumulated charge.
 
-        Given the orinal image I(x) and the kernel K(x) we can compute the corrected image  Ic(x)
+        Given the original image I(x) and the kernel K(x) we can compute the corrected image  Ic(x)
         using the following equation:
 
         Ic(x) = I(x) + 0.5*d/dx(I(x)*d/dx(int( dy*K(x-y)*I(y))))
