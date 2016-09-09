@@ -39,98 +39,99 @@ from lsst.afw.geom.polygon import Polygon
 from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, NullLinearityType
 from contextlib import contextmanager
 
+
 class IsrTaskConfig(pexConfig.Config):
     doBias = pexConfig.Field(
-        dtype = bool,
-        doc = "Apply bias frame correction?",
-        default = True,
+        dtype=bool,
+        doc="Apply bias frame correction?",
+        default=True,
     )
     doDark = pexConfig.Field(
-        dtype = bool,
-        doc = "Apply dark frame correction?",
-        default = True,
+        dtype=bool,
+        doc="Apply dark frame correction?",
+        default=True,
     )
     doFlat = pexConfig.Field(
-        dtype = bool,
-        doc = "Apply flat field correction?",
-        default = True,
+        dtype=bool,
+        doc="Apply flat field correction?",
+        default=True,
     )
     doFringe = pexConfig.Field(
-        dtype = bool,
-        doc = "Apply fringe correction?",
-        default = True,
-        )
+        dtype=bool,
+        doc="Apply fringe correction?",
+        default=True,
+    )
     doWrite = pexConfig.Field(
-        dtype = bool,
-        doc = "Persist postISRCCD?",
-        default = True,
+        dtype=bool,
+        doc="Persist postISRCCD?",
+        default=True,
     )
     assembleCcd = pexConfig.ConfigurableField(
-        target = AssembleCcdTask,
-        doc = "CCD assembly task",
+        target=AssembleCcdTask,
+        doc="CCD assembly task",
     )
     gain = pexConfig.Field(
-        dtype = float,
-        doc = "The gain to use if no Detector is present in the Exposure (ignored if NaN)",
-        default = float("NaN"),
-        )
+        dtype=float,
+        doc="The gain to use if no Detector is present in the Exposure (ignored if NaN)",
+        default=float("NaN"),
+    )
     readNoise = pexConfig.Field(
-        dtype = float,
-        doc = "The read noise to use if no Detector is present in the Exposure",
-        default = 0.0,
-        )
+        dtype=float,
+        doc="The read noise to use if no Detector is present in the Exposure",
+        default=0.0,
+    )
     saturation = pexConfig.Field(
-        dtype = float,
-        doc = "The saturation level to use if no Detector is present in the Exposure (ignored if NaN)",
-        default = float("NaN"),
-        )
+        dtype=float,
+        doc="The saturation level to use if no Detector is present in the Exposure (ignored if NaN)",
+        default=float("NaN"),
+    )
     fringeAfterFlat = pexConfig.Field(
-        dtype = bool,
-        doc = "Do fringe subtraction after flat-fielding?",
-        default = True,
-        )
+        dtype=bool,
+        doc="Do fringe subtraction after flat-fielding?",
+        default=True,
+    )
     fringe = pexConfig.ConfigurableField(
-        target = FringeTask,
-        doc = "Fringe subtraction task",
-        )
+        target=FringeTask,
+        doc="Fringe subtraction task",
+    )
     fwhm = pexConfig.Field(
-        dtype = float,
-        doc = "FWHM of PSF (arcsec)",
-        default = 1.0,
+        dtype=float,
+        doc="FWHM of PSF (arcsec)",
+        default=1.0,
     )
     saturatedMaskName = pexConfig.Field(
-        dtype = str,
-        doc = "Name of mask plane to use in saturation detection and interpolation",
-        default = "SAT",
+        dtype=str,
+        doc="Name of mask plane to use in saturation detection and interpolation",
+        default="SAT",
     )
     suspectMaskName = pexConfig.Field(
-        dtype = str,
-        doc = "Name of mask plane to use for suspect pixels",
-        default = "SUSPECT",
+        dtype=str,
+        doc="Name of mask plane to use for suspect pixels",
+        default="SUSPECT",
     )
     flatScalingType = pexConfig.ChoiceField(
-        dtype = str,
-        doc = "The method for scaling the flat on the fly.",
-        default = 'USER',
-        allowed = {
-            "USER":   "Scale by flatUserScale",
-            "MEAN":   "Scale by the inverse of the mean",
+        dtype=str,
+        doc="The method for scaling the flat on the fly.",
+        default='USER',
+        allowed={
+            "USER": "Scale by flatUserScale",
+            "MEAN": "Scale by the inverse of the mean",
             "MEDIAN": "Scale by the inverse of the median",
         },
     )
     flatUserScale = pexConfig.Field(
-        dtype = float,
-        doc = "If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise",
-        default = 1.0,
+        dtype=float,
+        doc="If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise",
+        default=1.0,
     )
     overscanFitType = pexConfig.ChoiceField(
-        dtype = str,
-        doc = "The method for fitting the overscan bias level.",
-        default = 'MEDIAN',
-        allowed = {
+        dtype=str,
+        doc="The method for fitting the overscan bias level.",
+        default='MEDIAN',
+        allowed={
             "POLY": "Fit ordinary polynomial to the longest axis of the overscan region",
             "CHEB": "Fit Chebyshev polynomial to the longest axis of the overscan region",
-            "LEG":  "Fit Legendre polynomial to the longest axis of the overscan region",
+            "LEG": "Fit Legendre polynomial to the longest axis of the overscan region",
             "NATURAL_SPLINE": "Fit natural spline to the longest axis of the overscan region",
             "CUBIC_SPLINE": "Fit cubic spline to the longest axis of the overscan region",
             "AKIMA_SPLINE": "Fit Akima spline to the longest axis of the overscan region",
@@ -139,87 +140,87 @@ class IsrTaskConfig(pexConfig.Config):
         },
     )
     overscanOrder = pexConfig.Field(
-        dtype = int,
-        doc = ("Order of polynomial or to fit if overscan fit type is a polynomial, " +
-               "or number of spline knots if overscan fit type is a spline."),
-        default = 1,
+        dtype=int,
+        doc=("Order of polynomial or to fit if overscan fit type is a polynomial, " +
+             "or number of spline knots if overscan fit type is a spline."),
+        default=1,
     )
     overscanRej = pexConfig.Field(
-        dtype = float,
-        doc = "Rejection threshold (sigma) for collapsing overscan before fit",
-        default = 3.0,
+        dtype=float,
+        doc="Rejection threshold (sigma) for collapsing overscan before fit",
+        default=3.0,
     )
     growSaturationFootprintSize = pexConfig.Field(
-        dtype = int,
-        doc = "Number of pixels by which to grow the saturation footprints",
-        default = 1,
+        dtype=int,
+        doc="Number of pixels by which to grow the saturation footprints",
+        default=1,
     )
     fluxMag0T1 = pexConfig.Field(
-        dtype = float,
-        doc = "The approximate flux of a zero-magnitude object in a one-second exposure",
-        default = 1e10,
+        dtype=float,
+        doc="The approximate flux of a zero-magnitude object in a one-second exposure",
+        default=1e10,
     )
     setGainAssembledCcd = pexConfig.Field(
-        dtype = bool,
-        doc = "update exposure metadata in the assembled ccd to reflect the "\
-                "effective gain of the assembled chip",
-        default = True,
+        dtype=bool,
+        doc="update exposure metadata in the assembled ccd to reflect the "
+        "effective gain of the assembled chip",
+        default=True,
     )
     keysToRemoveFromAssembledCcd = pexConfig.ListField(
-        dtype = str,
-        doc = "fields to remove from the metadata of the assembled ccd.",
-        default = [],
+        dtype=str,
+        doc="fields to remove from the metadata of the assembled ccd.",
+        default=[],
     )
     doAssembleIsrExposures = pexConfig.Field(
-        dtype = bool,
-        default = False,
-        doc = "Assemble amp-level calibration exposures into ccd-level exposure?"
-        )
+        dtype=bool,
+        default=False,
+        doc="Assemble amp-level calibration exposures into ccd-level exposure?"
+    )
     doAssembleCcd = pexConfig.Field(
-        dtype = bool,
-        default = True,
-        doc = "Assemble amp-level exposures into a ccd-level exposure?"
-        )
+        dtype=bool,
+        default=True,
+        doc="Assemble amp-level exposures into a ccd-level exposure?"
+    )
     doLinearize = pexConfig.Field(
-        dtype = bool,
-        doc = "Correct for nonlinearity of the detector's response?",
-        default = True,
+        dtype=bool,
+        doc="Correct for nonlinearity of the detector's response?",
+        default=True,
     )
     doBrighterFatter = pexConfig.Field(
-        dtype = bool,
-        default = False,
-        doc = "Apply the brighter fatter correction"
-        )
+        dtype=bool,
+        default=False,
+        doc="Apply the brighter fatter correction"
+    )
     brighterFatterKernelFile = pexConfig.Field(
-        dtype = str,
-        default = '',
-        doc = "Kernel file used for the brighter fatter correction"
-        )
+        dtype=str,
+        default='',
+        doc="Kernel file used for the brighter fatter correction"
+    )
     brighterFatterMaxIter = pexConfig.Field(
-        dtype = int,
-        default = 10,
-        doc = "Maximum number of iterations for the brighter fatter correction"
-        )
+        dtype=int,
+        default=10,
+        doc="Maximum number of iterations for the brighter fatter correction"
+    )
     brighterFatterThreshold = pexConfig.Field(
-        dtype = float,
-        default = 1000,
-        doc = "Threshold used to stop iterating the brighter fatter correction.  It is the "
+        dtype=float,
+        default=1000,
+        doc="Threshold used to stop iterating the brighter fatter correction.  It is the "
         " absolute value of the difference between the current corrected image and the one"
         " from the previous iteration summed over all the pixels."
-        )
+    )
     brighterFatterApplyGain = pexConfig.Field(
-        dtype = bool,
-        default = True,
-        doc = "Should the gain be applied when applying the brighter fatter correction?"
-        )
+        dtype=bool,
+        default=True,
+        doc="Should the gain be applied when applying the brighter fatter correction?"
+    )
     datasetType = pexConfig.Field(
-        dtype = str,
-        doc = "Dataset type for input data; users will typically leave this alone, "
-            "but camera-specific ISR tasks will override it",
-        default = "raw",
+        dtype=str,
+        doc="Dataset type for input data; users will typically leave this alone, "
+        "but camera-specific ISR tasks will override it",
+        default="raw",
     )
     fallbackFilterName = pexConfig.Field(dtype=str,
-            doc="Fallback default filter name for calibrations", optional=True)
+                                         doc="Fallback default filter name for calibrations", optional=True)
 
 ## \addtogroup LSST_task_documentation
 ## \{
@@ -227,6 +228,7 @@ class IsrTaskConfig(pexConfig.Config):
 ## \ref IsrTask_ "IsrTask"
 ## \copybrief IsrTask
 ## \}
+
 
 class IsrTask(pipeBase.CmdLineTask):
     """!
@@ -407,24 +409,24 @@ class IsrTask(pipeBase.CmdLineTask):
         defectList = dataRef.get("defects")
 
         if self.config.doFringe and self.fringe.checkFilter(rawExposure):
-            fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd \
-                                              if self.config.doAssembleIsrExposures else None)
+            fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd
+                                                   if self.config.doAssembleIsrExposures else None)
         else:
-            fringeStruct = pipeBase.Struct(fringes = None)
+            fringeStruct = pipeBase.Struct(fringes=None)
 
         #Struct should include only kwargs to run()
-        return pipeBase.Struct(bias = biasExposure,
-                               linearizer = linearizer,
-                               dark = darkExposure,
-                               flat = flatExposure,
-                               defects = defectList,
-                               fringes = fringeStruct,
-                               bfKernel = brighterFatterKernel
+        return pipeBase.Struct(bias=biasExposure,
+                               linearizer=linearizer,
+                               dark=darkExposure,
+                               flat=flatExposure,
+                               defects=defectList,
+                               fringes=fringeStruct,
+                               bfKernel=brighterFatterKernel
                                )
 
     @pipeBase.timeMethod
     def run(self, ccdExposure, bias=None, linearizer=None, dark=None, flat=None, defects=None,
-        fringes=None, bfKernel=None):
+            fringes=None, bfKernel=None):
         """!Perform instrument signature removal on an exposure
 
         Steps include:
@@ -530,9 +532,8 @@ class IsrTask(pipeBase.CmdLineTask):
             getDisplay(frame).mtv(ccdExposure)
 
         return pipeBase.Struct(
-            exposure = ccdExposure,
+            exposure=ccdExposure,
         )
-
 
     @pipeBase.timeMethod
     def runDataRef(self, sensorRef):
@@ -570,9 +571,9 @@ class IsrTask(pipeBase.CmdLineTask):
         newexposure = exposure.convertF()
         maskedImage = newexposure.getMaskedImage()
         varArray = maskedImage.getVariance().getArray()
-        varArray[:,:] = 1
+        varArray[:, :] = 1
         maskArray = maskedImage.getMask().getArray()
-        maskArray[:,:] = 0
+        maskArray[:, :] = 0
         return newexposure
 
     def biasCorrection(self, exposure, biasExposure):
@@ -591,10 +592,10 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         darkCalib = darkExposure.getCalib()
         isr.darkCorrection(
-            maskedImage = exposure.getMaskedImage(),
-            darkMaskedImage = darkExposure.getMaskedImage(),
-            expScale = exposure.getCalib().getExptime(),
-            darkScale = darkCalib.getExptime(),
+            maskedImage=exposure.getMaskedImage(),
+            darkMaskedImage=darkExposure.getMaskedImage(),
+            expScale=exposure.getCalib().getExptime(),
+            darkScale=darkCalib.getExptime(),
         )
 
     def doLinearize(self, detector):
@@ -615,9 +616,9 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         if not math.isnan(amp.getGain()):
             isr.updateVariance(
-                maskedImage = ampExposure.getMaskedImage(),
-                gain = amp.getGain(),
-                readNoise = amp.getReadNoise(),
+                maskedImage=ampExposure.getMaskedImage(),
+                gain=amp.getGain(),
+                readNoise=amp.getReadNoise(),
             )
 
     def flatCorrection(self, exposure, flatExposure):
@@ -627,10 +628,10 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in]      flatExposure    flatfield exposure same size as exposure
         """
         isr.flatCorrection(
-            maskedImage = exposure.getMaskedImage(),
-            flatMaskedImage = flatExposure.getMaskedImage(),
-            scalingType = self.config.flatScalingType,
-            userScale = self.config.flatUserScale,
+            maskedImage=exposure.getMaskedImage(),
+            flatMaskedImage=flatExposure.getMaskedImage(),
+            scalingType=self.config.flatScalingType,
+            userScale=self.config.flatUserScale,
         )
 
     def getIsrExposure(self, dataRef, datasetType, immediate=True):
@@ -643,7 +644,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \return exposure
         """
         try:
-            exp=dataRef.get(datasetType, immediate=immediate)
+            exp = dataRef.get(datasetType, immediate=immediate)
         except Exception as exc1:
             if not self.config.fallbackFilterName:
                 raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, exc1))
@@ -666,7 +667,7 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         if not math.isnan(amp.getSaturation()):
             maskedImage = exposure.getMaskedImage()
-            dataView=maskedImage.Factory(maskedImage, amp.getRawBBox())
+            dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
             isr.makeThresholdMask(
                 maskedImage=dataView,
                 threshold=amp.getSaturation(),
@@ -684,10 +685,10 @@ class IsrTask(pipeBase.CmdLineTask):
         - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
         """
         isr.interpolateFromMask(
-            maskedImage = ccdExposure.getMaskedImage(),
-            fwhm = self.config.fwhm,
-            growFootprints = self.config.growSaturationFootprintSize,
-            maskName = self.config.saturatedMaskName,
+            maskedImage=ccdExposure.getMaskedImage(),
+            fwhm=self.config.fwhm,
+            growFootprints=self.config.growSaturationFootprintSize,
+            maskName=self.config.saturatedMaskName,
         )
 
     def suspectDetection(self, exposure, amp):
@@ -707,7 +708,7 @@ class IsrTask(pipeBase.CmdLineTask):
             return
 
         maskedImage = exposure.getMaskedImage()
-        dataView=maskedImage.Factory(maskedImage, amp.getRawBBox())
+        dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
         isr.makeThresholdMask(
             maskedImage=dataView,
             threshold=suspectLevel,
@@ -731,9 +732,9 @@ class IsrTask(pipeBase.CmdLineTask):
             defectList.append(nd)
         isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
         isr.interpolateDefectList(
-            maskedImage = maskedImage,
-            defectList = defectList,
-            fwhm = self.config.fwhm,
+            maskedImage=maskedImage,
+            defectList=defectList,
+            fwhm=self.config.fwhm,
         )
 
     def maskAndInterpNan(self, exposure):
@@ -759,14 +760,14 @@ class IsrTask(pipeBase.CmdLineTask):
         if numNans > 0:
             self.log.warn("There were %i unmasked NaNs", numNans)
             nanDefectList = isr.getDefectListFromMask(
-                maskedImage = maskedImage,
-                maskName = 'UNMASKEDNAN',
-                growFootprints = 0,
+                maskedImage=maskedImage,
+                maskName='UNMASKEDNAN',
+                growFootprints=0,
             )
             isr.interpolateDefectList(
-                maskedImage = exposure.getMaskedImage(),
-                defectList = nanDefectList,
-                fwhm = self.config.fwhm,
+                maskedImage=exposure.getMaskedImage(),
+                defectList=nanDefectList,
+                fwhm=self.config.fwhm,
             )
 
     def overscanCorrection(self, exposure, amp):
@@ -789,11 +790,11 @@ class IsrTask(pipeBase.CmdLineTask):
         overscanImage = expImage.Factory(expImage, amp.getRawHorizontalOverscanBBox())
 
         isr.overscanCorrection(
-            ampMaskedImage = dataView,
-            overscanImage = overscanImage,
-            fitType = self.config.overscanFitType,
-            order = self.config.overscanOrder,
-            collapseRej = self.config.overscanRej,
+            ampMaskedImage=dataView,
+            overscanImage=overscanImage,
+            fitType=self.config.overscanFitType,
+            order=self.config.overscanOrder,
+            collapseRej=self.config.overscanRej,
         )
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
@@ -877,8 +878,8 @@ class IsrTask(pipeBase.CmdLineTask):
                 outArray = outImage.getArray()
 
                 # First derivative term
-                gradTmp = numpy.gradient(tmpArray[startY:endY,startX:endX])
-                gradOut = numpy.gradient(outArray[startY:endY,startX:endX])
+                gradTmp = numpy.gradient(tmpArray[startY:endY, startX:endX])
+                gradOut = numpy.gradient(outArray[startY:endY, startX:endX])
                 first = (gradTmp[0]*gradOut[0] + gradTmp[1]*gradOut[1])
 
                 # Second derivative term
@@ -889,18 +890,18 @@ class IsrTask(pipeBase.CmdLineTask):
                 corr[startY:endY, startX:endX] = 0.5*(first + second)
 
                 # reset tmp image and apply correction
-                tmpArray[:,:] = image.getArray()[:,:]
+                tmpArray[:, :] = image.getArray()[:, :]
                 tmpArray[nanIndex] = 0.
-                tmpArray[startY:endY, startX:endX] += corr[startY:endY,startX:endX]
+                tmpArray[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
 
                 if iteration > 0:
                     diff = numpy.sum(numpy.abs(prev_image - tmpArray))
 
                     if diff < threshold:
                         break
-                    prev_image[:,:] = tmpArray[:,:]
+                    prev_image[:, :] = tmpArray[:, :]
 
-            if iteration == maxIter -1:
+            if iteration == maxIter - 1:
                 self.log.warn("Brighter fatter correction did not converge, final difference %f" % diff)
 
             self.log.info("Finished brighter fatter in %d iterations" % (iteration))
@@ -925,8 +926,10 @@ class IsrTask(pipeBase.CmdLineTask):
                     sim = image.Factory(image, amp.getBBox())
                     sim /= amp.getGain()
 
+
 class FakeAmp(object):
     """A Detector-like object that supports returning gain and saturation level"""
+
     def __init__(self, exposure, config):
         self._bbox = exposure.getBBox(afwImage.LOCAL)
         self._RawHorizontalOverscanBBox = afwGeom.Box2I()

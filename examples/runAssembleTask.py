@@ -2,6 +2,7 @@ from lsst.ip.isr import AssembleCcdTask
 import lsst.afw.display.ds9 as ds9
 import exampleUtils
 
+
 def runAssembler():
     '''Run the task to assemble amps into a ccd'''
 

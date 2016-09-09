@@ -29,6 +29,7 @@ from .isrLib import applyLookupTable
 
 __all__ = ["LinearizeBase", "LinearizeLookupTable", "LinearizeSquared"]
 
+
 class LinearizeBase(object):
     """Abstract base class functor for correcting non-linearity
 
@@ -123,7 +124,7 @@ class LinearizeLookupTable(LinearizeBase):
             rowInd = int(rowInd)
             if rowInd < 0 or rowInd >= numTableRows:
                 raise RuntimeError("Amplifier %s has rowInd=%s not in range[0, %s)" %
-                    (ampInfo.getName(), rowInd, numTableRows))
+                                   (ampInfo.getName(), rowInd, numTableRows))
             rowIndList.append(int(rowInd))
             colIndOffsetList.append(colIndOffset)
         self._rowIndArr = np.array(rowIndList, dtype=int)
@@ -162,9 +163,9 @@ class LinearizeLookupTable(LinearizeBase):
                      numOutOfRange, detector.getName())
         numAmps = len(ampInfoCat)
         return Struct(
-            numAmps = numAmps,
-            numLinearized = numAmps,
-            numOutOfRange = numOutOfRange,
+            numAmps=numAmps,
+            numLinearized=numAmps,
+            numOutOfRange=numOutOfRange,
         )
 
     def checkDetector(self, detector):
@@ -176,15 +177,15 @@ class LinearizeLookupTable(LinearizeBase):
         """
         if self._detectorName != detector.getName():
             raise RuntimeError("Detector names don't match: %s != %s" %
-                (self._detectorName, detector.getName()))
+                               (self._detectorName, detector.getName()))
         if self._detectorSerial != detector.getSerial():
             raise RuntimeError("Detector serial numbers don't match: %s != %s" %
-                (self._detectorSerial, detector.getSerial()))
+                               (self._detectorSerial, detector.getSerial()))
 
         numAmps = len(detector.getAmpInfoCatalog())
         if numAmps != len(self._rowIndArr):
             raise RuntimeError("Detector number of amps = %s does not match saved value %s" %
-                (numAmps, len(self._rowIndArr)))
+                               (numAmps, len(self._rowIndArr)))
         self.checkLinearityType(detector)
 
 
@@ -196,6 +197,7 @@ class LinearizeSquared(LinearizeBase):
     where c0 is linearity coefficient 0 in the AmpInfoCatalog of the detector
     """
     LinearityType = "Squared"
+
     def __call__(self, image, detector, log=None):
         """Correct for non-linearity
 
@@ -226,6 +228,6 @@ class LinearizeSquared(LinearizeBase):
             log.warn("%s of %s amps in detector \"%s\" were not linearized (coefficient = 0)",
                      numAmps - numLinearized, numAmps, detector.getName())
         return Struct(
-            numAmps = numAmps,
-            numLinearized = numLinearized,
+            numAmps=numAmps,
+            numLinearized=numLinearized,
         )
