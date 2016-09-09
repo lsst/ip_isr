@@ -51,7 +51,7 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
         exp = afwImage.makeExposure(mi)
 
         isrTask = ipIsr.IsrTask()
-        with open(self.filename) as f:
+        with open(self.filename, 'rb') as f:
             bfKernel = pickle.load(f)
 
         isrTask.brighterFatterCorrection(exp, bfKernel, 5, 100, False)

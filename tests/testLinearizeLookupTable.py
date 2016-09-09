@@ -203,7 +203,8 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
                 ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
                 ampInfo.setBBox(boxArr[i, j])
                 ampInfo.setLinearityType(linearityType)
-                ampInfo.setLinearityCoeffs([rowInds[i, j], colIndOffsets[i, j], 0, 0])
+                # setLinearityCoeffs is picky about getting a mixed int/float list.
+                ampInfo.setLinearityCoeffs(np.array([rowInds[i, j], colIndOffsets[i, j], 0, 0], dtype=float))
         detId = 1
         orientation = cameraGeom.Orientation()
         pixelSize = afwGeom.Extent2D(1, 1)

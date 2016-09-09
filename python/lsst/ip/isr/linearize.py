@@ -21,6 +21,7 @@ from builtins import object
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import abc
+from builtins import zip
 from future.utils import with_metaclass
 
 import numpy as np

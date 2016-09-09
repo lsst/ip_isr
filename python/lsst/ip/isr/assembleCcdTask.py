@@ -39,8 +39,8 @@ class AssembleCcdConfig(pexConfig.Config):
     )
     doRenorm = pexConfig.Field(
         doc="renormalize to a gain of 1? (ignored if setGain false). "
-        "Setting to True gives 1 ADU per electron. "
-        "Setting to True is not recommended for mosaic cameras because it breaks normalization across "
+            "Setting to True gives 1 ADU per electron. "
+            "Setting to True is not recommended for mosaic cameras because it breaks normalization across "
             "the focal plane. However, if the CCDs are sufficiently flat then the resulting error "
             "may be acceptable.",
         dtype=bool,
@@ -132,14 +132,14 @@ class AssembleCcdTask(pipeBase.Task):
     \dontinclude exampleUtils.py
     Create some input images with the help of some utilities in examples/exampleUtils.py
     \skip makeAssemblyInput
-    \until inputData
+    @until inputData
     The above numbers can be changed.  The assumption that the readout corner is flipped on every other amp is
     hardcoded in createDetector.
 
     \dontinclude runAssembleTask.py
     Run the assembler task
     \skip runAssembler
-    \until frame += 1
+    @until frame += 1
 
     <HR>
     To investigate the \ref ip_isr_assemble_Debug, put something like
@@ -197,7 +197,7 @@ class AssembleCcdTask(pipeBase.Task):
         ccd = None
         if hasattr(assembleInput, "has_key"):
             # Get a detector object for this set of amps
-            ccd = assembleInput.values().next().getDetector()
+            ccd = next(assembleInput.values()).getDetector()
             # Sent a dictionary of input exposures, assume one amp per key keyed on amp name
 
             def getNextExposure(amp):

@@ -1,3 +1,4 @@
+from __future__ import division
 from builtins import range
 from builtins import object
 #
@@ -327,7 +328,7 @@ class IsrTask(pipeBase.CmdLineTask):
     We will only do overscan, dark and flat correction.
     The data are constructed by hand so that all effects will be corrected for essentially perfectly.
     \skip DARKVAL
-    \until rawExposure
+    @until rawExposure
     The above numbers can be changed to modify the gradient in the flat, for example.
     For the parameters in this particular example,
     the image after ISR will be a constant 5000 counts
@@ -363,7 +364,7 @@ class IsrTask(pipeBase.CmdLineTask):
     Construct the task and set some config parameters.  Specifically, we don't want to
     do zero or fringe correction.  We also don't want the assembler messing with the gain.
     \skip Create
-    \until config=isrConfig
+    @until config=isrConfig
 
     Finally, run the exposures through ISR.
     \skipline isrTask.run
@@ -416,7 +417,7 @@ class IsrTask(pipeBase.CmdLineTask):
         else:
             fringeStruct = pipeBase.Struct(fringes=None)
 
-        #Struct should include only kwargs to run()
+        # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
                                linearizer=linearizer,
                                dark=darkExposure,
@@ -456,7 +457,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         ccd = ccdExposure.getDetector()
 
-        #Validate Input
+        # Validate Input
         if self.config.doBias and bias is None:
             raise RuntimeError("Must supply a bias exposure if config.doBias True")
         if self.doLinearize(ccd) and linearizer is None:
@@ -481,7 +482,7 @@ class IsrTask(pipeBase.CmdLineTask):
             ccd = [FakeAmp(ccdExposure, self.config)]
 
         for amp in ccd:
-            #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
+            # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.saturationDetection(ccdExposure, amp)
                 self.suspectDetection(ccdExposure, amp)
@@ -507,7 +508,7 @@ class IsrTask(pipeBase.CmdLineTask):
             self.darkCorrection(ccdExposure, dark)
 
         for amp in ccd:
-            #if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
+            # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                 self.updateVariance(ampExposure, amp)
@@ -868,10 +869,11 @@ class IsrTask(pipeBase.CmdLineTask):
 
             # Define boundary by convolution region.  The region that the correction will be
             # calculated for is one fewer in each dimension because of the second derivative terms.
-            startX = kLx/2
-            endX = -kLx/2
-            startY = kLy/2
-            endY = -kLy/2
+            # NOTE: these need to use integer math, as we're using start:end as numpy index ranges.
+            startX = kLx//2
+            endX = -kLx//2
+            startY = kLy//2
+            endY = -kLy//2
 
             for iteration in range(maxIter):
 
