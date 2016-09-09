@@ -1,3 +1,4 @@
+from __future__ import print_function
 #
 # LSST Data Management System
 # Copyright 2008, 2009, 2010 LSST Corporation.
@@ -276,7 +277,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     elif scalingType == 'USER':
         flatScale = userScale
     else:
-        raise pexExcept.Exception, '%s : %s not implemented' % ("flatCorrection", scalingType)
+        raise pexExcept.Exception('%s : %s not implemented' % ("flatCorrection", scalingType))
 
     maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
 
@@ -405,7 +406,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                     import pdb
                     pdb.set_trace()
                 elif ans in ("h", ):
-                    print "h[elp] c[ontinue] p[db]"
+                    print("h[elp] c[ontinue] p[db]")
                 figure.close()
 
         offImage = ampImage.Factory(ampImage.getDimensions())
@@ -441,6 +442,6 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                 maskArray[-high:, :] |= suspect
 
     else:
-        raise pexExcept.Exception, '%s : %s an invalid overscan type' % \
-            ("overscanCorrection", fitType)
+        raise pexExcept.Exception('%s : %s an invalid overscan type' % \
+            ("overscanCorrection", fitType))
     ampImage -= offImage

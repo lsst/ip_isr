@@ -21,6 +21,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
+from __future__ import print_function
 import numpy
 
 import lsst.afw.geom as afwGeom
@@ -295,7 +296,7 @@ class FringeTask(Task):
                         import pdb
                         pdb.set_trace()
                     elif ans in ("h", ):
-                        print "h[elp] c[ontinue] p[db]"
+                        print("h[elp] c[ontinue] p[db]")
 
             if newNum == oldNum:
                 # Not gaining
