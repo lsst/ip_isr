@@ -1,3 +1,4 @@
+from builtins import object
 #
 # LSST Data Management System
 # Copyright 2016 AURA/LSST.
@@ -20,7 +21,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import abc
-from itertools import izip
+from future.utils import with_metaclass
 
 import numpy as np
 
@@ -30,13 +31,12 @@ from .isrLib import applyLookupTable
 __all__ = ["LinearizeBase", "LinearizeLookupTable", "LinearizeSquared"]
 
 
-class LinearizeBase(object):
+class LinearizeBase(with_metaclass(abc.ABCMeta, object)):
     """Abstract base class functor for correcting non-linearity
 
     Subclasses must define __call__ and set class variable LinearityType to a string
     that will be used for linearity type in AmpInfoCatalog
     """
-    __metaclass__ = abc.ABCMeta
     LinearityType = None  # linearity type, a string used for AmpInfoCatalogs
 
     @abc.abstractmethod
@@ -152,7 +152,7 @@ class LinearizeLookupTable(LinearizeBase):
         self.checkDetector(detector)
         ampInfoCat = detector.getAmpInfoCatalog()
         numOutOfRange = 0
-        for ampInfo, rowInd, colIndOffset in izip(ampInfoCat, self._rowIndArr, self._colIndOffsetArr):
+        for ampInfo, rowInd, colIndOffset in zip(ampInfoCat, self._rowIndArr, self._colIndOffsetArr):
             bbox = ampInfo.getBBox()
             ampView = image.Factory(image, bbox)
             tableRow = self._table[rowInd, :]

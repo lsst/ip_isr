@@ -1,3 +1,5 @@
+from builtins import range
+from builtins import object
 import numpy
 
 from lsst.afw.cameraGeom import DetectorConfig, PIXELS

@@ -197,7 +197,7 @@ class AssembleCcdTask(pipeBase.Task):
         ccd = None
         if hasattr(assembleInput, "has_key"):
             # Get a detector object for this set of amps
-            ccd = assembleInput.itervalues().next().getDetector()
+            ccd = assembleInput.values().next().getDetector()
             # Sent a dictionary of input exposures, assume one amp per key keyed on amp name
 
             def getNextExposure(amp):

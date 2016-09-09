@@ -22,6 +22,9 @@
 #
 
 from __future__ import print_function
+from builtins import zip
+from builtins import input
+from builtins import range
 import numpy
 
 import lsst.afw.geom as afwGeom
@@ -289,7 +292,7 @@ class FringeTask(Task):
                     ax.set_ybound(lower=ymin, upper=ymax)
                     fig.show()
                 while True:
-                    ans = raw_input("Enter or c to continue [chp]").lower()
+                    ans = input("Enter or c to continue [chp]").lower()
                     if ans in ("", "c",):
                         break
                     if ans in ("p",):

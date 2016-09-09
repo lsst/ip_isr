@@ -1,5 +1,8 @@
+from future import standard_library
+standard_library.install_aliases()
+from builtins import range
 import unittest
-import cPickle
+import pickle
 
 import numpy as np
 
@@ -163,8 +166,8 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         refImage = inImage.Factory(inImage, True)
         refNumOutOfRange = llt(refImage, self.detector)
 
-        pickledStr = cPickle.dumps(llt)
-        restoredLlt = cPickle.loads(pickledStr)
+        pickledStr = pickle.dumps(llt)
+        restoredLlt = pickle.loads(pickledStr)
 
         measImage = inImage.Factory(inImage, True)
         measNumOutOfRange = restoredLlt(measImage, self.detector)

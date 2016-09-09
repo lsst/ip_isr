@@ -1,4 +1,6 @@
 from __future__ import print_function
+from builtins import input
+from builtins import range
 #
 # LSST Data Management System
 # Copyright 2008, 2009, 2010 LSST Corporation.
@@ -81,7 +83,7 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     psf = createPsf(fwhm)
     if fallbackValue is None:
         fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
-    if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict().keys():
+    if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict():
         maskedImage.getMask.addMaskPlane('INTRP')
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
 
@@ -399,7 +401,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             figure.show()
             prompt = "Press Enter or c to continue [chp]... "
             while True:
-                ans = raw_input(prompt).lower()
+                ans = input(prompt).lower()
                 if ans in ("", "c",):
                     break
                 if ans in ("p",):
@@ -430,12 +432,12 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                 # There is no mask, so the whole array is fine
                 pass
         except ValueError:      # If collapsed.mask is an array the test fails [needs .all()]
-            for low in xrange(num):
+            for low in range(num):
                 if not collapsed.mask[low]:
                     break
             if low > 0:
                 maskArray[:low, :] |= suspect
-            for high in xrange(1, num):
+            for high in range(1, num):
                 if not collapsed.mask[-high]:
                     break
             if high > 1:
