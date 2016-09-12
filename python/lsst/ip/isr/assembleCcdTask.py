@@ -30,30 +30,31 @@ from .isr import calcEffectiveGain
 
 __all__ = ["AssembleCcdTask"]
 
+
 class AssembleCcdConfig(pexConfig.Config):
     setGain = pexConfig.Field(
-        doc = "set gain?",
-        dtype = bool,
-        default = True,
+        doc="set gain?",
+        dtype=bool,
+        default=True,
     )
     doRenorm = pexConfig.Field(
-        doc = "renormalize to a gain of 1? (ignored if setGain false). "
+        doc="renormalize to a gain of 1? (ignored if setGain false). "
             "Setting to True gives 1 ADU per electron. "
             "Setting to True is not recommended for mosaic cameras because it breaks normalization across "
             "the focal plane. However, if the CCDs are sufficiently flat then the resulting error "
             "may be acceptable.",
-        dtype = bool,
-        default = False,
+        dtype=bool,
+        default=False,
     )
     doTrim = pexConfig.Field(
-        doc = "trim out non-data regions?",
-        dtype = bool,
-        default = True,
+        doc="trim out non-data regions?",
+        dtype=bool,
+        default=True,
     )
     keysToRemove = pexConfig.ListField(
-        doc = "FITS headers to remove (in addition to DATASEC, BIASSEC, TRIMSEC and perhaps GAIN)",
-        dtype = str,
-        default = (),
+        doc="FITS headers to remove (in addition to DATASEC, BIASSEC, TRIMSEC and perhaps GAIN)",
+        dtype=str,
+        default=(),
     )
 
 ## \addtogroup LSST_task_documentation
@@ -62,6 +63,7 @@ class AssembleCcdConfig(pexConfig.Config):
 ## \ref AssembleCcdTask_ "AssembleCcdTask"
 ## \copybrief AssembleCcdTask
 ## \}
+
 
 class AssembleCcdTask(pipeBase.Task):
     """!
@@ -130,14 +132,14 @@ class AssembleCcdTask(pipeBase.Task):
     \dontinclude exampleUtils.py
     Create some input images with the help of some utilities in examples/exampleUtils.py
     \skip makeAssemblyInput
-    \until inputData
+    @until inputData
     The above numbers can be changed.  The assumption that the readout corner is flipped on every other amp is
     hardcoded in createDetector.
 
     \dontinclude runAssembleTask.py
     Run the assembler task
     \skip runAssembler
-    \until frame += 1
+    @until frame += 1
 
     <HR>
     To investigate the \ref ip_isr_assemble_Debug, put something like
@@ -195,13 +197,15 @@ class AssembleCcdTask(pipeBase.Task):
         ccd = None
         if hasattr(assembleInput, "has_key"):
             # Get a detector object for this set of amps
-            ccd = assembleInput.itervalues().next().getDetector()
+            ccd = next(assembleInput.values()).getDetector()
             # Sent a dictionary of input exposures, assume one amp per key keyed on amp name
+
             def getNextExposure(amp):
                 return assembleInput[amp.getName()]
         elif hasattr(assembleInput, "getMaskedImage"):
             ccd = assembleInput.getDetector()
             # A single exposure was sent.  Use this to assemble.
+
             def getNextExposure(amp):
                 return assembleInput
         else:
@@ -240,7 +244,7 @@ class AssembleCcdTask(pipeBase.Task):
                                     - sets calib, filter, and detector
         @param[in]      inExposure  input exposure
         """
-        self.setWcs(outExposure = outExposure, inExposure = inExposure)
+        self.setWcs(outExposure=outExposure, inExposure=inExposure)
 
         exposureMetadata = inExposure.getMetadata()
         for key in self.allKeysToRemove:
@@ -249,7 +253,7 @@ class AssembleCcdTask(pipeBase.Task):
         outExposure.setMetadata(exposureMetadata)
 
         if self.config.setGain:
-            self.setGain(outExposure = outExposure)
+            self.setGain(outExposure=outExposure)
 
         inCalib = inExposure.getCalib()
         outCalib = outExposure.getCalib()
@@ -274,7 +278,7 @@ class AssembleCcdTask(pipeBase.Task):
             amp0 = ccd[0]
             if amp0 is None:
                 raise RuntimeError("No amplifier detector information found")
-            cameraGeomUtils.prepareWcsData(wcs, amp0, isTrimmed = self.config.doTrim)
+            cameraGeomUtils.prepareWcsData(wcs, amp0, isTrimmed=self.config.doTrim)
             outExposure.setWcs(wcs)
         else:
             self.log.log(self.log.WARN, "No WCS found in input exposure")

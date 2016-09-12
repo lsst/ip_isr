@@ -21,6 +21,10 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
+from __future__ import print_function
+from builtins import zip
+from builtins import input
+from builtins import range
 import numpy
 
 import lsst.afw.geom as afwGeom
@@ -31,11 +35,13 @@ import lsst.afw.display.ds9 as ds9
 from lsst.pipe.base import Task, Struct, timeMethod
 from lsst.pex.config import Config, Field, ListField, ConfigField
 
+
 def getFrame():
     """Produce a new frame number each time"""
     getFrame.frame += 1
     return getFrame.frame
 getFrame.frame = 0
+
 
 class FringeStatisticsConfig(Config):
     """Options for measuring fringes on an exposure"""
@@ -57,6 +63,7 @@ class FringeConfig(Config):
     clip = Field(dtype=float, default=3.0, doc="Sigma clip threshold")
     stats = ConfigField(dtype=FringeStatisticsConfig, doc="Statistics for measuring fringes")
     pedestal = Field(dtype=bool, default=False, doc="Remove fringe pedestal?")
+
 
 class FringeTask(Task):
     """Task to remove fringes from a science exposure
@@ -92,8 +99,8 @@ class FringeTask(Task):
         #Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
         seed %= 2**32
 
-        return Struct(fringes = fringe,
-                      seed = seed)
+        return Struct(fringes=fringe,
+                      seed=seed)
 
     @timeMethod
     def run(self, exposure, fringes, seed=None):
@@ -130,7 +137,7 @@ class FringeTask(Task):
         positions = self.generatePositions(fringes[0], rng)
         fluxes = numpy.ndarray([self.config.num, len(fringes)])
         for i, f in enumerate(fringes):
-            fluxes[:,i] = self.measureExposure(f, positions, title="Fringe frame")
+            fluxes[:, i] = self.measureExposure(f, positions, title="Fringe frame")
 
         expFringes = self.measureExposure(exposure, positions, title="Science")
         solution = self.solve(expFringes, fluxes)
@@ -154,7 +161,7 @@ class FringeTask(Task):
         if not self.checkFilter(exposure):
             return
         fringeStruct = self.readFringes(dataRef, assembler=assembler)
-        self.run(exposure,  **fringeStruct.getDict())
+        self.run(exposure, **fringeStruct.getDict())
 
     def checkFilter(self, exposure):
         """Check whether we should fringe-subtract the science exposure"""
@@ -199,7 +206,7 @@ class FringeTask(Task):
 
         num = self.config.num
         fringes = numpy.ndarray(num)
-        
+
         for i in range(num):
             x, y = positions[i]
             small = measure(exposure.getMaskedImage(), x, y, self.config.small, self.config.stats.stat, stats)
@@ -213,8 +220,8 @@ class FringeTask(Task):
             ds9.mtv(exposure, frame=frame, title=title)
             if False:
                 with ds9.Buffering():
-                    for x,y in positions:
-                        corners = numpy.array([[-1, -1], [ 1, -1], [ 1,  1], [-1,  1], [-1, -1]]) + [[x, y]]
+                    for x, y in positions:
+                        corners = numpy.array([[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]) + [[x, y]]
                         ds9.line(corners * self.config.small, frame=frame, ctype="green")
                         ds9.line(corners * self.config.large, frame=frame, ctype="blue")
 
@@ -242,7 +249,7 @@ class FringeTask(Task):
         # (e.g., fringe apertures that fall on objects).
         good = select(science, self.config.clip)
         for ff in range(fringes.shape[1]):
-            good &= select(fringes[:,ff], self.config.clip)
+            good &= select(fringes[:, ff], self.config.clip)
         science = science[good]
         fringes = fringes[good]
         oldNum = len(science)
@@ -270,10 +277,10 @@ class FringeTask(Task):
                     others = set(range(fringes.shape[1]))
                     others.discard(j)
                     for k in others:
-                        adjust -= solution[k] * fringes[:,k]
-                    ax.plot(fringes[:,j], adjust, 'r.')
-                    xmin = fringes[:,j].min()
-                    xmax = fringes[:,j].max()
+                        adjust -= solution[k] * fringes[:, k]
+                    ax.plot(fringes[:, j], adjust, 'r.')
+                    xmin = fringes[:, j].min()
+                    xmax = fringes[:, j].max()
                     ymin = solution[j] * xmin
                     ymax = solution[j] * xmax
                     ax.plot([xmin, xmax], [ymin, ymax], 'b-')
@@ -285,14 +292,14 @@ class FringeTask(Task):
                     ax.set_ybound(lower=ymin, upper=ymax)
                     fig.show()
                 while True:
-                    ans = raw_input("Enter or c to continue [chp]").lower()
+                    ans = input("Enter or c to continue [chp]").lower()
                     if ans in ("", "c",):
                         break
                     if ans in ("p",):
                         import pdb
                         pdb.set_trace()
                     elif ans in ("h", ):
-                        print "h[elp] c[ontinue] p[db]"
+                        print("h[elp] c[ontinue] p[db]")
 
             if newNum == oldNum:
                 # Not gaining
@@ -325,8 +332,8 @@ class FringeTask(Task):
         @param solution    Array of scale factors for the fringe frames
         """
         if len(solution) != len(fringes):
-            raise RuntimeError("Number of fringe frames (%s) != number of scale factors (%s)"% \
-                                   (len(fringes), len(solution)))
+            raise RuntimeError("Number of fringe frames (%s) != number of scale factors (%s)" %
+                               (len(fringes), len(solution)))
 
         for s, f in zip(solution, fringes):
             science.getMaskedImage().scaledMinus(s, f.getMaskedImage())
@@ -346,6 +353,7 @@ def measure(mi, x, y, size, statistic, stats):
     subImage = mi.Factory(mi, bbox, afwImage.LOCAL)
     return afwMath.makeStatistics(subImage, statistic, stats).getValue()
 
+
 def stdev(vector):
     """Calculate a robust standard deviation of an array of values
 
@@ -354,6 +362,7 @@ def stdev(vector):
     """
     q1, q3 = numpy.percentile(vector, (25, 75))
     return 0.74*(q3-q1)
+
 
 def select(vector, clip):
     """Select values within 'clip' standard deviations of the median

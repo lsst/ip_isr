@@ -1,3 +1,5 @@
+from builtins import range
+from builtins import object
 import numpy
 
 from lsst.afw.cameraGeom import DetectorConfig, PIXELS
@@ -8,20 +10,22 @@ import lsst.afw.coord as afwCoord
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 
+
 def getReadCorner(flipx, flipy):
     """Get the read corner from flips of the pixel grid
     \param[in] flipx: Flip the x-axis?
     \param[in] flipy: Flip the y-axis?
     \return The read corner in assembled coordinates.
     """
-    cornerMap = {(True, True):afwTable.UR,
-                 (True, False):afwTable.LR,
-                 (False, True):afwTable.UL,
-                 (False, False):afwTable.LL}
+    cornerMap = {(True, True): afwTable.UR,
+                 (True, False): afwTable.LR,
+                 (False, True): afwTable.UL,
+                 (False, False): afwTable.LL}
     return cornerMap[(bool(flipx), bool(flipy))]
 
+
 def populateAmpBoxes(nx, ny, nprescan, nhoverscan, nvoverscan, nextended, flipx, flipy, ix, iy,
-                      isPerAmp, record):
+                     isPerAmp, record):
     '''!Fill ampInfo tables
     \param[in] isPerAmp -- If True, return a dictionary of amp exposures keyed by amp name.
                            If False, return a single exposure with amps mosaiced preserving non-science pixels
@@ -126,6 +130,7 @@ def populateAmpBoxes(nx, ny, nprescan, nhoverscan, nvoverscan, nextended, flipx,
     record.setRawVerticalOverscanBBox(vOscanBox)
     record.setRawPrescanBBox(preBox)
 
+
 def createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAmp):
     '''!Fill ampInfo tables
     \param[in] nAmpX -- Number of amps in the x direction
@@ -149,7 +154,7 @@ def createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAm
             flipx = not flipx
             record = ampCatalog.addNew()
             populateAmpBoxes(nPixX, nPixY, pre, hOscan, vOscan, ext, flipx, flipy, ix, iy,
-                              isPerAmp, record)
+                             isPerAmp, record)
             record.setGain(ix+iy*nAmpX+1.)
 
     detConfig = DetectorConfig()
@@ -176,12 +181,14 @@ def createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAm
     fpTransform = afwGeom.xyTransformRegistry['identity']()
     return makeDetector(detConfig, ampCatalog, fpTransform)
 
+
 def makeFakeWcs():
     '''!Make a wcs to put in an exposure
     \return a Wcs object
     '''
     return afwImage.makeWcs(afwCoord.IcrsCoord(45.0*afwGeom.degrees, 45.0*afwGeom.degrees),
-                           afwGeom.Point2D(0.0, 0.0), 1.0, 0.0, 0.0, 1.0)
+                            afwGeom.Point2D(0.0, 0.0), 1.0, 0.0, 0.0, 1.0)
+
 
 def makeExpFromIm(im, detector):
     wcs = makeFakeWcs()
@@ -192,6 +199,7 @@ def makeExpFromIm(im, detector):
     exp.setDetector(detector)
     exp.setWcs(wcs)
     return exp
+
 
 def makeAmpInput(detector):
     '''!Make a dictionary of amp images for assembly
@@ -204,6 +212,7 @@ def makeAmpInput(detector):
         exp = makeExpFromIm(im, detector)
         inputData[amp.getName()] = exp
     return inputData
+
 
 def makeAssemblyInput(isPerAmp, doTrim=False):
     '''!Make the input to pass to the assembly task
@@ -243,6 +252,7 @@ def makeAssemblyInput(isPerAmp, doTrim=False):
         ccdAssemblyInput.setDetector(detector)
         return ccdAssemblyInput
 
+
 def makeRaw(darkval, oscan, gradient, exptime):
     '''!Make a raw image for input to ISR
     \param[in] darkval -- dark current e-/sec
@@ -270,6 +280,7 @@ def makeRaw(darkval, oscan, gradient, exptime):
         suboscanim.set(oscan)
     return rawExposure
 
+
 def makeDark(darkval, exptime):
     '''!Make a dark exposure in DN
     \param[in] darkval -- dark current in e-/sec
@@ -285,6 +296,7 @@ def makeDark(darkval, exptime):
         subim = im.Factory(im, amp.getBBox())
         subim.set(darkval*exptime/amp.getGain())
     return darkExposure
+
 
 def makeFlat(gradient):
     '''!Make a flat exposure including gain variation
@@ -304,6 +316,7 @@ def makeFlat(gradient):
         subArr /= amp.getGain()
     return flatExposure
 
+
 class FakeDataRef(object):
     '''!A mock data reference to use in the example IsrTask runner
     The main thing is to define the get method with the relevant datatypes.
@@ -315,6 +328,7 @@ class FakeDataRef(object):
     exptime = 15 #seconds
     darkexptime = 40. #seconds
     dataId = "My Fake Data"
+
     def get(self, dataType, **kwargs):
         if dataType == 'raw':
             return makeRaw(self.darkval, self.oscan, self.gradient, self.exptime)

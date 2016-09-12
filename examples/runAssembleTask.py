@@ -1,6 +1,8 @@
+from __future__ import print_function
 from lsst.ip.isr import AssembleCcdTask
 import lsst.afw.display.ds9 as ds9
 import exampleUtils
+
 
 def runAssembler():
     '''Run the task to assemble amps into a ccd'''
@@ -30,5 +32,5 @@ if __name__ == "__main__":
         try:
             import debug
         except ImportError as e:
-            print >> sys.stderr, e
+            print(e, file=sys.stderr)
     runAssembler()

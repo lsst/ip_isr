@@ -20,6 +20,9 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+from __future__ import print_function
+from builtins import zip
+from builtins import object
 import unittest
 
 import numpy
@@ -40,7 +43,7 @@ def checkDebug():
     """Turn on Task debugging if desired"""
     if debug:
         import lsstDebug
-        print "Importing debug settings..."
+        print("Importing debug settings...")
 
         def DebugInfo(name):
             di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively

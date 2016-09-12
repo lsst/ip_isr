@@ -1,5 +1,8 @@
+from future import standard_library
+standard_library.install_aliases()
+from builtins import range
 import unittest
-import cPickle
+import pickle
 
 import numpy as np
 
@@ -109,8 +112,8 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         refImage = inImage.Factory(inImage, True)
         refNumOutOfRange = linSq(refImage, self.detector)
 
-        pickledStr = cPickle.dumps(linSq)
-        restoredLlt = cPickle.loads(pickledStr)
+        pickledStr = pickle.dumps(linSq)
+        restoredLlt = pickle.loads(pickledStr)
 
         measImage = inImage.Factory(inImage, True)
         measNumOutOfRange = restoredLlt(measImage, self.detector)

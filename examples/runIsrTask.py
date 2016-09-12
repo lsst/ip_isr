@@ -1,7 +1,10 @@
+from __future__ import print_function
 from lsst.ip.isr import IsrTask
 import lsst.afw.display.ds9 as ds9
 import exampleUtils
-import sys, numpy
+import sys
+import numpy
+
 
 def runIsr():
     '''Run the task to do ISR on a ccd'''
@@ -13,7 +16,7 @@ def runIsr():
     isrConfig.doFlat = True
     isrConfig.doFringe = False #There is no fringe frame for this example
 
-    isrConfig.assembleCcd.setGain = False 
+    isrConfig.assembleCcd.setGain = False
     isrTask = IsrTask(config=isrConfig)
 
     #Make raw, flat and dark exposures
@@ -42,7 +45,7 @@ if __name__ == "__main__":
         try:
             import debug
         except ImportError as e:
-            print >> sys.stderr, e
+            print(e, file=sys.stderr)
 
     exposure = runIsr()
 
