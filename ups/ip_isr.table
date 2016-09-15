@@ -1,3 +1,4 @@
+setupRequired(python_future)
 setupRequired(meas_algorithms)
 setupRequired(numpy)
 setupRequired(pipe_base)
