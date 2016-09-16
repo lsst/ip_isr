@@ -528,7 +528,8 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.fringe.run(ccdExposure, **fringes.getDict())
 
-        ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1 * ccdExposure.getCalib().getExptime())
+        exposureTime = ccdExposure.getInfo().getVisitInfo().getExposureTime()
+        ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1*exposureTime)
 
         frame = getDebugFrame(self._display, "postISRCCD")
         if frame:
@@ -593,12 +594,11 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in,out]  exposure        exposure to process
         \param[in]      darkExposure    dark exposure of same size as exposure
         """
-        darkCalib = darkExposure.getCalib()
         isr.darkCorrection(
             maskedImage=exposure.getMaskedImage(),
             darkMaskedImage=darkExposure.getMaskedImage(),
-            expScale=exposure.getCalib().getExptime(),
-            darkScale=darkCalib.getExptime(),
+            expScale=exposure.getInfo().getVisitInfo().getExposureTime(),
+            darkScale=darkExposure.getInfo().getVisitInfo().getExposureTime(),
         )
 
     def doLinearize(self, detector):

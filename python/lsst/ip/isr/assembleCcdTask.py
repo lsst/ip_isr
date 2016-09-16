@@ -255,12 +255,9 @@ class AssembleCcdTask(pipeBase.Task):
         if self.config.setGain:
             self.setGain(outExposure=outExposure)
 
-        inCalib = inExposure.getCalib()
-        outCalib = outExposure.getCalib()
-        outCalib.setExptime(inCalib.getExptime())
-        outCalib.setMidTime(inCalib.getMidTime())
-
+        # note: Calib is not copied, presumably because it is assumed unknown in raw data
         outExposure.setFilter(inExposure.getFilter())
+        outExposure.getInfo().setVisitInfo(inExposure.getInfo().getVisitInfo())
 
         frame = getDebugFrame(self._display, "assembledExposure")
         if frame:
