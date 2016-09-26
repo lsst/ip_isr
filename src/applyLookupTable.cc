@@ -38,10 +38,10 @@ int applyLookupTable(
     PixelT indOffset
 ) {
     int numOutOfRange = 0;
-    auto const maxLookupCol = table.size() - 1;
+    int const maxLookupCol = table.size() - 1;
     for (int col = 0, imHeight = image.getHeight(); col < imHeight; ++col) {
         for (auto imPtr = image.row_begin(col), end = image.row_end(col); imPtr != end; ++imPtr) {
-            auto lookupCol = static_cast<int>(indOffset + *imPtr);
+            int lookupCol = indOffset + *imPtr;
             if (lookupCol < 0) {
                 lookupCol = 0;
                 ++numOutOfRange;
