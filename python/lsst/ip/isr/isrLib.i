@@ -40,7 +40,6 @@ Python bindings for lsst::ip::isr Instrument Signature Removal code
 #include <memory>
 
 #include "lsst/pex/exceptions.h"
-#include "lsst/pex/logging.h"
 #include "lsst/ip/isr/applyLookupTable.h"
 #include "lsst/ip/isr/isr.h"
 #include "lsst/pex/policy/Policy.h"
