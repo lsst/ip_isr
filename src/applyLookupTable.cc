@@ -37,6 +37,12 @@ int applyLookupTable(
     ndarray::Array<PixelT, 1, 1> const &table,
     PixelT indOffset
 ) {
+    if (table.size() == 0u) {
+        throw LSST_EXCEPT(
+            pex::exceptions::LengthError,
+            "Lookup table has zero size."
+        );
+    }
     int numOutOfRange = 0;
     int const maxLookupCol = table.size() - 1;
     for (int col = 0, imHeight = image.getHeight(); col < imHeight; ++col) {
