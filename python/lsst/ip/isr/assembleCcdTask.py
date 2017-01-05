@@ -19,6 +19,7 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+from __future__ import division, print_function, absolute_import
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.image as afwImage
@@ -26,7 +27,7 @@ import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsstDebug import getDebugFrame
 from lsst.afw.display import getDisplay
-from .isr import calcEffectiveGain
+from .isrFunctions import calcEffectiveGain
 
 __all__ = ["AssembleCcdTask"]
 

@@ -21,7 +21,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
-from __future__ import print_function
+from __future__ import division, print_function, absolute_import
 from builtins import zip
 from builtins import input
 from builtins import range
@@ -46,7 +46,7 @@ getFrame.frame = 0
 class FringeStatisticsConfig(Config):
     """Options for measuring fringes on an exposure"""
     badMaskPlanes = ListField(dtype=str, default=["SAT"], doc="Ignore pixels with these masks")
-    stat = Field(dtype=int, default=afwMath.MEDIAN, doc="Statistic to use")
+    stat = Field(dtype=int, default=int(afwMath.MEDIAN), doc="Statistic to use")
     clip = Field(dtype=float, default=3.0, doc="Sigma clip threshold")
     iterations = Field(dtype=int, default=3, doc="Number of fitting iterations")
     rngSeedOffset = Field(dtype=int, default=0,
