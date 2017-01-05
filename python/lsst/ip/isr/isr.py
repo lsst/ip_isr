@@ -93,9 +93,9 @@ def defectListFromFootprintList(fpList, growFootprints=1):
 
     @param[in] fpList  footprint list
     @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @return meas.algorithms.DefectListT
+    @return a list of defects (meas.algorithms.Defect)
     """
-    defectList = measAlg.DefectListT()
+    defectList = []
     for fp in fpList:
         if growFootprints > 0:
             # if "True", growing requires a convolution
@@ -105,22 +105,22 @@ def defectListFromFootprintList(fpList, growFootprints=1):
             fpGrow = fp
         for bbox in afwDetection.footprintToBBoxList(fpGrow):
             defect = measAlg.Defect(bbox)
-            defectList.push_back(defect)
+            defectList.append(defect)
     return defectList
 
 
 def transposeDefectList(defectList):
     """Make a transposed copy of a defect list
 
-    @param[in] defectList  defect list
-    @return meas.algorithms.DefectListT with transposed defects
+    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
+    @return a defect list with transposed defects
     """
-    retDefectList = measAlg.DefectListT()
+    retDefectList = []
     for defect in defectList:
         bbox = defect.getBBox()
         nbbox = afwGeom.Box2I(afwGeom.Point2I(bbox.getMinY(), bbox.getMinX()),
                               afwGeom.Extent2I(bbox.getDimensions()[1], bbox.getDimensions()[0]))
-        retDefectList.push_back(measAlg.Defect(nbbox))
+        retDefectList.append(measAlg.Defect(nbbox))
     return retDefectList
 
 
@@ -128,7 +128,7 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     """Set mask plane based on a defect list
 
     @param[in,out] maskedImage  afw.image.MaskedImage to process; mask plane is updated
-    @param[in] defectList  meas.algorithms.DefectListT
+    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
     @param[in] maskName  mask plane name
     """
     # mask bad pixels
@@ -145,7 +145,7 @@ def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
     @param[in] maskedImage  masked image to process
     @param[in] maskName  mask plane name, or list of names
     @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @return meas.algrithms.DefectListT of regions in mask
+    @return a list of defects (each an meas.algrithms.Defect) of regions in mask
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
@@ -160,7 +160,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     @param[in] threshold  detection threshold
     @param[in] growFootprints  amount by which to grow footprints of detected regions
     @param[in] maskName  mask plane name
-    @return meas.algorihtms.DefectListT of regions set in the mask.
+    @return a list of defects (meas.algrithms.Defect) of regions set in the mask.
     """
     # find saturated regions
     thresh = afwDetection.Threshold(threshold)
