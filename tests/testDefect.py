@@ -47,7 +47,7 @@ class DefectTestCases(lsst.utils.tests.TestCase):
     def testDefectBase(self):
         """Test DefectBases"""
 
-        defectList = measAlg.DefectListT()
+        defectList = []
         ccdImage = afwImage.MaskedImageF(250, 225)
         ccdImage.set(self.setVal, 0, self.setVal)
         #

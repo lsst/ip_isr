@@ -93,7 +93,7 @@ namespace isr {
     size_t maskNans(
         afw::image::MaskedImage<PixelT> const& mi, ///< Input image
         afw::image::MaskPixel maskVal,  ///< Bit mask value to give a NaN
-        afw::image::MaskPixel allow=0 ///< Allow NANs with this bit mask (0 to disallow all NANs)
+        afw::image::MaskPixel allow=0 ///< Retain NANs with this bit mask (0 to mask all NANs)
         );
 
 

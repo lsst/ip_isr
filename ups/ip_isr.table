@@ -4,6 +4,7 @@ setupRequired(numpy)
 setupRequired(pipe_base)
 setupRequired(scons)
 setupRequired(sconsUtils)
+setupRequired(pybind11)
 
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
 envPrepend(LSST_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
