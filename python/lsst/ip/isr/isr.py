@@ -345,6 +345,8 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         diff = numpy.abs(biasArray - medianBiasArr[:, numpy.newaxis])
         biasMaskedArr = numpy.ma.masked_where(diff > collapseRej*stdevBiasArr[:, numpy.newaxis], biasArray)
         collapsed = numpy.mean(biasMaskedArr, axis=1)
+        if collapsed.mask.sum() > 0:
+            collapsed.data[collapsed.mask] = numpy.mean(biasArray.data[collapsed.mask], axis=1)
         del biasArray, percentiles, stdevBiasArr, diff, biasMaskedArr
 
         if shortInd == 0:
@@ -398,7 +400,9 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             figure = plot.figure(1)
             figure.clear()
             axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
-            axes.plot(indices, collapsed, 'k+')
+            axes.plot(indices[~collapsedMask], collapsed[~collapsedMask], 'k+')
+            if collapsedMask.sum() > 0:
+                axes.plot(indices[collapsedMask], collapsed.data[collapsedMask], 'b+')
             axes.plot(indices, fitBiasArr, 'r-')
             figure.show()
             prompt = "Press Enter or c to continue [chp]... "
