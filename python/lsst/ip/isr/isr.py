@@ -383,8 +383,10 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                                                   weights=1-collapsedMask.astype(int))
             # Binning is just a histogram, with weights equal to the values.
             # Use a similar trick to get the bin centers (this deals with different numbers per bin).
-            values = numpy.histogram(indices, bins=numBins, weights=collapsed)[0]/numPerBin
-            binCenters = numpy.histogram(indices, bins=numBins, weights=indices)[0]/numPerBin
+            values = numpy.histogram(indices, bins=numBins,
+                                     weights=collapsed.data*~collapsedMask)[0]/numPerBin
+            binCenters = numpy.histogram(indices, bins=numBins,
+                                         weights=indices*~collapsedMask)[0]/numPerBin
             interp = afwMath.makeInterpolate(binCenters.astype(float)[numPerBin > 0],
                                              values.astype(float)[numPerBin > 0],
                                              afwMath.stringToInterpStyle(fitType))
