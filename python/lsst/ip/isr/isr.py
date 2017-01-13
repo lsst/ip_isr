@@ -345,6 +345,8 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         diff = numpy.abs(biasArray - medianBiasArr[:, numpy.newaxis])
         biasMaskedArr = numpy.ma.masked_where(diff > collapseRej*stdevBiasArr[:, numpy.newaxis], biasArray)
         collapsed = numpy.mean(biasMaskedArr, axis=1)
+        if collapsed.mask.sum() > 0:
+            collapsed.data[collapsed.mask] = numpy.mean(biasArray.data[collapsed.mask], axis=1)
         del biasArray, percentiles, stdevBiasArr, diff, biasMaskedArr
 
         if shortInd == 0:
@@ -383,8 +385,10 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                                                   weights=1-collapsedMask.astype(int))
             # Binning is just a histogram, with weights equal to the values.
             # Use a similar trick to get the bin centers (this deals with different numbers per bin).
-            values = numpy.histogram(indices, bins=numBins, weights=collapsed)[0]/numPerBin
-            binCenters = numpy.histogram(indices, bins=numBins, weights=indices)[0]/numPerBin
+            values = numpy.histogram(indices, bins=numBins,
+                                     weights=collapsed.data*~collapsedMask)[0]/numPerBin
+            binCenters = numpy.histogram(indices, bins=numBins,
+                                         weights=indices*~collapsedMask)[0]/numPerBin
             interp = afwMath.makeInterpolate(binCenters.astype(float)[numPerBin > 0],
                                              values.astype(float)[numPerBin > 0],
                                              afwMath.stringToInterpStyle(fitType))
@@ -396,7 +400,9 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             figure = plot.figure(1)
             figure.clear()
             axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
-            axes.plot(indices, collapsed, 'k+')
+            axes.plot(indices[~collapsedMask], collapsed[~collapsedMask], 'k+')
+            if collapsedMask.sum() > 0:
+                axes.plot(indices[collapsedMask], collapsed.data[collapsedMask], 'b+')
             axes.plot(indices, fitBiasArr, 'r-')
             figure.show()
             prompt = "Press Enter or c to continue [chp]... "
