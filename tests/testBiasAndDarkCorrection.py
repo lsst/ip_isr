@@ -90,6 +90,47 @@ class IsrTestCases(unittest.TestCase):
     def testDark3(self):
         self.doDark(scaling=3.7)
 
+    def testDarkWithDarktime(self):
+        darkTime = 128.0
+        nan = float("NAN")
+
+        exp = afwImage.ExposureF(1, 1)
+        exp.getMaskedImage().getImage().set(1.0)
+        exp.getMaskedImage().getMask().set(0)
+        exp.getMaskedImage().getVariance().set(1.0)
+
+        dark = afwImage.ExposureF(1, 1)
+        dark.getMaskedImage().getImage().set(1.0/darkTime)
+        dark.getMaskedImage().getMask().set(0)
+        dark.getMaskedImage().getVariance().set(0.0)
+        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo())
+
+        task = ipIsr.IsrTask()
+
+        # No darktime set in at least one of the inputs
+        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
+        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
+        with self.assertRaises(RuntimeError):
+            task.darkCorrection(exp, dark)
+        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
+        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=1.0))
+        with self.assertRaises(RuntimeError):
+            task.darkCorrection(exp, dark)
+        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=1.0))
+        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
+        with self.assertRaises(RuntimeError):
+            task.darkCorrection(exp, dark)
+
+        # With darktime set
+        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=darkTime))
+        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=1.0))
+        task.darkCorrection(exp, dark)
+
+        self.assertEqual(exp.getMaskedImage().getImage().get(0, 0), 0.0)
+        self.assertEqual(exp.getMaskedImage().getMask().get(0, 0), 0)
+        self.assertEqual(exp.getMaskedImage().getVariance().get(0, 0), 1.0)
+        self.assertEqual(exp.getInfo().getVisitInfo().getDarkTime(), darkTime)  # Hasn't been modified
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

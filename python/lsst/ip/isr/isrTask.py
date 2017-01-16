@@ -594,11 +594,17 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in,out]  exposure        exposure to process
         \param[in]      darkExposure    dark exposure of same size as exposure
         """
+        expScale = exposure.getInfo().getVisitInfo().getDarkTime()
+        if math.isnan(expScale):
+            raise RuntimeError("Exposure darktime is NAN")
+        darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
+        if math.isnan(darkScale):
+            raise RuntimeError("Dark calib darktime is NAN")
         isr.darkCorrection(
             maskedImage=exposure.getMaskedImage(),
             darkMaskedImage=darkExposure.getMaskedImage(),
-            expScale=exposure.getInfo().getVisitInfo().getExposureTime(),
-            darkScale=darkExposure.getInfo().getVisitInfo().getExposureTime(),
+            expScale=expScale,
+            darkScale=darkScale,
         )
 
     def doLinearize(self, detector):
