@@ -728,7 +728,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
         maskedImage = ccdExposure.getMaskedImage()
-        defectList = measAlg.DefectListT()
+        defectList = []
         for d in defectBaseList:
             bbox = d.getBBox()
             nd = measAlg.Defect(bbox)
