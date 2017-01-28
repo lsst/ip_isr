@@ -290,7 +290,7 @@ class AssembleCcdTask(pipeBase.Task):
                                         - adds some gain keywords to the metadata
         """
         if outExposure.getMaskedImage().getVariance().getArray().max() == 0:
-            raise RuntimeError("Can't calculate the effective gain since the variance plane is set to zero")
+            self.log.info("Can't calculate the effective gain since the variance plane is set to zero")
         ccd = outExposure.getDetector()
         exposureMetadata = outExposure.getMetadata()
         gain = 0.
