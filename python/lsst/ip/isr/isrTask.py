@@ -322,7 +322,7 @@ class IsrTask(pipeBase.CmdLineTask):
     \skipline IsrTask
     \skipline exampleUtils
 
-    Create the raw input data with the help of some utilities in \link exampleUtils.py \endlink
+    Create the raw input data with the help of some utilities in exampleUtils.py
     also in the examples directory.
     \dontinclude runIsrTask.py
     We will only do overscan, dark and flat correction.
@@ -809,7 +809,7 @@ class IsrTask(pipeBase.CmdLineTask):
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
         """!Set the valid polygon as the intersection of fpPolygon and the ccd corners
 
-        \param[in,out]  exposure    exposure to process
+        \param[in,out]  ccdExposure    exposure to process
         \param[in]      fpPolygon   Polygon in focal plane coordinates
         """
         # Get ccd corners in focal plane coordinates
