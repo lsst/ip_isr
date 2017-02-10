@@ -195,16 +195,17 @@ class AssembleCcdTask(pipeBase.Task):
         </DL>
         """
         ccd = None
-        if hasattr(assembleInput, "has_key"):
-            # Get a detector object for this set of amps
-            ccd = next(assembleInput.values()).getDetector()
-            # Sent a dictionary of input exposures, assume one amp per key keyed on amp name
+        if isinstance(assembleInput, dict):
+            # assembleInput is a dictionary of amp name: amp exposure
+
+            # Assume all amps have the same detector, so get the detector from an arbitrary amp
+            ccd = next(iter(assembleInput.values())).getDetector()
 
             def getNextExposure(amp):
                 return assembleInput[amp.getName()]
         elif hasattr(assembleInput, "getMaskedImage"):
+            # assembleInput is a single exposure
             ccd = assembleInput.getDetector()
-            # A single exposure was sent.  Use this to assemble.
 
             def getNextExposure(amp):
                 return assembleInput
