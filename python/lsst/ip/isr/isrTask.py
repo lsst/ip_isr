@@ -246,7 +246,7 @@ class IsrTask(pipeBase.CmdLineTask):
      - \ref ip_isr_isr_IO
      - \ref ip_isr_isr_Config
      - \ref ip_isr_isr_Debug
-     - \ref ip_isr_isr_Example
+
 
     \section ip_isr_isr_Purpose Description
 
@@ -301,73 +301,6 @@ class IsrTask(pipeBase.CmdLineTask):
     lsstDebug.Info = DebugInfo
     \endcode
     into your debug.py file and run the commandline task with the \c --debug flag.
-
-    \section ip_isr_isr_Example A complete example of using IsrTask
-
-    This code is in runIsrTask.py in the examples directory and can be run as \em e.g.
-    \code
-    python examples/runIsrTask.py
-
-    # optional arguments:
-    # --debug, -d  Load debug.py?
-    # --ds9        Display the result?
-    # --write      Write the result?
-    \endcode
-
-    <HR>
-    Stepping through the example:
-
-    \dontinclude runIsrTask.py
-    Import the task.  There are other imports.  Read the source file for more info.
-    \skipline IsrTask
-    \skipline exampleUtils
-
-    Create the raw input data with the help of some utilities in exampleUtils.py
-    also in the examples directory.
-    \dontinclude runIsrTask.py
-    We will only do overscan, dark and flat correction.
-    The data are constructed by hand so that all effects will be corrected for essentially perfectly.
-    \skip DARKVAL
-    @until rawExposure
-    The above numbers can be changed to modify the gradient in the flat, for example.
-    For the parameters in this particular example,
-    the image after ISR will be a constant 5000 counts
-    (with some variation in floating point represenation).
-
-    \note  Alternatively, images can be read from disk, either using the Butler or manually:
-    \code
-    import lsst.afw.image as afwImage
-    darkExposure = afwImage.ExposureF("/path/to/dark.fits")
-    flatExposure = afwImage.ExposureF("/path/to/flat.fits")
-    rawExposure = afwImage.ExposureF("/path/to/raw.fits")
-    \endcode
-    In order to perform overscanCorrection IsrTask.run() requires Exposures which have
-    a \link lsst.afw.cameraGeom.Detector \endlink.
-    Detector objects describe details such as data dimensions, number of amps,
-    orientation and overscan dimensions.
-    If requesting images from the Butler, Exposures will automatically have detector information.
-    If running IsrTask on arbitrary images from a camera without an obs_ package,
-    a lsst.afw.cameraGeom.Detector can be generated using lsst.afw.cameraGeom.fitsUtils.DetectorBuilder
-    and set by calling
-    \code
-    rawExposure.setDetector(myDetectorObject)
-    \endcode
-    See \link lsst.afw.cameraGeom.fitsUtils.DetectorBuilder \endlink for more details.
-
-    \note The updateVariance and saturationDetection steps are not run for Exposures
-    without a \link lsst.afw.cameraGeom.Detector \endlink, unless \ref IsrTaskConfig.gain,
-    \ref IsrTaskConfig.readNoise,
-    and/or \ref IsrTaskConfig.saturation
-    are set in the config, in which case they are applied to the entire image rather than per amp.
-
-     \dontinclude runIsrTask.py
-    Construct the task and set some config parameters.  Specifically, we don't want to
-    do zero or fringe correction.  We also don't want the assembler messing with the gain.
-    \skip Create
-    @until config=isrConfig
-
-    Finally, run the exposures through ISR.
-    \skipline isrTask.run
 
     <HR>
     """
