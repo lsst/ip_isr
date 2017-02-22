@@ -42,8 +42,8 @@ void declareApplyLookupTable(py::module& mod) {
 
 }  // namespace lsst::ip::isr::<anonymous>
 
-PYBIND11_PLUGIN(_applyLookupTable) {
-    py::module mod("_applyLookupTable", "Python wrapper for ApplyLookupTable.h");
+PYBIND11_PLUGIN(applyLookupTable) {
+    py::module mod("applyLookupTable", "Python wrapper for ApplyLookupTable.h");
 
     // Need to import numpy for ndarray and eigen conversions
     if (_import_array() < 0) {

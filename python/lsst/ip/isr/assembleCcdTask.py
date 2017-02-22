@@ -27,7 +27,7 @@ import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsstDebug import getDebugFrame
 from lsst.afw.display import getDisplay
-from .isr import calcEffectiveGain
+from .isrFunctions import calcEffectiveGain
 
 __all__ = ["AssembleCcdTask"]
 

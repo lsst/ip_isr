@@ -20,9 +20,12 @@
 # see <https://www.lsstcorp.org/LegalNotices/>.
 #
 
-from .version import *
-from .isrLib import *
+from __future__ import absolute_import
+
+from .applyLookupTable import *
 from .isr import *
+from .version import *
+from .isrFunctions import *
 from .assembleCcdTask import *
 from .isrTask import *
 from .linearize import *

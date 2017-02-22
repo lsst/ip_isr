@@ -65,8 +65,8 @@ void declareAll(py::module& mod, std::string const& suffix) {
 
 }  // namespace lsst::ip::isr::<anonymous>
 
-PYBIND11_PLUGIN(_isr) {
-    py::module mod("_isr", "Python wrapper for _isr library");
+PYBIND11_PLUGIN(isr) {
+    py::module mod("isr", "Python wrapper for _isr library");
 
     declareAll<float>(mod, "F");
     declareAll<double>(mod, "D");

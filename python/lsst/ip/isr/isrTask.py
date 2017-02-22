@@ -34,8 +34,7 @@ import lsst.afw.math as afwMath
 from lsst.daf.persistence import ButlerDataRef
 from lsstDebug import getDebugFrame
 from lsst.afw.display import getDisplay
-from . import isr
-from .isrLib import maskNans
+from . import isrFunctions
 from .assembleCcdTask import AssembleCcdTask
 from .fringe import FringeTask
 from lsst.afw.geom.polygon import Polygon
@@ -295,7 +294,7 @@ class IsrTask(pipeBase.CmdLineTask):
     import lsstDebug
     def DebugInfo(name):
         di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
-        if name == "lsst.ip.isr.isrTask":
+        if name == "lsst.ip.isrFunctions.isrTask":
             di.display = {'postISRCCD':2}
         return di
     lsstDebug.Info = DebugInfo
@@ -372,7 +371,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data
         \param[in] bias -- exposure of bias frame
-        \param[in] linearizer -- linearizing functor; a subclass of lsst.ip.isr.LinearizeBase
+        \param[in] linearizer -- linearizing functor; a subclass of lsst.ip.isrFunctions.LinearizeBase
         \param[in] dark -- exposure of dark frame
         \param[in] flat -- exposure of flatfield
         \param[in] defects -- list of detects
@@ -519,7 +518,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in,out]  exposure        exposure to process
         \param[in]      biasExposure    bias exposure of same size as exposure
         """
-        isr.biasCorrection(exposure.getMaskedImage(), biasExposure.getMaskedImage())
+        isrFunctions.biasCorrection(exposure.getMaskedImage(), biasExposure.getMaskedImage())
 
     def darkCorrection(self, exposure, darkExposure):
         """!Apply dark correction in place
@@ -533,7 +532,7 @@ class IsrTask(pipeBase.CmdLineTask):
         darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(darkScale):
             raise RuntimeError("Dark calib darktime is NAN")
-        isr.darkCorrection(
+        isrFunctions.darkCorrection(
             maskedImage=exposure.getMaskedImage(),
             darkMaskedImage=darkExposure.getMaskedImage(),
             expScale=expScale,
@@ -557,7 +556,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in]      amp             amplifier detector information
         """
         if not math.isnan(amp.getGain()):
-            isr.updateVariance(
+            isrFunctions.updateVariance(
                 maskedImage=ampExposure.getMaskedImage(),
                 gain=amp.getGain(),
                 readNoise=amp.getReadNoise(),
@@ -569,7 +568,7 @@ class IsrTask(pipeBase.CmdLineTask):
         \param[in,out]  exposure        exposure to process
         \param[in]      flatExposure    flatfield exposure same size as exposure
         """
-        isr.flatCorrection(
+        isrFunctions.flatCorrection(
             maskedImage=exposure.getMaskedImage(),
             flatMaskedImage=flatExposure.getMaskedImage(),
             scalingType=self.config.flatScalingType,
@@ -610,7 +609,7 @@ class IsrTask(pipeBase.CmdLineTask):
         if not math.isnan(amp.getSaturation()):
             maskedImage = exposure.getMaskedImage()
             dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
-            isr.makeThresholdMask(
+            isrFunctions.makeThresholdMask(
                 maskedImage=dataView,
                 threshold=amp.getSaturation(),
                 growFootprints=0,
@@ -626,7 +625,7 @@ class IsrTask(pipeBase.CmdLineTask):
         - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
         - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
         """
-        isr.interpolateFromMask(
+        isrFunctions.interpolateFromMask(
             maskedImage=ccdExposure.getMaskedImage(),
             fwhm=self.config.fwhm,
             growFootprints=self.config.growSaturationFootprintSize,
@@ -651,7 +650,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         maskedImage = exposure.getMaskedImage()
         dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
-        isr.makeThresholdMask(
+        isrFunctions.makeThresholdMask(
             maskedImage=dataView,
             threshold=suspectLevel,
             growFootprints=0,
@@ -672,8 +671,8 @@ class IsrTask(pipeBase.CmdLineTask):
             bbox = d.getBBox()
             nd = measAlg.Defect(bbox)
             defectList.append(nd)
-        isr.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
-        isr.interpolateDefectList(
+        isrFunctions.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
+        isrFunctions.interpolateDefectList(
             maskedImage=maskedImage,
             defectList=defectList,
             fwhm=self.config.fwhm,
@@ -701,12 +700,12 @@ class IsrTask(pipeBase.CmdLineTask):
         # Interpolate over these previously-unmasked NaNs
         if numNans > 0:
             self.log.warn("There were %i unmasked NaNs", numNans)
-            nanDefectList = isr.getDefectListFromMask(
+            nanDefectList = isrFunctions.getDefectListFromMask(
                 maskedImage=maskedImage,
                 maskName='UNMASKEDNAN',
                 growFootprints=0,
             )
-            isr.interpolateDefectList(
+            isrFunctions.interpolateDefectList(
                 maskedImage=exposure.getMaskedImage(),
                 defectList=nanDefectList,
                 fwhm=self.config.fwhm,
@@ -731,7 +730,7 @@ class IsrTask(pipeBase.CmdLineTask):
         expImage = exposure.getMaskedImage().getImage()
         overscanImage = expImage.Factory(expImage, amp.getRawHorizontalOverscanBBox())
 
-        isr.overscanCorrection(
+        isrFunctions.overscanCorrection(
             ampMaskedImage=dataView,
             overscanImage=overscanImage,
             fitType=self.config.overscanFitType,

@@ -28,7 +28,7 @@ from future.utils import with_metaclass
 import numpy as np
 
 from lsst.pipe.base import Struct
-from .isrLib import applyLookupTable
+from .applyLookupTable import applyLookupTable
 
 __all__ = ["LinearizeBase", "LinearizeLookupTable", "LinearizeSquared"]
 
