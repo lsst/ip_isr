@@ -21,7 +21,7 @@
  */
 #include <memory>
 
-#include <pybind11/pybind11.h>
+#include "pybind11/pybind11.h"
 
 #include "lsst/ip/isr/isr.h"
 
@@ -35,9 +35,9 @@ namespace isr {
 namespace {
 
 template <typename PixelT>
-void declareCountMaskedPixels(py::module& mod, std::string const& suffix) {
+static void declareCountMaskedPixels(py::module& mod, std::string const& suffix) {
     py::class_<CountMaskedPixels<PixelT>, std::shared_ptr<CountMaskedPixels<PixelT>>> cls(
-        mod, ("CountMaskedPixels" + suffix).c_str());
+            mod, ("CountMaskedPixels" + suffix).c_str());
 
     cls.def("reset", &CountMaskedPixels<PixelT>::reset);
     cls.def("apply", &CountMaskedPixels<PixelT>::apply, "image"_a, "bitmask"_a);
@@ -55,7 +55,7 @@ void declareCountMaskedPixels(py::module& mod, std::string const& suffix) {
  * Note that the second (function type) template parameter of `fitOverscanImage` is always `double`.
  */
 template <typename PixelT>
-void declareAll(py::module& mod, std::string const& suffix) {
+static void declareAll(py::module& mod, std::string const& suffix) {
     declareCountMaskedPixels<PixelT>(mod, suffix);
 
     mod.def("maskNans", &maskNans<PixelT>, "maskedImage"_a, "maskVal"_a, "allow"_a = 0);
@@ -66,7 +66,7 @@ void declareAll(py::module& mod, std::string const& suffix) {
 }  // namespace lsst::ip::isr::<anonymous>
 
 PYBIND11_PLUGIN(isr) {
-    py::module mod("isr", "Python wrapper for _isr library");
+    py::module mod("isr");
 
     declareAll<float>(mod, "F");
     declareAll<double>(mod, "D");

@@ -19,8 +19,8 @@
  * the GNU General Public License along with this program.  If not,
  * see <https://www.lsstcorp.org/LegalNotices/>.
  */
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#include "pybind11/pybind11.h"
+#include "pybind11/stl.h"
 #include "numpy/arrayobject.h"
 #include "ndarray/pybind11.h"
 
@@ -36,14 +36,14 @@ namespace isr {
 namespace {
 
 template <typename PixelT>
-void declareApplyLookupTable(py::module& mod) {
+static void declareApplyLookupTable(py::module& mod) {
     mod.def("applyLookupTable", &applyLookupTable<PixelT>, "image"_a, "table"_a, "indOffset"_a);
 }
 
 }  // namespace lsst::ip::isr::<anonymous>
 
 PYBIND11_PLUGIN(applyLookupTable) {
-    py::module mod("applyLookupTable", "Python wrapper for ApplyLookupTable.h");
+    py::module mod("applyLookupTable");
 
     // Need to import numpy for ndarray and eigen conversions
     if (_import_array() < 0) {
