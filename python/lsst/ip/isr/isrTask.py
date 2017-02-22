@@ -163,12 +163,6 @@ class IsrTaskConfig(pexConfig.Config):
         doc="The approximate flux of a zero-magnitude object in a one-second exposure",
         default=1e10,
     )
-    setGainAssembledCcd = pexConfig.Field(
-        dtype=bool,
-        doc="update exposure metadata in the assembled ccd to reflect the "
-        "effective gain of the assembled chip",
-        default=True,
-    )
     keysToRemoveFromAssembledCcd = pexConfig.ListField(
         dtype=str,
         doc="fields to remove from the metadata of the assembled ccd.",
