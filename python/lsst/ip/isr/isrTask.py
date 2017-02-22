@@ -794,7 +794,8 @@ class IsrTask(pipeBase.CmdLineTask):
 
             kLx = numpy.shape(kernel)[0]
             kLy = numpy.shape(kernel)[1]
-            kernelImage = afwImage.ImageD(kernel.astype(numpy.float64))
+            kernelImage = afwImage.ImageD(kLx, kLy)
+            kernelImage.getArray()[:, :] = kernel
             tempImage = image.clone()
 
             nanIndex = numpy.isnan(tempImage.getArray())
@@ -823,16 +824,15 @@ class IsrTask(pipeBase.CmdLineTask):
                 # First derivative term
                 gradTmp = numpy.gradient(tmpArray[startY:endY, startX:endX])
                 gradOut = numpy.gradient(outArray[startY:endY, startX:endX])
-                first = (gradTmp[0]*gradOut[0] + gradTmp[1]*gradOut[1])
+                first = (gradTmp[0]*gradOut[0] + gradTmp[1]*gradOut[1])[1:-1, 1:-1]
 
                 # Second derivative term
-                diffOut20 = numpy.gradient(gradOut[0])
-                diffOut21 = numpy.gradient(gradOut[1])
-                second = tmpArray[startY:endY, startX:endX]*(diffOut20[0] + diffOut21[1])
+                diffOut20 = numpy.diff(outArray, 2, 0)[startY:endY, startX + 1:endX - 1]
+                diffOut21 = numpy.diff(outArray, 2, 1)[startY + 1:endY - 1, startX:endX]
+                second = tmpArray[startY + 1:endY - 1, startX + 1:endX - 1]*(diffOut20 + diffOut21)
 
-                corr[startY:endY, startX:endX] = 0.5*(first + second)
+                corr[startY + 1:endY - 1, startX + 1:endX - 1] = 0.5*(first + second)
 
-                # reset tmp image and apply correction
                 tmpArray[:, :] = image.getArray()[:, :]
                 tmpArray[nanIndex] = 0.
                 tmpArray[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
@@ -847,8 +847,10 @@ class IsrTask(pipeBase.CmdLineTask):
             if iteration == maxIter - 1:
                 self.log.warn("Brighter fatter correction did not converge, final difference %f" % diff)
 
-            self.log.info("Finished brighter fatter in %d iterations" % (iteration))
-            image.getArray()[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
+            self.log.info("Finished brighter fatter in %d iterations" % (iteration + 1))
+            image.getArray()[startY + 1:endY - 1, startX + 1:endX - 1] += \
+                corr[startY + 1:endY - 1, startX + 1:endX - 1]
+
 
     @contextmanager
     def gainContext(self, exp, image, apply):
