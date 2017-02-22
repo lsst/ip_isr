@@ -27,26 +27,11 @@ import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsstDebug import getDebugFrame
 from lsst.afw.display import getDisplay
-from .isrFunctions import calcEffectiveGain
 
 __all__ = ["AssembleCcdTask"]
 
 
 class AssembleCcdConfig(pexConfig.Config):
-    setGain = pexConfig.Field(
-        doc="set gain?",
-        dtype=bool,
-        default=True,
-    )
-    doRenorm = pexConfig.Field(
-        doc="renormalize to a gain of 1? (ignored if setGain false). "
-            "Setting to True gives 1 ADU per electron. "
-            "Setting to True is not recommended for mosaic cameras because it breaks normalization across "
-            "the focal plane. However, if the CCDs are sufficiently flat then the resulting error "
-            "may be acceptable.",
-        dtype=bool,
-        default=False,
-    )
     doTrim = pexConfig.Field(
         doc="trim out non-data regions?",
         dtype=bool,
@@ -254,9 +239,6 @@ class AssembleCcdTask(pipeBase.Task):
                 exposureMetadata.remove(key)
         outExposure.setMetadata(exposureMetadata)
 
-        if self.config.setGain:
-            self.setGain(outExposure=outExposure)
-
         # note: Calib is not copied, presumably because it is assumed unknown in raw data
         outExposure.setFilter(inExposure.getFilter())
         outExposure.getInfo().setVisitInfo(inExposure.getInfo().getVisitInfo())
@@ -281,29 +263,3 @@ class AssembleCcdTask(pipeBase.Task):
             outExposure.setWcs(wcs)
         else:
             self.log.warn("No WCS found in input exposure")
-
-    def setGain(self, outExposure):
-        """Renormalize, if requested, and set gain metadata
-
-        @param[in,out]  outExposure     assembled exposure:
-                                        - scales the pixels if config.doRenorm is true
-                                        - adds some gain keywords to the metadata
-        """
-        if outExposure.getMaskedImage().getVariance().getArray().max() == 0:
-            self.log.info("Can't calculate the effective gain since the variance plane is set to zero")
-        ccd = outExposure.getDetector()
-        exposureMetadata = outExposure.getMetadata()
-        gain = 0.
-        namps = 0
-        for amp in ccd:
-            gain += amp.getGain()
-            namps += 1
-        gain /= namps
-        if self.config.doRenorm:
-            mi = outExposure.getMaskedImage()
-            mi *= gain
-            exposureMetadata.set("GAIN", 1.0)
-        medgain, meangain = calcEffectiveGain(outExposure.getMaskedImage())
-        exposureMetadata.add("MEDGAIN", medgain)
-        exposureMetadata.add("MEANGAIN", meangain)
-        exposureMetadata.add("GAINEFF", medgain)
