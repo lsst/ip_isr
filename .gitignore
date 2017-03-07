@@ -8,8 +8,6 @@ config.log
 *.so
 *.cfgc
 *.pyc
-*_wrap.cc
-*Lib.py
 doc/html
 doc/*.tag
 doc/*.inc
