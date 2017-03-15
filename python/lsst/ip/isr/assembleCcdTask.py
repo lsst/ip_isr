@@ -19,7 +19,7 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.image as afwImage

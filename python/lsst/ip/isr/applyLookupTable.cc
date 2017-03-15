@@ -21,6 +21,7 @@
  */
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+
 #include "numpy/arrayobject.h"
 #include "ndarray/pybind11.h"
 
@@ -56,6 +57,7 @@ PYBIND11_PLUGIN(applyLookupTable) {
 
     return mod.ptr();
 }
-}
-}
-}  // lsst::ip::isr
+
+}  // isr
+}  // ip
+}  // lsst
