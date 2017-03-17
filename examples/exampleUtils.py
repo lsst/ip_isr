@@ -263,7 +263,7 @@ def makeRaw(darkval, oscan, gradient, exptime):
     '''
     rawExposure = makeAssemblyInput(False)
     detector = rawExposure.getDetector()
-    visitInfo = afwImage.makeVisitInfo(exposureTime=exptime)
+    visitInfo = afwImage.VisitInfo(exposureTime=exptime)
     rawExposure.getInfo().setVisitInfo(visitInfo)
     im = rawExposure.getMaskedImage().getImage()
     for amp in detector:
@@ -289,7 +289,7 @@ def makeDark(darkval, exptime):
     '''
     darkExposure = makeAssemblyInput(False, doTrim=True)
     detector = darkExposure.getDetector()
-    visitInfo = afwImage.makeVisitInfo(exposureTime=exptime)
+    visitInfo = afwImage.VisitInfo(exposureTime=exptime)
     darkExposure.getInfo().setVisitInfo(visitInfo)
     im = darkExposure.getMaskedImage().getImage()
     for amp in detector:
