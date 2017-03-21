@@ -103,27 +103,27 @@ class IsrTestCases(unittest.TestCase):
         dark.getMaskedImage().getImage().set(1.0/darkTime)
         dark.getMaskedImage().getMask().set(0)
         dark.getMaskedImage().getVariance().set(0.0)
-        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo())
+        dark.getInfo().setVisitInfo(afwImage.VisitInfo())
 
         task = ipIsr.IsrTask()
 
         # No darktime set in at least one of the inputs
-        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
-        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
+        exp.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=nan))
+        dark.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=nan))
         with self.assertRaises(RuntimeError):
             task.darkCorrection(exp, dark)
-        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
-        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=1.0))
+        exp.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=nan))
+        dark.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=1.0))
         with self.assertRaises(RuntimeError):
             task.darkCorrection(exp, dark)
-        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=1.0))
-        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=nan))
+        exp.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=1.0))
+        dark.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=nan))
         with self.assertRaises(RuntimeError):
             task.darkCorrection(exp, dark)
 
         # With darktime set
-        exp.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=darkTime))
-        dark.getInfo().setVisitInfo(afwImage.makeVisitInfo(darkTime=1.0))
+        exp.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=darkTime))
+        dark.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=1.0))
         task.darkCorrection(exp, dark)
 
         self.assertEqual(exp.getMaskedImage().getImage().get(0, 0), 0.0)
