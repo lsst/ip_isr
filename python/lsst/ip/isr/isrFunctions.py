@@ -123,7 +123,7 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     bitmask = mask.getPlaneBitMask(maskName)
     for defect in defectList:
         bbox = defect.getBBox()
-        afwGeom.SpanSet(bbox).setMask(mask, bitmask)
+        afwGeom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
 
 
 def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
