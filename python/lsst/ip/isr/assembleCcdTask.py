@@ -216,6 +216,14 @@ class AssembleCcdTask(pipeBase.Task):
         for amp in ccd:
             inMI = getNextExposure(amp).getMaskedImage()
             assemble(outMI, inMI, amp)
+        #
+        # If we are returning an "untrimmed" image (with overscans and extended register) we
+        # need to update the ampInfo table in the Detector as we've moved the amp images into
+        # place in a single Detector image
+        #
+        if not self.config.doTrim:
+            ccd = cameraGeom.makeUpdatedDetector(ccd)
+
         outExposure.setDetector(ccd)
         self.postprocessExposure(outExposure=outExposure, inExposure=getNextExposure(ccd[0]))
 
