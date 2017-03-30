@@ -163,12 +163,6 @@ class IsrTaskConfig(pexConfig.Config):
         doc="The approximate flux of a zero-magnitude object in a one-second exposure",
         default=1e10,
     )
-    setGainAssembledCcd = pexConfig.Field(
-        dtype=bool,
-        doc="update exposure metadata in the assembled ccd to reflect the "
-        "effective gain of the assembled chip",
-        default=True,
-    )
     keysToRemoveFromAssembledCcd = pexConfig.ListField(
         dtype=str,
         doc="fields to remove from the metadata of the assembled ccd.",
@@ -430,6 +424,12 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.doLinearize(ccd):
             linearizer(image=ccdExposure.getMaskedImage().getImage(), detector=ccd, log=self.log)
 
+        for amp in ccd:
+            # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
+            if ccdExposure.getBBox().contains(amp.getBBox()):
+                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                self.updateVariance(ampExposure, amp)
+
         if self.config.doBrighterFatter:
             self.brighterFatterCorrection(ccdExposure, bfKernel,
                                           self.config.brighterFatterMaxIter,
@@ -439,12 +439,6 @@ class IsrTask(pipeBase.CmdLineTask):
 
         if self.config.doDark:
             self.darkCorrection(ccdExposure, dark)
-
-        for amp in ccd:
-            # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
-            if ccdExposure.getBBox().contains(amp.getBBox()):
-                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-                self.updateVariance(ampExposure, amp)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
             self.fringe.run(ccdExposure, **fringes.getDict())

@@ -43,21 +43,6 @@ def createPsf(fwhm):
     ksize = 4*int(fwhm) + 1
     return measAlg.DoubleGaussianPsf(ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
 
-
-def calcEffectiveGain(maskedImage):
-    """Calculate effective gain
-
-    @param[in] maskedImage  afw.image.MaskedImage to process
-    @return (median gain, mean gain) in e-/ADU
-    """
-    im = afwImage.ImageF(maskedImage.getImage(), True)
-    var = maskedImage.getVariance()
-    im /= var
-    medgain = afwMath.makeStatistics(im, afwMath.MEDIAN).getValue()
-    meangain = afwMath.makeStatistics(im, afwMath.MEANCLIP).getValue()
-    return medgain, meangain
-
-
 def transposeMaskedImage(maskedImage):
     """Make a transposed copy of a masked image
 
