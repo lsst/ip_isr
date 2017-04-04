@@ -66,7 +66,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         suspectMask = maskedImage.getMask().getPlaneBitMask("SUSPECT")
         measSetArr = maskArr == suspectMask
         self.assertImagesEqual(desSetArr, measSetArr)
-        self.assertMaskedImagesNearlyEqual(inMaskedImage, maskedImage, doMask=False)
+        self.assertMaskedImagesAlmostEqual(inMaskedImage, maskedImage, doMask=False)
 
     def testNanLevel(self):
         """Test that setting the suspect level to nan disables masking
@@ -77,7 +77,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         exposure = afwImage.ExposureF(maskedImage)
         inMaskedImage = maskedImage.Factory(maskedImage, True)  # deep copy
         self.isrTask.suspectDetection(exposure, self.ampInfo)
-        self.assertMaskedImagesNearlyEqual(inMaskedImage, maskedImage)
+        self.assertMaskedImagesAlmostEqual(inMaskedImage, maskedImage)
 
     def testRenamedMasking(self):
         """Test that masking works using some other mask name instead of the default
@@ -104,7 +104,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         suspectMask = maskedImage.getMask().getPlaneBitMask(AltMaskName)
         measSetArr = maskArr == suspectMask
         self.assertImagesEqual(desSetArr, measSetArr)
-        self.assertMaskedImagesNearlyEqual(inMaskedImage, maskedImage, doMask=False)
+        self.assertMaskedImagesAlmostEqual(inMaskedImage, maskedImage, doMask=False)
 
 
 def makeRampMaskedImage(bbox, minVal, maxVal, imgClass=afwImage.MaskedImageF):

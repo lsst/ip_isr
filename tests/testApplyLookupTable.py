@@ -86,7 +86,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
                 measNumBad = applyLookupTable(measImage, table, indOffset)
 
                 self.assertEqual(refNumBad, measNumBad)
-                self.assertImagesNearlyEqual(refImage, measImage)
+                self.assertImagesAlmostEqual(refImage, measImage)
 
     def testKnown(self):
         """Test that a given image and lookup table produce the known answer

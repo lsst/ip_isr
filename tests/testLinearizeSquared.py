@@ -86,7 +86,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
             refImage = inImage.Factory(inImage, True)
             refLinearizeSquared(image=refImage, detector=self.detector)
 
-            self.assertImagesNearlyEqual(refImage, measImage)
+            self.assertImagesAlmostEqual(refImage, measImage)
 
             # make sure logging is accepted
             log = Log.getLogger("ip.isr.LinearizeSquared")
@@ -141,7 +141,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         measNumOutOfRange = restoredLlt(measImage, self.detector)
 
         self.assertEqual(refNumOutOfRange, measNumOutOfRange)
-        self.assertImagesNearlyEqual(refImage, measImage)
+        self.assertImagesAlmostEqual(refImage, measImage)
 
     def makeDetector(self, bbox=None, numAmps=None, sqCoeffs=None, linearityType="Squared"):
         """!Make a detector

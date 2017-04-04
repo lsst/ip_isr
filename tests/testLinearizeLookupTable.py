@@ -97,7 +97,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             self.assertEqual(linRes.numAmps, len(self.detector.getAmpInfoCatalog()))
             self.assertEqual(linRes.numAmps, linRes.numLinearized)
             self.assertEqual(linRes.numOutOfRange, refNumOutOfRange)
-            self.assertImagesNearlyEqual(refImage, measImage)
+            self.assertImagesAlmostEqual(refImage, measImage)
 
             # make sure logging is accepted
             log = Log.getLogger("ip.isr.LinearizeLookupTable")
@@ -195,7 +195,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         measNumOutOfRange = restoredLlt(measImage, self.detector)
 
         self.assertEqual(refNumOutOfRange, measNumOutOfRange)
-        self.assertImagesNearlyEqual(refImage, measImage)
+        self.assertImagesAlmostEqual(refImage, measImage)
 
     def makeDetector(self, bbox=None, numAmps=None, rowInds=None, colIndOffsets=None,
                      detName="det_a", detSerial="123", linearityType="LookupTable"):
