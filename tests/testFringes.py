@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #
 # LSST Data Management System
 # Copyright 2012 LSST Corporation.
@@ -20,12 +19,14 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
+
 from builtins import zip
 from builtins import object
 import unittest
 
-import numpy
+import numpy as np
+
 import lsst.utils.tests
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
@@ -77,12 +78,13 @@ def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
     """
     image = afwImage.ImageF(width, height)
     array = image.getArray()
-    x, y = numpy.indices(array.shape)
-    array[x, y] = numpy.sin(xFreq*x + xOffset) + numpy.sin(yFreq*y + yOffset)
+    x, y = np.indices(array.shape)
+    array[x, y] = np.sin(xFreq*x + xOffset) + np.sin(yFreq*y + yOffset)
     mi = afwImage.makeMaskedImage(image)
     exp = afwImage.makeExposure(mi)
     exp.setFilter(afwImage.Filter('FILTER'))
     return exp
+
 
 frame = 1  # ds9 frame
 
@@ -138,9 +140,9 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         @param pedestal    Pedestal to add into fringe frame
         @param stddevMax    Maximum allowable standard deviation
         """
-        xFreq = numpy.pi / 10.0
+        xFreq = np.pi / 10.0
         xOffset = 1.0
-        yFreq = numpy.pi / 15.0
+        yFreq = np.pi / 15.0
         yOffset = 0.5
         scale = 1.0
         fringe = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
@@ -194,9 +196,9 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         @param pedestal    Pedestal to add into fringe frame
         @param stddevMax   Maximum allowable standard deviation
         """
-        xFreq = numpy.pi / 10.0
+        xFreq = np.pi / 10.0
         xOffset = 1.0
-        yFreq = numpy.pi / 15.0
+        yFreq = np.pi / 15.0
         yOffset = 0.5
         scale = 1.0
         fringe = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)

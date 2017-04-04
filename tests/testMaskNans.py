@@ -20,9 +20,12 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+from __future__ import absolute_import, division, print_function
+
 import unittest
 
-import numpy
+import numpy as np
+
 import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.afw.display.ds9 as ds9
@@ -43,23 +46,23 @@ class MaskNansTestCase(lsst.utils.tests.TestCase):
 
     def check(self, ImageClass):
         image = ImageClass(self.size, self.size)
-        x, y = numpy.indices((self.size, self.size))
-        image.getImage().getArray()[y, x] = numpy.where(x*y % self.freqImage, 0, numpy.nan)
-        image.getMask().getArray()[y, x] = numpy.where(x*y % self.freqMask, 0, self.allowMask)
-        image.getVariance().getArray()[y, x] = numpy.where(x*y % self.freqVariance, 0, numpy.nan)
+        x, y = np.indices((self.size, self.size))
+        image.getImage().getArray()[y, x] = np.where(x*y % self.freqImage, 0, np.nan)
+        image.getMask().getArray()[y, x] = np.where(x*y % self.freqMask, 0, self.allowMask)
+        image.getVariance().getArray()[y, x] = np.where(x*y % self.freqVariance, 0, np.nan)
 
         if debug:
             ds9.mtv(image.getImage(), frame=1, title="Image")
             ds9.mtv(image.getVariance(), frame=2, title="Variance")
             ds9.mtv(image.getMask(), frame=3, title="Original mask")
 
-        isUnmasked = numpy.logical_not(image.getMask().getArray() & self.allowMask)
-        isNan = numpy.logical_or(numpy.isnan(image.getImage().getArray()),
-                                 numpy.isnan(image.getVariance().getArray()))
+        isUnmasked = np.logical_not(image.getMask().getArray() & self.allowMask)
+        isNan = np.logical_or(np.isnan(image.getImage().getArray()),
+                              np.isnan(image.getVariance().getArray()))
 
-        maskExpected = numpy.where(numpy.logical_and(isUnmasked, isNan), self.afterMask,
-                                   image.getMask().getArray())
-        numExpected = numpy.count_nonzero(maskExpected & self.afterMask)
+        maskExpected = np.where(np.logical_and(isUnmasked, isNan), self.afterMask,
+                                image.getMask().getArray())
+        numExpected = np.count_nonzero(maskExpected & self.afterMask)
 
         numNans = maskNans(image, self.afterMask, self.allowMask)
 
