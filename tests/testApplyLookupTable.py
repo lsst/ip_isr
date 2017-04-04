@@ -125,7 +125,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         desImArr[0] -= 1
         desImArr[-1] += 1
         desImArr.shape = imArr.shape
-        self.assertClose(desImArr, imArr)
+        self.assertFloatsAlmostEqual(desImArr, imArr)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

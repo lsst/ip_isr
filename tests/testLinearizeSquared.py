@@ -116,14 +116,14 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         imArr0 = im.Factory(im, ampInfoCat[0].getBBox()).getArray()
         linCoeff0 = ampInfoCat[0].getLinearityCoeffs()[0]
         self.assertEqual(0, linCoeff0)
-        self.assertClose(imArr0.flatten(), (-1, 0, 1, 2))
+        self.assertFloatsAlmostEqual(imArr0.flatten(), (-1, 0, 1, 2))
 
         # test all amps
         for ampInfo in ampInfoCat:
             imArr = im.Factory(im, ampInfo.getBBox()).getArray()
             linCoeff = ampInfo.getLinearityCoeffs()[0]
             expect = np.array((-1 + linCoeff, 0, 1 + linCoeff, 2 + 4*linCoeff), dtype=imArr.dtype)
-            self.assertClose(imArr.flatten(), expect)
+            self.assertFloatsAlmostEqual(imArr.flatten(), expect)
 
     def testPickle(self):
         """!Test that a LinearizeSquared can be pickled and unpickled

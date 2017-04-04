@@ -164,19 +164,19 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
 
         # amp 0 is a constant correction of 0; one image value is out of range, but it doesn't matter
         imArr0 = im.Factory(im, ampInfoCat[0].getBBox()).getArray()
-        self.assertClose(imArr0.flatten(), (-1, 0, 1, 2))
+        self.assertFloatsAlmostEqual(imArr0.flatten(), (-1, 0, 1, 2))
 
         # amp 1 is a correction of (5, 4, 3, 2), but the first image value is under range
         imArr1 = im.Factory(im, ampInfoCat[1].getBBox()).getArray()
-        self.assertClose(imArr1.flatten(), (4, 5, 5, 5))
+        self.assertFloatsAlmostEqual(imArr1.flatten(), (4, 5, 5, 5))
 
         # amp 2 is a constant correction of +1; all image values are in range, but it doesn't matter
         imArr2 = im.Factory(im, ampInfoCat[2].getBBox()).getArray()
-        self.assertClose(imArr2.flatten(), (0, 1, 2, 3))
+        self.assertFloatsAlmostEqual(imArr2.flatten(), (0, 1, 2, 3))
 
         # amp 3 is a correction of (7, 6, 5, 4); all image values in range
         imArr1 = im.Factory(im, ampInfoCat[3].getBBox()).getArray()
-        self.assertClose(imArr1.flatten(), (6, 6, 6, 6))
+        self.assertFloatsAlmostEqual(imArr1.flatten(), (6, 6, 6, 6))
 
     def testPickle(self):
         """!Test that a LinearizeLookupTable can be pickled and unpickled
