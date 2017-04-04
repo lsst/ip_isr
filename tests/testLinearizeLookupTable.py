@@ -1,5 +1,5 @@
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # noqa E402
 from builtins import range
 import unittest
 import pickle
