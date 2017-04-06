@@ -19,9 +19,9 @@
  * the GNU General Public License along with this program.  If not,
  * see <https://www.lsstcorp.org/LegalNotices/>.
  */
-#include <memory>
-
 #include "pybind11/pybind11.h"
+
+#include <memory>
 
 #include "lsst/ip/isr/isr.h"
 
@@ -73,6 +73,7 @@ PYBIND11_PLUGIN(isr) {
 
     return mod.ptr();
 }
-}
-}
-}  // lsst::ip::isr
+
+}  // isr
+}  // ip
+}  // lsst
