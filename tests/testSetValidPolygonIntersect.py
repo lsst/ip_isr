@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #
 # LSST Data Management System
 # Copyright 2008-2015 AURA/LSST.
@@ -30,9 +29,12 @@ or
    python
    >>> import testSetValidPolygonIntersect; testSetValidPolygonIntersect.run()
 """
-import numpy
+from __future__ import absolute_import, division, print_function
 
 import unittest
+
+import numpy as np
+
 import lsst.utils.tests
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
@@ -43,10 +45,10 @@ from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE
 
 
 def makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints):
-    theta = numpy.linspace(0, 2*numpy.pi, num=numPolygonPoints, endpoint=False)
-    xx = fpRadius*numpy.cos(theta) + fpCenterX
-    yy = fpRadius*numpy.sin(theta) + fpCenterY
-    points = numpy.array([xx, yy]).transpose()
+    theta = np.linspace(0, 2*np.pi, num=numPolygonPoints, endpoint=False)
+    xx = fpRadius*np.cos(theta) + fpCenterX
+    yy = fpRadius*np.sin(theta) + fpCenterY
+    points = np.array([xx, yy]).transpose()
     polygon = Polygon([afwGeom.Point2D(x, y) for x, y in reversed(points)])
     return polygon
 
@@ -54,7 +56,7 @@ def makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints):
 def makeSquarePolygon(fpX0, fpY0, fpSize):
     xx = [fpX0, fpX0, fpX0 + fpSize - 1, fpX0 + fpSize - 1, fpX0]
     yy = [fpY0, fpY0 + fpSize - 1, fpY0 + fpSize - 1, fpY0, fpY0]
-    points = numpy.array([xx, yy]).transpose()
+    points = np.array([xx, yy]).transpose()
     polygon = Polygon([afwGeom.Point2D(x, y) for x, y in points])
     return polygon
 

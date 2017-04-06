@@ -1,5 +1,27 @@
+#
+# LSST Data Management System
+# Copyright 2017 LSST Corporation.
+#
+# This product includes software developed by the
+# LSST Project (http://www.lsst.org/).
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the LSST License Statement and
+# the GNU General Public License along with this program.  If not,
+# see <http://www.lsstcorp.org/LegalNotices/>.
+#
+from __future__ import absolute_import, division, print_function
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # noqa E402
 from builtins import range
 import unittest
 import pickle
@@ -75,7 +97,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             self.assertEqual(linRes.numAmps, len(self.detector.getAmpInfoCatalog()))
             self.assertEqual(linRes.numAmps, linRes.numLinearized)
             self.assertEqual(linRes.numOutOfRange, refNumOutOfRange)
-            self.assertImagesNearlyEqual(refImage, measImage)
+            self.assertImagesAlmostEqual(refImage, measImage)
 
             # make sure logging is accepted
             log = Log.getLogger("ip.isr.LinearizeLookupTable")
@@ -142,19 +164,19 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
 
         # amp 0 is a constant correction of 0; one image value is out of range, but it doesn't matter
         imArr0 = im.Factory(im, ampInfoCat[0].getBBox()).getArray()
-        self.assertClose(imArr0.flatten(), (-1, 0, 1, 2))
+        self.assertFloatsAlmostEqual(imArr0.flatten(), (-1, 0, 1, 2))
 
         # amp 1 is a correction of (5, 4, 3, 2), but the first image value is under range
         imArr1 = im.Factory(im, ampInfoCat[1].getBBox()).getArray()
-        self.assertClose(imArr1.flatten(), (4, 5, 5, 5))
+        self.assertFloatsAlmostEqual(imArr1.flatten(), (4, 5, 5, 5))
 
         # amp 2 is a constant correction of +1; all image values are in range, but it doesn't matter
         imArr2 = im.Factory(im, ampInfoCat[2].getBBox()).getArray()
-        self.assertClose(imArr2.flatten(), (0, 1, 2, 3))
+        self.assertFloatsAlmostEqual(imArr2.flatten(), (0, 1, 2, 3))
 
         # amp 3 is a correction of (7, 6, 5, 4); all image values in range
         imArr1 = im.Factory(im, ampInfoCat[3].getBBox()).getArray()
-        self.assertClose(imArr1.flatten(), (6, 6, 6, 6))
+        self.assertFloatsAlmostEqual(imArr1.flatten(), (6, 6, 6, 6))
 
     def testPickle(self):
         """!Test that a LinearizeLookupTable can be pickled and unpickled
@@ -173,7 +195,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         measNumOutOfRange = restoredLlt(measImage, self.detector)
 
         self.assertEqual(refNumOutOfRange, measNumOutOfRange)
-        self.assertImagesNearlyEqual(refImage, measImage)
+        self.assertImagesAlmostEqual(refImage, measImage)
 
     def makeDetector(self, bbox=None, numAmps=None, rowInds=None, colIndOffsets=None,
                      detName="det_a", detSerial="123", linearityType="LookupTable"):
