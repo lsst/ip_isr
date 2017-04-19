@@ -64,6 +64,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Apply fringe correction?",
         default=True,
     )
+    doDefect = pexConfig.Field(
+        dtype=bool,
+        doc="Apply correction for CCD defects, e.g. hot pixels?",
+        default=True,
+    )
     doWrite = pexConfig.Field(
         dtype=bool,
         doc="Persist postISRCCD?",
@@ -335,8 +340,7 @@ class IsrTask(pipeBase.CmdLineTask):
         darkExposure = self.getIsrExposure(dataRef, "dark") if self.config.doDark else None
         flatExposure = self.getIsrExposure(dataRef, "flat") if self.config.doFlat else None
         brighterFatterKernel = dataRef.get("brighterFatterKernel") if self.config.doBrighterFatter else None
-
-        defectList = dataRef.get("defects")
+        defectList = dataRef.get("defects") if self.config.doDefect else None
 
         if self.config.doFringe and self.fringe.checkFilter(rawExposure):
             fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd
@@ -399,8 +403,8 @@ class IsrTask(pipeBase.CmdLineTask):
             fringes = pipeBase.Struct(fringes=None)
         if self.config.doFringe and not isinstance(fringes, pipeBase.Struct):
             raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct")
-
-        defects = [] if defects is None else defects
+        if self.config.doDefect and defects is None:
+            raise RuntimeError("Must supply defects if config.doDefect True")
 
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
@@ -446,7 +450,8 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, flat)
 
-        self.maskAndInterpDefect(ccdExposure, defects)
+        if self.config.doDefect:
+            self.maskAndInterpDefect(ccdExposure, defects)
 
         self.saturationInterpolation(ccdExposure)
 
