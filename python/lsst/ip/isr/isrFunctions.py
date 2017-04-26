@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function
+from __future__ import division, print_function, absolute_import
 from builtins import input
 from builtins import range
 #
@@ -85,7 +85,9 @@ def defectListFromFootprintList(fpList, growFootprints=1):
         if growFootprints > 0:
             # if "True", growing requires a convolution
             # if "False", its faster
-            fpGrow = afwDetection.growFootprint(fp, growFootprints, False)
+            tempSpans = fp.spans.dilated(growFootprints,
+                                         afwGeom.Stencil.MANHATTAN)
+            fpGrow = afwDetection.Footprint(tempSpans, fp.getRegion())
         else:
             fpGrow = fp
         for bbox in afwDetection.footprintToBBoxList(fpGrow):
@@ -121,7 +123,7 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     bitmask = mask.getPlaneBitMask(maskName)
     for defect in defectList:
         bbox = defect.getBBox()
-        afwDetection.setMaskFromFootprint(mask, afwDetection.Footprint(bbox), bitmask)
+        afwGeom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
 
 
 def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
