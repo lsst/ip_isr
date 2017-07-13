@@ -163,6 +163,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Number of pixels by which to grow the saturation footprints",
         default=1,
     )
+    doSaturationInterpolation = pexConfig.Field(
+        dtype=bool,
+        doc="Perform interpolation over pixels masked as saturated?",
+        default=True,
+    )
     fluxMag0T1 = pexConfig.Field(
         dtype=float,
         doc="The approximate flux of a zero-magnitude object in a one-second exposure",
@@ -453,7 +458,8 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doDefect:
             self.maskAndInterpDefect(ccdExposure, defects)
 
-        self.saturationInterpolation(ccdExposure)
+        if self.config.doSaturationInterpolation:
+            self.saturationInterpolation(ccdExposure)
 
         self.maskAndInterpNan(ccdExposure)
 
