@@ -41,6 +41,7 @@ from lsst.afw.geom.polygon import Polygon
 from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, NullLinearityType
 from contextlib import contextmanager
 from .isr import maskNans
+from .crosstalk import CrosstalkTask
 
 
 class IsrTaskConfig(pexConfig.Config):

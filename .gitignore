@@ -16,3 +16,4 @@ doc/xml
 tests/.tests
 tests/.cache
 version.py
+bin/
