@@ -199,6 +199,15 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Correct for nonlinearity of the detector's response?",
         default=True,
     )
+    doCrosstalk = pexConfig.Field(
+        dtype=bool,
+        doc="Apply intra-CCD crosstalk correction?",
+        default=False,
+    )
+    crosstalk = pexConfig.ConfigurableField(
+        target=CrosstalkTask,
+        doc="Intra-CCD crosstalk correction",
+    )
     doBrighterFatter = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -327,6 +336,7 @@ class IsrTask(pipeBase.CmdLineTask):
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.makeSubtask("assembleCcd")
         self.makeSubtask("fringe")
+        self.makeSubtask("crosstalk")
 
     def readIsrData(self, dataRef, rawExposure):
         """!Retrieve necessary frames for instrument signature removal
@@ -440,6 +450,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
         if self.doLinearize(ccd):
             linearizer(image=ccdExposure.getMaskedImage().getImage(), detector=ccd, log=self.log)
+
+        if self.config.doCrosstalk:
+            self.crosstalk.run(ccdExposure)
 
         for amp in ccd:
             # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
