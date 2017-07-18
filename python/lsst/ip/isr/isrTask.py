@@ -188,6 +188,11 @@ class IsrTaskConfig(pexConfig.Config):
         default=True,
         doc="Assemble amp-level exposures into a ccd-level exposure?"
     )
+    expectWcs = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Expect input science images to have a WCS (set False for e.g. spectrographs)"
+    )
     doLinearize = pexConfig.Field(
         dtype=bool,
         doc="Correct for nonlinearity of the detector's response?",
@@ -426,6 +431,8 @@ class IsrTask(pipeBase.CmdLineTask):
 
         if self.config.doAssembleCcd:
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
+            if self.config.expectWcs and not ccdExposure.getWcs():
+                self.log.warn("No WCS found in input exposure")
 
         if self.config.doBias:
             self.biasCorrection(ccdExposure, bias)
