@@ -269,5 +269,3 @@ class AssembleCcdTask(pipeBase.Task):
                 raise RuntimeError("No amplifier detector information found")
             cameraGeomUtils.prepareWcsData(wcs, amp0, isTrimmed=self.config.doTrim)
             outExposure.setWcs(wcs)
-        else:
-            self.log.warn("No WCS found in input exposure")
