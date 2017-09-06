@@ -29,3 +29,5 @@ from .isrFunctions import *
 from .assembleCcdTask import *
 from .isrTask import *
 from .linearize import *
+from .crosstalk import *
+from .measureCrosstalk import *
