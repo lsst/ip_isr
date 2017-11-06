@@ -1023,7 +1023,6 @@ class IsrTask(pipeBase.CmdLineTask):
                     sim = image.Factory(image, amp.getBBox())
                     sim /= amp.getGain()
 
-
     @contextmanager
     def flatContext(self, exp, flat, dark=None):
         """Context manager that applies and removes flats and darks,
