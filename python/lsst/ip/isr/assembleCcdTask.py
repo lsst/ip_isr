@@ -43,30 +43,30 @@ class AssembleCcdConfig(pexConfig.Config):
         default=(),
     )
 
-## \addtogroup LSST_task_documentation
-## \{
-## \page AssembleCcdTask
-## \ref AssembleCcdTask_ "AssembleCcdTask"
-## \copybrief AssembleCcdTask
-## \}
+## @addtogroup LSST_task_documentation
+## @{
+## @page AssembleCcdTask
+## @ref AssembleCcdTask_ "AssembleCcdTask"
+## @copybrief AssembleCcdTask
+## @}
 
 
 class AssembleCcdTask(pipeBase.Task):
     """!
-    \anchor AssembleCcdTask_
+    @anchor AssembleCcdTask_
 
-    \brief Assemble a set of amplifier images into a full detector size set of pixels.
+    @brief Assemble a set of amplifier images into a full detector size set of pixels.
 
-    \section ip_isr_assemble_Contents Contents
+    @section ip_isr_assemble_Contents Contents
 
-     - \ref ip_isr_assemble_Purpose
-     - \ref ip_isr_assemble_Initialize
-     - \ref ip_isr_assemble_IO
-     - \ref ip_isr_assemble_Config
-     - \ref ip_isr_assemble_Debug
-     - \ref ip_isr_assemble_Example
+     - @ref ip_isr_assemble_Purpose
+     - @ref ip_isr_assemble_Initialize
+     - @ref ip_isr_assemble_IO
+     - @ref ip_isr_assemble_Config
+     - @ref ip_isr_assemble_Debug
+     - @ref ip_isr_assemble_Example
 
-    \section ip_isr_assemble_Purpose Description
+    @section ip_isr_assemble_Purpose Description
 
     This task assembles sections of an image into a larger mosaic.  The sub-sections
     are typically amplifier sections and are to be assembled into a detector size pixel grid.
@@ -75,28 +75,28 @@ class AssembleCcdTask(pipeBase.Task):
     renormalize the pixel values to a nominal gain of 1.  The task also removes exposure metadata that
     has context in raw amps, but not in trimmed detectors (e.g. 'BIASSEC').
 
-    \section ip_isr_assemble_Initialize Task initialization
+    @section ip_isr_assemble_Initialize Task initialization
 
-    \copydoc \_\_init\_\_
+    @copydoc \_\_init\_\_
 
-    \section ip_isr_assemble_IO Inputs/Outputs to the assembleCcd method
+    @section ip_isr_assemble_IO Inputs/Outputs to the assembleCcd method
 
-    \copydoc assembleCcd
+    @copydoc assembleCcd
 
-    \section ip_isr_assemble_Config Configuration parameters
+    @section ip_isr_assemble_Config Configuration parameters
 
-    See \ref AssembleCcdConfig
+    See @ref AssembleCcdConfig
 
-    \section ip_isr_assemble_Debug Debug variables
+    @section ip_isr_assemble_Debug Debug variables
 
-    The \link lsst.pipe.base.cmdLineTask.CmdLineTask command line task\endlink interface supports a
-    flag \c -d to import \b debug.py from your \c PYTHONPATH; see <a
+    The @link lsst.pipe.base.cmdLineTask.CmdLineTask command line task@endlink interface supports a
+    flag @c -d to import @b debug.py from your @c PYTHONPATH; see <a
     href="http://lsst-web.ncsa.illinois.edu/~buildbot/doxygen/x_masterDoxyDoc/base_debug.html">
-    Using lsstDebug to control debugging output</a> for more about \b debug.py files.
+    Using lsstDebug to control debugging output</a> for more about @b debug.py files.
 
     The available variables in AssembleCcdTask are:
     <DL>
-      <DT> \c display
+      <DT> @c display
       <DD> A dictionary containing debug point names as keys with frame number as value. Valid keys are:
         <DL>
           <DT> assembledExposure
@@ -104,32 +104,32 @@ class AssembleCcdTask(pipeBase.Task):
         </DL>
     </DL>
 
-    \section ip_isr_assemble_Example A complete example of using AssembleCcdTask
+    @section ip_isr_assemble_Example A complete example of using AssembleCcdTask
 
-    This code is in runAssembleTask.py in the examples directory, and can be run as \em e.g.
-    \code
+    This code is in runAssembleTask.py in the examples directory, and can be run as @em e.g.
+    @code
     python examples/runAssembleTask.py
-    \endcode
+    @endcode
 
-    \dontinclude runAssembleTask.py
+    @dontinclude runAssembleTask.py
     Import the task.  There are other imports.  Read the source file for more info.
-    \skipline AssembleCcdTask
+    @skipline AssembleCcdTask
 
-    \dontinclude exampleUtils.py
+    @dontinclude exampleUtils.py
     Create some input images with the help of some utilities in examples/exampleUtils.py
-    \skip makeAssemblyInput
+    @skip makeAssemblyInput
     @until inputData
     The above numbers can be changed.  The assumption that the readout corner is flipped on every other amp is
     hardcoded in createDetector.
 
-    \dontinclude runAssembleTask.py
+    @dontinclude runAssembleTask.py
     Run the assembler task
-    \skip runAssembler
+    @skip runAssembler
     @until frame += 1
 
     <HR>
-    To investigate the \ref ip_isr_assemble_Debug, put something like
-    \code{.py}
+    To investigate the @ref ip_isr_assemble_Debug, put something like
+    @code{.py}
     import lsstDebug
     def DebugInfo(name):
         di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
@@ -138,8 +138,8 @@ class AssembleCcdTask(pipeBase.Task):
         return di
 
     lsstDebug.Info = DebugInfo
-    \endcode
-    into your debug.py file and run runAssembleTask.py with the \c --debug flag.
+    @endcode
+    into your debug.py file and run runAssembleTask.py with the @c --debug flag.
 
 
     Conversion notes:
@@ -160,20 +160,20 @@ class AssembleCcdTask(pipeBase.Task):
 
     def assembleCcd(self, assembleInput):
         """!Assemble a set of amps into a single CCD size image
-        \param[in] assembleInput -- Either a dictionary of amp lsst.afw.image.Exposures or a single
+        @param[in] assembleInput -- Either a dictionary of amp lsst.afw.image.Exposures or a single
                                     lsst.afw.image.Exposure containing all raw
                                     amps.  If a dictionary of amp exposures,
                                     the key should be the amp name.
-        \return assembledCcd -- An lsst.afw.image.Exposure of the assembled amp sections.
+        @return assembledCcd -- An lsst.afw.image.Exposure of the assembled amp sections.
 
-        \throws TypeError with the following string:
+        @throws TypeError with the following string:
 
         <DL>
           <DT> Expected either a dictionary of amp exposures or a single raw exposure
           <DD> The input exposures to be assembled do not adhere to the required format.
         </DL>
 
-        \throws RuntimeError with the following string:
+        @throws RuntimeError with the following string:
 
         <DL>
           <DT> No ccd detector found
