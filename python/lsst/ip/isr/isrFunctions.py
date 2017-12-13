@@ -208,7 +208,7 @@ def biasCorrection(maskedImage, biasMaskedImage):
     maskedImage -= biasMaskedImage
 
 
-def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
+def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=False):
     """Apply dark correction in place
 
     maskedImage -= dark * expScaling / darkScaling
@@ -217,13 +217,17 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
     @param[in] darkMaskedImage  dark afw.image.MaskedImage
     @param[in] expScale  exposure scale
     @param[in] darkScale  dark scale
+    @param[in] invert     if True, remove the dark from an already-corrected image
     """
     if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != darkMaskedImage bbox %s" %
                            (maskedImage.getBBox(afwImage.LOCAL), darkMaskedImage.getBBox(afwImage.LOCAL)))
 
     scale = expScale / darkScale
-    maskedImage.scaledMinus(scale, darkMaskedImage)
+    if not invert:
+        maskedImage.scaledMinus(scale, darkMaskedImage)
+    else:
+        maskedImage.scaledPlus(scale, darkMaskedImage)
 
 
 def updateVariance(maskedImage, gain, readNoise):
@@ -239,13 +243,14 @@ def updateVariance(maskedImage, gain, readNoise):
     var += readNoise**2
 
 
-def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
+def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False):
     """Apply flat correction in place
 
     @param[in,out] maskedImage  afw.image.MaskedImage to correct
     @param[in] flatMaskedImage  flat field afw.image.MaskedImage
     @param[in] scalingType  how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
     @param[in] userScale  scale to use if scalingType is 'USER', else ignored
+    @param[in] invert  if True, unflatten an already-flattened image instead.
     """
     if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != flatMaskedImage bbox %s" %
@@ -264,7 +269,10 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     else:
         raise pexExcept.Exception('%s : %s not implemented' % ("flatCorrection", scalingType))
 
-    maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
+    if not invert:
+        maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
+    else:
+        maskedImage.scaledMultiplies(1.0/flatScale, flatMaskedImage)
 
 
 def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):

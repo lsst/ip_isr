@@ -460,7 +460,32 @@ class IsrTask(pipeBase.CmdLineTask):
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                 self.updateVariance(ampExposure, amp)
 
+        interpolationDone = False
+
         if self.config.doBrighterFatter:
+
+            # We need to apply flats and darks before we can interpolate, and we
+            # need to interpolate before we do B-F.
+            if self.config.doDark:
+                self.darkCorrection(ccdExposure, dark)
+            if self.config.doFlat:
+                self.flatCorrection(ccdExposure, flat)
+
+            if self.config.doDefect:
+                self.maskAndInterpDefect(ccdExposure, defects)
+            if self.config.doSaturationInterpolation:
+                self.saturationInterpolation(ccdExposure)
+            self.maskAndInterpNan(ccdExposure)
+
+            interpolationDone = True
+
+            # But now we need to remove the flat and dark correction so we can
+            # do the B-F correction in charge units.
+            if self.config.doFlat:
+                self.flatCorrection(ccdExposure, flat, invert=True)
+            if self.config.doDark:
+                self.darkCorrection(ccdExposure, dark, invert=True)
+
             self.brighterFatterCorrection(ccdExposure, bfKernel,
                                           self.config.brighterFatterMaxIter,
                                           self.config.brighterFatterThreshold,
@@ -476,13 +501,12 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, flat)
 
-        if self.config.doDefect:
-            self.maskAndInterpDefect(ccdExposure, defects)
-
-        if self.config.doSaturationInterpolation:
-            self.saturationInterpolation(ccdExposure)
-
-        self.maskAndInterpNan(ccdExposure)
+        if not interpolationDone:
+            if self.config.doDefect:
+                self.maskAndInterpDefect(ccdExposure, defects)
+            if self.config.doSaturationInterpolation:
+                self.saturationInterpolation(ccdExposure)
+            self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.fringe.run(ccdExposure, **fringes.getDict())
@@ -547,11 +571,12 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         isrFunctions.biasCorrection(exposure.getMaskedImage(), biasExposure.getMaskedImage())
 
-    def darkCorrection(self, exposure, darkExposure):
+    def darkCorrection(self, exposure, darkExposure, invert=False):
         """!Apply dark correction in place
 
         \param[in,out]  exposure        exposure to process
         \param[in]      darkExposure    dark exposure of same size as exposure
+        \param[in]      invert          if True, remove the dark from an already-corrected image
         """
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
@@ -564,6 +589,7 @@ class IsrTask(pipeBase.CmdLineTask):
             darkMaskedImage=darkExposure.getMaskedImage(),
             expScale=expScale,
             darkScale=darkScale,
+            invert=invert
         )
 
     def doLinearize(self, detector):
@@ -589,17 +615,19 @@ class IsrTask(pipeBase.CmdLineTask):
                 readNoise=amp.getReadNoise(),
             )
 
-    def flatCorrection(self, exposure, flatExposure):
+    def flatCorrection(self, exposure, flatExposure, invert=False):
         """!Apply flat correction in place
 
         \param[in,out]  exposure        exposure to process
         \param[in]      flatExposure    flatfield exposure same size as exposure
+        \param[in]      invert          if True, unflatten an already-flattened image instead.
         """
         isrFunctions.flatCorrection(
             maskedImage=exposure.getMaskedImage(),
             flatMaskedImage=flatExposure.getMaskedImage(),
             scalingType=self.config.flatScalingType,
             userScale=self.config.flatUserScale,
+            invert=invert
         )
 
     def getIsrExposure(self, dataRef, datasetType, immediate=True):
