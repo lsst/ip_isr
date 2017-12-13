@@ -73,24 +73,14 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
 
 
-def defectListFromFootprintList(fpList, growFootprints=1):
+def defectListFromFootprintList(fpList):
     """Compute a defect list from a footprint list, optionally growing the footprints
 
     @param[in] fpList  footprint list
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @return a list of defects (meas.algorithms.Defect)
     """
     defectList = []
     for fp in fpList:
-        if growFootprints > 0:
-            # if "True", growing requires a convolution
-            # if "False", its faster
-            tempSpans = fp.spans.dilated(growFootprints,
-                                         afwGeom.Stencil.MANHATTAN)
-            fpGrow = afwDetection.Footprint(tempSpans, fp.getRegion())
-        else:
-            fpGrow = fp
-        for bbox in afwDetection.footprintToBBoxList(fpGrow):
+        for bbox in afwDetection.footprintToBBoxList(fp):
             defect = measAlg.Defect(bbox)
             defectList.append(defect)
     return defectList
@@ -126,18 +116,16 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
         afwGeom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
 
 
-def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
+def getDefectListFromMask(maskedImage, maskName):
     """Compute a defect list from a specified mask plane
 
     @param[in] maskedImage  masked image to process
     @param[in] maskName  mask plane name, or list of names
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @return a list of defects (each an meas.algrithms.Defect) of regions in mask
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
     fpList = afwDetection.FootprintSet(mask, thresh).getFootprints()
-    return defectListFromFootprintList(fpList, growFootprints)
+    return defectListFromFootprintList(fpList)
 
 
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
@@ -162,7 +150,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     bitmask = mask.getPlaneBitMask(maskName)
     afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
-    return defectListFromFootprintList(fpList, growFootprints=0)
+    return defectListFromFootprintList(fpList)
 
 
 def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
@@ -174,7 +162,15 @@ def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fal
     @param[in] maskName  mask plane name
     @param[in] fallbackValue  value of last resort for interpolation
     """
-    defectList = getDefectListFromMask(maskedImage, maskName, growFootprints)
+    mask = maskedImage.getMask()
+    thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
+    fpSet = afwDetection.FootprintSet(mask, thresh)
+    if growFootprints > 0:
+        fpSet = afwDetection.FootprintSet(fpSet, rGrow=growFootprints, isotropic=False)
+        # If we are interpolating over an area larger than the original masked region, we need
+        # to expand the original mask bit to the full area to explain why we interpolated there.
+        fpSet.setMask(mask, maskName)
+    defectList = defectListFromFootprintList(fpSet.getFootprints())
     interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
 

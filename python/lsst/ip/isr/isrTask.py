@@ -730,7 +730,6 @@ class IsrTask(pipeBase.CmdLineTask):
             nanDefectList = isrFunctions.getDefectListFromMask(
                 maskedImage=maskedImage,
                 maskName='UNMASKEDNAN',
-                growFootprints=0,
             )
             isrFunctions.interpolateDefectList(
                 maskedImage=exposure.getMaskedImage(),
