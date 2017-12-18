@@ -169,6 +169,12 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Perform interpolation over pixels masked as saturated?",
         default=True,
     )
+    doNanInterpAfterFlat = pexConfig.Field(
+        dtype=bool,
+        doc=("If True, ensure we interpolate NaNs after flat-fielding, even if we "
+             "also have to interpolate them before flat-fielding."),
+        default=False,
+    )
     fluxMag0T1 = pexConfig.Field(
         dtype=float,
         doc="The approximate flux of a zero-magnitude object in a one-second exposure",
@@ -496,6 +502,7 @@ class IsrTask(pipeBase.CmdLineTask):
                 self.maskAndInterpDefect(ccdExposure, defects)
             if self.config.doSaturationInterpolation:
                 self.saturationInterpolation(ccdExposure)
+        if not interpolationDone or self.config.doNanInterpAfterFlat:
             self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
