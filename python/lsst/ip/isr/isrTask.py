@@ -465,26 +465,16 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doBrighterFatter:
 
             # We need to apply flats and darks before we can interpolate, and we
-            # need to interpolate before we do B-F.
-            if self.config.doDark:
-                self.darkCorrection(ccdExposure, dark)
-            if self.config.doFlat:
-                self.flatCorrection(ccdExposure, flat)
-
-            if self.config.doDefect:
-                self.maskAndInterpDefect(ccdExposure, defects)
-            if self.config.doSaturationInterpolation:
-                self.saturationInterpolation(ccdExposure)
-            self.maskAndInterpNan(ccdExposure)
-
-            interpolationDone = True
-
-            # But now we need to remove the flat and dark correction so we can
-            # do the B-F correction in charge units.
-            if self.config.doFlat:
-                self.flatCorrection(ccdExposure, flat, invert=True)
-            if self.config.doDark:
-                self.darkCorrection(ccdExposure, dark, invert=True)
+            # need to interpolate before we do B-F, but we do B-F without the
+            # flats and darks applied so we can work in units of electrons or holes.
+            # This context manager applies and then removes the darks and flats.
+            with self.flatContext(ccdExposure, flat, dark):
+                if self.config.doDefect:
+                    self.maskAndInterpDefect(ccdExposure, defects)
+                if self.config.doSaturationInterpolation:
+                    self.saturationInterpolation(ccdExposure)
+                self.maskAndInterpNan(ccdExposure)
+                interpolationDone = True
 
             self.brighterFatterCorrection(ccdExposure, bfKernel,
                                           self.config.brighterFatterMaxIter,
@@ -923,6 +913,24 @@ class IsrTask(pipeBase.CmdLineTask):
                 for amp in ccd:
                     sim = image.Factory(image, amp.getBBox())
                     sim /= amp.getGain()
+
+
+    @contextmanager
+    def flatContext(self, exp, flat, dark=None):
+        """Context manager that applies and removes flats and darks,
+        if the task is configured to apply them.
+        """
+        if self.config.doDark and dark is not None:
+            self.darkCorrection(exp, dark)
+        if self.config.doFlat:
+            self.flatCorrection(exp, flat)
+        try:
+            yield exp
+        finally:
+            if self.config.doFlat:
+                self.flatCorrection(exp, flat, invert=True)
+            if self.config.doDark and dark is not None:
+                self.darkCorrection(exp, dark, invert=True)
 
 
 class FakeAmp(object):
