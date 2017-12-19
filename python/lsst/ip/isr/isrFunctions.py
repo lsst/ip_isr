@@ -73,24 +73,14 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
 
 
-def defectListFromFootprintList(fpList, growFootprints=1):
+def defectListFromFootprintList(fpList):
     """Compute a defect list from a footprint list, optionally growing the footprints
 
     @param[in] fpList  footprint list
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @return a list of defects (meas.algorithms.Defect)
     """
     defectList = []
     for fp in fpList:
-        if growFootprints > 0:
-            # if "True", growing requires a convolution
-            # if "False", its faster
-            tempSpans = fp.spans.dilated(growFootprints,
-                                         afwGeom.Stencil.MANHATTAN)
-            fpGrow = afwDetection.Footprint(tempSpans, fp.getRegion())
-        else:
-            fpGrow = fp
-        for bbox in afwDetection.footprintToBBoxList(fpGrow):
+        for bbox in afwDetection.footprintToBBoxList(fp):
             defect = measAlg.Defect(bbox)
             defectList.append(defect)
     return defectList
@@ -126,18 +116,16 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
         afwGeom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
 
 
-def getDefectListFromMask(maskedImage, maskName, growFootprints=1):
+def getDefectListFromMask(maskedImage, maskName):
     """Compute a defect list from a specified mask plane
 
     @param[in] maskedImage  masked image to process
     @param[in] maskName  mask plane name, or list of names
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @return a list of defects (each an meas.algrithms.Defect) of regions in mask
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
     fpList = afwDetection.FootprintSet(mask, thresh).getFootprints()
-    return defectListFromFootprintList(fpList, growFootprints)
+    return defectListFromFootprintList(fpList)
 
 
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
@@ -162,7 +150,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     bitmask = mask.getPlaneBitMask(maskName)
     afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
-    return defectListFromFootprintList(fpList, growFootprints=0)
+    return defectListFromFootprintList(fpList)
 
 
 def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
@@ -174,7 +162,15 @@ def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fal
     @param[in] maskName  mask plane name
     @param[in] fallbackValue  value of last resort for interpolation
     """
-    defectList = getDefectListFromMask(maskedImage, maskName, growFootprints)
+    mask = maskedImage.getMask()
+    thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
+    fpSet = afwDetection.FootprintSet(mask, thresh)
+    if growFootprints > 0:
+        fpSet = afwDetection.FootprintSet(fpSet, rGrow=growFootprints, isotropic=False)
+        # If we are interpolating over an area larger than the original masked region, we need
+        # to expand the original mask bit to the full area to explain why we interpolated there.
+        fpSet.setMask(mask, maskName)
+    defectList = defectListFromFootprintList(fpSet.getFootprints())
     interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
 
@@ -212,7 +208,7 @@ def biasCorrection(maskedImage, biasMaskedImage):
     maskedImage -= biasMaskedImage
 
 
-def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
+def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=False):
     """Apply dark correction in place
 
     maskedImage -= dark * expScaling / darkScaling
@@ -221,13 +217,17 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale):
     @param[in] darkMaskedImage  dark afw.image.MaskedImage
     @param[in] expScale  exposure scale
     @param[in] darkScale  dark scale
+    @param[in] invert     if True, remove the dark from an already-corrected image
     """
     if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != darkMaskedImage bbox %s" %
                            (maskedImage.getBBox(afwImage.LOCAL), darkMaskedImage.getBBox(afwImage.LOCAL)))
 
     scale = expScale / darkScale
-    maskedImage.scaledMinus(scale, darkMaskedImage)
+    if not invert:
+        maskedImage.scaledMinus(scale, darkMaskedImage)
+    else:
+        maskedImage.scaledPlus(scale, darkMaskedImage)
 
 
 def updateVariance(maskedImage, gain, readNoise):
@@ -243,13 +243,14 @@ def updateVariance(maskedImage, gain, readNoise):
     var += readNoise**2
 
 
-def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
+def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False):
     """Apply flat correction in place
 
     @param[in,out] maskedImage  afw.image.MaskedImage to correct
     @param[in] flatMaskedImage  flat field afw.image.MaskedImage
     @param[in] scalingType  how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
     @param[in] userScale  scale to use if scalingType is 'USER', else ignored
+    @param[in] invert  if True, unflatten an already-flattened image instead.
     """
     if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != flatMaskedImage bbox %s" %
@@ -268,7 +269,10 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0):
     else:
         raise pexExcept.Exception('%s : %s not implemented' % ("flatCorrection", scalingType))
 
-    maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
+    if not invert:
+        maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
+    else:
+        maskedImage.scaledMultiplies(1.0/flatScale, flatMaskedImage)
 
 
 def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
