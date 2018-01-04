@@ -249,6 +249,32 @@ class IsrTaskConfig(pexConfig.Config):
     )
     fallbackFilterName = pexConfig.Field(dtype=str,
                                          doc="Fallback default filter name for calibrations", optional=True)
+    doAttachTransmissionCurve = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Construct and attach a wavelength-dependent throughput curve for this CCD image?"
+    )
+    doUseOpticsTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_optics (if doAttachTransmissionCurve is True)?"
+    )
+    doUseFilterTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_filter (if doAttachTransmissionCurve is True)?"
+    )
+    doUseSensorTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_sensor (if doAttachTransmissionCurve is True)?"
+    )
+    doUseAtmosphereTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_atmosphere (if doAttachTransmissionCurve is True)?"
+    )
+
 
 ## \addtogroup LSST_task_documentation
 ## \{
@@ -375,6 +401,21 @@ class IsrTask(pipeBase.CmdLineTask):
         else:
             fringeStruct = pipeBase.Struct(fringes=None)
 
+        if self.config.doAttachTransmissionCurve:
+            opticsTransmission = (dataRef.get("transmission_optics")
+                                  if self.config.doUseOpticsTransmission else None)
+            filterTransmission = (dataRef.get("transmission_filter")
+                                  if self.config.doUseFilterTransmission else None)
+            sensorTransmission = (dataRef.get("transmission_sensor")
+                                  if self.config.doUseSensorTransmission else None)
+            atmosphereTransmission = (dataRef.get("transmission_atmosphere")
+                                      if self.config.doUseAtmosphereTransmission else None)
+        else:
+            opticsTransmission = None
+            filterTransmission = None
+            sensorTransmission = None
+            atmosphereTransmission = None
+
         # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
                                linearizer=linearizer,
@@ -382,12 +423,18 @@ class IsrTask(pipeBase.CmdLineTask):
                                flat=flatExposure,
                                defects=defectList,
                                fringes=fringeStruct,
-                               bfKernel=brighterFatterKernel
+                               bfKernel=brighterFatterKernel,
+                               opticsTransmission=opticsTransmission,
+                               filterTransmission=filterTransmission,
+                               sensorTransmission=sensorTransmission,
+                               atmosphereTransmission=atmosphereTransmission,
                                )
 
     @pipeBase.timeMethod
     def run(self, ccdExposure, bias=None, linearizer=None, dark=None, flat=None, defects=None,
-            fringes=None, bfKernel=None):
+            fringes=None, bfKernel=None,
+            opticsTransmission=None, filterTransmission=None,
+            sensorTransmission=None, atmosphereTransmission=None):
         """!Perform instrument signature removal on an exposure
 
         Steps include:
@@ -404,6 +451,10 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in] fringes  a pipeBase.Struct with field fringes containing
                             exposure of fringe frame or list of fringe exposure
         @param[in] bfKernel  kernel for brighter-fatter correction
+        @param[in] opticsTransmission  a TransmissionCurve for the optics
+        @param[in] filterTransmission  a TransmissionCurve for the filter
+        @param[in] sensorTransmission  a TransmissionCurve for the sensor
+        @param[in] atmosphereTransmission  a TransmissionCurve for the atmosphere
 
         @return a pipeBase.Struct with field:
          - exposure
@@ -509,6 +560,12 @@ class IsrTask(pipeBase.CmdLineTask):
 
         exposureTime = ccdExposure.getInfo().getVisitInfo().getExposureTime()
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1*exposureTime)
+
+        if self.config.doAttachTransmissionCurve:
+            self.attachTransmissionCurve(ccdExposure, opticsTransmission=opticsTransmission,
+                                         filterTransmission=filterTransmission,
+                                         sensorTransmission=sensorTransmission,
+                                         atmosphereTransmission=atmosphereTransmission)
 
         frame = getDebugFrame(self._display, "postISRCCD")
         if frame:
@@ -900,6 +957,45 @@ class IsrTask(pipeBase.CmdLineTask):
             image.getArray()[startY + 1:endY - 1, startX + 1:endX - 1] += \
                 corr[startY + 1:endY - 1, startX + 1:endX - 1]
 
+    def attachTransmissionCurve(self, exposure, opticsTransmission=None, filterTransmission=None,
+                                sensorTransmission=None, atmosphereTransmission=None):
+        """Attach a TransmissionCurve to an Exposure, given separate curves for
+        different components.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure object to modify by attaching the product of all given
+            ``TransmissionCurves`` in post-assembly trimmed detector
+            coordinates.  Must have a valid ``Detector`` attached that matches
+            the detector associated with sensorTransmission.
+        opticsTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            optics, to be evaluated in focal-plane coordinates.
+        filterTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            filter itself, to be evaluated in focal-plane coordinates.
+        sensorTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            sensor itself, to be evaluated in post-assembly trimmed detector
+            coordinates.
+        atmosphereTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            atmosphere, assumed to be spatially constant.
+
+        All ``TransmissionCurve`` arguments are optional; if none are provided,
+        the attached ``TransmissionCurve`` will have unit transmission
+        everywhere.
+
+        Returns
+        -------
+        combined : ``lsst.afw.image.TransmissionCurve``
+            The TransmissionCurve attached to the exposure.
+        """
+        return isrFunctions.attachTransmissionCurve(exposure, opticsTransmission=opticsTransmission,
+                                                    filterTransmission=filterTransmission,
+                                                    sensorTransmission=sensorTransmission,
+                                                    atmosphereTransmission=atmosphereTransmission)
 
     @contextmanager
     def gainContext(self, exp, image, apply):

@@ -32,6 +32,7 @@ import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
 import lsst.pex.exceptions as pexExcept
+import lsst.afw.cameraGeom as camGeom
 
 
 def createPsf(fwhm):
@@ -444,3 +445,53 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         raise pexExcept.Exception('%s : %s an invalid overscan type' % \
             ("overscanCorrection", fitType))
     ampImage -= offImage
+
+
+def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmission=None,
+                            sensorTransmission=None, atmosphereTransmission=None):
+    """Attach a TransmissionCurve to an Exposure, given separate curves for
+    different components.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure object to modify by attaching the product of all given
+        ``TransmissionCurves`` in post-assembly trimmed detector coordinates.
+        Must have a valid ``Detector`` attached that matches the detector
+        associated with sensorTransmission.
+    opticsTransmission : `lsst.afw.image.TransmissionCurve`
+        A ``TransmissionCurve`` that represents the throughput of the optics,
+        to be evaluated in focal-plane coordinates.
+    filterTransmission : `lsst.afw.image.TransmissionCurve`
+        A ``TransmissionCurve`` that represents the throughput of the filter
+        itself, to be evaluated in focal-plane coordinates.
+    sensorTransmission : `lsst.afw.image.TransmissionCurve`
+        A ``TransmissionCurve`` that represents the throughput of the sensor
+        itself, to be evaluated in post-assembly trimmed detector coordinates.
+    atmosphereTransmission : `lsst.afw.image.TransmissionCurve`
+        A ``TransmissionCurve`` that represents the throughput of the
+        atmosphere, assumed to be spatially constant.
+
+    All ``TransmissionCurve`` arguments are optional; if none are provided, the
+    attached ``TransmissionCurve`` will have unit transmission everywhere.
+
+    Returns
+    -------
+    combined : ``lsst.afw.image.TransmissionCurve``
+        The TransmissionCurve attached to the exposure.
+    """
+    combined = afwImage.TransmissionCurve.makeIdentity()
+    if atmosphereTransmission is not None:
+        combined *= atmosphereTransmission
+    if opticsTransmission is not None:
+        combined *= opticsTransmission
+    if filterTransmission is not None:
+        combined *= filterTransmission
+    detector = exposure.getDetector()
+    fpToPix = detector.getTransform(fromSys=camGeom.FOCAL_PLANE,
+                                    toSys=camGeom.PIXELS)
+    combined = combined.transformedBy(fpToPix)
+    if sensorTransmission is not None:
+        combined *= sensorTransmission
+    exposure.getInfo().setTransmissionCurve(combined)
+    return combined
