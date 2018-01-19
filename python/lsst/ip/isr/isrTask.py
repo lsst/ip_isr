@@ -870,6 +870,18 @@ class IsrTask(pipeBase.CmdLineTask):
     def addDistortionModel(self, exposure, camera):
         """!Update the WCS in exposure with a distortion model based on camera geometry
 
+        Add a model for optical distortion based on geometry found in `camera`
+        and the `exposure`'s detector. The raw input exposure is assumed
+        have a TAN WCS that has no compensation for optical distortion.
+        Two other possibilities are:
+        - The raw input exposure already has a model for optical distortion,
+            as is the case for raw DECam data.
+            In that case you should set config.doAddDistortionModel False.
+        - The raw input exposure has a model for distortion, but it has known
+            deficiencies severe enough to be worth fixing (e.g. because they
+            cause problems for fitting a better WCS). In that case you should
+            override this method with a version suitable for your raw data.
+
         @param[in,out] exposure    exposure to process; must include a Detector and a WCS;
             the WCS of the exposure is modified in place
         @param[in] camera  camera geometry; an lsst.afw.cameraGeom.Camera
