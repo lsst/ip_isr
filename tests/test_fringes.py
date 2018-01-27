@@ -154,6 +154,28 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         task = FringeTask(name="fringe", config=self.config)
         self.checkFringe(task, exp, fringe, stddevMax)
 
+    def testBad(self, bad="BAD"):
+        """Test fringe subtraction with bad inputs
+
+        @param bad    Mask plane to use
+        """
+        xFreq = np.pi / 10.0
+        xOffset = 1.0
+        yFreq = np.pi / 15.0
+        yOffset = 0.5
+        fringe = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
+        exp = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
+
+        # This is a bad CCD: entirely masked
+        exp.maskedImage.image.set(0.0)
+        mask = exp.maskedImage.mask
+        mask.set(mask.getPlaneBitMask(bad))
+
+        self.config.stats.badMaskPlanes = [bad]
+        task = FringeTask(name="fringe", config=self.config)
+        task.run(exp, fringe)
+        self.assertFloatsEqual(exp.maskedImage.image.array, 0.0)
+
     def testPedestal(self):
         """Test subtraction of a fringe frame with a pedestal"""
         self.config.pedestal = True
