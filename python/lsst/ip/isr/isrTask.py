@@ -249,6 +249,32 @@ class IsrTaskConfig(pexConfig.Config):
     )
     fallbackFilterName = pexConfig.Field(dtype=str,
                                          doc="Fallback default filter name for calibrations", optional=True)
+    doAttachTransmissionCurve = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Construct and attach a wavelength-dependent throughput curve for this CCD image?"
+    )
+    doUseOpticsTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_optics (if doAttachTransmissionCurve is True)?"
+    )
+    doUseFilterTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_filter (if doAttachTransmissionCurve is True)?"
+    )
+    doUseSensorTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_sensor (if doAttachTransmissionCurve is True)?"
+    )
+    doUseAtmosphereTransmission = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Load and use transmission_atmosphere (if doAttachTransmissionCurve is True)?"
+    )
+
 
 ## \addtogroup LSST_task_documentation
 ## \{
@@ -334,8 +360,8 @@ class IsrTask(pipeBase.CmdLineTask):
 
     def __init__(self, *args, **kwargs):
         '''!Constructor for IsrTask
-        \param[in] *args -- a list of positional arguments passed on to the Task constructor
-        \param[in] **kwargs -- a dictionary of keyword arguments passed on to the Task constructor
+        @param[in] *args    a list of positional arguments passed on to the Task constructor
+        @param[in] **kwargs    a dictionary of keyword arguments passed on to the Task constructor
         Call the lsst.pipe.base.task.Task.__init__ method
         Then setup the assembly and fringe correction subtasks
         '''
@@ -346,9 +372,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
     def readIsrData(self, dataRef, rawExposure):
         """!Retrieve necessary frames for instrument signature removal
-        \param[in] dataRef -- a daf.persistence.butlerSubset.ButlerDataRef
+        @param[in] dataRef    a daf.persistence.butlerSubset.ButlerDataRef
                               of the detector data to be processed
-        \param[in] rawExposure -- a reference raw exposure that will later be
+        @param[in] rawExposure    a reference raw exposure that will later be
                                   corrected with the retrieved calibration data;
                                   should not be modified in this method.
         \return a pipeBase.Struct with fields containing kwargs expected by run()
@@ -375,6 +401,21 @@ class IsrTask(pipeBase.CmdLineTask):
         else:
             fringeStruct = pipeBase.Struct(fringes=None)
 
+        if self.config.doAttachTransmissionCurve:
+            opticsTransmission = (dataRef.get("transmission_optics")
+                                  if self.config.doUseOpticsTransmission else None)
+            filterTransmission = (dataRef.get("transmission_filter")
+                                  if self.config.doUseFilterTransmission else None)
+            sensorTransmission = (dataRef.get("transmission_sensor")
+                                  if self.config.doUseSensorTransmission else None)
+            atmosphereTransmission = (dataRef.get("transmission_atmosphere")
+                                      if self.config.doUseAtmosphereTransmission else None)
+        else:
+            opticsTransmission = None
+            filterTransmission = None
+            sensorTransmission = None
+            atmosphereTransmission = None
+
         # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
                                linearizer=linearizer,
@@ -382,12 +423,18 @@ class IsrTask(pipeBase.CmdLineTask):
                                flat=flatExposure,
                                defects=defectList,
                                fringes=fringeStruct,
-                               bfKernel=brighterFatterKernel
+                               bfKernel=brighterFatterKernel,
+                               opticsTransmission=opticsTransmission,
+                               filterTransmission=filterTransmission,
+                               sensorTransmission=sensorTransmission,
+                               atmosphereTransmission=atmosphereTransmission,
                                )
 
     @pipeBase.timeMethod
     def run(self, ccdExposure, bias=None, linearizer=None, dark=None, flat=None, defects=None,
-            fringes=None, bfKernel=None):
+            fringes=None, bfKernel=None,
+            opticsTransmission=None, filterTransmission=None,
+            sensorTransmission=None, atmosphereTransmission=None):
         """!Perform instrument signature removal on an exposure
 
         Steps include:
@@ -395,20 +442,23 @@ class IsrTask(pipeBase.CmdLineTask):
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and all NaNs
 
-        \param[in] ccdExposure  -- lsst.afw.image.exposure of detector data
-        \param[in] bias -- exposure of bias frame
-        \param[in] linearizer -- linearizing functor; a subclass of lsst.ip.isrFunctions.LinearizeBase
-        \param[in] dark -- exposure of dark frame
-        \param[in] flat -- exposure of flatfield
-        \param[in] defects -- list of detects
-        \param[in] fringes -- a pipeBase.Struct with field fringes containing
-                              exposure of fringe frame or list of fringe exposure
-        \param[in] bfKernel -- kernel for brighter-fatter correction
+        @param[in] ccdExposure  lsst.afw.image.exposure of detector data
+        @param[in] bias  exposure of bias frame
+        @param[in] linearizer  linearizing functor; a subclass of lsst.ip.isrFunctions.LinearizeBase
+        @param[in] dark  exposure of dark frame
+        @param[in] flat  exposure of flatfield
+        @param[in] defects  list of detects
+        @param[in] fringes  a pipeBase.Struct with field fringes containing
+                            exposure of fringe frame or list of fringe exposure
+        @param[in] bfKernel  kernel for brighter-fatter correction
+        @param[in] opticsTransmission  a TransmissionCurve for the optics
+        @param[in] filterTransmission  a TransmissionCurve for the filter
+        @param[in] sensorTransmission  a TransmissionCurve for the sensor
+        @param[in] atmosphereTransmission  a TransmissionCurve for the atmosphere
 
-        \return a pipeBase.Struct with field:
+        @return a pipeBase.Struct with field:
          - exposure
         """
-
         # parseAndRun expects to be able to call run() with a dataRef; see DM-6640
         if isinstance(ccdExposure, ButlerDataRef):
             return self.runDataRef(ccdExposure)
@@ -511,6 +561,12 @@ class IsrTask(pipeBase.CmdLineTask):
         exposureTime = ccdExposure.getInfo().getVisitInfo().getExposureTime()
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1*exposureTime)
 
+        if self.config.doAttachTransmissionCurve:
+            self.attachTransmissionCurve(ccdExposure, opticsTransmission=opticsTransmission,
+                                         filterTransmission=filterTransmission,
+                                         sensorTransmission=sensorTransmission,
+                                         atmosphereTransmission=atmosphereTransmission)
+
         frame = getDebugFrame(self._display, "postISRCCD")
         if frame:
             getDisplay(frame).mtv(ccdExposure)
@@ -527,9 +583,9 @@ class IsrTask(pipeBase.CmdLineTask):
         - Process raw exposure in run()
         - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
-        \param[in] sensorRef -- daf.persistence.butlerSubset.ButlerDataRef of the
+        @param[in] sensorRef    daf.persistence.butlerSubset.ButlerDataRef of the
                                 detector data to be processed
-        \return a pipeBase.Struct with fields:
+        @return a pipeBase.Struct with fields:
         - exposure: the exposure after application of ISR
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
@@ -563,17 +619,17 @@ class IsrTask(pipeBase.CmdLineTask):
     def biasCorrection(self, exposure, biasExposure):
         """!Apply bias correction in place
 
-        \param[in,out]  exposure        exposure to process
-        \param[in]      biasExposure    bias exposure of same size as exposure
+        @param[in,out]  exposure        exposure to process
+        @param[in]      biasExposure    bias exposure of same size as exposure
         """
         isrFunctions.biasCorrection(exposure.getMaskedImage(), biasExposure.getMaskedImage())
 
     def darkCorrection(self, exposure, darkExposure, invert=False):
         """!Apply dark correction in place
 
-        \param[in,out]  exposure        exposure to process
-        \param[in]      darkExposure    dark exposure of same size as exposure
-        \param[in]      invert          if True, remove the dark from an already-corrected image
+        @param[in,out]  exposure        exposure to process
+        @param[in]      darkExposure    dark exposure of same size as exposure
+        @param[in]      invert          if True, remove the dark from an already-corrected image
         """
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
@@ -594,7 +650,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         Checks config.doLinearize and the linearity type of the first amplifier.
 
-        \param[in]  detector  detector information (an lsst.afw.cameraGeom.Detector)
+        @param[in]  detector  detector information (an lsst.afw.cameraGeom.Detector)
         """
         return self.config.doLinearize and \
             detector.getAmpInfoCatalog()[0].getLinearityType() != NullLinearityType
@@ -602,8 +658,8 @@ class IsrTask(pipeBase.CmdLineTask):
     def updateVariance(self, ampExposure, amp):
         """!Set the variance plane based on the image plane, plus amplifier gain and read noise
 
-        \param[in,out]  ampExposure     exposure to process
-        \param[in]      amp             amplifier detector information
+        @param[in,out]  ampExposure     exposure to process
+        @param[in]      amp             amplifier detector information
         """
         if not math.isnan(amp.getGain()):
             isrFunctions.updateVariance(
@@ -615,9 +671,9 @@ class IsrTask(pipeBase.CmdLineTask):
     def flatCorrection(self, exposure, flatExposure, invert=False):
         """!Apply flat correction in place
 
-        \param[in,out]  exposure        exposure to process
-        \param[in]      flatExposure    flatfield exposure same size as exposure
-        \param[in]      invert          if True, unflatten an already-flattened image instead.
+        @param[in,out]  exposure        exposure to process
+        @param[in]      flatExposure    flatfield exposure same size as exposure
+        @param[in]      invert          if True, unflatten an already-flattened image instead.
         """
         isrFunctions.flatCorrection(
             maskedImage=exposure.getMaskedImage(),
@@ -630,9 +686,9 @@ class IsrTask(pipeBase.CmdLineTask):
     def getIsrExposure(self, dataRef, datasetType, immediate=True):
         """!Retrieve a calibration dataset for removing instrument signature
 
-        \param[in]      dataRef         data reference for exposure
-        \param[in]      datasetType     type of dataset to retrieve (e.g. 'bias', 'flat')
-        \param[in]      immediate       if True, disable butler proxies to enable error
+        @param[in]      dataRef         data reference for exposure
+        @param[in]      datasetType     type of dataset to retrieve (e.g. 'bias', 'flat')
+        @param[in]      immediate       if True, disable butler proxies to enable error
                                         handling within this routine
         \return exposure
         """
@@ -655,8 +711,8 @@ class IsrTask(pipeBase.CmdLineTask):
     def saturationDetection(self, exposure, amp):
         """!Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place
 
-        \param[in,out]  exposure    exposure to process; only the amp DataSec is processed
-        \param[in]      amp         amplifier device data
+        @param[in,out]  exposure    exposure to process; only the amp DataSec is processed
+        @param[in]      amp         amplifier device data
         """
         if not math.isnan(amp.getSaturation()):
             maskedImage = exposure.getMaskedImage()
@@ -671,7 +727,7 @@ class IsrTask(pipeBase.CmdLineTask):
     def saturationInterpolation(self, ccdExposure):
         """!Interpolate over saturated pixels, in place
 
-        \param[in,out]  ccdExposure     exposure to process
+        @param[in,out]  ccdExposure     exposure to process
 
         \warning:
         - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
@@ -693,8 +749,8 @@ class IsrTask(pipeBase.CmdLineTask):
         then that would be a useful value for suspectLevel. A value of `nan` indicates
         that no such level exists and no pixels are to be masked as suspicious.
 
-        \param[in,out]  exposure    exposure to process; only the amp DataSec is processed
-        \param[in]      amp         amplifier device data
+        @param[in,out]  exposure    exposure to process; only the amp DataSec is processed
+        @param[in]      amp         amplifier device data
         """
         suspectLevel = amp.getSuspectLevel()
         if math.isnan(suspectLevel):
@@ -712,8 +768,8 @@ class IsrTask(pipeBase.CmdLineTask):
     def maskAndInterpDefect(self, ccdExposure, defectBaseList):
         """!Mask defects using mask plane "BAD" and interpolate over them, in place
 
-        \param[in,out]  ccdExposure     exposure to process
-        \param[in] defectBaseList a list of defects to mask and interpolate
+        @param[in,out]  ccdExposure     exposure to process
+        @param[in] defectBaseList a list of defects to mask and interpolate
 
         \warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
@@ -739,7 +795,7 @@ class IsrTask(pipeBase.CmdLineTask):
         NaNs).  Despite this behaviour, the "UNMASKEDNAN" mask plane
         is used to preserve the historical name.
 
-        \param[in,out]  exposure        exposure to process
+        @param[in,out]  exposure        exposure to process
         """
         maskedImage = exposure.getMaskedImage()
 
@@ -765,8 +821,8 @@ class IsrTask(pipeBase.CmdLineTask):
     def overscanCorrection(self, exposure, amp):
         """!Apply overscan correction, in place
 
-        \param[in,out]  exposure    exposure to process; must include both DataSec and BiasSec pixels
-        \param[in]      amp         amplifier device data
+        @param[in,out]  exposure    exposure to process; must include both DataSec and BiasSec pixels
+        @param[in]      amp         amplifier device data
         """
         if not amp.getHasRawInfo():
             raise RuntimeError("This method must be executed on an amp with raw information.")
@@ -792,8 +848,8 @@ class IsrTask(pipeBase.CmdLineTask):
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
         """!Set the valid polygon as the intersection of fpPolygon and the ccd corners
 
-        \param[in,out]  ccdExposure    exposure to process
-        \param[in]      fpPolygon   Polygon in focal plane coordinates
+        @param[in,out]  ccdExposure    exposure to process
+        @param[in]      fpPolygon   Polygon in focal plane coordinates
         """
         # Get ccd corners in focal plane coordinates
         ccd = ccdExposure.getDetector()
@@ -901,6 +957,45 @@ class IsrTask(pipeBase.CmdLineTask):
             image.getArray()[startY + 1:endY - 1, startX + 1:endX - 1] += \
                 corr[startY + 1:endY - 1, startX + 1:endX - 1]
 
+    def attachTransmissionCurve(self, exposure, opticsTransmission=None, filterTransmission=None,
+                                sensorTransmission=None, atmosphereTransmission=None):
+        """Attach a TransmissionCurve to an Exposure, given separate curves for
+        different components.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure object to modify by attaching the product of all given
+            ``TransmissionCurves`` in post-assembly trimmed detector
+            coordinates.  Must have a valid ``Detector`` attached that matches
+            the detector associated with sensorTransmission.
+        opticsTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            optics, to be evaluated in focal-plane coordinates.
+        filterTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            filter itself, to be evaluated in focal-plane coordinates.
+        sensorTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            sensor itself, to be evaluated in post-assembly trimmed detector
+            coordinates.
+        atmosphereTransmission : `lsst.afw.image.TransmissionCurve`
+            A ``TransmissionCurve`` that represents the throughput of the
+            atmosphere, assumed to be spatially constant.
+
+        All ``TransmissionCurve`` arguments are optional; if none are provided,
+        the attached ``TransmissionCurve`` will have unit transmission
+        everywhere.
+
+        Returns
+        -------
+        combined : ``lsst.afw.image.TransmissionCurve``
+            The TransmissionCurve attached to the exposure.
+        """
+        return isrFunctions.attachTransmissionCurve(exposure, opticsTransmission=opticsTransmission,
+                                                    filterTransmission=filterTransmission,
+                                                    sensorTransmission=sensorTransmission,
+                                                    atmosphereTransmission=atmosphereTransmission)
 
     @contextmanager
     def gainContext(self, exp, image, apply):
