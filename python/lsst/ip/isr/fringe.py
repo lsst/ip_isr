@@ -240,10 +240,23 @@ class FringeTask(Task):
 
         origNum = len(science)
 
+        def emptyResult(msg=""):
+            """Generate an empty result for return to the user
+
+            There are no good pixels; doesn't matter what we return.
+            """
+            self.log.warn("Unable to solve for fringes: no good pixels%s", msg)
+            out = [0]
+            if len(fringes) > 1:
+                out = out*len(fringes)
+            return numpy.array(out)
+
         good = numpy.where(numpy.logical_and(numpy.isfinite(science), numpy.any(numpy.isfinite(fringes), 1)))
         science = science[good]
         fringes = fringes[good]
         oldNum = len(science)
+        if oldNum == 0:
+            return emptyResult()
 
         # Up-front rejection to get rid of extreme, potentially troublesome values
         # (e.g., fringe apertures that fall on objects).
@@ -254,12 +267,7 @@ class FringeTask(Task):
         fringes = fringes[good]
         oldNum = len(science)
         if oldNum == 0:
-            # No good pixels; doesn't matter what we return
-            self.log.warn("Unable to solve for fringes: no good pixels")
-            out = [0]
-            if len(fringes) > 1:
-                out = out*len(fringes)
-            return numpy.array(out)
+            return emptyResult(" after initial rejection")
 
         for i in range(self.config.iterations):
             solution = self._solve(science, fringes)
@@ -270,12 +278,7 @@ class FringeTask(Task):
             self.log.debug("Solution %d: %s", i, solution)
             newNum = good.sum()
             if newNum == 0:
-                # No good pixels; doesn't matter what we return
-                self.log.warn("Unable to solve for fringes: no good pixels after %d iterations", i)
-                out = [0]
-                if len(fringes) > 1:
-                    out = out*len(fringes)
-                return numpy.array(out)
+                return emptyResult(" after %d rejection iterations" % i)
 
             if doPlot:
                 import matplotlib.pyplot as plot
