@@ -661,10 +661,16 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  ampExposure     exposure to process
         @param[in]      amp             amplifier detector information
         """
-        if not math.isnan(amp.getGain()):
+        gain = amp.getGain()
+        if not math.isnan(gain):
+            if gain <= 0:
+                patchedGain = 1.0
+                self.log.warn("Gain for amp %s == %g <= 0; setting to %f" % (amp.getName(), gain, patchedGain))
+                gain = patchedGain
+
             isrFunctions.updateVariance(
                 maskedImage=ampExposure.getMaskedImage(),
-                gain=amp.getGain(),
+                gain=gain,
                 readNoise=amp.getReadNoise(),
             )
 
