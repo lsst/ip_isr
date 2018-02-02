@@ -98,6 +98,30 @@ class IsrTestCases(unittest.TestCase):
     def testIllum3(self):
         self.doIllum(scaling=3.7)
 
+    def testGainAndReadnoise(self):
+        import lsst.afw.image as afwImage
+        from lsst.afw.cameraGeom.testUtils import DetectorWrapper
+        from lsst.ip.isr import IsrTask
+
+        isrTask = IsrTask()
+
+        detector = DetectorWrapper().detector
+        raw = afwImage.ExposureF(detector.getBBox())
+
+        level = 10
+        readNoise = 1
+        raw.image.set(level)
+
+        amp = detector[0]
+        amp.setReadNoise(readNoise)
+
+        for gain in [-1, 0, 0.1, 1]:
+            amp.setGain(gain)
+            isrTask.updateVariance(raw, amp)
+            if gain <= 0:
+                gain = 1
+
+        self.assertEqual(raw.variance.get(0, 0), level/gain + readNoise**2)
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
