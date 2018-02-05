@@ -933,21 +933,22 @@ class IsrTask(pipeBase.CmdLineTask):
                 tmpArray = tempImage.getArray()
                 outArray = outImage.getArray()
 
-                # First derivative term
-                gradTmp = numpy.gradient(tmpArray[startY:endY, startX:endX])
-                gradOut = numpy.gradient(outArray[startY:endY, startX:endX])
-                first = (gradTmp[0]*gradOut[0] + gradTmp[1]*gradOut[1])[1:-1, 1:-1]
+                with numpy.errstate(invalid="ignore", over="ignore"):
+                    # First derivative term
+                    gradTmp = numpy.gradient(tmpArray[startY:endY, startX:endX])
+                    gradOut = numpy.gradient(outArray[startY:endY, startX:endX])
+                    first = (gradTmp[0]*gradOut[0] + gradTmp[1]*gradOut[1])[1:-1, 1:-1]
 
-                # Second derivative term
-                diffOut20 = numpy.diff(outArray, 2, 0)[startY:endY, startX + 1:endX - 1]
-                diffOut21 = numpy.diff(outArray, 2, 1)[startY + 1:endY - 1, startX:endX]
-                second = tmpArray[startY + 1:endY - 1, startX + 1:endX - 1]*(diffOut20 + diffOut21)
+                    # Second derivative term
+                    diffOut20 = numpy.diff(outArray, 2, 0)[startY:endY, startX + 1:endX - 1]
+                    diffOut21 = numpy.diff(outArray, 2, 1)[startY + 1:endY - 1, startX:endX]
+                    second = tmpArray[startY + 1:endY - 1, startX + 1:endX - 1]*(diffOut20 + diffOut21)
 
-                corr[startY + 1:endY - 1, startX + 1:endX - 1] = 0.5*(first + second)
+                    corr[startY + 1:endY - 1, startX + 1:endX - 1] = 0.5*(first + second)
 
-                tmpArray[:, :] = image.getArray()[:, :]
-                tmpArray[nanIndex] = 0.
-                tmpArray[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
+                    tmpArray[:, :] = image.getArray()[:, :]
+                    tmpArray[nanIndex] = 0.
+                    tmpArray[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
 
                 if iteration > 0:
                     diff = numpy.sum(numpy.abs(prev_image - tmpArray))
