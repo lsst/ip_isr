@@ -400,6 +400,11 @@ class IsrTask(pipeBase.CmdLineTask):
         brighterFatterKernel = dataRef.get("brighterFatterKernel") if self.config.doBrighterFatter else None
         defectList = dataRef.get("defects") if self.config.doDefect else None
 
+        if self.config.doCrosstalk:
+            crosstalkSources = self.crosstalk.prepCrosstalk(dataRef)
+        else:
+            crosstalkSources = None
+        
         if self.config.doFringe and self.fringe.checkFilter(rawExposure):
             fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd
                                                    if self.config.doAssembleIsrExposures else None)
@@ -433,13 +438,15 @@ class IsrTask(pipeBase.CmdLineTask):
                                filterTransmission=filterTransmission,
                                sensorTransmission=sensorTransmission,
                                atmosphereTransmission=atmosphereTransmission,
+                               crosstalkSources=crosstalkSources,
                                )
 
     @pipeBase.timeMethod
     def run(self, ccdExposure, bias=None, linearizer=None, dark=None, flat=None, defects=None,
             fringes=None, bfKernel=None, camera=None,
             opticsTransmission=None, filterTransmission=None,
-            sensorTransmission=None, atmosphereTransmission=None):
+            sensorTransmission=None, atmosphereTransmission=None,
+            crosstalkSources=None):
         """!Perform instrument signature removal on an exposure
 
         Steps include:
@@ -462,6 +469,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in] filterTransmission  a TransmissionCurve for the filter
         @param[in] sensorTransmission  a TransmissionCurve for the sensor
         @param[in] atmosphereTransmission  a TransmissionCurve for the atmosphere
+        @param[in] crosstalkSources  a defaultdict used for DECam inter-CCD crosstalk
 
         @return a pipeBase.Struct with field:
          - exposure
@@ -506,7 +514,7 @@ class IsrTask(pipeBase.CmdLineTask):
                 self.overscanCorrection(ccdExposure, amp)
 
         if self.config.doCrosstalk:
-            self.crosstalk.run(ccdExposure)
+            self.crosstalk.run(ccdExposure, crosstalkSources)
 
         if self.config.doAssembleCcd:
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
@@ -589,16 +597,21 @@ class IsrTask(pipeBase.CmdLineTask):
 
     @pipeBase.timeMethod
     def runDataRef(self, sensorRef):
-        """!Perform instrument signature removal on a ButlerDataRef of a Sensor
+        """Perform instrument signature removal on a ButlerDataRef of a Sensor
 
         - Read in necessary detrending/isr/calibration data
         - Process raw exposure in run()
         - Persist the ISR-corrected exposure as "postISRCCD" if config.doWrite is True
 
-        @param[in] sensorRef    daf.persistence.butlerSubset.ButlerDataRef of the
-                                detector data to be processed
-        @return a pipeBase.Struct with fields:
-        - exposure: the exposure after application of ISR
+        Parameters
+        ----------
+        sensorRef : `daf.persistence.butlerSubset.ButlerDataRef`
+            DataRef of the detector data to be processed
+
+        Returns
+        -------
+        result : `pipeBase.Struct`
+            Struct contains field "exposure," which is the exposure after application of ISR
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')

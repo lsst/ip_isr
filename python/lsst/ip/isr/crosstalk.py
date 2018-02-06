@@ -24,18 +24,13 @@ Apply intra-CCD crosstalk corrections
 """
 from __future__ import absolute_import, division, print_function
 
-__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk"]
-
-from builtins import zip
-
-import numpy as np
-
 import lsst.afw.math
 import lsst.afw.table
 import lsst.afw.detection
-
-from lsst.pex.config import Config, Field, ListField
+from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
+
+__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk"]
 
 
 class CrosstalkConfig(Config):
@@ -49,13 +44,26 @@ class CrosstalkTask(Task):
     """Apply intra-CCD crosstalk correction"""
     ConfigClass = CrosstalkConfig
 
-    def run(self, exposure):
+    def prepCrosstalk(self, dataRef):
+        """Placeholder for crosstalk preparation method, e.g., for inter-CCD crosstalk.
+
+        See also
+        --------
+        lsst.obs.decam.crosstalk.DecamCrosstalkTask.prepCrosstalk
+        """
+        return
+
+    def run(self, exposure, crosstalkSources=None):
         """Apply intra-CCD crosstalk correction
 
         Parameters
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure for which to remove crosstalk.
+        crosstalkSources : `defaultdict`, optional
+            Image data and crosstalk coefficients from other CCDs/amps that are
+            sources of crosstalk in exposure.
+            The default for intra-CCD crosstalk here is None.
         """
         detector = exposure.getDetector()
         if not detector.hasCrosstalk():
