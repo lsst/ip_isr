@@ -40,7 +40,6 @@ import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 from lsst.ip.isr.isrTask import IsrTask
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
-from lsst.afw.geom.polygon import Polygon
 from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE
 
 
@@ -49,7 +48,7 @@ def makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints):
     xx = fpRadius*np.cos(theta) + fpCenterX
     yy = fpRadius*np.sin(theta) + fpCenterY
     points = np.array([xx, yy]).transpose()
-    polygon = Polygon([afwGeom.Point2D(x, y) for x, y in reversed(points)])
+    polygon = afwGeom.Polygon([afwGeom.Point2D(x, y) for x, y in reversed(points)])
     return polygon
 
 
@@ -57,7 +56,7 @@ def makeSquarePolygon(fpX0, fpY0, fpSize):
     xx = [fpX0, fpX0, fpX0 + fpSize - 1, fpX0 + fpSize - 1, fpX0]
     yy = [fpY0, fpY0 + fpSize - 1, fpY0 + fpSize - 1, fpY0, fpY0]
     points = np.array([xx, yy]).transpose()
-    polygon = Polygon([afwGeom.Point2D(x, y) for x, y in points])
+    polygon = afwGeom.Polygon([afwGeom.Point2D(x, y) for x, y in points])
     return polygon
 
 
@@ -93,7 +92,7 @@ class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
         # Set the polygon that is the intersection of fpPolygon and ccd
         task.setValidPolygonIntersect(exposure, fpPolygon)
         # Since the ccd is fully contained in the fpPolygon, the intersection should be the ccdPolygon itself
-        ccdPolygonPix = Polygon(exposure.getDetector().getCorners(PIXELS))
+        ccdPolygonPix = afwGeom.Polygon(exposure.getDetector().getCorners(PIXELS))
         self.assertEqual(exposure.getInfo().getValidPolygon(), ccdPolygonPix)
 
         # Make a polygon that is entirely within, but smaller than, the ccd

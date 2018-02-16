@@ -37,8 +37,9 @@ from lsst.afw.display import getDisplay
 from . import isrFunctions
 from .assembleCcdTask import AssembleCcdTask
 from .fringe import FringeTask
-from lsst.afw.geom.polygon import Polygon
-from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, NullLinearityType
+from lsst.afw.geom import Polygon
+from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
+from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, FIELD_ANGLE, NullLinearityType
 from contextlib import contextmanager
 from .isr import maskNans
 from .crosstalk import CrosstalkTask
@@ -68,6 +69,11 @@ class IsrTaskConfig(pexConfig.Config):
     doDefect = pexConfig.Field(
         dtype=bool,
         doc="Apply correction for CCD defects, e.g. hot pixels?",
+        default=True,
+    )
+    doAddDistortionModel = pexConfig.Field(
+        dtype=bool,
+        doc="Apply a distortion model based on camera geometry to the WCS?",
         default=True,
     )
     doWrite = pexConfig.Field(
@@ -275,31 +281,30 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Load and use transmission_atmosphere (if doAttachTransmissionCurve is True)?"
     )
 
-
-## \addtogroup LSST_task_documentation
-## \{
-## \page IsrTask
-## \ref IsrTask_ "IsrTask"
-## \copybrief IsrTask
-## \}
+## @addtogroup LSST_task_documentation
+## @{
+## @page IsrTask
+## @ref IsrTask_ "IsrTask"
+## @copybrief IsrTask
+## @}
 
 
 class IsrTask(pipeBase.CmdLineTask):
     """!
-    \anchor IsrTask_
+    @anchor IsrTask_
 
-    \brief Apply common instrument signature correction algorithms to a raw frame.
+    @brief Apply common instrument signature correction algorithms to a raw frame.
 
-    \section ip_isr_isr_Contents Contents
+    @section ip_isr_isr_Contents Contents
 
-     - \ref ip_isr_isr_Purpose
-     - \ref ip_isr_isr_Initialize
-     - \ref ip_isr_isr_IO
-     - \ref ip_isr_isr_Config
-     - \ref ip_isr_isr_Debug
+     - @ref ip_isr_isr_Purpose
+     - @ref ip_isr_isr_Initialize
+     - @ref ip_isr_isr_IO
+     - @ref ip_isr_isr_Config
+     - @ref ip_isr_isr_Debug
 
 
-    \section ip_isr_isr_Purpose Description
+    @section ip_isr_isr_Purpose Description
 
     The process for correcting imaging data is very similar from camera to camera.
     This task provides a vanilla implementation of doing these corrections, including
@@ -312,28 +317,28 @@ class IsrTask(pipeBase.CmdLineTask):
     This task may not meet all needs and it is expected that it will be subclassed for
     specific applications.
 
-    \section ip_isr_isr_Initialize Task initialization
+    @section ip_isr_isr_Initialize Task initialization
 
-    \copydoc \_\_init\_\_
+    @copydoc \_\_init\_\_
 
-    \section ip_isr_isr_IO Inputs/Outputs to the run method
+    @section ip_isr_isr_IO Inputs/Outputs to the run method
 
-    \copydoc run
+    @copydoc run
 
-    \section ip_isr_isr_Config Configuration parameters
+    @section ip_isr_isr_Config Configuration parameters
 
-    See \ref IsrTaskConfig
+    See @ref IsrTaskConfig
 
-    \section ip_isr_isr_Debug Debug variables
+    @section ip_isr_isr_Debug Debug variables
 
-    The \link lsst.pipe.base.cmdLineTask.CmdLineTask command line task\endlink interface supports a
-    flag \c --debug, \c -d to import \b debug.py from your \c PYTHONPATH; see <a
+    The @link lsst.pipe.base.cmdLineTask.CmdLineTask command line task@endlink interface supports a
+    flag @c --debug, @c -d to import @b debug.py from your @c PYTHONPATH; see <a
     href="http://lsst-web.ncsa.illinois.edu/~buildbot/doxygen/x_masterDoxyDoc/base_debug.html">
-    Using lsstDebug to control debugging output</a> for more about \b debug.py files.
+    Using lsstDebug to control debugging output</a> for more about @b debug.py files.
 
     The available variables in IsrTask are:
     <DL>
-      <DT> \c display
+      <DT> @c display
       <DD> A dictionary containing debug point names as keys with frame number as value. Valid keys are:
         <DL>
           <DT> postISRCCD
@@ -342,7 +347,7 @@ class IsrTask(pipeBase.CmdLineTask):
     </DL>
 
     For example, put something like
-    \code{.py}
+    @code{.py}
     import lsstDebug
     def DebugInfo(name):
         di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
@@ -350,8 +355,8 @@ class IsrTask(pipeBase.CmdLineTask):
             di.display = {'postISRCCD':2}
         return di
     lsstDebug.Info = DebugInfo
-    \endcode
-    into your debug.py file and run the commandline task with the \c --debug flag.
+    @endcode
+    into your debug.py file and run the commandline task with the @c --debug flag.
 
     <HR>
     """
@@ -377,7 +382,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in] rawExposure    a reference raw exposure that will later be
                                   corrected with the retrieved calibration data;
                                   should not be modified in this method.
-        \return a pipeBase.Struct with fields containing kwargs expected by run()
+        @return a pipeBase.Struct with fields containing kwargs expected by run()
          - bias: exposure of bias frame
          - dark: exposure of dark frame
          - flat: exposure of flat field
@@ -432,7 +437,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
     @pipeBase.timeMethod
     def run(self, ccdExposure, bias=None, linearizer=None, dark=None, flat=None, defects=None,
-            fringes=None, bfKernel=None,
+            fringes=None, bfKernel=None, camera=None,
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None):
         """!Perform instrument signature removal on an exposure
@@ -451,6 +456,8 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in] fringes  a pipeBase.Struct with field fringes containing
                             exposure of fringe frame or list of fringe exposure
         @param[in] bfKernel  kernel for brighter-fatter correction
+        @param[in] camera  camera geometry, an lsst.afw.cameraGeom.Camera;
+                           used by addDistortionModel
         @param[in] opticsTransmission  a TransmissionCurve for the optics
         @param[in] filterTransmission  a TransmissionCurve for the filter
         @param[in] sensorTransmission  a TransmissionCurve for the sensor
@@ -482,6 +489,8 @@ class IsrTask(pipeBase.CmdLineTask):
             raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct")
         if self.config.doDefect and defects is None:
             raise RuntimeError("Must supply defects if config.doDefect True")
+        if self.config.doAddDistortionModel and camera is None:
+            raise RuntimeError("Must supply camera if config.doAddDistortionModel True")
 
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
@@ -561,6 +570,9 @@ class IsrTask(pipeBase.CmdLineTask):
         exposureTime = ccdExposure.getInfo().getVisitInfo().getExposureTime()
         ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1*exposureTime)
 
+        if self.config.doAddDistortionModel:
+            self.addDistortionModel(exposure=ccdExposure, camera=camera)
+
         if self.config.doAttachTransmissionCurve:
             self.attachTransmissionCurve(ccdExposure, opticsTransmission=opticsTransmission,
                                          filterTransmission=filterTransmission,
@@ -590,9 +602,13 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
         ccdExposure = sensorRef.get('raw')
+        camera = sensorRef.get("camera")
+        if camera is None and self.config.doAddDistortionModel:
+            raise RuntimeError("config.doAddDistortionModel is True "
+                               "but could not get a camera from the butler")
         isrData = self.readIsrData(sensorRef, ccdExposure)
 
-        result = self.run(ccdExposure, **isrData.getDict())
+        result = self.run(ccdExposure, camera=camera, **isrData.getDict())
 
         if self.config.doWrite:
             sensorRef.put(result.exposure, "postISRCCD")
@@ -696,7 +712,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in]      datasetType     type of dataset to retrieve (e.g. 'bias', 'flat')
         @param[in]      immediate       if True, disable butler proxies to enable error
                                         handling within this routine
-        \return exposure
+        @return exposure
         """
         try:
             exp = dataRef.get(datasetType, immediate=immediate)
@@ -735,7 +751,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         @param[in,out]  ccdExposure     exposure to process
 
-        \warning:
+        @warning:
         - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
         - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
         """
@@ -777,7 +793,7 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in,out]  ccdExposure     exposure to process
         @param[in] defectBaseList a list of defects to mask and interpolate
 
-        \warning: call this after CCD assembly, since defects may cross amplifier boundaries
+        @warning: call this after CCD assembly, since defects may cross amplifier boundaries
         """
         maskedImage = ccdExposure.getMaskedImage()
         defectList = []
@@ -850,6 +866,39 @@ class IsrTask(pipeBase.CmdLineTask):
             order=self.config.overscanOrder,
             collapseRej=self.config.overscanRej,
         )
+
+    def addDistortionModel(self, exposure, camera):
+        """!Update the WCS in exposure with a distortion model based on camera geometry
+
+        Add a model for optical distortion based on geometry found in `camera`
+        and the `exposure`'s detector. The raw input exposure is assumed
+        have a TAN WCS that has no compensation for optical distortion.
+        Two other possibilities are:
+        - The raw input exposure already has a model for optical distortion,
+            as is the case for raw DECam data.
+            In that case you should set config.doAddDistortionModel False.
+        - The raw input exposure has a model for distortion, but it has known
+            deficiencies severe enough to be worth fixing (e.g. because they
+            cause problems for fitting a better WCS). In that case you should
+            override this method with a version suitable for your raw data.
+
+        @param[in,out] exposure    exposure to process; must include a Detector and a WCS;
+            the WCS of the exposure is modified in place
+        @param[in] camera  camera geometry; an lsst.afw.cameraGeom.Camera
+        """
+        self.log.info("Adding a distortion model to the WCS")
+        wcs = exposure.getWcs()
+        if wcs is None:
+            raise RuntimeError("exposure has no WCS")
+        if camera is None:
+            raise RuntimeError("camera is None")
+        detector = exposure.getDetector()
+        if detector is None:
+            raise RuntimeError("exposure has no Detector")
+        pixelToFocalPlane = detector.getTransform(PIXELS, FOCAL_PLANE)
+        focalPlaneToFieldAngle = camera.getTransformMap().getTransform(FOCAL_PLANE, FIELD_ANGLE)
+        distortedWcs = makeDistortedTanWcs(wcs, pixelToFocalPlane, focalPlaneToFieldAngle)
+        exposure.setWcs(distortedWcs)
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
         """!Set the valid polygon as the intersection of fpPolygon and the ccd corners
@@ -1022,7 +1071,6 @@ class IsrTask(pipeBase.CmdLineTask):
                 for amp in ccd:
                     sim = image.Factory(image, amp.getBBox())
                     sim /= amp.getGain()
-
 
     @contextmanager
     def flatContext(self, exp, flat, dark=None):

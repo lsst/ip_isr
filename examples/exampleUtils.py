@@ -186,8 +186,10 @@ def makeFakeWcs():
     '''!Make a wcs to put in an exposure
     \return a Wcs object
     '''
-    return afwImage.makeWcs(afwCoord.IcrsCoord(45.0*afwGeom.degrees, 45.0*afwGeom.degrees),
-                            afwGeom.Point2D(0.0, 0.0), 1.0, 0.0, 0.0, 1.0)
+    return afwGeom.makeSkyWcs(crpix=afwGeom.Point2D(0.0, 0.0),
+                              crval=afwCoord.IcrsCoord(45.0*afwGeom.degrees, 45.0*afwGeom.degrees),
+                              cdMatrix=afwGeom.makeCdMatrix(scale=1.0*afwGeom.degrees),
+                              )
 
 
 def makeExpFromIm(im, detector):
