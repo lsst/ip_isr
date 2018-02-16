@@ -505,6 +505,9 @@ class IsrTask(pipeBase.CmdLineTask):
                 self.suspectDetection(ccdExposure, amp)
                 self.overscanCorrection(ccdExposure, amp)
 
+        if self.config.doCrosstalk:
+            self.crosstalk.run(ccdExposure)
+
         if self.config.doAssembleCcd:
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
             if self.config.expectWcs and not ccdExposure.getWcs():
@@ -515,9 +518,6 @@ class IsrTask(pipeBase.CmdLineTask):
 
         if self.doLinearize(ccd):
             linearizer(image=ccdExposure.getMaskedImage().getImage(), detector=ccd, log=self.log)
-
-        if self.config.doCrosstalk:
-            self.crosstalk.run(ccdExposure)
 
         for amp in ccd:
             # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
