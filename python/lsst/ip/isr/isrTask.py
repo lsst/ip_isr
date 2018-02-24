@@ -915,7 +915,7 @@ class IsrTask(pipeBase.CmdLineTask):
         intersect = ccdPolygon.intersectionSingle(fpPolygon)
 
         # Transform back to pixel positions and build new polygon
-        ccdPoints = [ccd.transform(ccd.makeCameraPoint(x, FOCAL_PLANE), PIXELS).getPoint() for x in intersect]
+        ccdPoints = ccd.transform(intersect, FOCAL_PLANE, PIXELS)
         validPolygon = Polygon(ccdPoints)
         ccdExposure.getInfo().setValidPolygon(validPolygon)
 

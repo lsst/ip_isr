@@ -78,10 +78,10 @@ class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
         pixX1 = pixX0 + exposure.getWidth() - 1
         pixY1 = pixY0 + exposure.getHeight() - 1
 
-        fpCenter = exposure.getDetector().getCenter(FOCAL_PLANE).getPoint()
+        fpCenter = exposure.getDetector().getCenter(FOCAL_PLANE)
         fpCenterX = fpCenter[0]
         fpCenterY = fpCenter[1]
-        pixCenter = exposure.getDetector().getCenter(PIXELS).getPoint()
+        pixCenter = exposure.getDetector().getCenter(PIXELS)
 
         # Create an instance of IsrTask
         task = IsrTask()
