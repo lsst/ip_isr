@@ -681,7 +681,8 @@ class IsrTask(pipeBase.CmdLineTask):
         if not math.isnan(gain):
             if gain <= 0:
                 patchedGain = 1.0
-                self.log.warn("Gain for amp %s == %g <= 0; setting to %f" % (amp.getName(), gain, patchedGain))
+                self.log.warn("Gain for amp %s == %g <= 0; setting to %f" %
+                              (amp.getName(), gain, patchedGain))
                 gain = patchedGain
 
             isrFunctions.updateVariance(
