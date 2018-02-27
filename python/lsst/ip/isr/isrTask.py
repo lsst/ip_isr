@@ -681,7 +681,8 @@ class IsrTask(pipeBase.CmdLineTask):
         if not math.isnan(gain):
             if gain <= 0:
                 patchedGain = 1.0
-                self.log.warn("Gain for amp %s == %g <= 0; setting to %f" % (amp.getName(), gain, patchedGain))
+                self.log.warn("Gain for amp %s == %g <= 0; setting to %f" %
+                              (amp.getName(), gain, patchedGain))
                 gain = patchedGain
 
             isrFunctions.updateVariance(
@@ -915,7 +916,7 @@ class IsrTask(pipeBase.CmdLineTask):
         intersect = ccdPolygon.intersectionSingle(fpPolygon)
 
         # Transform back to pixel positions and build new polygon
-        ccdPoints = [ccd.transform(ccd.makeCameraPoint(x, FOCAL_PLANE), PIXELS).getPoint() for x in intersect]
+        ccdPoints = ccd.transform(intersect, FOCAL_PLANE, PIXELS)
         validPolygon = Polygon(ccdPoints)
         ccdExposure.getInfo().setValidPolygon(validPolygon)
 
