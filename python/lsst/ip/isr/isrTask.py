@@ -81,6 +81,21 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Persist postISRCCD?",
         default=True,
     )
+    biasDataProductName = pexConfig.Field(
+        dtype=str,
+        doc="Name of the bias data product",
+        default="bias",
+    )
+    darkDataProductName = pexConfig.Field(
+        dtype=str,
+        doc="Name of the dark data product",
+        default="dark",
+    )
+    flatDataProductName = pexConfig.Field(
+        dtype=str,
+        doc="Name of the flat data product",
+        default="flat",
+    )
     assembleCcd = pexConfig.ConfigurableField(
         target=AssembleCcdTask,
         doc="CCD assembly task",
@@ -392,11 +407,14 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         ccd = rawExposure.getDetector()
 
-        biasExposure = self.getIsrExposure(dataRef, "bias") if self.config.doBias else None
+        biasExposure = self.getIsrExposure(dataRef, self.config.biasDataProductName) \
+            if self.config.doBias else None
         # immediate=True required for functors and linearizers are functors; see ticket DM-6515
         linearizer = dataRef.get("linearizer", immediate=True) if self.doLinearize(ccd) else None
-        darkExposure = self.getIsrExposure(dataRef, "dark") if self.config.doDark else None
-        flatExposure = self.getIsrExposure(dataRef, "flat") if self.config.doFlat else None
+        darkExposure = self.getIsrExposure(dataRef, self.config.darkDataProductName) \
+            if self.config.doDark else None
+        flatExposure = self.getIsrExposure(dataRef, self.config.flatDataProductName) \
+            if self.config.doFlat else None
         brighterFatterKernel = dataRef.get("brighterFatterKernel") if self.config.doBrighterFatter else None
         defectList = dataRef.get("defects") if self.config.doDefect else None
 
