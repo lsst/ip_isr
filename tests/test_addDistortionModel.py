@@ -24,7 +24,6 @@ import unittest
 
 import lsst.utils.tests
 import lsst.afw.geom as afwGeom
-from lsst.afw.coord import IcrsCoord
 from lsst.afw.image import ExposureF, ExposureInfo, Calib, VisitInfo
 from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
 from lsst.afw.cameraGeom import FIELD_ANGLE, FOCAL_PLANE, PIXELS
@@ -41,7 +40,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         self.camera = CameraWrapper().camera
         self.detector = DetectorWrapper().detector
         self.crpix = afwGeom.Point2D(50, 100)
-        self.crval = IcrsCoord(36 * afwGeom.degrees, 71 * afwGeom.degrees)
+        self.crval = afwGeom.SpherePoint(36, 71, afwGeom.degrees)
         scale = 1.0*afwGeom.arcseconds
         self.cdMatrix = afwGeom.makeCdMatrix(scale=scale)
         self.wcs = afwGeom.makeSkyWcs(crpix=self.crpix, crval=self.crval, cdMatrix=self.cdMatrix)

@@ -6,7 +6,6 @@ from lsst.afw.cameraGeom import DetectorConfig, PIXELS
 from lsst.afw.cameraGeom.cameraFactory import makeDetector
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.geom as afwGeom
-import lsst.afw.coord as afwCoord
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 
@@ -187,7 +186,7 @@ def makeFakeWcs():
     \return a Wcs object
     '''
     return afwGeom.makeSkyWcs(crpix=afwGeom.Point2D(0.0, 0.0),
-                              crval=afwCoord.IcrsCoord(45.0*afwGeom.degrees, 45.0*afwGeom.degrees),
+                              crval=afwGeom.SpherePoint(45.0, 45.0, afwGeom.degrees),
                               cdMatrix=afwGeom.makeCdMatrix(scale=1.0*afwGeom.degrees),
                               )
 
