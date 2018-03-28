@@ -9,4 +9,4 @@ lsst.ip.isr
 Python API reference
 ====================
 
-.. automodapi:: lsst.ip.isr
+#.. automodapi:: lsst.ip.isr
