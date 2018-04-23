@@ -891,7 +891,7 @@ class IsrTask(pipeBase.CmdLineTask):
         expImage = exposure.getMaskedImage().getImage()
         overscanImage = expImage.Factory(expImage, amp.getRawHorizontalOverscanBBox())
 
-        isrFunctions.overscanCorrection(
+        return isrFunctions.overscanCorrection(
             ampMaskedImage=dataView,
             overscanImage=overscanImage,
             fitType=self.config.overscanFitType,

@@ -34,6 +34,8 @@ import lsst.meas.algorithms as measAlg
 import lsst.pex.exceptions as pexExcept
 import lsst.afw.cameraGeom as camGeom
 
+from lsst.pipe.base import Struct
+
 
 def createPsf(fwhm):
     """Make a double Gaussian PSF
@@ -292,31 +294,57 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
 
 def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0,
                        statControl=None):
-    """Apply overscan correction in place
+    """Apply overscan correction in-place
 
-    @param[in,out] ampMaskedImage  masked image to correct
-    @param[in] overscanImage  overscan data as an afw.image.Image or afw.image.MaskedImage.
-                              If a masked image is passed in the mask plane will be used
-                              to constrain the fit of the bias level.
-    @param[in] fitType  type of fit for overscan correction; one of:
-                        - 'MEAN'
-                        - 'MEDIAN'
-                        - 'POLY' (ordinary polynomial)
-                        - 'CHEB' (Chebyshev polynomial)
-                        - 'LEG' (Legendre polynomial)
-                        - 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE' (splines)
-    @param[in] order  polynomial order or spline knots (ignored unless fitType
-                      indicates a polynomial or spline)
-    @param[in] collapseRej  Rejection threshold (sigma) for collapsing dimension of overscan
-    @param[in] statControl  Statistics control object
+    The ``ampMaskedImage`` and ``overscanImage`` are modified, with the fit
+    subtracted. Note that the ``overscanImage`` should not be a subimage of
+    the ``ampMaskedImage``, to avoid being subtracted twice.
+
+    Parameters
+    ----------
+    ampMaskedImage : `lsst.afw.image.MaskedImage`
+        Image of amplifier to correct; modified.
+    overscanImage : `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage`
+        Image of overscan; modified.
+    fitType : `str`
+        Type of fit for overscan correction. May be one of:
+
+        - ``MEAN``: use mean of overscan.
+        - ``MEDIAN``: use median of overscan.
+        - ``POLY``: fit with ordinary polynomial.
+        - ``CHEB``: fit with Chebyshev polynomial.
+        - ``LEG``: fit with Legendre polynomial.
+        - ``NATURAL_SPLINE``: fit with natural spline.
+        - ``CUBIC_SPLINE``: fit with cubic spline.
+        - ``AKIMA_SPLINE``: fit with Akima spline.
+
+    order : `int`
+        Polynomial order or number of spline knots; ignored unless
+        ``fitType`` indicates a polynomial or spline.
+    collapseRej : `float`
+        Rejection threshold (sigma) for collapsing dimension of overscan.
+    statControl : `lsst.afw.math.StatisticsControl`
+        Statistics control object.
+
+    Returns
+    -------
+    result : `lsst.pipe.base.Struct`
+        Result struct with components:
+
+        - ``imageFit``: Value(s) removed from image (scalar or
+            `lsst.afw.image.Image`)
+        - ``overscanFit``: Value(s) removed from overscan (scalar or
+            `lsst.afw.image.Image`)
     """
     ampImage = ampMaskedImage.getImage()
     if statControl is None:
         statControl = afwMath.StatisticsControl()
     if fitType == 'MEAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN, statControl).getValue(afwMath.MEAN)
+        overscanFit = offImage
     elif fitType == 'MEDIAN':
         offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN, statControl).getValue(afwMath.MEDIAN)
+        overscanFit = offImage
     elif fitType in ('POLY', 'CHEB', 'LEG', 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
         if hasattr(overscanImage, "getImage"):
             biasArray = overscanImage.getImage().getArray()
@@ -412,10 +440,14 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
 
         offImage = ampImage.Factory(ampImage.getDimensions())
         offArray = offImage.getArray()
+        overscanFit = overscanImage.Factory(overscanImage.getDimensions())
+        overscanArray = overscanFit.getArray()
         if shortInd == 1:
             offArray[:, :] = fitBiasArr[:, numpy.newaxis]
+            overscanArray[:, :] = fitBiasArr[:, numpy.newaxis]
         else:
             offArray[:, :] = fitBiasArr[numpy.newaxis, :]
+            overscanArray[:, :] = fitBiasArr[numpy.newaxis, :]
 
         # We don't trust any extrapolation: mask those pixels as SUSPECT
         # This will occur when the top and or bottom edges of the overscan
@@ -446,6 +478,8 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         raise pexExcept.Exception('%s : %s an invalid overscan type' % \
             ("overscanCorrection", fitType))
     ampImage -= offImage
+    overscanImage -= overscanFit
+    return Struct(imageFit=offImage, overscanFit=overscanFit)
 
 
 def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmission=None,
