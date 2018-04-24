@@ -295,6 +295,11 @@ class IsrTaskConfig(pexConfig.Config):
         default=True,
         doc="Load and use transmission_atmosphere (if doAttachTransmissionCurve is True)?"
     )
+    doEmpiricalReadNoise = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Calculate empirical read noise instead of value from AmpInfo data?"
+    )
 
 ## @addtogroup LSST_task_documentation
 ## @{
@@ -524,12 +529,16 @@ class IsrTask(pipeBase.CmdLineTask):
             assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd"
             ccd = [FakeAmp(ccdExposure, self.config)]
 
+        overscans = []
         for amp in ccd:
             # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.saturationDetection(ccdExposure, amp)
                 self.suspectDetection(ccdExposure, amp)
-                self.overscanCorrection(ccdExposure, amp)
+                overscanResults = self.overscanCorrection(ccdExposure, amp)
+                overscans.append(overscanResults.overscanImage if overscanResults is not None else None)
+            else:
+                overscans.append(None)
 
         if self.config.doCrosstalk:
             self.crosstalk.run(ccdExposure, crosstalkSources)
@@ -545,11 +554,12 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.doLinearize(ccd):
             linearizer(image=ccdExposure.getMaskedImage().getImage(), detector=ccd, log=self.log)
 
-        for amp in ccd:
+        assert len(ccd) == len(overscans)
+        for amp, overscanImage in zip(ccd, overscans):
             # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-                self.updateVariance(ampExposure, amp)
+                self.updateVariance(ampExposure, amp, overscanImage)
 
         interpolationDone = False
 
@@ -702,12 +712,23 @@ class IsrTask(pipeBase.CmdLineTask):
         return self.config.doLinearize and \
             detector.getAmpInfoCatalog()[0].getLinearityType() != NullLinearityType
 
-    def updateVariance(self, ampExposure, amp):
-        """!Set the variance plane based on the image plane, plus amplifier gain and read noise
+    def updateVariance(self, ampExposure, amp, overscanImage=None):
+        """Set the variance plane using the amplifier gain and read noise
 
-        @param[in,out]  ampExposure     exposure to process
-        @param[in]      amp             amplifier detector information
+        The read noise is calculated from the ``overscanImage`` if the
+        ``doEmpiricalReadNoise`` option is set in the configuration; otherwise
+        the value from the amplifier data is used.
+
+        Parameters
+        ----------
+        ampExposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        amp : `lsst.afw.table.AmpInfoRecord` or `FakeAmp`
+            Amplifier detector data.
+        overscanImage : `lsst.afw.image.MaskedImage`, optional.
+            Image of overscan, required only for empirical read noise.
         """
+        maskPlanes = [self.config.saturatedMaskName, self.config.suspectMaskName]
         gain = amp.getGain()
         if not math.isnan(gain):
             if gain <= 0:
@@ -716,10 +737,18 @@ class IsrTask(pipeBase.CmdLineTask):
                               (amp.getName(), gain, patchedGain))
                 gain = patchedGain
 
+            if self.config.doEmpiricalReadNoise and overscanImage is not None:
+                stats = afwMath.StatisticsControl()
+                stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
+                readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
+                self.log.info("Calculated empirical read noise for amp %s: %f", amp.getName(), readNoise)
+            else:
+                readNoise = amp.getReadNoise()
+
             isrFunctions.updateVariance(
                 maskedImage=ampExposure.getMaskedImage(),
                 gain=gain,
-                readNoise=amp.getReadNoise(),
+                readNoise=readNoise,
             )
 
     def flatCorrection(self, exposure, flatExposure, invert=False):
@@ -873,10 +902,27 @@ class IsrTask(pipeBase.CmdLineTask):
             )
 
     def overscanCorrection(self, exposure, amp):
-        """!Apply overscan correction, in place
+        """Apply overscan correction, in-place
 
-        @param[in,out]  exposure    exposure to process; must include both DataSec and BiasSec pixels
-        @param[in]      amp         amplifier device data
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process; must include both data and bias regions.
+        amp : `lsst.afw.table.AmpInfoRecord`
+            Amplifier device data.
+
+        Results
+        -------
+        result : `lsst.pipe.base.Struct` or `NoneType`
+            `None` if there is no overscan; otherwise, this is a
+            result struct with components:
+
+            - ``imageFit``: Value(s) removed from image (scalar or
+                `lsst.afw.image.Image`).
+            - ``overscanFit``: Value(s) removed from overscan (scalar or
+                `lsst.afw.image.Image`).
+            - ``overscanImage``: Image of the overscan, post-subtraction
+                (`lsst.afw.image.Image`).
         """
         if not amp.getHasRawInfo():
             raise RuntimeError("This method must be executed on an amp with raw information.")
@@ -887,17 +933,17 @@ class IsrTask(pipeBase.CmdLineTask):
 
         maskedImage = exposure.getMaskedImage()
         dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox())
+        overscanImage = maskedImage.Factory(maskedImage, amp.getRawHorizontalOverscanBBox())
 
-        expImage = exposure.getMaskedImage().getImage()
-        overscanImage = expImage.Factory(expImage, amp.getRawHorizontalOverscanBBox())
-
-        return isrFunctions.overscanCorrection(
+        results = isrFunctions.overscanCorrection(
             ampMaskedImage=dataView,
             overscanImage=overscanImage,
             fitType=self.config.overscanFitType,
             order=self.config.overscanOrder,
             collapseRej=self.config.overscanRej,
         )
+        results.overscanImage = overscanImage
+        return results
 
     def addDistortionModel(self, exposure, camera):
         """!Update the WCS in exposure with a distortion model based on camera geometry

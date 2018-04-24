@@ -440,7 +440,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
 
         offImage = ampImage.Factory(ampImage.getDimensions())
         offArray = offImage.getArray()
-        overscanFit = overscanImage.Factory(overscanImage.getDimensions())
+        overscanFit = afwImage.ImageF(overscanImage.getDimensions())
         overscanArray = overscanFit.getArray()
         if shortInd == 1:
             offArray[:, :] = fitBiasArr[:, numpy.newaxis]
