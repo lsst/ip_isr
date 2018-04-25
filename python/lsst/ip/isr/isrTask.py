@@ -424,7 +424,7 @@ class IsrTask(pipeBase.CmdLineTask):
             crosstalkSources = self.crosstalk.prepCrosstalk(dataRef)
         else:
             crosstalkSources = None
-        
+
         if self.config.doFringe and self.fringe.checkFilter(rawExposure):
             fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd
                                                    if self.config.doAssembleIsrExposures else None)

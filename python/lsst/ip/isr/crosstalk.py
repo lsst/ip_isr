@@ -69,7 +69,6 @@ class CrosstalkTask(Task):
             self.log.warn("Crosstalk correction skipped: no crosstalk coefficients for detector")
             return
         self.log.info("Applying crosstalk correction")
-        numAmps = len(exposure.getDetector())
         subtractCrosstalk(exposure, minPixelToMask=self.config.minPixelToMask,
                           crosstalkStr=self.config.crosstalkMaskPlane)
 
@@ -77,9 +76,9 @@ class CrosstalkTask(Task):
 # Flips required to get the corner to the lower-left
 # (an arbitrary choice; flips are relative, so the choice of reference here is not important)
 X_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: True,
-              lsst.afw.table.UL: False, lsst.afw.table.UR: True}
+          lsst.afw.table.UL: False, lsst.afw.table.UR: True}
 Y_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: False,
-              lsst.afw.table.UL: True, lsst.afw.table.UR: True}
+          lsst.afw.table.UL: True, lsst.afw.table.UR: True}
 
 
 def extractAmp(image, amp, corner):

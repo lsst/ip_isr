@@ -36,6 +36,8 @@ def getFrame():
     """Produce a new frame number each time"""
     getFrame.frame += 1
     return getFrame.frame
+
+
 getFrame.frame = 0
 
 
@@ -92,7 +94,7 @@ class FringeTask(Task):
             fringe = assembler.assembleCcd(fringe)
 
         seed = self.config.stats.rngSeedOffset + dataRef.get("ccdExposureId", immediate=True)
-        #Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
+        # Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
         seed %= 2**32
 
         return Struct(fringes=fringe,
@@ -282,8 +284,8 @@ class FringeTask(Task):
                     fig = plot.figure(j)
                     fig.clf()
                     try:
-                        fig.canvas._tkcanvas._root().lift() # == Tk's raise
-                    except:
+                        fig.canvas._tkcanvas._root().lift()  # == Tk's raise
+                    except Exception:
                         pass
                     ax = fig.add_subplot(1, 1, 1)
                     adjust = science.copy()
