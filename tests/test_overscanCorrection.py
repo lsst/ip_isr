@@ -44,6 +44,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
+
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 10),
                              afwGeom.Point2I(9, 12))
@@ -55,7 +58,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="MEDIAN")
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), fitType="MEDIAN")
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -72,6 +75,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
+
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(10, 0),
                              afwGeom.Point2I(12, 9))
@@ -83,7 +89,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), fitType="MEDIAN")
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), fitType="MEDIAN")
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -100,6 +106,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
+
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(10, 0),
                              afwGeom.Point2I(12, 9))
@@ -109,7 +118,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.getImage().set(j, i, 2+i+off)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), **kwargs)
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -130,6 +139,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
+
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 10),
                              afwGeom.Point2I(9, 12))
@@ -139,7 +151,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.getImage().set(i, j, 2+i+off)
 
-        ipIsr.overscanCorrection(maskedImage, overscan.getImage(), **kwargs)
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
