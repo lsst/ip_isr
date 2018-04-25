@@ -22,7 +22,6 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 
-#include "numpy/arrayobject.h"
 #include "ndarray/pybind11.h"
 
 #include "lsst/ip/isr/applyLookupTable.h"
@@ -45,12 +44,6 @@ static void declareApplyLookupTable(py::module& mod) {
 
 PYBIND11_PLUGIN(applyLookupTable) {
     py::module mod("applyLookupTable");
-
-    // Need to import numpy for ndarray and eigen conversions
-    if (_import_array() < 0) {
-        PyErr_SetString(PyExc_ImportError, "numpy.core.multiarray failed to import");
-        return nullptr;
-    }
 
     declareApplyLookupTable<float>(mod);
     declareApplyLookupTable<double>(mod);
