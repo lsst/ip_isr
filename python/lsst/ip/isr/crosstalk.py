@@ -22,7 +22,6 @@
 """
 Apply intra-CCD crosstalk corrections
 """
-from __future__ import absolute_import, division, print_function
 
 import lsst.afw.math
 import lsst.afw.table

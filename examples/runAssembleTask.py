@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function
 from lsst.ip.isr import AssembleCcdTask
 import lsst.afw.display.ds9 as ds9
 import exampleUtils
