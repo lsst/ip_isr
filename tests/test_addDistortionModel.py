@@ -19,7 +19,6 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-from __future__ import absolute_import, division, print_function
 import unittest
 
 import lsst.utils.tests
@@ -49,10 +48,10 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
 
         # set the few items of ExposureInfo needed by IsrTask.run
         # when only adding a distortion model
-        exposureInfo = ExposureInfo(calib = Calib(1.0),
-                                    detector = self.detector,
-                                    visitInfo = VisitInfo(exposureTime=1.0),
-                                    wcs = self.wcs)
+        exposureInfo = ExposureInfo(calib=Calib(1.0),
+                                    detector=self.detector,
+                                    visitInfo=VisitInfo(exposureTime=1.0),
+                                    wcs=self.wcs)
 
         self.exposure.setInfo(exposureInfo)
 

@@ -22,12 +22,10 @@
 """
 Measure intra-CCD crosstalk coefficients.
 """
-from __future__ import absolute_import, division, print_function
 
 __all__ = ["extractCrosstalkRatios", "measureCrosstalkCoefficients",
            "MeasureCrosstalkConfig", "MeasureCrosstalkTask"]
 
-from builtins import range
 
 import itertools
 import numpy as np

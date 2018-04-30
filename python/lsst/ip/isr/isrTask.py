@@ -1,6 +1,3 @@
-from __future__ import absolute_import, division, print_function
-from builtins import range
-from builtins import object
 #
 # LSST Data Management System
 # Copyright 2008-2016 AURA/LSST.
@@ -427,7 +424,7 @@ class IsrTask(pipeBase.CmdLineTask):
             crosstalkSources = self.crosstalk.prepCrosstalk(dataRef)
         else:
             crosstalkSources = None
-        
+
         if self.config.doFringe and self.fringe.checkFilter(rawExposure):
             fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd
                                                    if self.config.doAssembleIsrExposures else None)

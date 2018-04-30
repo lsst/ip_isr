@@ -25,11 +25,10 @@ import unittest
 import lsst.utils.tests
 
 from lsst.daf.base import PropertyList
-from lsst.afw.cameraGeom import Detector, SCIENCE, Orientation, TransformMap, CameraSys
+from lsst.afw.cameraGeom import Detector, SCIENCE, Orientation
 from lsst.afw.table import AmpInfoCatalog, AmpInfoTable
 from lsst.afw.geom import Point2I, Extent2I, Box2I, Extent2D
 from lsst.afw.image import ExposureF, VisitInfo
-from lsst.pipe.base import Struct
 
 from lsst.ip.isr.isrTask import IsrTask
 
@@ -47,6 +46,7 @@ def makeAmplifier(catalog, name, bbox, rawImageBox, overscanBox, gain, readNoise
     amp.setSuspectLevel(np.nan)
     return amp
 
+
 class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
     def setUp(self):
         """Constructs a CCD with two amplifiers and prepares for ISR"""
@@ -59,7 +59,7 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         imageSize = Extent2I(123, height)
         overscanSize = Extent2I(16, height)
         self.sigma = 1.234
-        
+
         # Set up the various regions
         overscan1 = Box2I(Point2I(0, 0), overscanSize)
         image1 = Box2I(Point2I(overscanSize[0], 0), imageSize)

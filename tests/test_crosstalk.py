@@ -19,8 +19,6 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
-from __future__ import absolute_import, division, print_function
-from builtins import range
 
 import unittest
 import itertools
@@ -52,10 +50,10 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.numAmps = 4
         numPixelsPerAmp = 1000
         # crosstalk[i][j] is the fraction of the j-th amp present on the i-th amp.
-        self.crosstalk = [[0.0,  1e-4, 2e-4, 3e-4],
-                          [3e-4, 0.0,  2e-4, 1e-4],
-                          [4e-4, 5e-4, 0.0,  6e-4],
-                          [7e-4, 8e-4, 9e-4, 0.0 ]]
+        self.crosstalk = [[0.0, 1e-4, 2e-4, 3e-4],
+                          [3e-4, 0.0, 2e-4, 1e-4],
+                          [4e-4, 5e-4, 0.0, 6e-4],
+                          [7e-4, 8e-4, 9e-4, 0.0]]
         self.value = 12345
         self.crosstalkStr = "XTLK"
 
@@ -175,10 +173,13 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
 
         Checks both MeasureCrosstalkTask and the CrosstalkTask.
         """
+        # make exposure available to NullIsrTask
+        # without NullIsrTask's `self` hiding this test class's `self`
+        exposure = self.exposure
 
         class NullIsrTask(IsrTask):
-            def runDataRef(_self, dataRef):
-                return Struct(exposure=self.exposure)
+            def runDataRef(self, dataRef):
+                return Struct(exposure=exposure)
 
         config = MeasureCrosstalkTask.ConfigClass()
         config.isr.retarget(NullIsrTask)

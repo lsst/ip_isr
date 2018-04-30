@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-from builtins import object
 #
 # LSST Data Management System
 # Copyright 2016 AURA/LSST.
@@ -22,8 +20,6 @@ from builtins import object
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import abc
-from builtins import zip
-from future.utils import with_metaclass
 
 import numpy as np
 
@@ -33,7 +29,7 @@ from .applyLookupTable import applyLookupTable
 __all__ = ["LinearizeBase", "LinearizeLookupTable", "LinearizeSquared"]
 
 
-class LinearizeBase(with_metaclass(abc.ABCMeta, object)):
+class LinearizeBase(metaclass=abc.ABCMeta):
     """Abstract base class functor for correcting non-linearity
 
     Subclasses must define __call__ and set class variable LinearityType to a string

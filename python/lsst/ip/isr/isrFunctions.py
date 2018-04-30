@@ -1,6 +1,3 @@
-from __future__ import division, print_function, absolute_import
-from builtins import input
-from builtins import range
 #
 # LSST Data Management System
 # Copyright 2008, 2009, 2010 LSST Corporation.
@@ -45,6 +42,7 @@ def createPsf(fwhm):
     """
     ksize = 4*int(fwhm) + 1
     return measAlg.DoubleGaussianPsf(ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
+
 
 def transposeMaskedImage(maskedImage):
     """Make a transposed copy of a masked image
@@ -361,7 +359,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         # Do a single round of clipping to weed out CR hits and signal leaking into the overscan
         percentiles = numpy.percentile(biasArray, [25.0, 50.0, 75.0], axis=1)
         medianBiasArr = percentiles[1]
-        stdevBiasArr = 0.74*(percentiles[2] - percentiles[0]) # robust stdev
+        stdevBiasArr = 0.74*(percentiles[2] - percentiles[0])  # robust stdev
         diff = numpy.abs(biasArray - medianBiasArr[:, numpy.newaxis])
         biasMaskedArr = numpy.ma.masked_where(diff > collapseRej*stdevBiasArr[:, numpy.newaxis], biasArray)
         collapsed = numpy.mean(biasMaskedArr, axis=1)
@@ -475,8 +473,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                 maskArray[-high:, :] |= suspect
 
     else:
-        raise pexExcept.Exception('%s : %s an invalid overscan type' % \
-            ("overscanCorrection", fitType))
+        raise pexExcept.Exception('%s : %s an invalid overscan type' % ("overscanCorrection", fitType))
     ampImage -= offImage
     overscanImage -= overscanFit
     return Struct(imageFit=offImage, overscanFit=overscanFit)
