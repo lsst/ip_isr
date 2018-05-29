@@ -34,7 +34,7 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
     def setUp(self):
         self.filename = "bf_kernel.pkl"
         kernel = afwImage.ImageF(17, 17)
-        kernel.set(9, 9, 1)
+        kernel[9, 9, afwImage.LOCAL] = 1
         kernelPickleString = kernel.getArray().dumps()
         # kernel.getArray().dump(self.filename) triggers an "unclosed file" warning with numpy 1.13.1
         with open(self.filename, 'wb') as f:
