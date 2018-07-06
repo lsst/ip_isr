@@ -59,7 +59,7 @@ class IsrTestCases(unittest.TestCase):
         width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertEqual(maskedImage.getImage().get(i, j), 9)
+                self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 9)
 
     def doDark(self, scaling):
         maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
@@ -77,7 +77,7 @@ class IsrTestCases(unittest.TestCase):
         width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(maskedImage.getImage().get(i, j), 10 - 1./scaling, 5)
+                self.assertAlmostEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 1./scaling, 5)
 
     def testDark1(self):
         self.doDark(scaling=10)
@@ -124,9 +124,9 @@ class IsrTestCases(unittest.TestCase):
         dark.getInfo().setVisitInfo(afwImage.VisitInfo(darkTime=1.0))
         task.darkCorrection(exp, dark)
 
-        self.assertEqual(exp.getMaskedImage().getImage().get(0, 0), 0.0)
-        self.assertEqual(exp.getMaskedImage().getMask().get(0, 0), 0)
-        self.assertEqual(exp.getMaskedImage().getVariance().get(0, 0), 1.0)
+        self.assertEqual(exp.image[0, 0, afwImage.LOCAL], 0.0)
+        self.assertEqual(exp.mask[0, 0, afwImage.LOCAL], 0)
+        self.assertEqual(exp.variance[0, 0, afwImage.LOCAL], 1.0)
         self.assertEqual(exp.getInfo().getVisitInfo().getDarkTime(), darkTime)  # Hasn't been modified
 
 

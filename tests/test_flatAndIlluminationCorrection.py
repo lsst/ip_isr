@@ -58,7 +58,7 @@ class IsrTestCases(unittest.TestCase):
         width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(maskedImage.getImage().get(i, j), 10 / (1./scaling), 5)
+                self.assertAlmostEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 / (1./scaling), 5)
 
     def testFlat1(self):
         self.doFlat(scaling=10)
@@ -85,7 +85,7 @@ class IsrTestCases(unittest.TestCase):
         width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                self.assertAlmostEqual(maskedImage.getImage().get(i, j), 10 / (1./scaling), 5)
+                self.assertAlmostEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 / (1./scaling), 5)
 
     def testIllum1(self):
         self.doIllum(scaling=10)
@@ -119,7 +119,7 @@ class IsrTestCases(unittest.TestCase):
             if gain <= 0:
                 gain = 1
 
-        self.assertEqual(raw.variance.get(0, 0), level/gain + readNoise**2)
+        self.assertEqual(raw.variance[0, 0, afwImage.LOCAL], level/gain + readNoise**2)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

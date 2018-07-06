@@ -63,9 +63,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         for j in range(height):
             for i in range(width):
                 if j >= 10:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 0)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
                 else:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 8)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
     def testOverscanCorrectionX(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
@@ -94,9 +94,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         for j in range(height):
             for i in range(width):
                 if i >= 10:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 0)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
                 else:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 8)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
     def checkPolyOverscanCorrectionX(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
@@ -114,7 +114,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[1]):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
-                overscan.getImage().set(j, i, 2+i+off)
+                overscan.image[j, i, afwImage.LOCAL] = 2+i+off
 
         ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
@@ -123,13 +123,13 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         for j in range(height):
             for i in range(width):
                 if i == 10:
-                    self.assertEqual(maskedImage.getImage().get(i, j), -0.5)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], -0.5)
                 elif i == 11:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 0)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
                 elif i == 12:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 0.5)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.5)
                 else:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 10 - 2 - j)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - j)
 
     def checkPolyOverscanCorrectionY(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
@@ -147,7 +147,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[0]):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
-                overscan.getImage().set(i, j, 2+i+off)
+                overscan.image[i, j, afwImage.LOCAL] = 2+i+off
 
         ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
@@ -156,13 +156,13 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         for j in range(height):
             for i in range(width):
                 if j == 10:
-                    self.assertEqual(maskedImage.getImage().get(i, j), -0.5)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], -0.5)
                 elif j == 11:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 0)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
                 elif j == 12:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 0.5)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.5)
                 else:
-                    self.assertEqual(maskedImage.getImage().get(i, j), 10 - 2 - i)
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - i)
 
     def testPolyOverscanCorrection(self):
         for fitType in ("POLY", "CHEB", "LEG"):

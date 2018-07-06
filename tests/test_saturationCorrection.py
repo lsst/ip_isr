@@ -67,23 +67,23 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 if i >= 8 and i <= 10:
                     if (i, j) in [(8, 4), (8, 16), (10, 4), (10, 16)]:
                         # Should not be saturated or interpolated at all
-                        self.assertEqual(mask.get(i, j) & bitmaskInterp, 0)
-                        self.assertEqual(mask.get(i, j) & bitmaskSat, 0)
+                        self.assertEqual(mask[i, j, afwImage.LOCAL] & bitmaskInterp, 0)
+                        self.assertEqual(mask[i, j, afwImage.LOCAL] & bitmaskSat, 0)
                     elif (j > 4 and j < 16) and (i == 8 or i == 10):
                         # Not saturated but interpolated over
-                        self.assertEqual(mask.get(i, j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask[i, j, afwImage.LOCAL] & bitmaskInterp, bitmaskInterp)
                     elif (j == 4 or j == 16):
                         # Interpolated over; bottom/top
-                        self.assertEqual(mask.get(i, j) & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask[i, j, afwImage.LOCAL] & bitmaskInterp, bitmaskInterp)
                     elif (j > 4 and j < 16 and i == 9):
                         # Both saturated and interpolated over; guts of it
-                        self.assertEqual(mask.get(i, j) & bitmaskInterp, bitmaskInterp)
-                        self.assertEqual(mask.get(i, j) & bitmaskSat, bitmaskSat)
+                        self.assertEqual(mask[i, j, afwImage.LOCAL] & bitmaskInterp, bitmaskInterp)
+                        self.assertEqual(mask[i, j, afwImage.LOCAL] & bitmaskSat, bitmaskSat)
                     else:
                         # Neither; above or below the mask
-                        self.assertEqual(mask.get(i, j), 0)
+                        self.assertEqual(mask[i, j, afwImage.LOCAL], 0)
                 else:
-                    self.assertEqual(mask.get(i, j), 0)
+                    self.assertEqual(mask[i, j, afwImage.LOCAL], 0)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

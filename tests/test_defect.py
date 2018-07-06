@@ -100,19 +100,19 @@ class DefectTestCases(lsst.utils.tests.TestCase):
 
         # Mask a single pixel.
         mask = mim.getMask()
-        mask.set(5, 5, mask.getPlaneBitMask("BAD"))
+        mask[5, 5, afwImage.LOCAL] = mask.getPlaneBitMask("BAD")
         defectList = ipIsr.getDefectListFromMask(mim, "BAD")
         self.assertEqual(len(defectList), 1)
         self.assertEqual(defectList[0].getX0(), 5)
         self.assertEqual(defectList[0].getY0(), 5)
 
         # Setting a different plane does not register as a defect.
-        mask.set(1, 1, mask.getPlaneBitMask("SUSPECT"))
+        mask[1, 1, afwImage.LOCAL] = mask.getPlaneBitMask("SUSPECT")
         defectList = ipIsr.getDefectListFromMask(mim, "SUSPECT")
         self.assertEqual(len(defectList), 1)
 
         # But adding another BAD pixel does.
-        mask.set(9, 9, mask.getPlaneBitMask("BAD"))
+        mask[9, 9, afwImage.LOCAL] = mask.getPlaneBitMask("BAD")
         defectList = ipIsr.getDefectListFromMask(mim, "BAD")
         self.assertEqual(len(defectList), 2)
 
