@@ -42,13 +42,9 @@ static void declareApplyLookupTable(py::module& mod) {
 
 }  // namespace lsst::ip::isr::<anonymous>
 
-PYBIND11_PLUGIN(applyLookupTable) {
-    py::module mod("applyLookupTable");
-
+PYBIND11_MODULE(applyLookupTable, mod) {
     declareApplyLookupTable<float>(mod);
     declareApplyLookupTable<double>(mod);
-
-    return mod.ptr();
 }
 
 }  // isr

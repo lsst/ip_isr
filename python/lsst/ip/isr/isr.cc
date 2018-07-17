@@ -65,13 +65,9 @@ static void declareAll(py::module& mod, std::string const& suffix) {
 
 }  // namespace lsst::ip::isr::<anonymous>
 
-PYBIND11_PLUGIN(isr) {
-    py::module mod("isr");
-
+PYBIND11_MODULE(isr, mod) {
     declareAll<float>(mod, "F");
     declareAll<double>(mod, "D");
-
-    return mod.ptr();
 }
 
 }  // isr
