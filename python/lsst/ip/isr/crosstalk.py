@@ -102,7 +102,7 @@ def extractAmp(image, amp, corner):
     output : `lsst.afw.image.Image`
         Image of the amplifier in the standard configuration.
     """
-    output = image.Factory(image, amp.getRawDataBBox())
+    output = image[amp.getRawDataBBox()]
     ampCorner = amp.getReadoutCorner()
     # Flipping is necessary only if the desired configuration doesn't match what we currently have
     xFlip = X_FLIP[corner] ^ X_FLIP[ampCorner]
@@ -172,12 +172,12 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     footprints.setMask(mask, crosstalkStr)
     crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
-    backgrounds = [calculateBackground(mi.Factory(mi, amp.getBBox()), badPixels) for amp in ccd]
+    backgrounds = [calculateBackground(mi[amp.getBBox()], badPixels) for amp in ccd]
 
     subtrahend = mi.Factory(mi.getBBox())
     subtrahend.set((0, 0, 0))
     for ii, iAmp in enumerate(ccd):
-        iImage = subtrahend.Factory(subtrahend, iAmp.getRawDataBBox())
+        iImage = subtrahend[iAmp.getRawDataBBox()]
         for jj, jAmp in enumerate(ccd):
             if ii == jj:
                 assert coeffs[ii, jj] == 0.0
