@@ -188,7 +188,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         config.threshold = self.value - 1
         measure = MeasureCrosstalkTask(config=config)
         fakeDataRef = Struct(dataId={'fake': 1})
-        coeff, coeffErr, coeffNum = measure.reduce([measure.run(fakeDataRef)])
+        coeff, coeffErr, coeffNum = measure.reduce([measure.runDataRef(fakeDataRef)])
         self.checkCoefficients(coeff, coeffErr, coeffNum)
 
         config = IsrTask.ConfigClass()
