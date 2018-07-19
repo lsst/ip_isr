@@ -98,6 +98,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
             amp.setName("amp %d" % ii)
             amp.setBBox(lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(xx, yy),
                                             lsst.afw.geom.Extent2I(width, height)))
+            amp.setRawDataBBox(lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(xx, yy),
+                                                   lsst.afw.geom.Extent2I(width, height)))
             amp.setReadoutCorner(corner)
 
         # Put everything together
