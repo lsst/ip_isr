@@ -97,15 +97,16 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
             amp = amplifiers.addNew()
             amp.setName("amp %d" % ii)
             amp.setBBox(lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(xx, yy),
-                                            lsst.afw.geom.Extent2I(width, height)))
+                                            lsst.afw.geom.Extent2I(width, height), invert=False))
             amp.setRawDataBBox(lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(xx, yy),
-                                                   lsst.afw.geom.Extent2I(width, height)))
+                                                   lsst.afw.geom.Extent2I(width, height), invert=False))
             amp.setReadoutCorner(corner)
 
         # Put everything together
         ccd = lsst.afw.cameraGeom.Detector("detector", 123, lsst.afw.cameraGeom.SCIENCE, "serial",
                                            lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(0, 0),
-                                                               lsst.afw.geom.Extent2I(2*width, 2*height)),
+                                                               lsst.afw.geom.Extent2I(2*width, 2*height),
+                                                               invert=False),
                                            amplifiers, lsst.afw.cameraGeom.Orientation(),
                                            lsst.afw.geom.Extent2D(1, 1), {},
                                            np.array(self.crosstalk, dtype=np.float32))

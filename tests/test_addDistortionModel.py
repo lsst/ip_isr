@@ -43,7 +43,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         scale = 1.0*afwGeom.arcseconds
         self.cdMatrix = afwGeom.makeCdMatrix(scale=scale)
         self.wcs = afwGeom.makeSkyWcs(crpix=self.crpix, crval=self.crval, cdMatrix=self.cdMatrix)
-        self.bbox = afwGeom.Box2I(afwGeom.Point2I(-10, 10), afwGeom.Extent2I(1000, 1022))
+        self.bbox = afwGeom.Box2I(afwGeom.Point2I(-10, 10), afwGeom.Extent2I(1000, 1022), invert=False)
         self.exposure = ExposureF(self.bbox)
 
         # set the few items of ExposureInfo needed by IsrTask.run

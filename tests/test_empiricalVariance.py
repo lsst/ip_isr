@@ -61,19 +61,22 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         self.sigma = 1.234
 
         # Set up the various regions
-        overscan1 = Box2I(Point2I(0, 0), overscanSize)
-        image1 = Box2I(Point2I(overscanSize[0], 0), imageSize)
-        image2 = Box2I(Point2I(overscanSize[0] + imageSize[0], 0), imageSize)
-        overscan2 = Box2I(Point2I(overscanSize[0] + 2*imageSize[0], 0), overscanSize)
+        overscan1 = Box2I(Point2I(0, 0), overscanSize, invert=False)
+        image1 = Box2I(Point2I(overscanSize[0], 0), imageSize, invert=False)
+        image2 = Box2I(Point2I(overscanSize[0] + imageSize[0], 0), imageSize, invert=False)
+        overscan2 = Box2I(Point2I(overscanSize[0] + 2*imageSize[0], 0), overscanSize, invert=False)
 
-        leftBox = Box2I(overscan1.getMin(), Extent2I(overscan1.getWidth() + image1.getWidth(), height))
-        rightBox = Box2I(image2.getMin(), Extent2I(image2.getWidth() + overscan2.getWidth(), height))
+        leftBox = Box2I(overscan1.getMin(), Extent2I(overscan1.getWidth() + image1.getWidth(), height),
+                        invert=False)
+        rightBox = Box2I(image2.getMin(), Extent2I(image2.getWidth() + overscan2.getWidth(), height),
+                         invert=False)
 
-        target1 = Box2I(Point2I(0, 0), imageSize)
-        target2 = Box2I(Point2I(image1.getWidth(), 0), imageSize)
+        target1 = Box2I(Point2I(0, 0), imageSize, invert=False)
+        target2 = Box2I(Point2I(image1.getWidth(), 0), imageSize, invert=False)
 
         # Set the pixels
-        exposure = ExposureF(Box2I(Point2I(0, 0), Extent2I(imageSize[0]*2 + overscanSize[0]*2, height)))
+        exposure = ExposureF(Box2I(Point2I(0, 0), Extent2I(imageSize[0]*2 + overscanSize[0]*2, height),
+                                   invert=False))
         yy = np.arange(0, height, 1, dtype=np.float32)
         leftImage = ExposureF(exposure, leftBox)
         leftImage.image.array[:] = baseValue + yy[:, np.newaxis]
@@ -91,7 +94,7 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         amps = AmpInfoCatalog(AmpInfoTable.makeMinimalSchema())
         makeAmplifier(amps, "left", target1, image1, overscan1, gain, readNoise, saturation)
         makeAmplifier(amps, "right", target2, image2, overscan2, gain, readNoise, saturation)
-        ccdBox = Box2I(Point2I(0, 0), Extent2I(image1.getWidth() + image2.getWidth(), height))
+        ccdBox = Box2I(Point2I(0, 0), Extent2I(image1.getWidth() + image2.getWidth(), height), invert=False)
         ccd = Detector("detector", 1, SCIENCE, "det1", ccdBox, amps, Orientation(), Extent2D(1.0, 1.0), {})
         exposure.setDetector(ccd)
         header = PropertyList()

@@ -97,7 +97,8 @@ def transposeDefectList(defectList):
     for defect in defectList:
         bbox = defect.getBBox()
         nbbox = afwGeom.Box2I(afwGeom.Point2I(bbox.getMinY(), bbox.getMinX()),
-                              afwGeom.Extent2I(bbox.getDimensions()[1], bbox.getDimensions()[0]))
+                              afwGeom.Extent2I(bbox.getDimensions()[1], bbox.getDimensions()[0]),
+                              invert=False)
         retDefectList.append(measAlg.Defect(nbbox))
     return retDefectList
 

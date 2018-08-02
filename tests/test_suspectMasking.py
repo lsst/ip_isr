@@ -37,7 +37,8 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         ampInfoShema = afwTable.AmpInfoTable.makeMinimalSchema()
         ampInfoCat = afwTable.AmpInfoCatalog(ampInfoShema)
         ampInfo = ampInfoCat.addNew()
-        ampInfo.setRawBBox(afwGeom.Box2I(afwGeom.Point2I(-5, 7), afwGeom.Extent2I(53, 104)))
+        ampInfo.setRawBBox(afwGeom.Box2I(afwGeom.Point2I(-5, 7), afwGeom.Extent2I(53, 104),
+                           invert=False))
         ampInfo.setSuspectLevel(25000)
         self.ampInfo = ampInfo
         self.isrTask = ipIsr.IsrTask()

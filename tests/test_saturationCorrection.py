@@ -33,12 +33,12 @@ class IsrTestCases(lsst.utils.tests.TestCase):
     def testSaturation(self):
         saturation = 1000
 
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Point2I(19, 19))
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Point2I(19, 19), invert=False)
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(100, 0x0, 1)
 
         bbox = afwGeom.Box2I(afwGeom.Point2I(9, 5),
-                             afwGeom.Point2I(9, 15))
+                             afwGeom.Point2I(9, 15), invert=False)
         submi = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT, False)
         submi.set(saturation, 0x0, 1)
 

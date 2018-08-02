@@ -65,7 +65,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
 
     def setUp(self):
         # the following values are all arbitrary, but sane and varied
-        self.bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85))
+        self.bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85), invert=False)
         self.numAmps = (2, 3)
         self.colIndOffsets = np.array([[0, -50, 2.5], [37, 1, -3]], dtype=float)
         self.rowInds = np.array([[0, 1, 4], [3, 5, 2]])
@@ -133,7 +133,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         """!Test a few known values
         """
         numAmps = (2, 2)
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(4, 4))
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(4, 4), invert=False)
         # make a 4x4 image with 4 identical 2x2 subregions that flatten to -1, 0, 1, 2
         im = afwImage.ImageF(bbox)
         imArr = im.getArray()

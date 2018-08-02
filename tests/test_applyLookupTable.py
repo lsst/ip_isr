@@ -67,7 +67,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
     def testBasics(self):
         """!Test basic functionality of applyLookupTable
         """
-        bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85))
+        bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85), invert=False)
         imMin = -5
         imMax = 2500
         tableLen = 2000
@@ -95,7 +95,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         """
         # generate a small ramp image with ascending integer values
         # starting at some small negative value going positive
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(3, 4))
+        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(3, 4), invert=False)
         numPix = bbox.getWidth()*bbox.getHeight()
         start = -3
         stop = start + numPix - 1

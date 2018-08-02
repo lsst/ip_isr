@@ -38,16 +38,16 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
     def testOverscanCorrectionY(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(9, 12))
+                             afwGeom.Point2I(9, 12), invert=False)
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10), invert=False)
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 10),
-                             afwGeom.Point2I(9, 12))
+                             afwGeom.Point2I(9, 12), invert=False)
         biassec = '[1:10,11:13]'
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
@@ -69,16 +69,16 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
     def testOverscanCorrectionX(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(12, 9))
+                             afwGeom.Point2I(12, 9), invert=False)
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10), invert=False)
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(10, 0),
-                             afwGeom.Point2I(12, 9))
+                             afwGeom.Point2I(12, 9), invert=False)
         biassec = '[11:13,1:10]'
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
@@ -100,16 +100,16 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
     def checkPolyOverscanCorrectionX(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(12, 9))
+                             afwGeom.Point2I(12, 9), invert=False)
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10), invert=False)
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(10, 0),
-                             afwGeom.Point2I(12, 9))
+                             afwGeom.Point2I(12, 9), invert=False)
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[1]):
@@ -133,16 +133,16 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
     def checkPolyOverscanCorrectionY(self, **kwargs):
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(9, 12))
+                             afwGeom.Point2I(9, 12), invert=False)
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10), invert=False)
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
         bbox = afwGeom.Box2I(afwGeom.Point2I(0, 10),
-                             afwGeom.Point2I(9, 12))
+                             afwGeom.Point2I(9, 12), invert=False)
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[0]):

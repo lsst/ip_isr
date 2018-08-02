@@ -43,10 +43,10 @@ class IsrTestCases(unittest.TestCase):
         del self.filenameKeyword
 
     def testBias(self):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         maskedImage.getImage().set(10)
 
-        bias = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        bias = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         bias.getImage().set(1)
         biasexposure = afwImage.ExposureF(bias, None)
         bmetadata = biasexposure.getMetadata()
@@ -62,10 +62,10 @@ class IsrTestCases(unittest.TestCase):
                 self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 9)
 
     def doDark(self, scaling):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         maskedImage.getImage().set(10)
 
-        dark = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        dark = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         dark.getImage().set(1)
         darkexposure = afwImage.ExposureF(dark, None)
         dmetadata = darkexposure.getMetadata()

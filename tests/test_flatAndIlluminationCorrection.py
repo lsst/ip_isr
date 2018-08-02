@@ -43,10 +43,10 @@ class IsrTestCases(unittest.TestCase):
         del self.filenameKeyword
 
     def doFlat(self, scaling):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         maskedImage.getImage().set(10)
 
-        flat = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        flat = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         flat.getImage().set(1)
         flatexposure = afwImage.ExposureF(flat, None)
         dmetadata = flatexposure.getMetadata()
@@ -70,10 +70,10 @@ class IsrTestCases(unittest.TestCase):
         self.doFlat(scaling=3.7)
 
     def doIllum(self, scaling):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         maskedImage.getImage().set(10)
 
-        illum = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        illum = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax, invert=False))
         illum.getImage().set(1)
         illumexposure = afwImage.ExposureF(illum, None)
         dmetadata = illumexposure.getMetadata()
