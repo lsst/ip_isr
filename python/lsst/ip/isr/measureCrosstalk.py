@@ -195,7 +195,7 @@ class MeasureCrosstalkTask(CmdLineTask):
             pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "w"))
         return task.reduce(resultList)
 
-    def run(self, dataRef):
+    def runDataRef(self, dataRef):
         """Get crosstalk ratios for CCD
 
         Parameters
