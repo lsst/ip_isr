@@ -2213,6 +2213,7 @@ class FakeAmp(object):
         return float("NaN")
 
 
+
 class RunIsrConfig(pexConfig.Config):
     isr = pexConfig.ConfigurableField(target=IsrTask, doc="Instrument signature removal")
 
