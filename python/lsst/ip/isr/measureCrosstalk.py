@@ -34,7 +34,7 @@ from lsst.afw.detection import FootprintSet, Threshold
 from lsst.pex.config import Config, Field, ListField, ConfigurableField
 from lsst.pipe.base import CmdLineTask
 
-from .crosstalk import calculateBackground, extractAmp
+from .crosstalk import calculateBackground, extractAmp, writeCrosstalkCoeffs
 from .isrTask import IsrTask
 
 
@@ -177,6 +177,8 @@ class MeasureCrosstalkTask(CmdLineTask):
     @classmethod
     def _makeArgumentParser(cls):
         parser = super(MeasureCrosstalkTask, cls)._makeArgumentParser()
+        parser.add_argument("--outputFile",
+                            help="Name of yaml file to which to write crosstalk coefficients")
         parser.add_argument("--dump-ratios", dest="dumpRatios",
                             help="Name of pickle file to which to write crosstalk ratios")
         return parser
@@ -202,6 +204,17 @@ class MeasureCrosstalkTask(CmdLineTask):
             import pickle
             pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "w"))
         return task.reduce(resultList)
+
+        outputFile = results.parsedCmd.outputFile
+        if results.parsedCmd.outputFile is not None:
+            butler = results.parsedCmd.butler
+            dataId = results.parsedCmd.id.idList[0]
+            dataId["detector"] = butler.queryMetadata("raw", ["detector"], dataId)[0]
+
+            det = butler.get('raw', dataId).getDetector()
+            ccdType = 'ITL'
+            indent = 2
+            writeCrosstalkCoeffs(outputFile, coeff, det=det, ccdType=ccdType, indent=indent)
 
     def runDataRef(self, dataRef):
         """Get crosstalk ratios for CCD
