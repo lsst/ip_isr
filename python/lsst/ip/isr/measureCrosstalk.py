@@ -248,9 +248,27 @@ class MeasureCrosstalkTask(CmdLineTask):
         if exposure is None:
             exposure = self.isr.runDataRef(dataRef).exposure
 
+        dataId = dataRef.dataId
+        return self.run(exposure, dataId=dataId)
+
+    def run(self, exposure, dataId=None):
+        """Extract and return cross talk ratios for an exposure
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Image data to measure crosstalk ratios from.
+        dataId   :
+            Optional data ID for the exposure to process; used for logging.
+
+        Returns
+        -------
+        ratios : `list` of `list` of `numpy.ndarray`
+            A matrix of pixel arrays.
+        """
         ratios = extractCrosstalkRatios(exposure, self.config.threshold, list(self.config.badMask))
         self.log.info("Extracted %d pixels from %s",
-                      sum(len(jj) for ii in ratios for jj in ii if jj is not None), dataRef.dataId)
+                      sum(len(jj) for ii in ratios for jj in ii if jj is not None), dataId)
         return ratios
 
     def reduce(self, ratioList):
