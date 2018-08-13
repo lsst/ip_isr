@@ -202,8 +202,8 @@ class MeasureCrosstalkTask(CmdLineTask):
         resultList = [rr.result for rr in results.resultList]
         if results.parsedCmd.dumpRatios:
             import pickle
-            pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "w"))
-        return task.reduce(resultList)
+            pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "wb"))
+        coeff, coeffErr, coeffNum = task.reduce(resultList)
 
         outputFile = results.parsedCmd.outputFile
         if results.parsedCmd.outputFile is not None:
