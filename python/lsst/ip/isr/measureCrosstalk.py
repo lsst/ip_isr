@@ -33,7 +33,7 @@ import numpy as np
 from lsst.afw.detection import FootprintSet, Threshold
 from lsst.daf.persistence.butlerExceptions import NoResults
 from lsst.pex.config import Config, Field, ListField, ConfigurableField
-from lsst.pipe.base import CmdLineTask
+from lsst.pipe.base import CmdLineTask, Struct
 
 from .crosstalk import calculateBackground, extractAmp, writeCrosstalkCoeffs
 from .isrTask import IsrTask
@@ -151,7 +151,7 @@ class MeasureCrosstalkConfig(Config):
     """Configuration for MeasureCrosstalkTask"""
     isr = ConfigurableField(target=IsrTask, doc="Instrument signature removal")
     threshold = Field(dtype=float, default=30000, doc="Minimum level for which to measure crosstalk")
-    rerunIsr = Field(dtype=bool, default=True, doc="Rerun the ISR, even if postISRCCD files are available")
+    doRerunIsr = Field(dtype=bool, default=True, doc="Rerun the ISR, even if postISRCCD files are available")
     badMask = ListField(dtype=str, default=["SAT", "BAD", "INTRP"], doc="Mask planes to ignore")
     rejIter = Field(dtype=int, default=3, doc="Number of rejection iterations")
     rejSigma = Field(dtype=float, default=2.0, doc="Rejection threshold (sigma)")
@@ -179,7 +179,9 @@ class MeasureCrosstalkTask(CmdLineTask):
     @classmethod
     def _makeArgumentParser(cls):
         parser = super(MeasureCrosstalkTask, cls)._makeArgumentParser()
-        parser.add_argument("--outputFile",
+        parser.add_argument("--crosstalkName",
+                            help="Name for this set of crosstalk coefficients", default="Unknown")
+        parser.add_argument("--outputFileName",
                             help="Name of yaml file to which to write crosstalk coefficients")
         parser.add_argument("--dump-ratios", dest="dumpRatios",
                             help="Name of pickle file to which to write crosstalk ratios")
@@ -207,16 +209,21 @@ class MeasureCrosstalkTask(CmdLineTask):
             pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "wb"))
         coeff, coeffErr, coeffNum = task.reduce(resultList)
 
-        outputFile = results.parsedCmd.outputFile
-        if results.parsedCmd.outputFile is not None:
+        outputFileName = results.parsedCmd.outputFileName
+        if outputFileName is not None:
             butler = results.parsedCmd.butler
             dataId = results.parsedCmd.id.idList[0]
             dataId["detector"] = butler.queryMetadata("raw", ["detector"], dataId)[0]
 
             det = butler.get('raw', dataId).getDetector()
-            ccdType = 'ITL'
-            indent = 2
-            writeCrosstalkCoeffs(outputFile, coeff, det=det, ccdType=ccdType, indent=indent)
+            writeCrosstalkCoeffs(outputFileName, coeff, det=det,
+                                 crosstalkName=results.parsedCmd.crosstalkName, indent=2)
+
+        return Struct(
+            coeff=coeff,
+            coeffErr=coeffErr,
+            coeffNum=coeffNum
+        )
 
     def runDataRef(self, dataRef):
         """Get crosstalk ratios for CCD
@@ -232,7 +239,7 @@ class MeasureCrosstalkTask(CmdLineTask):
             A matrix of pixel arrays.
         """
         exposure = None
-        if not self.config.rerunIsr:
+        if not self.config.doRerunIsr:
             try:
                 exposure = dataRef.get("postISRCCD")
             except NoResults:
@@ -273,7 +280,7 @@ class MeasureCrosstalkTask(CmdLineTask):
                 numAmps = len(rr)
 
             assert len(rr) == numAmps
-            all(len(xx) == numAmps for xx in rr)
+            assert all(len(xx) == numAmps for xx in rr)
 
         if numAmps is None:
             raise RuntimeError("Unable to measure crosstalk signal for any amplifier")

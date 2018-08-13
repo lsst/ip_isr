@@ -96,7 +96,7 @@ def extractAmp(image, amp, corner, isTrimmed=False):
     corner : `lsst.afw.table.ReadoutCorner` or `None`
         Corner in which to put the amp's readout corner, or `None` for
         no flipping.
-    isTrimmed : `Bool`
+    isTrimmed : `bool`
         The image is already trimmed.
         This should no longer be needed once DM-15409 is resolved.
 
@@ -199,20 +199,41 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
 
-def writeCrosstalkCoeffs(outputFile, coeff, det=None, ccdType='ITL', indent=2):
-    """Write a yaml file containing the crosstalk coefficients"""
+def writeCrosstalkCoeffs(outputFileName, coeff, det=None, crosstalkName="Unknown", indent=2):
+    """Write a yaml file containing the crosstalk coefficients
+
+    The coeff array is indexed by [i, j] where i and j are amplifiers
+    corresponding to the amplifiers in det
+
+    Parameters
+    ----------
+    outputFileName : `str`
+        Name of output yaml file
+    coeff : `numpy.array(namp, namp)`
+        numpy array of coefficients
+    det : `lsst.afw.cameraGeom.Detector`
+        Used to provide the list of amplifier names;
+        if None use ['0', '1', ...]
+    ccdType : `str`
+        Name of CCD, used to index the yaml file
+        If all CCDs are identical could be the type (e.g. ITL)
+    indent : `int`
+        Indent width to use when writing the yaml file
+    """
 
     if det is None:
         ampNames = [str(i) for i in range(coeff.shape[0])]
     else:
         ampNames = [a.getName() for a in det]
 
+    assert coeff.shape == (len(ampNames), len(ampNames))
+
     dIndent = indent
     indent = 0
-    with open(outputFile, "w") as fd:
+    with open(outputFileName, "w") as fd:
         print(indent*" " + "crosstalk :", file=fd)
         indent += dIndent
-        print(indent*" " + "%s :" % ccdType, file=fd)
+        print(indent*" " + "%s :" % crosstalkName, file=fd)
         indent += dIndent
 
         for i, ampNameI in enumerate(ampNames):
