@@ -72,14 +72,14 @@ def extractCrosstalkRatios(exposure, threshold=30000, badPixels=["SAT", "BAD", "
     ratios = [[None for iAmp in ccd] for jAmp in ccd]
 
     for ii, iAmp in enumerate(ccd):
-        iImage = mi.Factory(mi, iAmp.getBBox())
-        iMask = iImage.getMask().getArray()
-        select = (iMask & detected > 0) & (iMask & bad == 0) & np.isfinite(iImage.getImage().getArray())
+        iImage = mi[iAmp.getBBox()]
+        iMask = iImage.mask.array
+        select = (iMask & detected > 0) & (iMask & bad == 0) & np.isfinite(iImage.image.array)
         for jj, jAmp in enumerate(ccd):
             if ii == jj:
                 continue
-            ratios[jj][ii] = (jImage.getArray()[select] - bg)/iImage.getImage().getArray()[select]
             jImage = extractAmp(mi.image, jAmp, iAmp.getReadoutCorner(), isTrimmed=True)
+            ratios[jj][ii] = (jImage.array[select] - bg)/iImage.image.array[select]
 
     return ratios
 
