@@ -78,8 +78,8 @@ def extractCrosstalkRatios(exposure, threshold=30000, badPixels=["SAT", "BAD", "
         for jj, jAmp in enumerate(ccd):
             if ii == jj:
                 continue
-            jImage = extractAmp(mi.getImage(), jAmp, iAmp.getReadoutCorner())
             ratios[jj][ii] = (jImage.getArray()[select] - bg)/iImage.getImage().getArray()[select]
+            jImage = extractAmp(mi.image, jAmp, iAmp.getReadoutCorner(), isTrimmed=True)
 
     return ratios
 
