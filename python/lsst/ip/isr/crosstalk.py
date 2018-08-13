@@ -29,7 +29,7 @@ import lsst.afw.detection
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 
-__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk"]
+__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosstalkCoeffs"]
 
 
 class CrosstalkConfig(Config):
@@ -194,3 +194,32 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     # masked as such in 'subtrahend'), not necessarily those that are bright originally.
     mask.clearMaskPlane(crosstalkPlane)
     mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
+
+
+def writeCrosstalkCoeffs(outputFile, coeff, det=None, ccdType='ITL', indent=2):
+    """Write a yaml file containing the crosstalk coefficients"""
+
+    if det is None:
+        ampNames = [str(i) for i in range(coeff.shape[0])]
+    else:
+        ampNames = [a.getName() for a in det]
+
+    dIndent = indent
+    indent = 0
+    with open(outputFile, "w") as fd:
+        print(indent*" " + "crosstalk :", file=fd)
+        indent += dIndent
+        print(indent*" " + "%s :" % ccdType, file=fd)
+        indent += dIndent
+
+        for i, ampNameI in enumerate(ampNames):
+            print(indent*" " + "%s : {" % ampNameI, file=fd)
+            indent += dIndent
+            print(indent*" ", file=fd, end='')
+
+            for j, ampNameJ in enumerate(ampNames):
+                print("%s : %11.4e, " % (ampNameJ, coeff[i, j]), file=fd,
+                      end='\n' + indent*" " if j%4 == 3 else '')
+            print("}", file=fd)
+
+            indent -= dIndent
