@@ -120,20 +120,28 @@ def measureCrosstalkCoefficients(ratios, rejIter=3, rejSigma=2.0):
 
     for ii, jj in itertools.product(range(numAmps), range(numAmps)):
         if ii == jj:
-            continue
-        values = np.array(ratios[ii][jj])
-        values = values[np.abs(values) < 1.0]  # Discard unreasonable values
-        for rej in range(rejIter):
-            lo, med, hi = np.percentile(values, [25.0, 50.0, 75.0])
-            sigma = 0.741*(hi - lo)
-            good = np.abs(values - med) < rejSigma*sigma
-            if good.sum() == len(good):
-                break
-            values = values[good]
+            values = [0.0]
+        else:
+            values = np.array(ratios[ii][jj])
+            values = values[np.abs(values) < 1.0]  # Discard unreasonable values
+
+        coeffNum[ii][jj] = len(values)
+
+        if len(values) == 0:
+            coeff[ii][jj] = np.nan
+            coeffErr[ii][jj] = np.nan
+        else:
+            if ii != jj:
+                for rej in range(rejIter):
+                    lo, med, hi = np.percentile(values, [25.0, 50.0, 75.0])
+                    sigma = 0.741*(hi - lo)
+                    good = np.abs(values - med) < rejSigma*sigma
+                    if good.sum() == len(good):
+                        break
+                    values = values[good]
 
         coeff[ii][jj] = np.mean(values)
-        coeffErr[ii][jj] = np.std(values)
-        coeffNum[ii][jj] = len(values)
+        coeffErr[ii][jj] = np.nan if coeffNum[ii][jj] == 1 else np.std(values)
 
     return coeff, coeffErr, coeffNum
 
@@ -232,9 +240,20 @@ class MeasureCrosstalkTask(CmdLineTask):
         coeffNum : `numpy.ndarray`
             Number of pixels used for crosstalk measurement.
         """
-        numAmps = len(ratioList[0])
-        assert all(len(rr) == numAmps for rr in ratioList)
-        assert all(all(len(xx) == numAmps for xx in rr) for rr in ratioList)
+        numAmps = None
+        for rr in ratioList:
+            if rr is None:
+                continue
+
+            if numAmps is None:
+                numAmps = len(rr)
+
+            assert len(rr) == numAmps
+            all(len(xx) == numAmps for xx in rr)
+
+        if numAmps is None:
+            raise RuntimeError("Unable to measure crosstalk signal for any amplifier")
+
         ratios = [[None for jj in range(numAmps)] for ii in range(numAmps)]
         for ii, jj in itertools.product(range(numAmps), range(numAmps)):
             if ii == jj:
@@ -243,8 +262,10 @@ class MeasureCrosstalkTask(CmdLineTask):
                 values = [rr[ii][jj] for rr in ratioList]
                 num = sum(len(vv) for vv in values)
                 if num == 0:
-                    raise RuntimeError("No values for matrix element %d,%d" % (ii, jj))
-                result = np.concatenate([vv for vv in values if len(vv) > 0])
+                    self.log.warn("No values for matrix element %d,%d" % (ii, jj))
+                    result = np.nan
+                else:
+                    result = np.concatenate([vv for vv in values if len(vv) > 0])
             ratios[ii][jj] = result
         coeff, coeffErr, coeffNum = measureCrosstalkCoefficients(ratios, self.config.rejIter,
                                                                  self.config.rejSigma)
