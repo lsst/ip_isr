@@ -31,6 +31,7 @@ import itertools
 import numpy as np
 
 from lsst.afw.detection import FootprintSet, Threshold
+from lsst.daf.persistence.butlerExceptions import NoResults
 from lsst.pex.config import Config, Field, ListField, ConfigurableField
 from lsst.pipe.base import CmdLineTask
 
@@ -150,6 +151,7 @@ class MeasureCrosstalkConfig(Config):
     """Configuration for MeasureCrosstalkTask"""
     isr = ConfigurableField(target=IsrTask, doc="Instrument signature removal")
     threshold = Field(dtype=float, default=30000, doc="Minimum level for which to measure crosstalk")
+    rerunIsr = Field(dtype=bool, default=True, doc="Rerun the ISR, even if postISRCCD files are available")
     badMask = ListField(dtype=str, default=["SAT", "BAD", "INTRP"], doc="Mask planes to ignore")
     rejIter = Field(dtype=int, default=3, doc="Number of rejection iterations")
     rejSigma = Field(dtype=float, default=2.0, doc="Rejection threshold (sigma)")
@@ -229,7 +231,16 @@ class MeasureCrosstalkTask(CmdLineTask):
         ratios : `list` of `list` of `numpy.ndarray`
             A matrix of pixel arrays.
         """
-        exposure = self.isr.runDataRef(dataRef).exposure
+        exposure = None
+        if not self.config.rerunIsr:
+            try:
+                exposure = dataRef.get("postISRCCD")
+            except NoResults:
+                pass
+
+        if exposure is None:
+            exposure = self.isr.runDataRef(dataRef).exposure
+
         ratios = extractCrosstalkRatios(exposure, self.config.threshold, list(self.config.badMask))
         self.log.info("Extracted %d pixels from %s",
                       sum(len(jj) for ii in ratios for jj in ii if jj is not None), dataRef.dataId)
