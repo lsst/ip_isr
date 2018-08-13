@@ -81,7 +81,7 @@ Y_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: False,
           lsst.afw.table.UL: True, lsst.afw.table.UR: True}
 
 
-def extractAmp(image, amp, corner):
+def extractAmp(image, amp, corner, isTrimmed=False):
     """Return an image of the amp
 
     The returned image will have the amp's readout corner in the
@@ -96,13 +96,16 @@ def extractAmp(image, amp, corner):
     corner : `lsst.afw.table.ReadoutCorner` or `None`
         Corner in which to put the amp's readout corner, or `None` for
         no flipping.
+    isTrimmed : `Bool`
+        The image is already trimmed.
+        This should no longer be needed once DM-15409 is resolved.
 
     Returns
     -------
     output : `lsst.afw.image.Image`
         Image of the amplifier in the standard configuration.
     """
-    output = image[amp.getRawDataBBox()]
+    output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
     ampCorner = amp.getReadoutCorner()
     # Flipping is necessary only if the desired configuration doesn't match what we currently have
     xFlip = X_FLIP[corner] ^ X_FLIP[ampCorner]
