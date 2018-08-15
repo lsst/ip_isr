@@ -139,10 +139,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         """
         for matrix in (coeff, coeffErr, coeffNum):
             self.assertEqual(matrix.shape, (self.numAmps, self.numAmps))
-            for ii in range(self.numAmps):                    
-                self.assertFloatsAlmostEqual(coeff, np.array(self.crosstalk), atol=1.0e-6)
+        self.assertFloatsAlmostEqual(coeff, np.array(self.crosstalk), atol=1.0e-6)
 
-        for ii in range(self.numAmps):                    
+        for ii in range(self.numAmps):
             self.assertEqual(coeff[ii, ii], 0.0)
             self.assertTrue(np.isnan(coeffErr[ii, ii]))
             self.assertEqual(coeffNum[ii, ii], 1)
