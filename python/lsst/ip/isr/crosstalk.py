@@ -29,7 +29,7 @@ import lsst.afw.detection
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 
-__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk"]
+__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosstalkCoeffs"]
 
 
 class CrosstalkConfig(Config):
@@ -81,7 +81,7 @@ Y_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: False,
           lsst.afw.table.UL: True, lsst.afw.table.UR: True}
 
 
-def extractAmp(image, amp, corner):
+def extractAmp(image, amp, corner, isTrimmed=False):
     """Return an image of the amp
 
     The returned image will have the amp's readout corner in the
@@ -96,13 +96,16 @@ def extractAmp(image, amp, corner):
     corner : `lsst.afw.table.ReadoutCorner` or `None`
         Corner in which to put the amp's readout corner, or `None` for
         no flipping.
+    isTrimmed : `bool`
+        The image is already trimmed.
+        This should no longer be needed once DM-15409 is resolved.
 
     Returns
     -------
     output : `lsst.afw.image.Image`
         Image of the amplifier in the standard configuration.
     """
-    output = image[amp.getRawDataBBox()]
+    output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
     ampCorner = amp.getReadoutCorner()
     # Flipping is necessary only if the desired configuration doesn't match what we currently have
     xFlip = X_FLIP[corner] ^ X_FLIP[ampCorner]
@@ -194,3 +197,53 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     # masked as such in 'subtrahend'), not necessarily those that are bright originally.
     mask.clearMaskPlane(crosstalkPlane)
     mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
+
+
+def writeCrosstalkCoeffs(outputFileName, coeff, det=None, crosstalkName="Unknown", indent=2):
+    """Write a yaml file containing the crosstalk coefficients
+
+    The coeff array is indexed by [i, j] where i and j are amplifiers
+    corresponding to the amplifiers in det
+
+    Parameters
+    ----------
+    outputFileName : `str`
+        Name of output yaml file
+    coeff : `numpy.array(namp, namp)`
+        numpy array of coefficients
+    det : `lsst.afw.cameraGeom.Detector`
+        Used to provide the list of amplifier names;
+        if None use ['0', '1', ...]
+    ccdType : `str`
+        Name of CCD, used to index the yaml file
+        If all CCDs are identical could be the type (e.g. ITL)
+    indent : `int`
+        Indent width to use when writing the yaml file
+    """
+
+    if det is None:
+        ampNames = [str(i) for i in range(coeff.shape[0])]
+    else:
+        ampNames = [a.getName() for a in det]
+
+    assert coeff.shape == (len(ampNames), len(ampNames))
+
+    dIndent = indent
+    indent = 0
+    with open(outputFileName, "w") as fd:
+        print(indent*" " + "crosstalk :", file=fd)
+        indent += dIndent
+        print(indent*" " + "%s :" % crosstalkName, file=fd)
+        indent += dIndent
+
+        for i, ampNameI in enumerate(ampNames):
+            print(indent*" " + "%s : {" % ampNameI, file=fd)
+            indent += dIndent
+            print(indent*" ", file=fd, end='')
+
+            for j, ampNameJ in enumerate(ampNames):
+                print("%s : %11.4e, " % (ampNameJ, coeff[i, j]), file=fd,
+                      end='\n' + indent*" " if j%4 == 3 else '')
+            print("}", file=fd)
+
+            indent -= dIndent

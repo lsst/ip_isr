@@ -31,10 +31,11 @@ import itertools
 import numpy as np
 
 from lsst.afw.detection import FootprintSet, Threshold
+from lsst.daf.persistence.butlerExceptions import NoResults
 from lsst.pex.config import Config, Field, ListField, ConfigurableField
-from lsst.pipe.base import CmdLineTask
+from lsst.pipe.base import CmdLineTask, Struct
 
-from .crosstalk import calculateBackground, extractAmp
+from .crosstalk import calculateBackground, extractAmp, writeCrosstalkCoeffs
 from .isrTask import IsrTask
 
 
@@ -72,14 +73,14 @@ def extractCrosstalkRatios(exposure, threshold=30000, badPixels=["SAT", "BAD", "
     ratios = [[None for iAmp in ccd] for jAmp in ccd]
 
     for ii, iAmp in enumerate(ccd):
-        iImage = mi.Factory(mi, iAmp.getBBox())
-        iMask = iImage.getMask().getArray()
-        select = (iMask & detected > 0) & (iMask & bad == 0) & np.isfinite(iImage.getImage().getArray())
+        iImage = mi[iAmp.getBBox()]
+        iMask = iImage.mask.array
+        select = (iMask & detected > 0) & (iMask & bad == 0) & np.isfinite(iImage.image.array)
         for jj, jAmp in enumerate(ccd):
             if ii == jj:
                 continue
-            jImage = extractAmp(mi.getImage(), jAmp, iAmp.getReadoutCorner())
-            ratios[jj][ii] = (jImage.getArray()[select] - bg)/iImage.getImage().getArray()[select]
+            jImage = extractAmp(mi.image, jAmp, iAmp.getReadoutCorner(), isTrimmed=True)
+            ratios[jj][ii] = (jImage.array[select] - bg)/iImage.image.array[select]
 
     return ratios
 
@@ -120,20 +121,28 @@ def measureCrosstalkCoefficients(ratios, rejIter=3, rejSigma=2.0):
 
     for ii, jj in itertools.product(range(numAmps), range(numAmps)):
         if ii == jj:
-            continue
-        values = np.array(ratios[ii][jj])
-        values = values[np.abs(values) < 1.0]  # Discard unreasonable values
-        for rej in range(rejIter):
-            lo, med, hi = np.percentile(values, [25.0, 50.0, 75.0])
-            sigma = 0.741*(hi - lo)
-            good = np.abs(values - med) < rejSigma*sigma
-            if good.sum() == len(good):
-                break
-            values = values[good]
+            values = [0.0]
+        else:
+            values = np.array(ratios[ii][jj])
+            values = values[np.abs(values) < 1.0]  # Discard unreasonable values
+
+        coeffNum[ii][jj] = len(values)
+
+        if len(values) == 0:
+            coeff[ii][jj] = np.nan
+            coeffErr[ii][jj] = np.nan
+        else:
+            if ii != jj:
+                for rej in range(rejIter):
+                    lo, med, hi = np.percentile(values, [25.0, 50.0, 75.0])
+                    sigma = 0.741*(hi - lo)
+                    good = np.abs(values - med) < rejSigma*sigma
+                    if good.sum() == len(good):
+                        break
+                    values = values[good]
 
         coeff[ii][jj] = np.mean(values)
-        coeffErr[ii][jj] = np.std(values)
-        coeffNum[ii][jj] = len(values)
+        coeffErr[ii][jj] = np.nan if coeffNum[ii][jj] == 1 else np.std(values)
 
     return coeff, coeffErr, coeffNum
 
@@ -142,6 +151,7 @@ class MeasureCrosstalkConfig(Config):
     """Configuration for MeasureCrosstalkTask"""
     isr = ConfigurableField(target=IsrTask, doc="Instrument signature removal")
     threshold = Field(dtype=float, default=30000, doc="Minimum level for which to measure crosstalk")
+    doRerunIsr = Field(dtype=bool, default=True, doc="Rerun the ISR, even if postISRCCD files are available")
     badMask = ListField(dtype=str, default=["SAT", "BAD", "INTRP"], doc="Mask planes to ignore")
     rejIter = Field(dtype=int, default=3, doc="Number of rejection iterations")
     rejSigma = Field(dtype=float, default=2.0, doc="Rejection threshold (sigma)")
@@ -169,6 +179,10 @@ class MeasureCrosstalkTask(CmdLineTask):
     @classmethod
     def _makeArgumentParser(cls):
         parser = super(MeasureCrosstalkTask, cls)._makeArgumentParser()
+        parser.add_argument("--crosstalkName",
+                            help="Name for this set of crosstalk coefficients", default="Unknown")
+        parser.add_argument("--outputFileName",
+                            help="Name of yaml file to which to write crosstalk coefficients")
         parser.add_argument("--dump-ratios", dest="dumpRatios",
                             help="Name of pickle file to which to write crosstalk ratios")
         return parser
@@ -192,8 +206,24 @@ class MeasureCrosstalkTask(CmdLineTask):
         resultList = [rr.result for rr in results.resultList]
         if results.parsedCmd.dumpRatios:
             import pickle
-            pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "w"))
-        return task.reduce(resultList)
+            pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "wb"))
+        coeff, coeffErr, coeffNum = task.reduce(resultList)
+
+        outputFileName = results.parsedCmd.outputFileName
+        if outputFileName is not None:
+            butler = results.parsedCmd.butler
+            dataId = results.parsedCmd.id.idList[0]
+            dataId["detector"] = butler.queryMetadata("raw", ["detector"], dataId)[0]
+
+            det = butler.get('raw', dataId).getDetector()
+            writeCrosstalkCoeffs(outputFileName, coeff, det=det,
+                                 crosstalkName=results.parsedCmd.crosstalkName, indent=2)
+
+        return Struct(
+            coeff=coeff,
+            coeffErr=coeffErr,
+            coeffNum=coeffNum
+        )
 
     def runDataRef(self, dataRef):
         """Get crosstalk ratios for CCD
@@ -208,7 +238,16 @@ class MeasureCrosstalkTask(CmdLineTask):
         ratios : `list` of `list` of `numpy.ndarray`
             A matrix of pixel arrays.
         """
-        exposure = self.isr.runDataRef(dataRef).exposure
+        exposure = None
+        if not self.config.doRerunIsr:
+            try:
+                exposure = dataRef.get("postISRCCD")
+            except NoResults:
+                pass
+
+        if exposure is None:
+            exposure = self.isr.runDataRef(dataRef).exposure
+
         ratios = extractCrosstalkRatios(exposure, self.config.threshold, list(self.config.badMask))
         self.log.info("Extracted %d pixels from %s",
                       sum(len(jj) for ii in ratios for jj in ii if jj is not None), dataRef.dataId)
@@ -232,9 +271,20 @@ class MeasureCrosstalkTask(CmdLineTask):
         coeffNum : `numpy.ndarray`
             Number of pixels used for crosstalk measurement.
         """
-        numAmps = len(ratioList[0])
-        assert all(len(rr) == numAmps for rr in ratioList)
-        assert all(all(len(xx) == numAmps for xx in rr) for rr in ratioList)
+        numAmps = None
+        for rr in ratioList:
+            if rr is None:
+                continue
+
+            if numAmps is None:
+                numAmps = len(rr)
+
+            assert len(rr) == numAmps
+            assert all(len(xx) == numAmps for xx in rr)
+
+        if numAmps is None:
+            raise RuntimeError("Unable to measure crosstalk signal for any amplifier")
+
         ratios = [[None for jj in range(numAmps)] for ii in range(numAmps)]
         for ii, jj in itertools.product(range(numAmps), range(numAmps)):
             if ii == jj:
@@ -243,8 +293,10 @@ class MeasureCrosstalkTask(CmdLineTask):
                 values = [rr[ii][jj] for rr in ratioList]
                 num = sum(len(vv) for vv in values)
                 if num == 0:
-                    raise RuntimeError("No values for matrix element %d,%d" % (ii, jj))
-                result = np.concatenate([vv for vv in values if len(vv) > 0])
+                    self.log.warn("No values for matrix element %d,%d" % (ii, jj))
+                    result = np.nan
+                else:
+                    result = np.concatenate([vv for vv in values if len(vv) > 0])
             ratios[ii][jj] = result
         coeff, coeffErr, coeffNum = measureCrosstalkCoefficients(ratios, self.config.rejIter,
                                                                  self.config.rejSigma)
