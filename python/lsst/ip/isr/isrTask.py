@@ -177,6 +177,17 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
         default=3.0,
     )
+
+    overscanNumLeadingColumnsToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of columns to skip in overscan, i.e. those closest to amplifier",
+        default=0,
+    )
+    overscanNumTrailingColumnsToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of columns to skip in overscan, i.e. those farthest from amplifier",
+        default=0,
+    )
     growSaturationFootprintSize = pexConfig.Field(
         dtype=int,
         doc="Number of pixels by which to grow the saturation footprints",
@@ -928,9 +939,25 @@ class IsrTask(pipeBase.CmdLineTask):
             self.log.info("No Overscan region. Not performing Overscan Correction.")
             return None
 
-        maskedImage = exposure.getMaskedImage()
-        dataView = maskedImage.Factory(maskedImage, amp.getRawDataBBox())
-        overscanImage = maskedImage.Factory(maskedImage, amp.getRawHorizontalOverscanBBox())
+        oscanBBox = amp.getRawHorizontalOverscanBBox()
+
+        # afw.cameraGeom.assembleImage.makeUpdatedDetector doesn't update readoutCorner; DM-15559
+        x0, x1 = oscanBBox.getBeginX(), oscanBBox.getEndX()
+
+        prescanBBox = amp.getRawPrescanBBox()
+        if oscanBBox.getBeginX() > prescanBBox.getBeginX():  # amp is at the right
+            x0 += self.config.overscanNumLeadingColumnsToSkip
+            x1 -= self.config.overscanNumTrailingColumnsToSkip
+        else:
+            x0 += self.config.overscanNumTrailingColumnsToSkip
+            x1 -= self.config.overscanNumLeadingColumnsToSkip
+
+        oscanBBox = afwGeom.BoxI(afwGeom.PointI(x0, oscanBBox.getBeginY()),
+                                 afwGeom.PointI(x1 - 1, oscanBBox.getEndY() - 1))
+
+        maskedImage = exposure.maskedImage
+        dataView = maskedImage[amp.getRawDataBBox()]
+        overscanImage = maskedImage[oscanBBox]
 
         results = isrFunctions.overscanCorrection(
             ampMaskedImage=dataView,
