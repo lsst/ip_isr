@@ -163,6 +163,7 @@ class IsrTaskConfig(pexConfig.Config):
             "CUBIC_SPLINE": "Fit cubic spline to the longest axis of the overscan region",
             "AKIMA_SPLINE": "Fit Akima spline to the longest axis of the overscan region",
             "MEAN": "Correct using the mean of the overscan region",
+            "MEANCLIP": "Correct using a clipped mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
         },
     )
@@ -172,7 +173,7 @@ class IsrTaskConfig(pexConfig.Config):
              "or number of spline knots if overscan fit type is a spline."),
         default=1,
     )
-    overscanRej = pexConfig.Field(
+    overscanNumSigmaClip = pexConfig.Field(
         dtype=float,
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
         default=3.0,
@@ -973,12 +974,15 @@ class IsrTask(pipeBase.CmdLineTask):
         dataView = maskedImage[amp.getRawDataBBox()]
         overscanImage = maskedImage[oscanBBox]
 
+        sctrl = afwMath.StatisticsControl()
+        sctrl.setNumSigmaClip(self.config.overscanNumSigmaClip)
+
         results = isrFunctions.overscanCorrection(
             ampMaskedImage=dataView,
             overscanImage=overscanImage,
             fitType=self.config.overscanFitType,
             order=self.config.overscanOrder,
-            collapseRej=self.config.overscanRej,
+            statControl=sctrl,
         )
         results.overscanImage = overscanImage
         return results
