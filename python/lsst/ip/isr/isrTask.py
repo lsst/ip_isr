@@ -387,7 +387,7 @@ class IsrTask(pipeBase.CmdLineTask):
     import lsstDebug
     def DebugInfo(name):
         di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
-        if name == "lsst.ip.isrFunctions.isrTask":
+        if name == "lsst.ip.isr.isrTask":
             di.display = {'postISRCCD':2}
         return di
     lsstDebug.Info = DebugInfo
@@ -639,7 +639,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
         frame = getDebugFrame(self._display, "postISRCCD")
         if frame:
-            getDisplay(frame).mtv(ccdExposure)
+            display = getDisplay(frame)
+            display.scale('asinh', 'zscale')
+            display.mtv(ccdExposure)
 
         return pipeBase.Struct(
             exposure=ccdExposure,
@@ -688,11 +690,9 @@ class IsrTask(pipeBase.CmdLineTask):
             raise RuntimeError("Unable to convert exposure (%s) to float" % type(exposure))
 
         newexposure = exposure.convertF()
-        maskedImage = newexposure.getMaskedImage()
-        varArray = maskedImage.getVariance().getArray()
-        varArray[:, :] = 1
-        maskArray = maskedImage.getMask().getArray()
-        maskArray[:, :] = 0
+        newexposure.variance[:] = 1
+        newexposure.mask[:] = 0x0
+
         return newexposure
 
     def biasCorrection(self, exposure, biasExposure):

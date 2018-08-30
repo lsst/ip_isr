@@ -258,13 +258,11 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
                            (maskedImage.getBBox(afwImage.LOCAL), flatMaskedImage.getBBox(afwImage.LOCAL)))
 
     # Figure out scale from the data
-    # Ideally the flats are normalized by the calibration product pipelin, but this allows some flexibility
+    # Ideally the flats are normalized by the calibration product pipeline, but this allows some flexibility
     # in the case that the flat is created by some other mechanism.
-    if scalingType == 'MEAN':
-        flatScale = afwMath.makeStatistics(flatMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
-    elif scalingType == 'MEDIAN':
-        flatScale = afwMath.makeStatistics(flatMaskedImage.getImage(),
-                                           afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+    if scalingType in ('MEAN', 'MEDIAN'):
+        scalingType = afwMath.stringToStatisticsProperty(scalingType)
+        flatScale = afwMath.makeStatistics(flatMaskedImage.image, scalingType).getValue()
     elif scalingType == 'USER':
         flatScale = userScale
     else:
