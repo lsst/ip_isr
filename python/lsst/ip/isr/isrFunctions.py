@@ -33,6 +33,7 @@ import lsst.afw.cameraGeom as camGeom
 
 from lsst.pipe.base import Struct
 
+
 def createPsf(fwhm):
     """Make a double Gaussian PSF
 
