@@ -33,12 +33,17 @@ import lsst.afw.cameraGeom as camGeom
 
 from lsst.pipe.base import Struct
 
-
 def createPsf(fwhm):
     """Make a double Gaussian PSF
 
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @return measAlg.DoubleGaussianPsf
+    Parameters
+    ----------
+    fwhm :
+        FWHM of double Gaussian smoothing kernel
+
+    Returns
+    -------
+    result : `measAlg.DoubleGaussianPsf`
     """
     ksize = 4*int(fwhm) + 1
     return measAlg.DoubleGaussianPsf(ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
@@ -47,8 +52,15 @@ def createPsf(fwhm):
 def transposeMaskedImage(maskedImage):
     """Make a transposed copy of a masked image
 
-    @param[in] maskedImage  afw.image.MaskedImage to process
-    @return transposed masked image
+    Parameters
+    ----------
+    maskedImage :  `afw.image.MaskedImage`
+        to process
+
+    Returns
+    -------
+    transposed :
+        masked image
     """
     transposed = maskedImage.Factory(afwGeom.Extent2I(maskedImage.getHeight(), maskedImage.getWidth()))
     transposed.getImage().getArray()[:] = maskedImage.getImage().getArray().T
@@ -60,11 +72,17 @@ def transposeMaskedImage(maskedImage):
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     """Interpolate over defects specified in a defect list
 
-    @param[in,out] maskedImage  masked image to process
-    @param[in] defectList  defect list
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] fallbackValue  fallback value if an interpolated value cannot be determined;
-                              if None then use clipped mean image value
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        masked image to process
+    defectList : `list`
+        defect list
+    fwhm : `float`
+        FWHM of double Gaussian smoothing kernel
+    fallbackValue :
+        fallback value if an interpolated value cannot be determined;
+        if None then use clipped mean image value
     """
     psf = createPsf(fwhm)
     if fallbackValue is None:
@@ -77,7 +95,10 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
 def defectListFromFootprintList(fpList):
     """Compute a defect list from a footprint list, optionally growing the footprints
 
-    @param[in] fpList  footprint list
+    Parameters
+    ----------
+    fpList : `list`
+        footprint list
     """
     defectList = []
     for fp in fpList:
@@ -90,8 +111,15 @@ def defectListFromFootprintList(fpList):
 def transposeDefectList(defectList):
     """Make a transposed copy of a defect list
 
-    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
-    @return a defect list with transposed defects
+    Parameters
+    ----------
+    defectList : `list` of `afw.meas.algorithms.Defect`
+        a list of defects (afw.meas.algorithms.Defect)
+
+    Returns
+    -------
+    retDefectList : `list` of `afw.meas.algorithms.Defect`
+        a defect list with transposed defects
     """
     retDefectList = []
     for defect in defectList:
@@ -105,9 +133,14 @@ def transposeDefectList(defectList):
 def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     """Set mask plane based on a defect list
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process; mask plane is updated
-    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
-    @param[in] maskName  mask plane name
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        afw.image.MaskedImage to process; mask plane is updated
+    defectList : `afw.meas.algorithms.Defect`
+        a list of defects (afw.meas.algorithms.Defect)
+    maskName : `str`
+        mask plane name
     """
     # mask bad pixels
     mask = maskedImage.getMask()
@@ -120,8 +153,12 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
 def getDefectListFromMask(maskedImage, maskName):
     """Compute a defect list from a specified mask plane
 
-    @param[in] maskedImage  masked image to process
-    @param[in] maskName  mask plane name, or list of names
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        masked image to process
+    maskName : `str` or `list`
+        mask plane name, or list of names
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
@@ -132,11 +169,21 @@ def getDefectListFromMask(maskedImage, maskName):
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     """Mask pixels based on threshold detection
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process; the mask is altered
-    @param[in] threshold  detection threshold
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] maskName  mask plane name
-    @return a list of defects (meas.algrithms.Defect) of regions set in the mask.
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        afw.image.MaskedImage to process; the mask is altered
+    threshold :
+        detection threshold
+    growFootprints :
+        amount by which to grow footprints of detected regions
+    maskName : `str`
+        mask plane name
+
+    Returns
+    -------
+    result : `defectListFromFootprintList()`
+        a list of defects (meas.algrithms.Defect) of regions set in the mask.
     """
     # find saturated regions
     thresh = afwDetection.Threshold(threshold)
@@ -157,11 +204,18 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
 def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
     """Interpolate over defects identified by a particular mask plane
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] maskName  mask plane name
-    @param[in] fallbackValue  value of last resort for interpolation
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        to process
+    fwhm : `float`
+        FWHM of double Gaussian smoothing kernel
+    growFootprints :
+        amount by which to grow footprints of detected regions
+    maskName : `str`
+        mask plane name
+    fallbackValue :
+        value of last resort for interpolation
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
@@ -179,13 +233,22 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
                          fallbackValue=None):
     """Mark saturated pixels and optionally interpolate over them
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process
-    @param[in] saturation  saturation level (used as a detection threshold)
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] interpolate  interpolate over saturated pixels?
-    @param[in] maskName  mask plane name
-    @param[in] fallbackValue  value of last resort for interpolation
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        to process
+    saturation :
+        saturation level (used as a detection threshold)
+    fwhm : `float`
+        FWHM of double Gaussian smoothing kernel
+    growFootprints :
+        amount by which to grow footprints of detected regions
+    interpolate : `bool`
+        interpolate over saturated pixels?
+    maskName : `str`
+        mask plane name
+    fallbackValue :
+        value of last resort for interpolation
     """
     defectList = makeThresholdMask(
         maskedImage=maskedImage,
@@ -200,8 +263,12 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
 def biasCorrection(maskedImage, biasMaskedImage):
     """Apply bias correction in place
 
-    @param[in,out] maskedImage  masked image to correct
-    @param[in] biasMaskedImage  bias, as a masked image
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        masked image to correct
+    biasMaskedImage : `afw.image.MaskedImage`
+        bias, as a masked image
     """
     if maskedImage.getBBox(afwImage.LOCAL) != biasMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != biasMaskedImage bbox %s" %
@@ -214,11 +281,17 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
 
     maskedImage -= dark * expScaling / darkScaling
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] darkMaskedImage  dark afw.image.MaskedImage
-    @param[in] expScale  exposure scale
-    @param[in] darkScale  dark scale
-    @param[in] invert     if True, remove the dark from an already-corrected image
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        to correct
+    darkMaskedImage : `afw.image.MaskedImage`
+    expScale :
+        exposure scale
+    darkScale :
+        dark scale
+    invert :
+        if True, remove the dark from an already-corrected image
     """
     if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != darkMaskedImage bbox %s" %
@@ -234,9 +307,14 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
 def updateVariance(maskedImage, gain, readNoise):
     """Set the variance plane based on the image plane
 
-    @param[in,out] maskedImage  afw.image.MaskedImage; image plane is read and variance plane is written
-    @param[in] gain  amplifier gain (e-/ADU)
-    @param[in] readNoise  amplifier read noise (ADU/pixel)
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        image plane is read and variance plane is written
+    gain :
+        amplifier gain (e-/ADU)
+    readNoise :
+        amplifier read noise (ADU/pixel)
     """
     var = maskedImage.getVariance()
     var[:] = maskedImage.getImage()
@@ -247,11 +325,18 @@ def updateVariance(maskedImage, gain, readNoise):
 def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False):
     """Apply flat correction in place
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] flatMaskedImage  flat field afw.image.MaskedImage
-    @param[in] scalingType  how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
-    @param[in] userScale  scale to use if scalingType is 'USER', else ignored
-    @param[in] invert  if True, unflatten an already-flattened image instead.
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        to correct
+    flatMaskedImage : `afw.image.MaskedImage`
+        flat field afw.image.MaskedImage
+    scalingType : `str`
+        how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
+    userScale : `str`
+        scale to use if scalingType is 'USER', else ignored
+    invert : `bool`
+        if True, unflatten an already-flattened image instead.
     """
     if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != flatMaskedImage bbox %s" %
@@ -279,9 +364,14 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
 def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
     """Apply illumination correction in place
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] illumMaskedImage  illumination correction masked image
-    @param[in] illumScale  scale value for illumination correction
+    Parameters
+    ----------
+    maskedImage : `afw.image.MaskedImage`
+        to correct
+    illumMaskedImage : `afw.image.MaskedImage`
+        illumination correction masked image
+    illumScale :
+        scale value for illumination correction
     """
     if maskedImage.getBBox(afwImage.LOCAL) != illumMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != illumMaskedImage bbox %s" %

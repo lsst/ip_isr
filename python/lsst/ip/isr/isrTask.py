@@ -41,6 +41,7 @@ from contextlib import contextmanager
 from .isr import maskNans
 from .crosstalk import CrosstalkTask
 
+__all__ = ('IsrTaskConfig', 'IsrTask', 'FakeAmp')
 
 class IsrTaskConfig(pexConfig.Config):
     doBias = pexConfig.Field(
@@ -318,23 +319,7 @@ class IsrTaskConfig(pexConfig.Config):
 
 
 class IsrTask(pipeBase.CmdLineTask):
-    """!
-    @anchor IsrTask_
-
-    @brief Apply common instrument signature correction algorithms to a raw frame.
-
-    @section ip_isr_isr_Contents Contents
-
-     - @ref ip_isr_isr_Purpose
-     - @ref ip_isr_isr_Initialize
-     - @ref ip_isr_isr_IO
-     - @ref ip_isr_isr_Config
-     - @ref ip_isr_isr_Debug
-
-
-    @section ip_isr_isr_Purpose Description
-
-    The process for correcting imaging data is very similar from camera to camera.
+    """The process for correcting imaging data is very similar from camera to camera.
     This task provides a vanilla implementation of doing these corrections, including
     the ability to turn certain corrections off if they are not needed.
     The inputs to the primary method, run, are a raw exposure to be corrected and the
@@ -345,58 +330,48 @@ class IsrTask(pipeBase.CmdLineTask):
     This task may not meet all needs and it is expected that it will be subclassed for
     specific applications.
 
-    @section ip_isr_isr_Initialize Task initialization
+    Parameters
+    ----------
+    args :
+        a list of positional arguments passed on to the Task constructor
+    kwargs :
+        a dictionary of keyword arguments passed on to the Task constructor
+        Call the ``lsst.pipe.base.task.Task.__init__`` method
+        Then setup the assembly and fringe correction subtasks
 
-    @copydoc \_\_init\_\_
-
-    @section ip_isr_isr_IO Inputs/Outputs to the run method
-
-    @copydoc run
-
-    @section ip_isr_isr_Config Configuration parameters
-
-    See @ref IsrTaskConfig
-
-    @section ip_isr_isr_Debug Debug variables
-
-    The @link lsst.pipe.base.cmdLineTask.CmdLineTask command line task@endlink interface supports a
-    flag @c --debug, @c -d to import @b debug.py from your @c PYTHONPATH; see <a
-    href="http://lsst-web.ncsa.illinois.edu/~buildbot/doxygen/x_masterDoxyDoc/base_debug.html">
-    Using lsstDebug to control debugging output</a> for more about @b debug.py files.
-
+    Notes
+    -----
     The available variables in IsrTask are:
-    <DL>
-      <DT> @c display
-      <DD> A dictionary containing debug point names as keys with frame number as value. Valid keys are:
-        <DL>
-          <DT> postISRCCD
-          <DD> display exposure after ISR has been applied
-        </DL>
-    </DL>
+
+    display :
+        A dictionary containing debug point names as keys with frame number as value. Valid keys are:
+
+    postISRCCD :
+        display exposure after ISR has been applied
+
+    Examples
+    --------
 
     For example, put something like
-    @code{.py}
-    import lsstDebug
-    def DebugInfo(name):
-        di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
-        if name == "lsst.ip.isrFunctions.isrTask":
-            di.display = {'postISRCCD':2}
-        return di
-    lsstDebug.Info = DebugInfo
-    @endcode
+
+    .. code-block :: none
+
+        import lsstDebug
+        def DebugInfo(name):
+            di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
+            if name == "lsst.ip.isrFunctions.isrTask":
+                di.display = {'postISRCCD':2}
+            return di
+        lsstDebug.Info = DebugInfo
+
     into your debug.py file and run the commandline task with the @c --debug flag.
 
-    <HR>
     """
     ConfigClass = IsrTaskConfig
     _DefaultName = "isr"
 
     def __init__(self, *args, **kwargs):
-        '''!Constructor for IsrTask
-        @param[in] *args    a list of positional arguments passed on to the Task constructor
-        @param[in] **kwargs    a dictionary of keyword arguments passed on to the Task constructor
-        Call the lsst.pipe.base.task.Task.__init__ method
-        Then setup the assembly and fringe correction subtasks
+        '''Constructor for IsrTask
         '''
         pipeBase.Task.__init__(self, *args, **kwargs)
         self.makeSubtask("assembleCcd")
@@ -404,19 +379,30 @@ class IsrTask(pipeBase.CmdLineTask):
         self.makeSubtask("crosstalk")
 
     def readIsrData(self, dataRef, rawExposure):
-        """!Retrieve necessary frames for instrument signature removal
-        @param[in] dataRef    a daf.persistence.butlerSubset.ButlerDataRef
-                              of the detector data to be processed
-        @param[in] rawExposure    a reference raw exposure that will later be
-                                  corrected with the retrieved calibration data;
-                                  should not be modified in this method.
-        @return a pipeBase.Struct with fields containing kwargs expected by run()
-         - bias: exposure of bias frame
-         - dark: exposure of dark frame
-         - flat: exposure of flat field
-         - defects: list of detects
-         - fringeStruct: a pipeBase.Struct with field fringes containing
-                         exposure of fringe frame or list of fringe exposure
+        """Retrieve necessary frames for instrument signature removal
+
+        Parameters
+        ----------
+        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
+            a daf.persistence.butlerSubset.ButlerDataRef
+            of the detector data to be processed
+        rawExposure :
+            a reference raw exposure that will later be
+            corrected with the retrieved calibration data;
+            should not be modified in this method.
+
+        Returns
+        -------
+        Struct : `pipeBase.Struct`
+            a pipeBase.Struct with fields containing kwargs expected by run():
+
+            - ``bias`` : exposure of bias frame
+            - ``dark`` : exposure of dark frame
+            - ``flat`` : exposure of flat field
+            - ``defects`` : list of detects
+            - ``fringeStruct`` : a pipeBase.Struct with field fringes containing
+                exposure of fringe frame or list of fringe exposure
+
         """
         ccd = rawExposure.getDetector()
 
@@ -478,32 +464,53 @@ class IsrTask(pipeBase.CmdLineTask):
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             crosstalkSources=None):
-        """!Perform instrument signature removal on an exposure
+        """Perform instrument signature removal on an exposure
 
         Steps include:
+
         - Detect saturation, apply overscan correction, bias, dark and flat
         - Perform CCD assembly
         - Interpolate over defects, saturated pixels and all NaNs
 
-        @param[in] ccdExposure  lsst.afw.image.exposure of detector data
-        @param[in] bias  exposure of bias frame
-        @param[in] linearizer  linearizing functor; a subclass of lsst.ip.isrFunctions.LinearizeBase
-        @param[in] dark  exposure of dark frame
-        @param[in] flat  exposure of flatfield
-        @param[in] defects  list of detects
-        @param[in] fringes  a pipeBase.Struct with field fringes containing
-                            exposure of fringe frame or list of fringe exposure
-        @param[in] bfKernel  kernel for brighter-fatter correction
-        @param[in] camera  camera geometry, an lsst.afw.cameraGeom.Camera;
-                           used by addDistortionModel
-        @param[in] opticsTransmission  a TransmissionCurve for the optics
-        @param[in] filterTransmission  a TransmissionCurve for the filter
-        @param[in] sensorTransmission  a TransmissionCurve for the sensor
-        @param[in] atmosphereTransmission  a TransmissionCurve for the atmosphere
-        @param[in] crosstalkSources  a defaultdict used for DECam inter-CCD crosstalk
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.exposure`
+            lsst.afw.image.exposure of detector data
+        bias :
+            exposure of bias frame
+        linearizer :
+            linearizing functor; a subclass of lsst.ip.isrFunctions.LinearizeBase
+        dark :
+            exposure of dark frame
+        flat :
+            exposure of flatfield
+        defects :
+            list of detects
+        fringes :
+            a pipeBase.Struct with field fringes containing
+            exposure of fringe frame or list of fringe exposure
+        bfKernel :
+            kernel for brighter-fatter correction
+        camera : `lsst.afw.cameraGeom.Camera`
+            camera geometry, used by addDistortionModel
+        opticsTransmission :
+            a TransmissionCurve for the optics
+        filterTransmission :
+            a TransmissionCurve for the filter
+        sensorTransmission :
+            a TransmissionCurve for the sensor
+        atmosphereTransmission :
+            a TransmissionCurve for the atmosphere
+        crosstalkSources :
+            a defaultdict used for DECam inter-CCD crosstalk
 
-        @return a pipeBase.Struct with field:
-         - exposure
+        Returns
+        -------
+        Struct :  ``pipeBase.Struct``
+            with field:
+
+            - ``exposure`` :
+
         """
         # parseAndRun expects to be able to call run() with a dataRef; see DM-6640
         if isinstance(ccdExposure, ButlerDataRef):
@@ -682,19 +689,28 @@ class IsrTask(pipeBase.CmdLineTask):
         return newexposure
 
     def biasCorrection(self, exposure, biasExposure):
-        """!Apply bias correction in place
+        """Apply bias correction in place
 
-        @param[in,out]  exposure        exposure to process
-        @param[in]      biasExposure    bias exposure of same size as exposure
+        Parameters
+        ----------
+        exposure :
+            exposure to process
+        biasExposure :
+            bias exposure of same size as exposure
         """
         isrFunctions.biasCorrection(exposure.getMaskedImage(), biasExposure.getMaskedImage())
 
     def darkCorrection(self, exposure, darkExposure, invert=False):
-        """!Apply dark correction in place
+        """Apply dark correction in place
 
-        @param[in,out]  exposure        exposure to process
-        @param[in]      darkExposure    dark exposure of same size as exposure
-        @param[in]      invert          if True, remove the dark from an already-corrected image
+        Parameters
+        ----------
+        exposure :
+            exposure to process
+        darkExposure :
+            dark exposure of same size as exposure
+        invert :
+            if True, remove the dark from an already-corrected image
         """
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
@@ -711,11 +727,14 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def doLinearize(self, detector):
-        """!Is linearization wanted for this detector?
+        """Is linearization wanted for this detector?
 
         Checks config.doLinearize and the linearity type of the first amplifier.
 
-        @param[in]  detector  detector information (an lsst.afw.cameraGeom.Detector)
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.Detector`
+            detector information (an lsst.afw.cameraGeom.Detector)
         """
         return self.config.doLinearize and \
             detector.getAmpInfoCatalog()[0].getLinearityType() != NullLinearityType
@@ -760,11 +779,16 @@ class IsrTask(pipeBase.CmdLineTask):
             )
 
     def flatCorrection(self, exposure, flatExposure, invert=False):
-        """!Apply flat correction in place
+        """Apply flat correction in place
 
-        @param[in,out]  exposure        exposure to process
-        @param[in]      flatExposure    flatfield exposure same size as exposure
-        @param[in]      invert          if True, unflatten an already-flattened image instead.
+        Parameters
+        ----------
+        exposure :
+            exposure to process
+        flatExposure :
+            flatfield exposure same size as exposure
+        invert :
+            if True, unflatten an already-flattened image instead.
         """
         isrFunctions.flatCorrection(
             maskedImage=exposure.getMaskedImage(),
@@ -775,13 +799,22 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def getIsrExposure(self, dataRef, datasetType, immediate=True):
-        """!Retrieve a calibration dataset for removing instrument signature
+        """Retrieve a calibration dataset for removing instrument signature
 
-        @param[in]      dataRef         data reference for exposure
-        @param[in]      datasetType     type of dataset to retrieve (e.g. 'bias', 'flat')
-        @param[in]      immediate       if True, disable butler proxies to enable error
+        Parameters
+        ----------
+        dataRef :
+            data reference for exposure
+        datasetType :
+            type of dataset to retrieve (e.g. 'bias', 'flat')
+        immediate :
+            if True, disable butler proxies to enable error
                                         handling within this routine
-        @return exposure
+
+        Returns
+        -------
+        exp :
+            exposure
         """
         try:
             exp = dataRef.get(datasetType, immediate=immediate)
@@ -800,10 +833,14 @@ class IsrTask(pipeBase.CmdLineTask):
         return exp
 
     def saturationDetection(self, exposure, amp):
-        """!Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place
+        """Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place
 
-        @param[in,out]  exposure    exposure to process; only the amp DataSec is processed
-        @param[in]      amp         amplifier device data
+        Parameters
+        ----------
+        exposure :
+            exposure to process; only the amp DataSec is processed
+        amp :
+            amplifier device data
         """
         if not math.isnan(amp.getSaturation()):
             maskedImage = exposure.getMaskedImage()
@@ -816,13 +853,20 @@ class IsrTask(pipeBase.CmdLineTask):
             )
 
     def saturationInterpolation(self, ccdExposure):
-        """!Interpolate over saturated pixels, in place
+        """Interpolate over saturated pixels, in place
 
-        @param[in,out]  ccdExposure     exposure to process
+        Parameters
+        ----------
+        ccdExposure :
+            exposure to process
 
-        @warning:
-        - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
-        - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
+        Notes
+        -----
+        Warnings :
+
+            - Call saturationDetection first, so that saturated pixels have been identified in the "SAT" mask.
+            - Call this after CCD assembly, since saturated regions may cross amplifier boundaries
+
         """
         isrFunctions.interpolateFromMask(
             maskedImage=ccdExposure.getMaskedImage(),
@@ -832,7 +876,7 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def suspectDetection(self, exposure, amp):
-        """!Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place
+        """Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place
 
         Suspect pixels are pixels whose value is greater than amp.getSuspectLevel().
         This is intended to indicate pixels that may be affected by unknown systematics;
@@ -840,8 +884,12 @@ class IsrTask(pipeBase.CmdLineTask):
         then that would be a useful value for suspectLevel. A value of `nan` indicates
         that no such level exists and no pixels are to be masked as suspicious.
 
-        @param[in,out]  exposure    exposure to process; only the amp DataSec is processed
-        @param[in]      amp         amplifier device data
+        Parameters
+        ----------
+        exposure :
+            exposure to process; only the amp DataSec is processed
+        amp :
+            amplifier device data
         """
         suspectLevel = amp.getSuspectLevel()
         if math.isnan(suspectLevel):
@@ -857,12 +905,18 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def maskAndInterpDefect(self, ccdExposure, defectBaseList):
-        """!Mask defects using mask plane "BAD" and interpolate over them, in place
+        """Mask defects using mask plane "BAD" and interpolate over them, in place
 
-        @param[in,out]  ccdExposure     exposure to process
-        @param[in] defectBaseList a list of defects to mask and interpolate
+        Parameters
+        ----------
+        ccdExposure :
+            exposure to process
+        defectBaseList :
+            a list of defects to mask and interpolate
 
-        @warning: call this after CCD assembly, since defects may cross amplifier boundaries
+        Notes
+        -----
+        warning : call this after CCD assembly, since defects may cross amplifier boundaries
         """
         maskedImage = ccdExposure.getMaskedImage()
         defectList = []
@@ -878,7 +932,7 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def maskAndInterpNan(self, exposure):
-        """!Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
+        """Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
 
         We mask and interpolate over all NaNs, including those
         that are masked with other bits (because those may or may
@@ -886,7 +940,10 @@ class IsrTask(pipeBase.CmdLineTask):
         NaNs).  Despite this behaviour, the "UNMASKEDNAN" mask plane
         is used to preserve the historical name.
 
-        @param[in,out]  exposure        exposure to process
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            exposure to process
         """
         maskedImage = exposure.getMaskedImage()
 
@@ -919,7 +976,7 @@ class IsrTask(pipeBase.CmdLineTask):
         amp : `lsst.afw.table.AmpInfoRecord`
             Amplifier device data.
 
-        Results
+        Returns
         -------
         result : `lsst.pipe.base.Struct` or `NoneType`
             `None` if there is no overscan; otherwise, this is a
@@ -970,23 +1027,30 @@ class IsrTask(pipeBase.CmdLineTask):
         return results
 
     def addDistortionModel(self, exposure, camera):
-        """!Update the WCS in exposure with a distortion model based on camera geometry
+        """Update the WCS in exposure with a distortion model based on camera geometry
 
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            exposure to process; must include a Detector and a WCS;
+            the WCS of the exposure is modified in place
+        camera : `lsst.afw.cameraGeom.Camera`
+            camera geometry; an lsst.afw.cameraGeom.Camera
+
+        Notes
+        -----
         Add a model for optical distortion based on geometry found in `camera`
         and the `exposure`'s detector. The raw input exposure is assumed
         have a TAN WCS that has no compensation for optical distortion.
         Two other possibilities are:
         - The raw input exposure already has a model for optical distortion,
-            as is the case for raw DECam data.
-            In that case you should set config.doAddDistortionModel False.
+        as is the case for raw DECam data.
+        In that case you should set config.doAddDistortionModel False.
         - The raw input exposure has a model for distortion, but it has known
-            deficiencies severe enough to be worth fixing (e.g. because they
-            cause problems for fitting a better WCS). In that case you should
-            override this method with a version suitable for your raw data.
+        deficiencies severe enough to be worth fixing (e.g. because they
+        cause problems for fitting a better WCS). In that case you should
+        override this method with a version suitable for your raw data.
 
-        @param[in,out] exposure    exposure to process; must include a Detector and a WCS;
-            the WCS of the exposure is modified in place
-        @param[in] camera  camera geometry; an lsst.afw.cameraGeom.Camera
         """
         self.log.info("Adding a distortion model to the WCS")
         wcs = exposure.getWcs()
@@ -1003,10 +1067,14 @@ class IsrTask(pipeBase.CmdLineTask):
         exposure.setWcs(distortedWcs)
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
-        """!Set the valid polygon as the intersection of fpPolygon and the ccd corners
+        """Set the valid polygon as the intersection of fpPolygon and the ccd corners
 
-        @param[in,out]  ccdExposure    exposure to process
-        @param[in]      fpPolygon   Polygon in focal plane coordinates
+        Parameters
+        ----------
+        ccdExposure :
+            exposure to process
+        fpPolygon :
+            Polygon in focal plane coordinates
         """
         # Get ccd corners in focal plane coordinates
         ccd = ccdExposure.getDetector()
@@ -1028,6 +1096,8 @@ class IsrTask(pipeBase.CmdLineTask):
         redistribute the charge.  The gradient of the kernel is the deflection
         field due to the accumulated charge.
 
+        Notes
+        -----
         Given the original image I(x) and the kernel K(x) we can compute the corrected image  Ic(x)
         using the following equation:
 
@@ -1141,6 +1211,8 @@ class IsrTask(pipeBase.CmdLineTask):
             A ``TransmissionCurve`` that represents the throughput of the
             atmosphere, assumed to be spatially constant.
 
+        Notes
+        -----
         All ``TransmissionCurve`` arguments are optional; if none are provided,
         the attached ``TransmissionCurve`` will have unit transmission
         everywhere.

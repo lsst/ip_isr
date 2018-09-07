@@ -31,6 +31,7 @@ import lsst.afw.display.ds9 as ds9
 from lsst.pipe.base import Task, Struct, timeMethod
 from lsst.pex.config import Config, Field, ListField, ConfigField
 
+__all__ = ('FringeStatisticsConfig','FringeConfig','FringeTask')
 
 def getFrame():
     """Produce a new frame number each time"""
@@ -81,10 +82,18 @@ class FringeTask(Task):
         This implementation could be optimised by persisting the fringe
         positions and fluxes.
 
-        @param dataRef     Data reference for the science exposure
-        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
-        @return Struct(fringes: fringe exposure or list of fringe exposures;
-                       seed: 32-bit uint derived from ccdExposureId for random number generator
+        Parameters
+        ----------
+        dataRef :
+            Data reference for the science exposure
+        assembler :
+            An instance of AssembleCcdTask (for assembling fringe frames)
+
+        Returns
+        -------
+        Struct(fringes :
+            fringe exposure or list of fringe exposures;
+            seed: 32-bit uint derived from ccdExposureId for random number generator
         """
         try:
             fringe = dataRef.get("fringe", immediate=True)
@@ -107,9 +116,14 @@ class FringeTask(Task):
         Primary method of FringeTask.  Fringes are only subtracted if the
         science exposure has a filter listed in the configuration.
 
-        @param exposure    Science exposure from which to remove fringes
-        @param fringes     Exposure or list of Exposures
-        @param seed        32-bit unsigned integer for random number generator
+        Parameters
+        ----------
+        exposure :
+            Science exposure from which to remove fringes
+        fringes :
+            Exposure or list of Exposures
+        seed :
+            32-bit unsigned integer for random number generator
         """
         import lsstDebug
         display = lsstDebug.Info(__name__).display
@@ -152,9 +166,14 @@ class FringeTask(Task):
         Fringes are only subtracted if the science exposure has a filter
         listed in the configuration.
 
-        @param exposure    Science exposure from which to remove fringes
-        @param dataRef     Data reference for the science exposure
-        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
+        Parameters
+        ----------
+        exposure :
+            Science exposure from which to remove fringes
+        dataRef :
+            Data reference for the science exposure
+        assembler :
+            An instance of AssembleCcdTask (for assembling fringe frames)
         """
         if not self.checkFilter(exposure):
             return
@@ -192,10 +211,19 @@ class FringeTask(Task):
         aperture.  The statistic within a larger aperture are subtracted so
         as to remove the background.
 
-        @param exposure    Exposure to measure
-        @param positions   Array of (x,y) for fringe measurement
-        @param title       Title for display
-        @return Array of fringe measurements
+        Parameters
+        ----------
+        exposure :
+            Exposure to measure
+        positions :
+            Array of (x,y) for fringe measurement
+        title :
+            Title for display
+
+        Returns
+        -------
+        fringes :
+            Array of fringe measurements
         """
         stats = afwMath.StatisticsControl()
         stats.setNumSigmaClip(self.config.stats.clip)
@@ -229,9 +257,17 @@ class FringeTask(Task):
     def solve(self, science, fringes):
         """Solve (with iterative clipping) for the scale factors
 
-        @param science     Array of science exposure fringe amplitudes
-        @param fringes     Array of arrays of fringe frame fringe amplitudes
-        @return Array of scale factors for the fringe frames
+        Parameters
+        ----------
+        science :
+            Array of science exposure fringe amplitudes
+        fringes :
+            Array of arrays of fringe frame fringe amplitudes
+
+        Returns
+        -------
+        result : `numpy.array()`
+            Array of scale factors for the fringe frames
         """
         import lsstDebug
         doPlot = lsstDebug.Info(__name__).plot
@@ -332,9 +368,17 @@ class FringeTask(Task):
     def _solve(self, science, fringes):
         """Solve for the scale factors
 
-        @param science     Array of science exposure fringe amplitudes
-        @param fringes     Array of arrays of fringe frame fringe amplitudes
-        @return Array of scale factors for the fringe frames
+        Parameters
+        ----------
+        science :
+            Array of science exposure fringe amplitudes
+        fringes :
+            Array of arrays of fringe frame fringe amplitudes
+
+        Returns
+        -------
+        result : `afwMath.LeastSquares.fromDesignMatrix`
+            Array of scale factors for the fringe frames
         """
         return afwMath.LeastSquares.fromDesignMatrix(fringes, science,
                                                      afwMath.LeastSquares.DIRECT_SVD).getSolution()
@@ -342,9 +386,14 @@ class FringeTask(Task):
     def subtract(self, science, fringes, solution):
         """Subtract the fringes
 
-        @param science     Science exposure
-        @param fringes     List of fringe frames
-        @param solution    Array of scale factors for the fringe frames
+        Parameters
+        ----------
+        science :
+            Science exposure
+        fringes :
+            List of fringe frames
+        solution :
+            Array of scale factors for the fringe frames
         """
         if len(solution) != len(fringes):
             raise RuntimeError("Number of fringe frames (%s) != number of scale factors (%s)" %
@@ -357,12 +406,23 @@ class FringeTask(Task):
 def measure(mi, x, y, size, statistic, stats):
     """Measure a statistic within an aperture
 
-    @param mi          MaskedImage to measure
-    @param x, y        Center for aperture
-    @param size        Size of aperture
-    @param statistic   Statistic to measure
-    @param stats       StatisticsControl object
-    @return Value of statistic within aperture
+    Parameters
+    ----------
+    mi :
+        MaskedImage to measure
+    x, y :
+        Center for aperture
+    size :
+        Size of aperture
+    statistic :
+        Statistic to measure
+    stats :
+        StatisticsControl object
+
+    Returns
+    -------
+    result : `afwMath.makeStatistics`
+        Value of statistic within aperture
     """
     bbox = afwGeom.Box2I(afwGeom.Point2I(int(x) - size, int(y - size)), afwGeom.Extent2I(2*size, 2*size))
     subImage = mi.Factory(mi, bbox, afwImage.LOCAL)
@@ -372,8 +432,15 @@ def measure(mi, x, y, size, statistic, stats):
 def stdev(vector):
     """Calculate a robust standard deviation of an array of values
 
-    @param vector  Array of values
-    @return Standard deviation
+    Parameters
+    ----------
+    vector :
+        Array of values
+
+    Returns
+    -------
+    result : `float`
+        Standard deviation
     """
     q1, q3 = numpy.percentile(vector, (25, 75))
     return 0.74*(q3-q1)
@@ -382,7 +449,10 @@ def stdev(vector):
 def select(vector, clip):
     """Select values within 'clip' standard deviations of the median
 
-    Returns a boolean array.
+    Returns
+    -------
+    result : `numpy.abs`
+        Returns a boolean array.
     """
     q1, q2, q3 = numpy.percentile(vector, (25, 50, 75))
     return numpy.abs(vector - q2) < clip*0.74*(q3 - q1)
