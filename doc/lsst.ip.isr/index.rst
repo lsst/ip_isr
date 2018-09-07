@@ -10,3 +10,10 @@ Python API reference
 ====================
 
 .. .. automodapi:: lsst.ip.isr
+.. automodapi:: lsst.ip.isr.assembleCcdTask
+.. automodapi:: lsst.ip.isr.crosstalk
+.. automodapi:: lsst.ip.isr.fringe
+.. automodapi:: lsst.ip.isr.isrFunctions
+.. automodapi:: lsst.ip.isr.isrTask
+.. automodapi:: lsst.ip.isr.linearize
+.. automodapi:: lsst.ip.isr.measureCrosstalk
