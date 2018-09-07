@@ -43,6 +43,7 @@ from .crosstalk import CrosstalkTask
 
 __all__ = ('IsrTaskConfig', 'IsrTask', 'FakeAmp')
 
+
 class IsrTaskConfig(pexConfig.Config):
     doBias = pexConfig.Field(
         dtype=bool,

@@ -181,8 +181,10 @@ class LinearizeLookupTable(LinearizeBase):
             return an lsst.pipe.base.Struct containing:
 
             - ``numAmps`` : number of amplifiers found
-            - ``numLinearized`` :  number of amplifiers linearized (always equal to numAmps for this linearizer)
-            - ``numOutOfRange`` :  number of pixels out of range of their lookup table (summed across all amps)
+            - ``numLinearized`` :  number of amplifiers linearized
+            (always equal to numAmps for this linearizer)
+            - ``numOutOfRange`` :  number of pixels out of range of their lookup table
+            (summed across all amps)
 
         Raises
         ------

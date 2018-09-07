@@ -31,7 +31,8 @@ import lsst.afw.display.ds9 as ds9
 from lsst.pipe.base import Task, Struct, timeMethod
 from lsst.pex.config import Config, Field, ListField, ConfigField
 
-__all__ = ('FringeStatisticsConfig','FringeConfig','FringeTask')
+__all__ = ('FringeStatisticsConfig', 'FringeConfig', 'FringeTask')
+
 
 def getFrame():
     """Produce a new frame number each time"""
