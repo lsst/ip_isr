@@ -131,18 +131,17 @@ class FringeTask(Task):
             if self.config.pedestal:
                 self.removePedestal(fringe)
 
-        # Placeholder implementation for multiple fringe frames
-        # This needs to be revisited in DM-4441
         positions = self.generatePositions(fringes[0], rng)
         fluxes = numpy.ndarray([self.config.num, len(fringes)])
         for i, f in enumerate(fringes):
             fluxes[:, i] = self.measureExposure(f, positions, title="Fringe frame")
 
         expFringes = self.measureExposure(exposure, positions, title="Science")
-        solution = self.solve(expFringes, fluxes)
+        solution, rms = self.solve(expFringes, fluxes)
         self.subtract(exposure, fringes, solution)
         if display:
             afwDisplay.Display(frame=getFrame()).mtv(exposure, title="Fringe subtracted")
+        return solution, rms
 
     @timeMethod
     def runDataRef(self, exposure, dataRef, assembler=None):
@@ -160,7 +159,7 @@ class FringeTask(Task):
         if not self.checkFilter(exposure):
             return
         fringeStruct = self.readFringes(dataRef, assembler=assembler)
-        self.run(exposure, **fringeStruct.getDict())
+        return self.run(exposure, **fringeStruct.getDict())
 
     def checkFilter(self, exposure):
         """Check whether we should fringe-subtract the science exposure"""
@@ -248,7 +247,7 @@ class FringeTask(Task):
             out = [0]
             if len(fringes) > 1:
                 out = out*len(fringes)
-            return numpy.array(out)
+            return numpy.array(out), numpy.nan
 
         good = numpy.where(numpy.logical_and(numpy.isfinite(science), numpy.any(numpy.isfinite(fringes), 1)))
         science = science[good]
@@ -328,7 +327,7 @@ class FringeTask(Task):
         # Final solution without rejection
         solution = self._solve(science, fringes)
         self.log.info("Fringe solution: %s RMS: %f Good: %d/%d", solution, rms, len(science), origNum)
-        return solution
+        return solution, rms
 
     def _solve(self, science, fringes):
         """Solve for the scale factors
