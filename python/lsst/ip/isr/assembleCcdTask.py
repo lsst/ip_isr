@@ -141,7 +141,7 @@ class AssembleCcdTask(pipeBase.Task):
         self.allKeysToRemove = ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN') + tuple(self.config.keysToRemove)
 
     def assembleCcd(self, assembleInput):
-        """Assemble a set of amps into a single CCD size image
+        """Assemble a set of amps into a single CCD size image.
 
         Parameters
         ----------

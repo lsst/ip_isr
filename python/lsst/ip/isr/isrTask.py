@@ -320,7 +320,9 @@ class IsrTaskConfig(pexConfig.Config):
 
 
 class IsrTask(pipeBase.CmdLineTask):
-    """The process for correcting imaging data is very similar from camera to camera.
+    """Apply common instrument signature correction algorithms to a raw frame.
+
+    The process for correcting imaging data is very similar from camera to camera.
     This task provides a vanilla implementation of doing these corrections, including
     the ability to turn certain corrections off if they are not needed.
     The inputs to the primary method, run, are a raw exposure to be corrected and the
@@ -380,7 +382,7 @@ class IsrTask(pipeBase.CmdLineTask):
         self.makeSubtask("crosstalk")
 
     def readIsrData(self, dataRef, rawExposure):
-        """Retrieve necessary frames for instrument signature removal
+        """Retrieve necessary frames for instrument signature removal.
 
         Parameters
         ----------
@@ -465,7 +467,7 @@ class IsrTask(pipeBase.CmdLineTask):
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             crosstalkSources=None):
-        """Perform instrument signature removal on an exposure
+        """Perform instrument signature removal on an exposure.
 
         Steps include:
 
@@ -690,7 +692,7 @@ class IsrTask(pipeBase.CmdLineTask):
         return newexposure
 
     def biasCorrection(self, exposure, biasExposure):
-        """Apply bias correction in place
+        """Apply bias correction in place.
 
         Parameters
         ----------
@@ -877,7 +879,7 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def suspectDetection(self, exposure, amp):
-        """Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place
+        """Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place.
 
         Suspect pixels are pixels whose value is greater than amp.getSuspectLevel().
         This is intended to indicate pixels that may be affected by unknown systematics;
@@ -906,7 +908,7 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def maskAndInterpDefect(self, ccdExposure, defectBaseList):
-        """Mask defects using mask plane "BAD" and interpolate over them, in place
+        """Mask defects using mask plane "BAD" and interpolate over them, in place.
 
         Parameters
         ----------
@@ -933,7 +935,7 @@ class IsrTask(pipeBase.CmdLineTask):
         )
 
     def maskAndInterpNan(self, exposure):
-        """Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
+        """Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place.
 
         We mask and interpolate over all NaNs, including those
         that are masked with other bits (because those may or may
@@ -1028,7 +1030,7 @@ class IsrTask(pipeBase.CmdLineTask):
         return results
 
     def addDistortionModel(self, exposure, camera):
-        """Update the WCS in exposure with a distortion model based on camera geometry
+        """Update the WCS in exposure with a distortion model based on camera geometry.
 
         Parameters
         ----------
@@ -1068,7 +1070,7 @@ class IsrTask(pipeBase.CmdLineTask):
         exposure.setWcs(distortedWcs)
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
-        """Set the valid polygon as the intersection of fpPolygon and the ccd corners
+        """Set the valid polygon as the intersection of fpPolygon and the ccd corners.
 
         Parameters
         ----------
