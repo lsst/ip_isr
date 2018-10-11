@@ -248,6 +248,14 @@ class IsrTaskConfig(pexConfig.Config):
         default=False,
         doc="Apply the brighter fatter correction"
     )
+    brighterFatterLevel = pexConfig.ChoiceField(
+        doc="The level at which to correct for brighter-fatter",
+        dtype=str, default="DETECTOR",
+        allowed={
+            "AMP": "Every amplifier treated separately",
+            "DETECTOR": "One kernel per detector",
+        }
+    )
     brighterFatterKernelFile = pexConfig.Field(
         dtype=str,
         default='',
@@ -493,7 +501,8 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in] defects  list of detects
         @param[in] fringes  a pipeBase.Struct with field fringes containing
                             exposure of fringe frame or list of fringe exposure
-        @param[in] bfKernel  kernel for brighter-fatter correction
+        @param[in] bfKernel  kernel for brighter-fatter correction, an
+                             lsst.cp.pipe.makeBrighterFatterKernel.BrighterFatterKernel object
         @param[in] camera  camera geometry, an lsst.afw.cameraGeom.Camera;
                            used by addDistortionModel
         @param[in] opticsTransmission  a TransmissionCurve for the optics
@@ -585,7 +594,12 @@ class IsrTask(pipeBase.CmdLineTask):
                 self.maskAndInterpNan(ccdExposure)
                 interpolationDone = True
 
-            self.brighterFatterCorrection(ccdExposure, bfKernel,
+            if self.config.brighterFatterLevel == 'DETECTOR':
+                kernelElement = bfKernel.kernel[ccdExposure.getDetector().getId()]
+            else:
+                # TODO: DM-15631 for implementing this
+                raise NotImplementedError("per-amplifier brighter-fatter correction not yet implemented")
+            self.brighterFatterCorrection(ccdExposure, kernelElement,
                                           self.config.brighterFatterMaxIter,
                                           self.config.brighterFatterThreshold,
                                           self.config.brighterFatterApplyGain,
