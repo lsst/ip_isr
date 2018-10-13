@@ -258,13 +258,11 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
                            (maskedImage.getBBox(afwImage.LOCAL), flatMaskedImage.getBBox(afwImage.LOCAL)))
 
     # Figure out scale from the data
-    # Ideally the flats are normalized by the calibration product pipelin, but this allows some flexibility
+    # Ideally the flats are normalized by the calibration product pipeline, but this allows some flexibility
     # in the case that the flat is created by some other mechanism.
-    if scalingType == 'MEAN':
-        flatScale = afwMath.makeStatistics(flatMaskedImage.getImage(), afwMath.MEAN).getValue(afwMath.MEAN)
-    elif scalingType == 'MEDIAN':
-        flatScale = afwMath.makeStatistics(flatMaskedImage.getImage(),
-                                           afwMath.MEDIAN).getValue(afwMath.MEDIAN)
+    if scalingType in ('MEAN', 'MEDIAN'):
+        scalingType = afwMath.stringToStatisticsProperty(scalingType)
+        flatScale = afwMath.makeStatistics(flatMaskedImage.image, scalingType).getValue()
     elif scalingType == 'USER':
         flatScale = userScale
     else:
@@ -290,8 +288,8 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
     maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
 
 
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0,
-                       statControl=None):
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, statControl=None,
+                       overscanIsInt=True):
     """Apply overscan correction in-place
 
     The ``ampMaskedImage`` and ``overscanImage`` are modified, with the fit
@@ -308,6 +306,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         Type of fit for overscan correction. May be one of:
 
         - ``MEAN``: use mean of overscan.
+        - ``MEANCLIP``: use clipped mean of overscan.
         - ``MEDIAN``: use median of overscan.
         - ``POLY``: fit with ordinary polynomial.
         - ``CHEB``: fit with Chebyshev polynomial.
@@ -319,10 +318,11 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
     order : `int`
         Polynomial order or number of spline knots; ignored unless
         ``fitType`` indicates a polynomial or spline.
-    collapseRej : `float`
-        Rejection threshold (sigma) for collapsing dimension of overscan.
     statControl : `lsst.afw.math.StatisticsControl`
-        Statistics control object.
+        Statistics control object.  In particular, we pay attention to numSigmaClip
+    overscanIsInt : `bool`
+        Treat the overscan region as consisting of integers, even if it's been
+        converted to float.  E.g. handle ties properly
 
     Returns
     -------
@@ -337,12 +337,30 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
     ampImage = ampMaskedImage.getImage()
     if statControl is None:
         statControl = afwMath.StatisticsControl()
-    if fitType == 'MEAN':
-        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEAN, statControl).getValue(afwMath.MEAN)
+
+    numSigmaClip = statControl.getNumSigmaClip()
+
+    if fitType in ('MEAN', 'MEANCLIP'):
+        fitType = afwMath.stringToStatisticsProperty(fitType)
+        offImage = afwMath.makeStatistics(overscanImage, fitType, statControl).getValue()
         overscanFit = offImage
-    elif fitType == 'MEDIAN':
-        offImage = afwMath.makeStatistics(overscanImage, afwMath.MEDIAN, statControl).getValue(afwMath.MEDIAN)
+    elif fitType in ('MEDIAN',):
+        if overscanIsInt:
+            # we need an image with integer pixels to handle ties properly
+            if hasattr(overscanImage, "image"):
+                imageI = overscanImage.image.convertI()
+                overscanImageI = afwImage.MaskedImageI(imageI, overscanImage.mask, overscanImage.variance)
+            else:
+                overscanImageI = overscanImage.convertI()
+        else:
+            overscanImageI = overscanImage
+
+        fitType = afwMath.stringToStatisticsProperty(fitType)
+        offImage = afwMath.makeStatistics(overscanImageI, fitType, statControl).getValue()
         overscanFit = offImage
+
+        if overscanIsInt:
+            del overscanImageI
     elif fitType in ('POLY', 'CHEB', 'LEG', 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
         if hasattr(overscanImage, "getImage"):
             biasArray = overscanImage.getImage().getArray()
@@ -361,7 +379,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         medianBiasArr = percentiles[1]
         stdevBiasArr = 0.74*(percentiles[2] - percentiles[0])  # robust stdev
         diff = numpy.abs(biasArray - medianBiasArr[:, numpy.newaxis])
-        biasMaskedArr = numpy.ma.masked_where(diff > collapseRej*stdevBiasArr[:, numpy.newaxis], biasArray)
+        biasMaskedArr = numpy.ma.masked_where(diff > numSigmaClip*stdevBiasArr[:, numpy.newaxis], biasArray)
         collapsed = numpy.mean(biasMaskedArr, axis=1)
         if collapsed.mask.sum() > 0:
             collapsed.data[collapsed.mask] = numpy.mean(biasArray.data[collapsed.mask], axis=1)

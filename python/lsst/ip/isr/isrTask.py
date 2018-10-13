@@ -163,6 +163,7 @@ class IsrTaskConfig(pexConfig.Config):
             "CUBIC_SPLINE": "Fit cubic spline to the longest axis of the overscan region",
             "AKIMA_SPLINE": "Fit Akima spline to the longest axis of the overscan region",
             "MEAN": "Correct using the mean of the overscan region",
+            "MEANCLIP": "Correct using a clipped mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
         },
     )
@@ -172,7 +173,7 @@ class IsrTaskConfig(pexConfig.Config):
              "or number of spline knots if overscan fit type is a spline."),
         default=1,
     )
-    overscanRej = pexConfig.Field(
+    overscanNumSigmaClip = pexConfig.Field(
         dtype=float,
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
         default=3.0,
@@ -387,7 +388,7 @@ class IsrTask(pipeBase.CmdLineTask):
     import lsstDebug
     def DebugInfo(name):
         di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
-        if name == "lsst.ip.isrFunctions.isrTask":
+        if name == "lsst.ip.isr.isrTask":
             di.display = {'postISRCCD':2}
         return di
     lsstDebug.Info = DebugInfo
@@ -639,7 +640,9 @@ class IsrTask(pipeBase.CmdLineTask):
 
         frame = getDebugFrame(self._display, "postISRCCD")
         if frame:
-            getDisplay(frame).mtv(ccdExposure)
+            display = getDisplay(frame)
+            display.scale('asinh', 'zscale')
+            display.mtv(ccdExposure)
 
         return pipeBase.Struct(
             exposure=ccdExposure,
@@ -688,11 +691,9 @@ class IsrTask(pipeBase.CmdLineTask):
             raise RuntimeError("Unable to convert exposure (%s) to float" % type(exposure))
 
         newexposure = exposure.convertF()
-        maskedImage = newexposure.getMaskedImage()
-        varArray = maskedImage.getVariance().getArray()
-        varArray[:, :] = 1
-        maskArray = maskedImage.getMask().getArray()
-        maskArray[:, :] = 0
+        newexposure.variance[:] = 1
+        newexposure.mask[:] = 0x0
+
         return newexposure
 
     def biasCorrection(self, exposure, biasExposure):
@@ -973,12 +974,15 @@ class IsrTask(pipeBase.CmdLineTask):
         dataView = maskedImage[amp.getRawDataBBox()]
         overscanImage = maskedImage[oscanBBox]
 
+        sctrl = afwMath.StatisticsControl()
+        sctrl.setNumSigmaClip(self.config.overscanNumSigmaClip)
+
         results = isrFunctions.overscanCorrection(
             ampMaskedImage=dataView,
             overscanImage=overscanImage,
             fitType=self.config.overscanFitType,
             order=self.config.overscanOrder,
-            collapseRej=self.config.overscanRej,
+            statControl=sctrl,
         )
         results.overscanImage = overscanImage
         return results
