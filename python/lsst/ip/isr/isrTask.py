@@ -525,7 +525,7 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doBias and bias is None:
             raise RuntimeError("Must supply a bias exposure if config.doBias True")
         if self.doLinearize(ccd) and linearizer is None:
-            raise RuntimeError("Must supply a linearizer if config.doBias True")
+            raise RuntimeError("Must supply a linearizer if config.doLinearize True")
         if self.config.doDark and dark is None:
             raise RuntimeError("Must supply a dark exposure if config.doDark True")
         if self.config.doFlat and flat is None:
