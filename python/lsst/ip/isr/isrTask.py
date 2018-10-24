@@ -327,7 +327,7 @@ class IsrTaskConfig(pexConfig.Config):
 
 
 class IsrTask(pipeBase.CmdLineTask):
-    """!
+    r"""!
     @anchor IsrTask_
 
     @brief Apply common instrument signature correction algorithms to a raw frame.

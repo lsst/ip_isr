@@ -51,7 +51,7 @@ class AssembleCcdConfig(pexConfig.Config):
 
 
 class AssembleCcdTask(pipeBase.Task):
-    """!
+    r"""!
     @anchor AssembleCcdTask_
 
     @brief Assemble a set of amplifier images into a full detector size set of pixels.
