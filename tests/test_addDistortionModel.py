@@ -29,6 +29,7 @@ from lsst.afw.cameraGeom import FIELD_ANGLE, FOCAL_PLANE, PIXELS
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper, CameraWrapper
 from lsst.afw.geom.utils import wcsAlmostEqualOverBBox
 from lsst.ip.isr import IsrTask
+import lsst.ip.isr.isrFunctions as isrFunctions
 
 
 class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
@@ -61,8 +62,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
 
     def testAddDistortionMethod(self):
         """Call IsrTask.addDistortionModel directly"""
-        isrTask = IsrTask()
-        isrTask.addDistortionModel(self.exposure, self.camera)
+        isrFunctions.addDistortionModel(self.exposure, self.camera)
         self.assertFalse(wcsAlmostEqualOverBBox(self.wcs, self.exposure.getWcs(), self.bbox))
 
         desiredWcs = self.makeDesiredDistortedWcs()

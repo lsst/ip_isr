@@ -24,132 +24,127 @@ import numpy
 
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
+import lsst.afw.table as afwTable
 import lsst.meas.algorithms as measAlg
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
-import lsst.afw.math as afwMath
-from lsst.daf.persistence import ButlerDataRef
-from lsstDebug import getDebugFrame
-from lsst.afw.display import getDisplay
-from . import isrFunctions
-from .assembleCcdTask import AssembleCcdTask
-from .fringe import FringeTask
-from lsst.afw.geom import Polygon
-from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
-from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, FIELD_ANGLE, NullLinearityType
+
 from contextlib import contextmanager
-from .isr import maskNans
+from lsstDebug import getDebugFrame
+
+from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, NullLinearityType
+from lsst.afw.display import getDisplay
+from lsst.afw.geom import Polygon
+from lsst.daf.persistence import ButlerDataRef
+from lsst.meas.algorithms.detection import SourceDetectionTask
+
+from . import isrFunctions
+from . import isrQa
+
+from .assembleCcdTask import AssembleCcdTask
 from .crosstalk import CrosstalkTask
+from .fringe import FringeTask
+from .isr import maskNans
+from .masking import MaskingTask
+from .straylight import StrayLightTask
+from .vignette import VignetteTask
+
+__all__ = ["IsrTask", "RunIsrTask"]
 
 
 class IsrTaskConfig(pexConfig.Config):
-    doBias = pexConfig.Field(
-        dtype=bool,
-        doc="Apply bias frame correction?",
-        default=True,
-    )
-    doDark = pexConfig.Field(
-        dtype=bool,
-        doc="Apply dark frame correction?",
-        default=True,
-    )
-    doFlat = pexConfig.Field(
-        dtype=bool,
-        doc="Apply flat field correction?",
-        default=True,
-    )
-    doFringe = pexConfig.Field(
-        dtype=bool,
-        doc="Apply fringe correction?",
-        default=True,
-    )
-    doDefect = pexConfig.Field(
-        dtype=bool,
-        doc="Apply correction for CCD defects, e.g. hot pixels?",
-        default=True,
-    )
-    doAddDistortionModel = pexConfig.Field(
-        dtype=bool,
-        doc="Apply a distortion model based on camera geometry to the WCS?",
-        default=True,
-    )
-    doWrite = pexConfig.Field(
-        dtype=bool,
-        doc="Persist postISRCCD?",
-        default=True,
-    )
-    biasDataProductName = pexConfig.Field(
+    """Configuration parameters for IsrTask.
+
+    Items are grouped in the order in which they are executed by the task.
+    """
+    datasetType = pexConfig.Field(
         dtype=str,
-        doc="Name of the bias data product",
-        default="bias",
+        doc="Dataset type for input data; users will typically leave this alone, "
+        "but camera-specific ISR tasks will override it",
+        default="raw",
     )
-    darkDataProductName = pexConfig.Field(
+    fallbackFilterName = pexConfig.Field(
         dtype=str,
-        doc="Name of the dark data product",
-        default="dark",
-    )
-    flatDataProductName = pexConfig.Field(
-        dtype=str,
-        doc="Name of the flat data product",
-        default="flat",
-    )
-    assembleCcd = pexConfig.ConfigurableField(
-        target=AssembleCcdTask,
-        doc="CCD assembly task",
-    )
-    gain = pexConfig.Field(
-        dtype=float,
-        doc="The gain to use if no Detector is present in the Exposure (ignored if NaN)",
-        default=float("NaN"),
-    )
-    readNoise = pexConfig.Field(
-        dtype=float,
-        doc="The read noise to use if no Detector is present in the Exposure",
-        default=0.0,
-    )
-    saturation = pexConfig.Field(
-        dtype=float,
-        doc="The saturation level to use if no Detector is present in the Exposure (ignored if NaN)",
-        default=float("NaN"),
-    )
-    fringeAfterFlat = pexConfig.Field(
+        doc="Fallback default filter name for calibrations.",
+        optional=True)
+    expectWcs = pexConfig.Field(
         dtype=bool,
-        doc="Do fringe subtraction after flat-fielding?",
         default=True,
-    )
-    fringe = pexConfig.ConfigurableField(
-        target=FringeTask,
-        doc="Fringe subtraction task",
+        doc="Expect input science images to have a WCS (set False for e.g. spectrographs)."
     )
     fwhm = pexConfig.Field(
         dtype=float,
-        doc="FWHM of PSF (arcsec)",
+        doc="FWHM of PSF in arcseconds.",
         default=1.0,
+    )
+    qa = pexConfig.ConfigField(
+        dtype=isrQa.IsrQaConfig,
+        doc="QA related configuration options.",
+    )
+
+    doConvertIntToFloat = pexConfig.Field(
+        dtype=bool,
+        doc="Convert integer raw images to floating point values?",
+        default=True,
+    )
+
+    doSaturation = pexConfig.Field(
+        dtype=bool,
+        doc="Mask saturated pixels?",
+        default=True,
     )
     saturatedMaskName = pexConfig.Field(
         dtype=str,
         doc="Name of mask plane to use in saturation detection and interpolation",
         default="SAT",
     )
+    saturation = pexConfig.Field(
+        dtype=float,
+        doc="The saturation level to use if no Detector is present in the Exposure (ignored if NaN)",
+        default=float("NaN"),
+    )
+    growSaturationFootprintSize = pexConfig.Field(
+        dtype=int,
+        doc="Number of pixels by which to grow the saturation footprints",
+        default=1,
+    )
+
+    doSuspect = pexConfig.Field(
+        dtype=bool,
+        doc="Mask suspect pixels?",
+        default=True,
+    )
     suspectMaskName = pexConfig.Field(
         dtype=str,
         doc="Name of mask plane to use for suspect pixels",
         default="SUSPECT",
     )
-    flatScalingType = pexConfig.ChoiceField(
+    numEdgeSuspect = pexConfig.Field(
+        dtype=int,
+        doc="Number of edge pixels to be flagged as untrustworthy.",
+        default=0,
+    )
+
+    doSetBadRegions = pexConfig.Field(
+        dtype=bool,
+        doc="Should we set the level of all BAD patches of the chip to the chip's average value?",
+        default=True,
+    )
+    badStatistic = pexConfig.ChoiceField(
         dtype=str,
-        doc="The method for scaling the flat on the fly.",
-        default='USER',
+        doc="How to estimate the average value for BAD regions.",
+        default='MEANCLIP',
         allowed={
-            "USER": "Scale by flatUserScale",
-            "MEAN": "Scale by the inverse of the mean",
-            "MEDIAN": "Scale by the inverse of the median",
+            "MEANCLIP": "Correct using the (clipped) mean of good data",
+            "MEDIAN": "Correct using the median of the good data",
         },
     )
-    flatUserScale = pexConfig.Field(
-        dtype=float,
-        doc="If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise",
-        default=1.0,
+
+    doOverscan = pexConfig.Field(
+        dtype=bool,
+        doc="Do overscan subtraction?",
+        default=True,
     )
     overscanFitType = pexConfig.ChoiceField(
         dtype=str,
@@ -178,7 +173,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
         default=3.0,
     )
-
+    overscanIsInt = pexConfig.Field(
+        dtype=bool,
+        doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN",
+        default=True,
+    )
     overscanNumLeadingColumnsToSkip = pexConfig.Field(
         dtype=int,
         doc="Number of columns to skip in overscan, i.e. those closest to amplifier",
@@ -189,71 +188,123 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Number of columns to skip in overscan, i.e. those farthest from amplifier",
         default=0,
     )
-    growSaturationFootprintSize = pexConfig.Field(
-        dtype=int,
-        doc="Number of pixels by which to grow the saturation footprints",
-        default=1,
-    )
-    doSaturationInterpolation = pexConfig.Field(
-        dtype=bool,
-        doc="Perform interpolation over pixels masked as saturated?",
-        default=True,
-    )
-    doNanInterpAfterFlat = pexConfig.Field(
-        dtype=bool,
-        doc=("If True, ensure we interpolate NaNs after flat-fielding, even if we "
-             "also have to interpolate them before flat-fielding."),
-        default=False,
-    )
-    fluxMag0T1 = pexConfig.Field(
+    overscanMaxDev = pexConfig.Field(
         dtype=float,
-        doc="The approximate flux of a zero-magnitude object in a one-second exposure",
-        default=1e10,
+        doc="Maximum deviation from the median for overscan",
+        default=1000.0, check=lambda x: x > 0
     )
-    keysToRemoveFromAssembledCcd = pexConfig.ListField(
-        dtype=str,
-        doc="fields to remove from the metadata of the assembled ccd.",
-        default=[],
-    )
-    doAssembleIsrExposures = pexConfig.Field(
+    overscanBiasJump = pexConfig.Field(
         dtype=bool,
+        doc="Fit the overscan in a piecewise-fashion to correct for bias jumps?",
         default=False,
-        doc="Assemble amp-level calibration exposures into ccd-level exposure?"
     )
+    overscanBiasJumpKeyword = pexConfig.Field(
+        dtype=str,
+        doc="Header keyword containing information about devices.",
+        default="NO_SUCH_KEY",
+    )
+    overscanBiasJumpDevices = pexConfig.ListField(
+        dtype=str,
+        doc="List of devices that need piecewise overscan correction.",
+        default=(),
+    )
+    overscanBiasJumpLocation = pexConfig.Field(
+        dtype=int,
+        doc="Location of bias jump along y-axis.",
+        default=0,
+    )
+
     doAssembleCcd = pexConfig.Field(
         dtype=bool,
         default=True,
         doc="Assemble amp-level exposures into a ccd-level exposure?"
     )
-    expectWcs = pexConfig.Field(
-        dtype=bool,
-        default=True,
-        doc="Expect input science images to have a WCS (set False for e.g. spectrographs)"
+    assembleCcd = pexConfig.ConfigurableField(
+        target=AssembleCcdTask,
+        doc="CCD assembly task",
     )
+
+    doAssembleIsrExposures = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Assemble amp-level calibration exposures into ccd-level exposure?"
+    )
+    doTrimToMatchCalib = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Trim raw data to match calibration bounding boxes?"
+    )
+
+    doBias = pexConfig.Field(
+        dtype=bool,
+        doc="Apply bias frame correction?",
+        default=True,
+    )
+    biasDataProductName = pexConfig.Field(
+        dtype=str,
+        doc="Name of the bias data product",
+        default="bias",
+    )
+
+    doVariance = pexConfig.Field(
+        dtype=bool,
+        doc="Calculate variance?",
+        default=True
+    )
+    gain = pexConfig.Field(
+        dtype=float,
+        doc="The gain to use if no Detector is present in the Exposure (ignored if NaN)",
+        default=float("NaN"),
+    )
+    readNoise = pexConfig.Field(
+        dtype=float,
+        doc="The read noise to use if no Detector is present in the Exposure",
+        default=0.0,
+    )
+    doEmpiricalReadNoise = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Calculate empirical read noise instead of value from AmpInfo data?"
+    )
+
     doLinearize = pexConfig.Field(
         dtype=bool,
         doc="Correct for nonlinearity of the detector's response?",
         default=True,
     )
+
     doCrosstalk = pexConfig.Field(
         dtype=bool,
         doc="Apply intra-CCD crosstalk correction?",
         default=False,
     )
+    doCrosstalkBeforeAssemble = pexConfig.Field(
+        dtype=bool,
+        doc="Apply crosstalk correction before CCD assembly, and before trimming?",
+        default=True,
+    )
     crosstalk = pexConfig.ConfigurableField(
         target=CrosstalkTask,
         doc="Intra-CCD crosstalk correction",
     )
+
+    doWidenSaturationTrails = pexConfig.Field(
+        dtype=bool,
+        doc="Widen bleed trails based on their width?",
+        default=True
+    )
+
     doBrighterFatter = pexConfig.Field(
         dtype=bool,
         default=False,
         doc="Apply the brighter fatter correction"
     )
     brighterFatterLevel = pexConfig.ChoiceField(
-        doc="The level at which to correct for brighter-fatter",
-        dtype=str, default="DETECTOR",
+        dtype=str,
+        default="DETECTOR",
+        doc="The level at which to correct for brighter-fatter.",
         allowed={
-            "AMP": "Every amplifier treated separately",
+            "AMP": "Every amplifier treated separately.",
             "DETECTOR": "One kernel per detector",
         }
     )
@@ -279,14 +330,153 @@ class IsrTaskConfig(pexConfig.Config):
         default=True,
         doc="Should the gain be applied when applying the brighter fatter correction?"
     )
-    datasetType = pexConfig.Field(
-        dtype=str,
-        doc="Dataset type for input data; users will typically leave this alone, "
-        "but camera-specific ISR tasks will override it",
-        default="raw",
+
+    doDefect = pexConfig.Field(
+        dtype=bool,
+        doc="Apply correction for CCD defects, e.g. hot pixels?",
+        default=True,
     )
-    fallbackFilterName = pexConfig.Field(dtype=str,
-                                         doc="Fallback default filter name for calibrations", optional=True)
+    doSaturationInterpolation = pexConfig.Field(
+        dtype=bool,
+        doc="Perform interpolation over pixels masked as saturated?",
+        default=True,
+    )
+    numEdgeSuspect = pexConfig.Field(
+        dtype=int,
+        doc="Number of edge pixels to be flagged as untrustworthy.",
+        default=0,
+    )
+
+    doDark = pexConfig.Field(
+        dtype=bool,
+        doc="Apply dark frame correction?",
+        default=True,
+    )
+    darkDataProductName = pexConfig.Field(
+        dtype=str,
+        doc="Name of the dark data product",
+        default="dark",
+    )
+
+    doStrayLight = pexConfig.Field(
+        dtype=bool,
+        doc="Subtract stray light in the y-band (due to encoder LEDs)?",
+        default=False,
+    )
+    strayLight = pexConfig.ConfigurableField(
+        target=StrayLightTask,
+        doc="y-band stray light correction"
+    )
+
+    doFlat = pexConfig.Field(
+        dtype=bool,
+        doc="Apply flat field correction?",
+        default=True,
+    )
+    flatDataProductName = pexConfig.Field(
+        dtype=str,
+        doc="Name of the flat data product",
+        default="flat",
+    )
+    flatScalingType = pexConfig.ChoiceField(
+        dtype=str,
+        doc="The method for scaling the flat on the fly.",
+        default='USER',
+        allowed={
+            "USER": "Scale by flatUserScale",
+            "MEAN": "Scale by the inverse of the mean",
+            "MEDIAN": "Scale by the inverse of the median",
+        },
+    )
+    flatUserScale = pexConfig.Field(
+        dtype=float,
+        doc="If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise",
+        default=1.0,
+    )
+    doTweakFlat = pexConfig.Field(
+        dtype=bool,
+        doc="Tweak flats to match observed amplifier ratios?",
+        default=False
+    )
+
+    doApplyGains = pexConfig.Field(
+        dtype=bool,
+        doc="Correct the amplifiers for their gains instead of applying flat correction",
+        default=False,
+    )
+    normalizeGains = pexConfig.Field(
+        dtype=bool,
+        doc="Normalize all the amplifiers in each CCD to have the same median value.",
+        default=False,
+    )
+
+    doFringe = pexConfig.Field(
+        dtype=bool,
+        doc="Apply fringe correction?",
+        default=True,
+    )
+    fringe = pexConfig.ConfigurableField(
+        target=FringeTask,
+        doc="Fringe subtraction task",
+    )
+    fringeAfterFlat = pexConfig.Field(
+        dtype=bool,
+        doc="Do fringe subtraction after flat-fielding?",
+        default=True,
+    )
+
+    doNanInterpAfterFlat = pexConfig.Field(
+        dtype=bool,
+        doc=("If True, ensure we interpolate NaNs after flat-fielding, even if we "
+             "also have to interpolate them before flat-fielding."),
+        default=False,
+    )
+
+    doAddDistortionModel = pexConfig.Field(
+        dtype=bool,
+        doc="Apply a distortion model based on camera geometry to the WCS?",
+        default=True,
+    )
+
+    doMeasureBackground = pexConfig.Field(
+        dtype=bool,
+        doc="Measure the background level on the reduced image?",
+        default=False,
+    )
+
+    doCameraSpecificMasking = pexConfig.Field(
+        dtype=bool,
+        doc="Mask camera-specific bad regions?",
+        default=False,
+    )
+    masking = pexConfig.ConfigurableField(
+        target=MaskingTask,
+        doc="Masking task."
+    )
+
+    fluxMag0T1 = pexConfig.DictField(
+        keytype=str,
+        itemtype=float,
+        doc="The approximate flux of a zero-magnitude object in a one-second exposure, per filter.",
+        default=dict((f, pow(10.0, 0.4*m)) for f, m in (("Unknown", 28.0),
+                                                        ))
+    )
+    defaultFluxMag0T1 = pexConfig.Field(
+        dtype=float,
+        doc="Default value for fluxMag0T1 (for an unrecognized filter).",
+        default=pow(10.0, 0.4*28.0)
+    )
+
+    doVignette = pexConfig.Field(
+        dtype=bool,
+        doc="Apply vignetting parameters?",
+        default=False,
+    )
+    vignette = pexConfig.ConfigurableField(
+        target=VignetteTask,
+        doc="Vignetting task.",
+    )
+
     doAttachTransmissionCurve = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -312,18 +502,17 @@ class IsrTaskConfig(pexConfig.Config):
         default=True,
         doc="Load and use transmission_atmosphere (if doAttachTransmissionCurve is True)?"
     )
-    doEmpiricalReadNoise = pexConfig.Field(
+
+    doWrite = pexConfig.Field(
         dtype=bool,
-        default=False,
-        doc="Calculate empirical read noise instead of value from AmpInfo data?"
+        doc="Persist postISRCCD?",
+        default=True,
     )
 
-## @addtogroup LSST_task_documentation
-## @{
-## @page IsrTask
-## @ref IsrTask_ "IsrTask"
-## @copybrief IsrTask
-## @}
+    def validate(self):
+        super().validate()
+        if self.doFlat and self.doApplyGains:
+            raise ValueError("You may not specify both doFlat and doApplyGains")
 
 
 class IsrTask(pipeBase.CmdLineTask):
@@ -408,9 +597,13 @@ class IsrTask(pipeBase.CmdLineTask):
         Then setup the assembly and fringe correction subtasks
         '''
         pipeBase.Task.__init__(self, *args, **kwargs)
+
         self.makeSubtask("assembleCcd")
-        self.makeSubtask("fringe")
         self.makeSubtask("crosstalk")
+        self.makeSubtask("strayLight")
+        self.makeSubtask("fringe")
+        self.makeSubtask("masking")
+        self.makeSubtask("vignette")
 
     def readIsrData(self, dataRef, rawExposure):
         """!Retrieve necessary frames for instrument signature removal
@@ -428,28 +621,26 @@ class IsrTask(pipeBase.CmdLineTask):
                          exposure of fringe frame or list of fringe exposure
         """
         ccd = rawExposure.getDetector()
-
-        biasExposure = self.getIsrExposure(dataRef, self.config.biasDataProductName) \
-            if self.config.doBias else None
+        rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
+        biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
+                        if self.config.doBias else None)
         # immediate=True required for functors and linearizers are functors; see ticket DM-6515
-        linearizer = dataRef.get("linearizer", immediate=True) if self.doLinearize(ccd) else None
-        darkExposure = self.getIsrExposure(dataRef, self.config.darkDataProductName) \
-            if self.config.doDark else None
-        flatExposure = self.getIsrExposure(dataRef, self.config.flatDataProductName) \
-            if self.config.doFlat else None
-        brighterFatterKernel = dataRef.get("brighterFatterKernel") if self.config.doBrighterFatter else None
-        defectList = dataRef.get("defects") if self.config.doDefect else None
-
-        if self.config.doCrosstalk:
-            crosstalkSources = self.crosstalk.prepCrosstalk(dataRef)
-        else:
-            crosstalkSources = None
-
-        if self.config.doFringe and self.fringe.checkFilter(rawExposure):
-            fringeStruct = self.fringe.readFringes(dataRef, assembler=self.assembleCcd
-                                                   if self.config.doAssembleIsrExposures else None)
-        else:
-            fringeStruct = pipeBase.Struct(fringes=None)
+        linearizer = (dataRef.get("linearizer", immediate=True)
+                      if self.doLinearize(ccd) else None)
+        crosstalkSources = (self.crosstalk.prepCrosstalk(dataRef)
+                            if self.config.doCrosstalk else None)
+        darkExposure = (self.getIsrExposure(dataRef, self.config.darkDataProductName)
+                        if self.config.doDark else None)
+        flatExposure = (self.getIsrExposure(dataRef, self.config.flatDataProductName)
+                        if self.config.doFlat else None)
+        brighterFatterKernel = (dataRef.get("bfKernel")
+                                if self.config.doBrighterFatter else None)
+        defectList = (dataRef.get("defects")
+                      if self.config.doDefect else None)
+        fringeStruct = (self.fringe.readFringes(dataRef, assembler=self.assembleCcd
+                                                if self.config.doAssembleIsrExposures else None)
+                        if self.config.doFringe and self.fringe.checkFilter(rawExposure)
+                        else pipeBase.Struct(fringes=None))
 
         if self.config.doAttachTransmissionCurve:
             opticsTransmission = (dataRef.get("transmission_optics")
@@ -469,21 +660,21 @@ class IsrTask(pipeBase.CmdLineTask):
         # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
                                linearizer=linearizer,
+                               crosstalkSources=crosstalkSources,
                                dark=darkExposure,
                                flat=flatExposure,
+                               bfKernel=brighterFatterKernel,
                                defects=defectList,
                                fringes=fringeStruct,
-                               bfKernel=brighterFatterKernel,
                                opticsTransmission=opticsTransmission,
                                filterTransmission=filterTransmission,
                                sensorTransmission=sensorTransmission,
                                atmosphereTransmission=atmosphereTransmission,
-                               crosstalkSources=crosstalkSources,
                                )
 
     @pipeBase.timeMethod
-    def run(self, ccdExposure, bias=None, linearizer=None, dark=None, flat=None, defects=None,
-            fringes=None, bfKernel=None, camera=None,
+    def run(self, ccdExposure, camera=None, bias=None, linearizer=None, crosstalkSources=None,
+            dark=None, flat=None, bfKernel=None, defects=None, fringes=None,
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             crosstalkSources=None):
@@ -521,6 +712,10 @@ class IsrTask(pipeBase.CmdLineTask):
 
         ccd = ccdExposure.getDetector()
 
+        if not ccd:
+            assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd"
+            ccd = [FakeAmp(ccdExposure, self.config)]
+
         # Validate Input
         if self.config.doBias and bias is None:
             raise RuntimeError("Must supply a bias exposure if config.doBias True")
@@ -539,50 +734,101 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doDefect and defects is None:
             raise RuntimeError("Must supply defects if config.doDefect True")
         if self.config.doAddDistortionModel and camera is None:
-            raise RuntimeError("Must supply camera if config.doAddDistortionModel True")
+            raise RuntimeError("Must supply camera if config.doAddDistortionModel=True.")
 
-        ccdExposure = self.convertIntToFloat(ccdExposure)
-
-        if not ccd:
-            assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd"
-            ccd = [FakeAmp(ccdExposure, self.config)]
+        # Begin ISR processing.
+        if self.config.doConvertIntToFloat:
+            self.log.info("Converting exposure to floating point values")
+            ccdExposure = self.convertIntToFloat(ccdExposure)
 
         overscans = []
         for amp in ccd:
             # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
-                self.saturationDetection(ccdExposure, amp)
-                self.suspectDetection(ccdExposure, amp)
-                overscanResults = self.overscanCorrection(ccdExposure, amp)
-                overscans.append(overscanResults.overscanImage if overscanResults is not None else None)
-            else:
-                overscans.append(None)
+                # Check for fully masked bad amplifiers, and generate masks for SUSPECT and SATURATED values.
+                badAmp = self.maskAmplifier(ccdExposure, amp, defects)
 
-        if self.config.doCrosstalk:
-            self.crosstalk.run(ccdExposure, crosstalkSources)
+                if self.config.doOverscan and not badAmp:
+                    # Overscan correction on amp-by-amp basis.
+                    overscanResults = self.overscanCorrection(ccdExposure, amp)
+                    self.log.info("Corrected overscan for amplifier %s" % (amp.getName()))
+                    if self.config.qa is not None and self.config.qa.saveStats is True:
+                        if isinstance(overscanResults.overscanFit, float):
+                            qaMedian = overscanResults.overscanFit
+                            qaStdev = float("NaN")
+                        else:
+                            qaStats = afwMath.makeStatistics(overscanResults.overscanFit,
+                                                             afwMath.MEDIAN | afwMath.STDEVCLIP)
+                            qaMedian = qaStats.getValue(afwMath.MEDIAN)
+                            qaStdev = qaStats.getValue(afwMath.STDEVCLIP)
+
+                        self.metadata.set("ISR OSCAN {} MEDIAN".format(amp.getName()), qaMedian)
+                        self.metadata.set("ISR OSCAN {} STDEV".format(amp.getName()), qaStdev)
+                        self.log.info("  Overscan stats for amplifer %s: %f +/- %f" %
+                                      (amp.getName(), qaMedian, qaStdev))
+                        ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
+                else:
+                    self.log.warn("Amplifier %s is bad." % (amp.getName()))
+                    overscanResults = None
+
+                overscans.append(overscanResults if overscanResults is not None else None)
+            else:
+                self.log.info("Skipped OSCAN")
+
+
+        if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
+            self.log.info("Applying crosstalk correction.")
+            self.crosstalk.run(ccdExposure, crosstalkSources=crosstalkSources)
+            self.debugView(ccdExposure, "doCrosstalk")
 
         if self.config.doAssembleCcd:
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
+
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warn("No WCS found in input exposure")
 
         if self.config.doBias:
-            self.biasCorrection(ccdExposure, bias)
+            self.log.info("Applying bias correction.")
+            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
+                                        trimToFit=self.config.doTrimToMatchCalib)
+            self.debugView(ccdExposure, "doBias")
+
+        if self.config.doVariance:
+            for amp, overscanResults in zip(ccd, overscans):
+                if ccdExposure.getBBox().contains(amp.getBBox()):
+                    self.log.info("Constructing variance map for amplifer %s" % (amp.getName()))
+                    ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                    if overscanResults is not None:
+                        self.updateVariance(ampExposure, amp,
+                                            overscanImage=overscanResults.overscanImage)
+                    else:
+                        self.updateVariance(ampExposure, amp,
+                                            overscanImage=None)
+                    if self.config.qa is not None and self.config.qa.saveStats is True:
+                        qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
+                                                         afwMath.MEDIAN | afwMath.STDEVCLIP)
+                        self.metadata.set("ISR VARIANCE {} MEDIAN".format(amp.getName()),
+                                          qaStats.getValue(afwMath.MEDIAN))
+                        self.metadata.set("ISR VARIANCE {} STDEV".format(amp.getName()),
+                                          qaStats.getValue(afwMath.STDEVCLIP))
+                        self.log.info("  Variance stats for amplifer %s: %f +/- %f" %
+                                      (amp.getName(), qaStats.getValue(afwMath.MEDIAN),
+                                       qaStats.getValue(afwMath.STDEVCLIP)))
 
         if self.doLinearize(ccd):
             linearizer(image=ccdExposure.getMaskedImage().getImage(), detector=ccd, log=self.log)
 
-        assert len(ccd) == len(overscans)
-        for amp, overscanImage in zip(ccd, overscans):
-            # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
-            if ccdExposure.getBBox().contains(amp.getBBox()):
-                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-                self.updateVariance(ampExposure, amp, overscanImage)
+        if self.config.doCrosstalk and not self.config.doCrosstalkBeforeAssemble:
+            self.log.info("Applying crosstalk correction.")
+            self.crosstalk.run(ccdExposure, crosstalkSources=crosstalkSources)
+            self.debugView(ccdExposure, "doCrosstalk")
+
+        if self.config.doWidenSaturationTrails:
+            self.log.info("Widening saturation trails.")
+            isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
 
         interpolationDone = False
-
         if self.config.doBrighterFatter:
-
             # We need to apply flats and darks before we can interpolate, and we
             # need to interpolate before we do B-F, but we do B-F without the
             # flats and darks applied so we can work in units of electrons or holes.
@@ -590,62 +836,119 @@ class IsrTask(pipeBase.CmdLineTask):
             with self.flatContext(ccdExposure, flat, dark):
                 if self.config.doDefect:
                     self.maskAndInterpDefect(ccdExposure, defects)
+
                 if self.config.doSaturationInterpolation:
                     self.saturationInterpolation(ccdExposure)
+
                 self.maskAndInterpNan(ccdExposure)
                 interpolationDone = True
 
             if self.config.brighterFatterLevel == 'DETECTOR':
-                kernelElement = bfKernel.kernel[ccdExposure.getDetector().getId()]
+                kernelElement = bfKernel  # [ccdExposure.getDetector().getId()]
             else:
                 # TODO: DM-15631 for implementing this
                 raise NotImplementedError("per-amplifier brighter-fatter correction not yet implemented")
-            self.brighterFatterCorrection(ccdExposure, kernelElement,
-                                          self.config.brighterFatterMaxIter,
-                                          self.config.brighterFatterThreshold,
-                                          self.config.brighterFatterApplyGain,
-                                          )
+            self.log.info("Applying brighter fatter correction.")
+            isrFunctions.brighterFatterCorrection(ccdExposure, kernelElement,
+                                                  self.config.brighterFatterMaxIter,
+                                                  self.config.brighterFatterThreshold,
+                                                  self.config.brighterFatterApplyGain,
+                                                  )
+            self.debugView(ccdExposure, "doBrighterFatter")
 
         if self.config.doDark:
             self.darkCorrection(ccdExposure, dark)
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
             self.fringe.run(ccdExposure, **fringes.getDict())
+            self.debugView(ccdExposure, "doFringe")
+
+        if self.config.doStrayLight:
+            self.log.info("Applying stray light correction.")
+            self.strayLight.run(ccdExposure)
+            self.debugView(ccdExposure, "doStrayLight")
 
         if self.config.doFlat:
             self.flatCorrection(ccdExposure, flat)
+            self.debugView(ccdExposure, "doFlat")
 
-        if not interpolationDone:
-            if self.config.doDefect:
-                self.maskAndInterpDefect(ccdExposure, defects)
-            if self.config.doSaturationInterpolation:
-                self.saturationInterpolation(ccdExposure)
-        if not interpolationDone or self.config.doNanInterpAfterFlat:
+        if self.config.doApplyGains:
+            self.log.info("Applying gain correction instead of flat.")
+            isrFunctions.applyGains(ccdExposure, self.config.normalizeGains)
+
+        if self.config.doDefect and not interpolationDone:
+            self.log.info("Masking and interpolating defects.")
+            self.maskAndInterpDefect(ccdExposure, defects)
+
+        if self.config.doSaturation and not interpolationDone:
+            self.log.info("Interpolating saturated pixels.")
+            self.saturationInterpolation(ccdExposure)
+
+        if self.config.doNanInterpAfterFlat or not interpolationDone:
+            self.log.info("Masking and interpolating NAN value pixels.")
             self.maskAndInterpNan(ccdExposure)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.fringe.run(ccdExposure, **fringes.getDict())
 
-        exposureTime = ccdExposure.getInfo().getVisitInfo().getExposureTime()
-        ccdExposure.getCalib().setFluxMag0(self.config.fluxMag0T1*exposureTime)
+        if self.config.doSetBadRegions:
+            badPixelCount, badPixelValue = isrFunctions.setBadRegions(ccdExposure)
+            self.log.info("Set %d BAD pixels to %f." % (badPixelCount, badPixelValue))
 
-        if self.config.doAddDistortionModel:
-            self.addDistortionModel(exposure=ccdExposure, camera=camera)
+        # CZW: add this to the result struct
+        #        if self.config.qa.doWriteFlattened:
+        #            sensorRef.put(ccdExposure, "flattenedImage")
+        flattenedThumb = None
+        if self.config.qa.doThumbnailFlattened:
+            flattenedThumb = isrQa.makeThumbnail(ccdExposure, isrQaConfig=self.config.qa)
+
+        if self.config.doCameraSpecificMasking:
+            self.log.info("Masking regions for camera specific reasons.")
+            self.masking.run(ccdExposure)
+
+        self.roughZeroPoint(ccdExposure)
+
+        if self.config.doVignette:
+            self.log.info("Constructing Vignette polygon.")
+            self.vignettePolygon = self.vignette.run(ccdExposure)
+
+            if self.config.vignette.doWriteVignettePolygon:
+                self.setValidPolygonIntersect(ccdExposure, self.vignettePolygon)
 
         if self.config.doAttachTransmissionCurve:
-            self.attachTransmissionCurve(ccdExposure, opticsTransmission=opticsTransmission,
-                                         filterTransmission=filterTransmission,
-                                         sensorTransmission=sensorTransmission,
-                                         atmosphereTransmission=atmosphereTransmission)
+            self.log.info("Adding transmission curves.")
+            isrFunctions.attachTransmissionCurve(ccdExposure, opticsTransmission=opticsTransmission,
+                                                 filterTransmission=filterTransmission,
+                                                 sensorTransmission=sensorTransmission,
+                                                 atmosphereTransmission=atmosphereTransmission)
 
-        frame = getDebugFrame(self._display, "postISRCCD")
-        if frame:
-            display = getDisplay(frame)
-            display.scale('asinh', 'zscale')
-            display.mtv(ccdExposure)
+        if self.config.doAddDistortionModel:
+            self.log.info("Adding a distortion model to the WCS.")
+            isrFunctions.addDistortionModel(exposure=ccdExposure, camera=camera)
+
+        if self.config.doMeasureBackground:
+            self.log.info("Measuring background level:")
+            self.measureBackground(ccdExposure, self.config.qa)
+
+            if self.config.qa is not None and self.config.qa.saveStats is True:
+                for amp in ccd:
+                    ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                    qaStats = afwMath.makeStatistics(ampExposure.getImage(),
+                                                     afwMath.MEDIAN | afwMath.STDEVCLIP)
+                    self.metadata.set("ISR BACKGROUND {} MEDIAN".format(amp.getName()),
+                                      qaStats.getValue(afwMath.MEDIAN))
+                    self.metadata.set("ISR BACKGROUND {} STDEV".format(amp.getName()),
+                                      qaStats.getValue(afwMath.STDEVCLIP))
+                    self.log.info("  Background stats for amplifer %s: %f +/- %f" %
+                                  (amp.getName(), qaStats.getValue(afwMath.MEDIAN),
+                                   qaStats.getValue(afwMath.STDEVCLIP)))
+
+        self.debugView(ccdExposure, "postISRCCD")
 
         return pipeBase.Struct(
             exposure=ccdExposure,
+            ossThumb=ossThumb,
+            flattenedThumb=flattenedThumb
         )
 
     @pipeBase.timeMethod
@@ -667,7 +970,8 @@ class IsrTask(pipeBase.CmdLineTask):
             Struct contains field "exposure," which is the exposure after application of ISR
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
-        ccdExposure = sensorRef.get('raw')
+        ccdExposure = sensorRef.get(self.config.datasetType)
+
         camera = sensorRef.get("camera")
         if camera is None and self.config.doAddDistortionModel:
             raise RuntimeError("config.doAddDistortionModel is True "
@@ -678,11 +982,77 @@ class IsrTask(pipeBase.CmdLineTask):
 
         if self.config.doWrite:
             sensorRef.put(result.exposure, "postISRCCD")
+        if result.ossThumb is not None:
+            isrQa.writeThumbnail(sensorRef, result.ossThumb, "ossThumb")
+        if result.flattenedThumb is not None:
+            isrQa.writeThumbnail(sensorRef, result.flattenedThumb, "flattenedThumb")
 
         return result
 
+    def getIsrExposure(self, dataRef, datasetType, immediate=True):
+        """!Retrieve a calibration dataset for removing instrument signature.
+
+        Parameters
+        ----------
+
+        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
+            DataRef of the detector data to find calibration datasets
+            for.
+        datasetType : `str`
+            Type of dataset to retrieve (e.g. 'bias', 'flat', etc).
+        immediate : `Bool`
+            If True, disable butler proxies to enable error handling
+            within this routine.
+
+        Returns
+        -------
+        exposure : `lsst.afw.image.Exposure`
+            Requested calibration frame.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if no matching calibration frame can be found.
+        """
+        try:
+            exp = dataRef.get(datasetType, immediate=immediate)
+        except Exception as exc1:
+            if not self.config.fallbackFilterName:
+                raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, exc1))
+            try:
+                exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
+            except Exception as exc2:
+                raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s" %
+                                   (datasetType, dataRef.dataId, self.config.fallbackFilterName, exc1, exc2))
+            self.log.warn("Using fallback calibration from filter %s" % self.config.fallbackFilterName)
+
+        if self.config.doAssembleIsrExposures:
+            exp = self.assembleCcd.assembleCcd(exp)
+        return exp
+
     def convertIntToFloat(self, exposure):
-        """Convert an exposure from uint16 to float, set variance plane to 1 and mask plane to 0
+        """Convert exposure image from uint16 to float.
+
+        If the exposure does not need to be converted, the input is
+        immediately returned.  For exposures that are converted to use
+        floating point pixels, the variance is set to unity and the
+        mask to zero.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+           The raw exposure to be converted.
+
+        Returns
+        -------
+        newexposure : `lsst.afw.image.Exposure`
+           The input ``exposure``, converted to floating point pixels.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the exposure type cannot be converted to float.
+
         """
         if isinstance(exposure, afwImage.ExposureF):
             # Nothing to be done
@@ -696,8 +1066,8 @@ class IsrTask(pipeBase.CmdLineTask):
 
         return newexposure
 
-    def biasCorrection(self, exposure, biasExposure):
-        """!Apply bias correction in place
+    def maskAmplifier(self, ccdExposure, amp, defects):
+        """Identify bad amplifiers, saturated and suspect pixels.
 
         @param[in,out]  exposure        exposure to process
         @param[in]      biasExposure    bias exposure of same size as exposure
@@ -711,29 +1081,176 @@ class IsrTask(pipeBase.CmdLineTask):
         @param[in]      darkExposure    dark exposure of same size as exposure
         @param[in]      invert          if True, remove the dark from an already-corrected image
         """
-        expScale = exposure.getInfo().getVisitInfo().getDarkTime()
-        if math.isnan(expScale):
-            raise RuntimeError("Exposure darktime is NAN")
-        darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
-        if math.isnan(darkScale):
-            raise RuntimeError("Dark calib darktime is NAN")
-        isrFunctions.darkCorrection(
-            maskedImage=exposure.getMaskedImage(),
-            darkMaskedImage=darkExposure.getMaskedImage(),
-            expScale=expScale,
-            darkScale=darkScale,
-            invert=invert
-        )
+        maskedImage = ccdExposure.getMaskedImage()
 
-    def doLinearize(self, detector):
-        """!Is linearization wanted for this detector?
+        badAmp = False
+
+        # Check if entire amp region is defined as a defect (need to use amp.getBBox() for correct
+        # comparison with current defects definition.
+        if defects is not None:
+            badAmp = bool(sum([v.getBBox().contains(amp.getBBox()) for v in defects]))
+
+        # In the case of a bad amp, we will set mask to "BAD" (here use amp.getRawBBox() for correct
+        # association with pixels in current ccdExposure).
+        if badAmp:
+            dataView = afwImage.MaskedImageF(maskedImage, amp.getRawBBox(),
+                                             afwImage.PARENT)
+            maskView = dataView.getMask()
+            maskView |= maskView.getPlaneBitMask("BAD")
+            del maskView
+            return badAmp
+
+        # Mask remaining defects after assembleCcd() to allow for defects that cross amplifier boundaries.
+        # Saturation and suspect pixels can be masked now, though.
+        limits = dict()
+        if self.config.doSaturation and not badAmp:
+            limits.update({self.config.saturatedMaskName: amp.getSaturation()})
+        if self.config.doSuspect and not badAmp:
+            limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
+
+        for maskName, maskThreshold in limits.items():
+            if not math.isnan(maskThreshold):
+                dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
+                isrFunctions.makeThresholdMask(
+                    maskedImage=dataView,
+                    threshold=maskThreshold,
+                    growFootprints=0,
+                    maskName=maskName
+                )
+
+        # Determine if we've fully masked this amplifier with SUSPECT and SAT pixels.
+        maskView = afwImage.Mask(maskedImage.getMask(), amp.getRawDataBBox(),
+                                 afwImage.PARENT)
+        maskVal = maskView.getPlaneBitMask([self.config.saturatedMaskName,
+                                            self.config.suspectMaskName])
+        if numpy.all(maskView.getArray() & maskVal > 0):
+            badAmp = True
+
+        return badAmp
+
+    def overscanCorrection(self, ccdExposure, amp):
+        """Apply overscan correction in place.
+
+        This method does initial pixel rejection of the overscan
+        region.  The overscan can also be optionally segmented to
+        allow for discontinuous overscan responses to be fit
+        separately.  The actual overscan subtraction is performed by
+        the `lsst.ip.isr.isrFunctions.overscanCorrection` function,
+        which is called here after the amplifier is preprocessed.
 
         Checks config.doLinearize and the linearity type of the first amplifier.
 
         @param[in]  detector  detector information (an lsst.afw.cameraGeom.Detector)
         """
-        return self.config.doLinearize and \
-            detector.getAmpInfoCatalog()[0].getLinearityType() != NullLinearityType
+        if not amp.getHasRawInfo():
+            raise RuntimeError("This method must be executed on an amp with raw information.")
+
+        if amp.getRawHorizontalOverscanBBox().isEmpty():
+            self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
+            return None
+
+        # Construct views
+        ampImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), amp.getRawDataBBox(),
+                                         afwImage.PARENT)
+        overscanImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(),
+                                              amp.getRawHorizontalOverscanBBox(),
+                                              afwImage.PARENT)
+        overscanArray = overscanImage.getImage().getArray()
+
+        statControl = afwMath.StatisticsControl()
+        statControl.setAndMask(ccdExposure.getMaskedImage().getMask().getPlaneBitMask("SAT"))
+
+        # Determine the bounding boxes
+        dataBBox = amp.getRawDataBBox()
+        oscanBBox = amp.getRawHorizontalOverscanBBox()
+        x0 = 0
+        x1 = 0
+
+        prescanBBox = amp.getRawPrescanBBox()
+        if (oscanBBox.getBeginX() > prescanBBox.getBeginX()):  # amp is at the right
+            x0 += self.config.overscanNumLeadingColumnsToSkip
+            x1 -= self.config.overscanNumTrailingColumnsToSkip
+        else:
+            x0 += self.config.overscanNumTrailingColumnsToSkip
+            x1 -= self.config.overscanNumLeadingColumnsToSkip
+
+        # Determine if we need to work on subregions of the amplifier and overscan.
+        imageBBoxes = []
+        overscanBBoxes = []
+
+        if ((self.config.overscanBiasJump and
+             self.config.overscanBiasJumpLocation) and
+            (ccdExposure.getMetadata().exists(self.config.overscanBiasJumpKeyword) and
+             ccdExposure.getMetadata().getScalar(self.config.overscanBiasJumpKeyword) in
+             self.config.overscanBiasJumpDevices)):
+            if amp.getReadoutCorner() in (afwTable.LL, afwTable.LR):
+                yLower = self.config.overscanBiasJumpLocation
+                yUpper = dataBBox.getHeight() - yLower
+            else:
+                yUpper = self.config.overscanBiasJumpLocation
+                yLower = dataBBox.getHeight() - yUpper
+
+            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
+                                             afwGeom.Extent2I(dataBBox.getWidth(), yLower)))
+            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() +
+                                                afwGeom.Extent2I(x0, 0),
+                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1, yLower)))
+
+            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin() + afwGeom.Extent2I(0, yLower),
+                                             afwGeom.Extent2I(dataBBox.getWidth(), yUpper)))
+
+            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(x0, yLower),
+                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1, yUpper)))
+        else:
+            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
+                                             afwGeom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
+
+            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(x0, 0),
+                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1,
+                                                                 oscanBBox.getHeight())))
+
+        # Perform overscan correction on subregions, ensuring saturated pixels are masked.
+        for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
+            ampImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), imageBBox,
+                                             afwImage.PARENT)
+            overscanImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), overscanBBox,
+                                                  afwImage.PARENT)
+
+            overscanArray = overscanImage.getImage().getArray()
+            median = numpy.ma.median(numpy.ma.masked_where(overscanImage.getMask().getArray(),
+                                                           overscanArray))
+            bad = numpy.where(numpy.abs(overscanArray - median) > self.config.overscanMaxDev)
+            overscanImage.getMask().getArray()[bad] = overscanImage.getMask().getPlaneBitMask("SAT")
+
+            statControl = afwMath.StatisticsControl()
+            statControl.setAndMask(ccdExposure.getMaskedImage().getMask().getPlaneBitMask("SAT"))
+
+            overscanResults = isrFunctions.overscanCorrection(ampMaskedImage=ampImage,
+                                                              overscanImage=overscanImage,
+                                                              fitType=self.config.overscanFitType,
+                                                              order=self.config.overscanOrder,
+                                                              collapseRej=self.config.overscanNumSigmaClip,
+                                                              statControl=statControl,
+                                                              overscanIsInt=self.config.overscanIsInt
+                                                              )
+
+            # Measure average overscan levels and record them in the metadata
+            levelStat = afwMath.MEDIAN
+            sigmaStat = afwMath.STDEVCLIP
+
+            sctrl = afwMath.StatisticsControl(self.config.qa.flatness.clipSigma,
+                                              self.config.qa.flatness.nIter)
+            metadata = ccdExposure.getMetadata()
+            ampNum = amp.getName()
+            if self.config.overscanFitType in ("MEDIAN", "MEAN", "MEANCLIP"):
+                metadata.set("ISR_OSCAN_LEVEL%s" % ampNum, overscanResults.overscanFit)
+                metadata.set("ISR_OSCAN_SIGMA%s" % ampNum, 0.0)
+            else:
+                stats = afwMath.makeStatistics(overscanResults.overscanFit, levelStat | sigmaStat, sctrl)
+                metadata.set("ISR_OSCAN_LEVEL%s" % ampNum, stats.getValue(levelStat))
+                metadata.set("ISR_OSCAN_SIGMA%s" % ampNum, stats.getValue(sigmaStat))
+
+        return overscanResults
 
     def updateVariance(self, ampExposure, amp, overscanImage=None):
         """Set the variance plane using the amplifier gain and read noise
@@ -753,26 +1270,88 @@ class IsrTask(pipeBase.CmdLineTask):
         """
         maskPlanes = [self.config.saturatedMaskName, self.config.suspectMaskName]
         gain = amp.getGain()
-        if not math.isnan(gain):
-            if gain <= 0:
-                patchedGain = 1.0
-                self.log.warn("Gain for amp %s == %g <= 0; setting to %f" %
-                              (amp.getName(), gain, patchedGain))
-                gain = patchedGain
 
-            if self.config.doEmpiricalReadNoise and overscanImage is not None:
-                stats = afwMath.StatisticsControl()
-                stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
-                readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
-                self.log.info("Calculated empirical read noise for amp %s: %f", amp.getName(), readNoise)
-            else:
-                readNoise = amp.getReadNoise()
+        if math.isnan(gain):
+            gain = 1.0
+            self.log.warn("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
+        elif gain <= 0:
+            patchedGain = 1.0
+            self.log.warn("Gain for amp %s == %g <= 0; setting to %f" %
+                          (amp.getName(), gain, patchedGain))
+            gain = patchedGain
 
-            isrFunctions.updateVariance(
-                maskedImage=ampExposure.getMaskedImage(),
-                gain=gain,
-                readNoise=readNoise,
-            )
+        if self.config.doEmpiricalReadNoise and overscanImage is None:
+            self.log.info("Overscan is none for EmpiricalReadNoise")
+
+        if self.config.doEmpiricalReadNoise and overscanImage is not None:
+            stats = afwMath.StatisticsControl()
+            stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
+            readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
+            self.log.info("Calculated empirical read noise for amp %s: %f", amp.getName(), readNoise)
+        else:
+            readNoise = amp.getReadNoise()
+
+        isrFunctions.updateVariance(
+            maskedImage=ampExposure.getMaskedImage(),
+            gain=gain,
+            readNoise=readNoise,
+        )
+
+    def darkCorrection(self, exposure, darkExposure, invert=False):
+        """!Apply dark correction in place.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        darkExposure : `lsst.afw.image.Exposure`
+            Dark exposure of the same size as ``exposure``.
+        invert : `Bool`, optional
+            If True, re-add the dark to an already corrected image.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if either ``exposure`` or ``darkExposure`` do not
+            have their dark time defined.
+
+        See Also
+        --------
+        lsst.ip.isr.isrFunctions.darkCorrection
+        """
+        expScale = exposure.getInfo().getVisitInfo().getDarkTime()
+        if math.isnan(expScale):
+            raise RuntimeError("Exposure darktime is NAN")
+        darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
+        if math.isnan(darkScale):
+            raise RuntimeError("Dark calib darktime is NAN")
+        isrFunctions.darkCorrection(
+            maskedImage=exposure.getMaskedImage(),
+            darkMaskedImage=darkExposure.getMaskedImage(),
+            expScale=expScale,
+            darkScale=darkScale,
+            invert=invert,
+            trimToFit=self.config.doTrimToMatchCalib
+        )
+
+    def doLinearize(self, detector):
+        """!Check if linearization is needed for the detector cameraGeom.
+
+        Checks config.doLinearize and the linearity type of the first
+        amplifier.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector to get linearity type from.
+
+        Returns
+        -------
+        doLinearize : `Bool`
+            If True, linearization should be performed.
+        """
+        return self.config.doLinearize and \
+            detector.getAmpInfoCatalog()[0].getLinearityType() != NullLinearityType
 
     def flatCorrection(self, exposure, flatExposure, invert=False):
         """!Apply flat correction in place
@@ -786,33 +1365,9 @@ class IsrTask(pipeBase.CmdLineTask):
             flatMaskedImage=flatExposure.getMaskedImage(),
             scalingType=self.config.flatScalingType,
             userScale=self.config.flatUserScale,
-            invert=invert
+            invert=invert,
+            trimToFit=self.config.doTrimToMatchCalib
         )
-
-    def getIsrExposure(self, dataRef, datasetType, immediate=True):
-        """!Retrieve a calibration dataset for removing instrument signature
-
-        @param[in]      dataRef         data reference for exposure
-        @param[in]      datasetType     type of dataset to retrieve (e.g. 'bias', 'flat')
-        @param[in]      immediate       if True, disable butler proxies to enable error
-                                        handling within this routine
-        @return exposure
-        """
-        try:
-            exp = dataRef.get(datasetType, immediate=immediate)
-        except Exception as exc1:
-            if not self.config.fallbackFilterName:
-                raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, exc1))
-            try:
-                exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
-            except Exception as exc2:
-                raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s" %
-                                   (datasetType, dataRef.dataId, self.config.fallbackFilterName, exc1, exc2))
-            self.log.warn("Using fallback calibration from filter %s" % self.config.fallbackFilterName)
-
-        if self.config.doAssembleIsrExposures:
-            exp = self.assembleCcd.assembleCcd(exp)
-        return exp
 
     def saturationDetection(self, exposure, amp):
         """!Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place
@@ -892,6 +1447,17 @@ class IsrTask(pipeBase.CmdLineTask):
             fwhm=self.config.fwhm,
         )
 
+        if self.config.numEdgeSuspect > 0:
+            goodBBox = maskedImage.getBBox()
+            # This makes a bbox numEdgeSuspect pixels smaller than the image on each side
+            goodBBox.grow(-self.config.numEdgeSuspect)
+            # Mask pixels outside goodBBox as SUSPECT
+            SourceDetectionTask.setEdgeBits(
+                maskedImage,
+                goodBBox,
+                maskedImage.getMask().getPlaneBitMask("SUSPECT")
+            )
+
     def maskAndInterpNan(self, exposure):
         """!Mask NaNs using mask plane "UNMASKEDNAN" and interpolate over them, in place
 
@@ -924,8 +1490,8 @@ class IsrTask(pipeBase.CmdLineTask):
                 fwhm=self.config.fwhm,
             )
 
-    def overscanCorrection(self, exposure, amp):
-        """Apply overscan correction, in-place
+    def measureBackground(self, exposure, IsrQaConfig=None):
+        """Measure the image background in subgrids, for quality control purposes.
 
         Parameters
         ----------
@@ -947,78 +1513,77 @@ class IsrTask(pipeBase.CmdLineTask):
             - ``overscanImage``: Image of the overscan, post-subtraction
                 (`lsst.afw.image.Image`).
         """
-        if not amp.getHasRawInfo():
-            raise RuntimeError("This method must be executed on an amp with raw information.")
+        if IsrQaConfig is not None:
+            statsControl = afwMath.StatisticsControl(IsrQaConfig.flatness.clipSigma,
+                                                     IsrQaConfig.flatness.nIter)
+            maskVal = exposure.getMaskedImage().getMask().getPlaneBitMask(["BAD", "SAT", "DETECTED"])
+            statsControl.setAndMask(maskVal)
+            maskedImage = exposure.getMaskedImage()
+            stats = afwMath.makeStatistics(maskedImage, afwMath.MEDIAN | afwMath.STDEVCLIP, statsControl)
+            skyLevel = stats.getValue(afwMath.MEDIAN)
+            skySigma = stats.getValue(afwMath.STDEVCLIP)
+            self.log.info("Flattened sky level: %f +/- %f" % (skyLevel, skySigma))
+            metadata = exposure.getMetadata()
+            metadata.set('SKYLEVEL', skyLevel)
+            metadata.set('SKYSIGMA', skySigma)
 
-        if amp.getRawHorizontalOverscanBBox().isEmpty():
-            self.log.info("No Overscan region. Not performing Overscan Correction.")
-            return None
+            # calcluating flatlevel over the subgrids
+            stat = afwMath.MEANCLIP if IsrQaConfig.flatness.doClip else afwMath.MEAN
+            meshXHalf = int(IsrQaConfig.flatness.meshX/2.)
+            meshYHalf = int(IsrQaConfig.flatness.meshY/2.)
+            nX = int((exposure.getWidth() + meshXHalf) / IsrQaConfig.flatness.meshX)
+            nY = int((exposure.getHeight() + meshYHalf) / IsrQaConfig.flatness.meshY)
+            skyLevels = numpy.zeros((nX, nY))
 
-        oscanBBox = amp.getRawHorizontalOverscanBBox()
+            for j in range(nY):
+                yc = meshYHalf + j * IsrQaConfig.flatness.meshY
+                for i in range(nX):
+                    xc = meshXHalf + i * IsrQaConfig.flatness.meshX
 
-        # afw.cameraGeom.assembleImage.makeUpdatedDetector doesn't update readoutCorner; DM-15559
-        x0, x1 = oscanBBox.getBeginX(), oscanBBox.getEndX()
+                    xLLC = xc - meshXHalf
+                    yLLC = yc - meshYHalf
+                    xURC = xc + meshXHalf - 1
+                    yURC = yc + meshYHalf - 1
+
+                    bbox = afwGeom.Box2I(afwGeom.Point2I(xLLC, yLLC), afwGeom.Point2I(xURC, yURC))
+                    miMesh = maskedImage.Factory(exposure.getMaskedImage(), bbox, afwImage.LOCAL)
+
+                    skyLevels[i, j] = afwMath.makeStatistics(miMesh, stat, statsControl).getValue()
+
+            good = numpy.where(numpy.isfinite(skyLevels))
+            skyMedian = numpy.median(skyLevels[good])
+            flatness = (skyLevels[good] - skyMedian) / skyMedian
+            flatness_rms = numpy.std(flatness)
+            flatness_pp = flatness.max() - flatness.min() if len(flatness) > 0 else numpy.nan
+
+            self.log.info("Measuring sky levels in %dx%d grids: %f" % (nX, nY, skyMedian))
+            self.log.info("Sky flatness in %dx%d grids - pp: %f rms: %f" %
+                          (nX, nY, flatness_pp, flatness_rms))
+
+            metadata.set('FLATNESS_PP', float(flatness_pp))
+            metadata.set('FLATNESS_RMS', float(flatness_rms))
+            metadata.set('FLATNESS_NGRIDS', '%dx%d' % (nX, nY))
+            metadata.set('FLATNESS_MESHX', IsrQaConfig.flatness.meshX)
+            metadata.set('FLATNESS_MESHY', IsrQaConfig.flatness.meshY)
+
+    def roughZeroPoint(self, exposure):
+        """Set an approximate magnitude zero point for the exposure.
 
         prescanBBox = amp.getRawPrescanBBox()
         if oscanBBox.getBeginX() > prescanBBox.getBeginX():  # amp is at the right
             x0 += self.config.overscanNumLeadingColumnsToSkip
             x1 -= self.config.overscanNumTrailingColumnsToSkip
         else:
-            x0 += self.config.overscanNumTrailingColumnsToSkip
-            x1 -= self.config.overscanNumLeadingColumnsToSkip
+            self.log.warn("No rough magnitude zero point set for filter %s" % filterName)
+            fluxMag0 = self.config.defaultFluxMag0T1
 
-        oscanBBox = afwGeom.BoxI(afwGeom.PointI(x0, oscanBBox.getBeginY()),
-                                 afwGeom.PointI(x1 - 1, oscanBBox.getEndY() - 1))
+        expTime = exposure.getInfo().getVisitInfo().getExposureTime()
+        if not expTime > 0:  # handle NaN as well as <= 0
+            self.log.warn("Non-positive exposure time; skipping rough zero point")
+            return
 
-        maskedImage = exposure.maskedImage
-        dataView = maskedImage[amp.getRawDataBBox()]
-        overscanImage = maskedImage[oscanBBox]
-
-        sctrl = afwMath.StatisticsControl()
-        sctrl.setNumSigmaClip(self.config.overscanNumSigmaClip)
-
-        results = isrFunctions.overscanCorrection(
-            ampMaskedImage=dataView,
-            overscanImage=overscanImage,
-            fitType=self.config.overscanFitType,
-            order=self.config.overscanOrder,
-            statControl=sctrl,
-        )
-        results.overscanImage = overscanImage
-        return results
-
-    def addDistortionModel(self, exposure, camera):
-        """!Update the WCS in exposure with a distortion model based on camera geometry
-
-        Add a model for optical distortion based on geometry found in `camera`
-        and the `exposure`'s detector. The raw input exposure is assumed
-        have a TAN WCS that has no compensation for optical distortion.
-        Two other possibilities are:
-        - The raw input exposure already has a model for optical distortion,
-            as is the case for raw DECam data.
-            In that case you should set config.doAddDistortionModel False.
-        - The raw input exposure has a model for distortion, but it has known
-            deficiencies severe enough to be worth fixing (e.g. because they
-            cause problems for fitting a better WCS). In that case you should
-            override this method with a version suitable for your raw data.
-
-        @param[in,out] exposure    exposure to process; must include a Detector and a WCS;
-            the WCS of the exposure is modified in place
-        @param[in] camera  camera geometry; an lsst.afw.cameraGeom.Camera
-        """
-        self.log.info("Adding a distortion model to the WCS")
-        wcs = exposure.getWcs()
-        if wcs is None:
-            raise RuntimeError("exposure has no WCS")
-        if camera is None:
-            raise RuntimeError("camera is None")
-        detector = exposure.getDetector()
-        if detector is None:
-            raise RuntimeError("exposure has no Detector")
-        pixelToFocalPlane = detector.getTransform(PIXELS, FOCAL_PLANE)
-        focalPlaneToFieldAngle = camera.getTransformMap().getTransform(FOCAL_PLANE, FIELD_ANGLE)
-        distortedWcs = makeDistortedTanWcs(wcs, pixelToFocalPlane, focalPlaneToFieldAngle)
-        exposure.setWcs(distortedWcs)
+        self.log.info("Setting rough magnitude zero point: %f" % (2.5*math.log10(fluxMag0*expTime),))
+        exposure.getCalib().setFluxMag0(fluxMag0*expTime)
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
         """!Set the valid polygon as the intersection of fpPolygon and the ccd corners
@@ -1208,6 +1773,22 @@ class IsrTask(pipeBase.CmdLineTask):
                 self.flatCorrection(exp, flat, invert=True)
             if self.config.doDark and dark is not None:
                 self.darkCorrection(exp, dark, invert=True)
+
+    def debugView(self, exposure, stepname):
+        """Utility function to examine ISR exposure at different stages.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to view.
+        stepname : `str`
+            State of processing to view.
+        """
+        frame = getDebugFrame(self._display, stepname)
+        if frame:
+            display = getDisplay(frame)
+            display.scale('asinh', 'zscale')
+            display.mtv(exposure)
 
 
 class FakeAmp(object):
