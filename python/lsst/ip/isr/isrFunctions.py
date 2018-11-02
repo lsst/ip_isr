@@ -20,7 +20,6 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import math
-
 import numpy
 
 import lsst.afw.geom as afwGeom
@@ -39,20 +38,34 @@ from contextlib import contextmanager
 
 
 def createPsf(fwhm):
-    """Make a double Gaussian PSF
+    """Make a double Gaussian PSF.
 
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @return measAlg.DoubleGaussianPsf
+    Parameters
+    ----------
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+
+    Returns
+    -------
+    psf : `lsst.meas.algorithms.DoubleGaussianPsf`
+        The created smoothing kernel.
     """
     ksize = 4*int(fwhm) + 1
     return measAlg.DoubleGaussianPsf(ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
 
 
 def transposeMaskedImage(maskedImage):
-    """Make a transposed copy of a masked image
+    """Make a transposed copy of a masked image.
 
-    @param[in] maskedImage  afw.image.MaskedImage to process
-    @return transposed masked image
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+
+    Returns
+    -------
+    transposed : `lsst.afw.image.MaskedImage`
+        The transposed copy of the input image.
     """
     transposed = maskedImage.Factory(afwGeom.Extent2I(maskedImage.getHeight(), maskedImage.getWidth()))
     transposed.getImage().getArray()[:] = maskedImage.getImage().getArray().T
@@ -62,13 +75,19 @@ def transposeMaskedImage(maskedImage):
 
 
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
-    """Interpolate over defects specified in a defect list
+    """Interpolate over defects specified in a defect list.
 
-    @param[in,out] maskedImage  masked image to process
-    @param[in] defectList  defect list
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] fallbackValue  fallback value if an interpolated value cannot be determined;
-                              if None then use clipped mean image value
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    defectList : `list`
+        List of defects to interpolate over.
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+    fallbackValue : scalar, optional
+        Fallback value if an interpolated value cannot be determined.
+        If None, then the clipped mean of the image is used.
     """
     psf = createPsf(fwhm)
     if fallbackValue is None:
@@ -79,9 +98,17 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
 
 
 def defectListFromFootprintList(fpList):
-    """Compute a defect list from a footprint list, optionally growing the footprints
+    """Compute a defect list from a footprint list, optionally growing the footprints.
 
-    @param[in] fpList  footprint list
+    Parameters
+    ----------
+    fpList : `list` of `lsst.afw.detection.Footprint`
+        Footprint list to process.
+
+    Returns
+    -------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        List of defects.
     """
     defectList = []
     for fp in fpList:
@@ -92,10 +119,17 @@ def defectListFromFootprintList(fpList):
 
 
 def transposeDefectList(defectList):
-    """Make a transposed copy of a defect list
+    """Make a transposed copy of a defect list.
 
-    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
-    @return a defect list with transposed defects
+    Parameters
+    ----------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Input list of defects.
+
+    Returns
+    -------
+    retDefectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Transposed list of defects.
     """
     retDefectList = []
     for defect in defectList:
@@ -107,11 +141,16 @@ def transposeDefectList(defectList):
 
 
 def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
-    """Set mask plane based on a defect list
+    """Set mask plane based on a defect list.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process; mask plane is updated
-    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
-    @param[in] maskName  mask plane name
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  Only the mask plane is updated.
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Defect list to mask.
+    maskName : str, optional
+        Mask plane name to use.
     """
     # mask bad pixels
     mask = maskedImage.getMask()
@@ -122,10 +161,19 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
 
 
 def getDefectListFromMask(maskedImage, maskName):
-    """Compute a defect list from a specified mask plane
+    """Compute a defect list from a specified mask plane.
 
-    @param[in] maskedImage  masked image to process
-    @param[in] maskName  mask plane name, or list of names
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    maskName : str or `list`
+        Mask plane name, or list of names to convert.
+
+    Returns
+    -------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Defect list constructed from masked pixels.
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
@@ -134,13 +182,23 @@ def getDefectListFromMask(maskedImage, maskName):
 
 
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
-    """Mask pixels based on threshold detection
+    """Mask pixels based on threshold detection.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process; the mask is altered
-    @param[in] threshold  detection threshold
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] maskName  mask plane name
-    @return a list of defects (meas.algrithms.Defect) of regions set in the mask.
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  Only the mask plane is updated.
+    threshold : scalar
+        Detection threshold.
+    growFootprints : scalar, optional
+        Number of pixels to grow footprints of detected regions.
+    maskName : str, optional
+        Mask plane name, or list of names to convert
+
+    Returns
+    -------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Defect list constructed from pixels above the threshold.
     """
     # find saturated regions
     thresh = afwDetection.Threshold(threshold)
@@ -159,13 +217,20 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
 
 
 def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
-    """Interpolate over defects identified by a particular mask plane
+    """Interpolate over defects identified by a particular mask plane.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] maskName  mask plane name
-    @param[in] fallbackValue  value of last resort for interpolation
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+    growFootprints : scalar, optional
+        Number of pixels to grow footprints of detected regions.
+    maskName : str, optional
+        Mask plane name.
+    fallbackValue : scalar, optional
+        Value of last resort for interpolation.
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
@@ -183,13 +248,22 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
                          fallbackValue=None):
     """Mark saturated pixels and optionally interpolate over them
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process
-    @param[in] saturation  saturation level (used as a detection threshold)
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] interpolate  interpolate over saturated pixels?
-    @param[in] maskName  mask plane name
-    @param[in] fallbackValue  value of last resort for interpolation
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    saturation  : scalar
+        Saturation level used as the detection threshold.
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+    growFootprints : scalar, optional
+        Number of pixels to grow footprints of detected regions.
+    interpolate : Bool, optional
+        If True, saturated pixels are interpolated over.
+    maskName : str, optional
+        Mask plane name.
+    fallbackValue : scalar, optional
+        Value of last resort for interpolation.
     """
     defectList = makeThresholdMask(
         maskedImage=maskedImage,
@@ -322,11 +396,16 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
 
 
 def updateVariance(maskedImage, gain, readNoise):
-    """Set the variance plane based on the image plane
+    """Set the variance plane based on the image plane.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage; image plane is read and variance plane is written
-    @param[in] gain  amplifier gain (e-/ADU)
-    @param[in] readNoise  amplifier read noise (ADU/pixel)
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  The variance plane is modified.
+    gain : scalar
+        The amplifier gain in electrons/ADU.
+    readNoise : scalar
+        The amplifier read nmoise in ADU/pixel.
     """
     var = maskedImage.getVariance()
     var[:] = maskedImage.getImage()
@@ -337,11 +416,30 @@ def updateVariance(maskedImage, gain, readNoise):
 def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False, trimToFit=False):
     """Apply flat correction in place.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] flatMaskedImage  flat field afw.image.MaskedImage
-    @param[in] scalingType  how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
-    @param[in] userScale  scale to use if scalingType is 'USER', else ignored
-    @param[in] invert  if True, unflatten an already-flattened image instead.
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  The image is modified.
+    flatMaskedImage : `lsst.afw.image.MaskedImage`
+        Flat image of the same size as ``maskedImage``
+    scalingType : str
+        Flat scale computation method.  Allowed values are 'MEAN',
+        'MEDIAN', or 'USER'.
+    userScale : scalar, optional
+        Scale to use if ``scalingType``='USER'.
+    invert : `Bool`, optional
+        If True, unflatten an already flattened image.
+    trimToFit : `Bool`, optional
+        If True, raw data is symmetrically trimmed to match
+        calibration size.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if ``maskedImage`` and ``flatMaskedImage`` do not have
+        the same size.
+    pexExcept.Exception
+        Raised if ``scalingType`` is not an allowed value.
     """
     if trimToFit:
         maskedImage = trimToMatchCalibBBox(maskedImage, flatMaskedImage)
@@ -368,11 +466,22 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
 
 
 def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
-    """Apply illumination correction in place
+    """Apply illumination correction in place.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] illumMaskedImage  illumination correction masked image
-    @param[in] illumScale  scale value for illumination correction
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  The image is modified.
+    illumMaskedImage : `lsst.afw.image.MaskedImage`
+        Illumination correction image of the same size as ``maskedImage``.
+    illumScale : scalar
+        Scale factor for the illumination correction.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if ``maskedImage`` and ``illumMaskedImage`` do not have
+        the same size.
     """
     if maskedImage.getBBox(afwImage.LOCAL) != illumMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != illumMaskedImage bbox %s" %
@@ -411,7 +520,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         Statistics control object.  In particular, we pay attention to numSigmaClip
     overscanIsInt : `bool`
         Treat the overscan region as consisting of integers, even if it's been
-        converted to float.  E.g. handle ties properly
+        converted to float.  E.g. handle ties properly.
 
     Returns
     -------
@@ -422,6 +531,24 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             `lsst.afw.image.Image`)
         - ``overscanFit``: Value(s) removed from overscan (scalar or
             `lsst.afw.image.Image`)
+        - ``overscanImage``: Overscan corrected overscan region
+            (`lsst.afw.image.Image`)
+    Raises
+    ------
+    pexExcept.Exception
+        Raised if ``fitType`` is not an allowed value.
+
+    Notes
+    -----
+    The ``ampMaskedImage`` and ``overscanImage`` are modified, with the fit
+    subtracted. Note that the ``overscanImage`` should not be a subimage of
+    the ``ampMaskedImage``, to avoid being subtracted twice.
+
+    Debug plots are available for the SPLINE fitTypes by setting the
+    `debug.display` for `name` == "lsst.ip.isr.isrFunctions".  These
+    plots show the scatter plot of the overscan data (collapsed along
+    the perpendicular dimension) as a function of position on the CCD
+    (normalized between +/-1).
     """
     ampImage = ampMaskedImage.getImage()
     if statControl is None:
@@ -762,13 +889,15 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
         A ``TransmissionCurve`` that represents the throughput of the
         atmosphere, assumed to be spatially constant.
 
-    All ``TransmissionCurve`` arguments are optional; if none are provided, the
-    attached ``TransmissionCurve`` will have unit transmission everywhere.
-
     Returns
     -------
-    combined : ``lsst.afw.image.TransmissionCurve``
+    combined : `lsst.afw.image.TransmissionCurve`
         The TransmissionCurve attached to the exposure.
+
+    Notes
+    -----
+    All ``TransmissionCurve`` arguments are optional; if none are provided, the
+    attached ``TransmissionCurve`` will have unit transmission everywhere.
     """
     combined = afwImage.TransmissionCurve.makeIdentity()
     if atmosphereTransmission is not None:

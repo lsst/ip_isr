@@ -53,6 +53,11 @@ class CrosstalkTask(Task):
     def prepCrosstalk(self, dataRef):
         """Placeholder for crosstalk preparation method, e.g., for inter-CCD crosstalk.
 
+        Parameters
+        ----------
+        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
+            Butler reference of the detector data to be processed.
+
         See also
         --------
         lsst.obs.decam.crosstalk.DecamCrosstalkTask.prepCrosstalk

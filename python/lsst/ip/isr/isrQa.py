@@ -75,7 +75,7 @@ class IsrQaConfig(pexConfig.Config):
     doThumbnailOss = pexConfig.Field(
         dtype=bool,
         doc="Write overscan subtracted thumbnail?",
-        default=True,
+        default=False,
     )
 
     doWriteFlattened = pexConfig.Field(
@@ -86,7 +86,7 @@ class IsrQaConfig(pexConfig.Config):
     doThumbnailFlattened = pexConfig.Field(
         dtype=bool,
         doc="Write thumbnail after flat-field correction?",
-        default=True,
+        default=False,
     )
 
     thumbnailBinning = pexConfig.Field(
