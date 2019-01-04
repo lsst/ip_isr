@@ -29,4 +29,7 @@ from .assembleCcdTask import *
 from .isrTask import *
 from .linearize import *
 from .crosstalk import *
+from .fringe import *
+from .masking import *
+from .straylight import *
 from .measureCrosstalk import *

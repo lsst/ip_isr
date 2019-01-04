@@ -20,7 +20,6 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import math
-
 import numpy
 
 import lsst.afw.geom as afwGeom
@@ -31,24 +30,42 @@ import lsst.meas.algorithms as measAlg
 import lsst.pex.exceptions as pexExcept
 import lsst.afw.cameraGeom as camGeom
 
+from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
+from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.pipe.base import Struct
+
+from contextlib import contextmanager
 
 
 def createPsf(fwhm):
-    """Make a double Gaussian PSF
+    """Make a double Gaussian PSF.
 
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @return measAlg.DoubleGaussianPsf
+    Parameters
+    ----------
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+
+    Returns
+    -------
+    psf : `lsst.meas.algorithms.DoubleGaussianPsf`
+        The created smoothing kernel.
     """
     ksize = 4*int(fwhm) + 1
     return measAlg.DoubleGaussianPsf(ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
 
 
 def transposeMaskedImage(maskedImage):
-    """Make a transposed copy of a masked image
+    """Make a transposed copy of a masked image.
 
-    @param[in] maskedImage  afw.image.MaskedImage to process
-    @return transposed masked image
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+
+    Returns
+    -------
+    transposed : `lsst.afw.image.MaskedImage`
+        The transposed copy of the input image.
     """
     transposed = maskedImage.Factory(afwGeom.Extent2I(maskedImage.getHeight(), maskedImage.getWidth()))
     transposed.getImage().getArray()[:] = maskedImage.getImage().getArray().T
@@ -58,13 +75,19 @@ def transposeMaskedImage(maskedImage):
 
 
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
-    """Interpolate over defects specified in a defect list
+    """Interpolate over defects specified in a defect list.
 
-    @param[in,out] maskedImage  masked image to process
-    @param[in] defectList  defect list
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] fallbackValue  fallback value if an interpolated value cannot be determined;
-                              if None then use clipped mean image value
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    defectList : `list`
+        List of defects to interpolate over.
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+    fallbackValue : scalar, optional
+        Fallback value if an interpolated value cannot be determined.
+        If None, then the clipped mean of the image is used.
     """
     psf = createPsf(fwhm)
     if fallbackValue is None:
@@ -75,9 +98,17 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
 
 
 def defectListFromFootprintList(fpList):
-    """Compute a defect list from a footprint list, optionally growing the footprints
+    """Compute a defect list from a footprint list, optionally growing the footprints.
 
-    @param[in] fpList  footprint list
+    Parameters
+    ----------
+    fpList : `list` of `lsst.afw.detection.Footprint`
+        Footprint list to process.
+
+    Returns
+    -------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        List of defects.
     """
     defectList = []
     for fp in fpList:
@@ -88,10 +119,17 @@ def defectListFromFootprintList(fpList):
 
 
 def transposeDefectList(defectList):
-    """Make a transposed copy of a defect list
+    """Make a transposed copy of a defect list.
 
-    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
-    @return a defect list with transposed defects
+    Parameters
+    ----------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Input list of defects.
+
+    Returns
+    -------
+    retDefectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Transposed list of defects.
     """
     retDefectList = []
     for defect in defectList:
@@ -103,11 +141,16 @@ def transposeDefectList(defectList):
 
 
 def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
-    """Set mask plane based on a defect list
+    """Set mask plane based on a defect list.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process; mask plane is updated
-    @param[in] defectList  a list of defects (afw.meas.algorithms.Defect)
-    @param[in] maskName  mask plane name
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  Only the mask plane is updated.
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Defect list to mask.
+    maskName : str, optional
+        Mask plane name to use.
     """
     # mask bad pixels
     mask = maskedImage.getMask()
@@ -118,10 +161,19 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
 
 
 def getDefectListFromMask(maskedImage, maskName):
-    """Compute a defect list from a specified mask plane
+    """Compute a defect list from a specified mask plane.
 
-    @param[in] maskedImage  masked image to process
-    @param[in] maskName  mask plane name, or list of names
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    maskName : str or `list`
+        Mask plane name, or list of names to convert.
+
+    Returns
+    -------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Defect list constructed from masked pixels.
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
@@ -130,13 +182,23 @@ def getDefectListFromMask(maskedImage, maskName):
 
 
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
-    """Mask pixels based on threshold detection
+    """Mask pixels based on threshold detection.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process; the mask is altered
-    @param[in] threshold  detection threshold
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] maskName  mask plane name
-    @return a list of defects (meas.algrithms.Defect) of regions set in the mask.
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  Only the mask plane is updated.
+    threshold : scalar
+        Detection threshold.
+    growFootprints : scalar, optional
+        Number of pixels to grow footprints of detected regions.
+    maskName : str, optional
+        Mask plane name, or list of names to convert
+
+    Returns
+    -------
+    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+        Defect list constructed from pixels above the threshold.
     """
     # find saturated regions
     thresh = afwDetection.Threshold(threshold)
@@ -144,8 +206,8 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
 
     if growFootprints > 0:
         fs = afwDetection.FootprintSet(fs, growFootprints)
-
     fpList = fs.getFootprints()
+
     # set mask
     mask = maskedImage.getMask()
     bitmask = mask.getPlaneBitMask(maskName)
@@ -155,13 +217,20 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
 
 
 def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
-    """Interpolate over defects identified by a particular mask plane
+    """Interpolate over defects identified by a particular mask plane.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] maskName  mask plane name
-    @param[in] fallbackValue  value of last resort for interpolation
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+    growFootprints : scalar, optional
+        Number of pixels to grow footprints of detected regions.
+    maskName : str, optional
+        Mask plane name.
+    fallbackValue : scalar, optional
+        Value of last resort for interpolation.
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
@@ -179,13 +248,22 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
                          fallbackValue=None):
     """Mark saturated pixels and optionally interpolate over them
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to process
-    @param[in] saturation  saturation level (used as a detection threshold)
-    @param[in] fwhm  FWHM of double Gaussian smoothing kernel
-    @param[in] growFootprints  amount by which to grow footprints of detected regions
-    @param[in] interpolate  interpolate over saturated pixels?
-    @param[in] maskName  mask plane name
-    @param[in] fallbackValue  value of last resort for interpolation
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.
+    saturation  : scalar
+        Saturation level used as the detection threshold.
+    fwhm : scalar
+        FWHM of double Gaussian smoothing kernel.
+    growFootprints : scalar, optional
+        Number of pixels to grow footprints of detected regions.
+    interpolate : Bool, optional
+        If True, saturated pixels are interpolated over.
+    maskName : str, optional
+        Mask plane name.
+    fallbackValue : scalar, optional
+        Value of last resort for interpolation.
     """
     defectList = makeThresholdMask(
         maskedImage=maskedImage,
@@ -197,29 +275,115 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
         interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
 
-def biasCorrection(maskedImage, biasMaskedImage):
-    """Apply bias correction in place
+def trimToMatchCalibBBox(rawMaskedImage, calibMaskedImage):
+    """Compute number of edge trim pixels to match the calibration data.
 
-    @param[in,out] maskedImage  masked image to correct
-    @param[in] biasMaskedImage  bias, as a masked image
+    Use the dimension difference between the raw exposure and the
+    calibration exposure to compute the edge trim pixels.  This trim
+    is applied symmetrically, with the same number of pixels masked on
+    each side.
+
+    Parameters
+    ----------
+    rawMaskedImage : `lsst.afw.image.MaskedImage`
+        Image to trim.
+    calibMaskedImage : `lsst.afw.image.MaskedImage`
+        Calibration image to draw new bounding box from.
+
+    Returns
+    -------
+    replacementMaskedImage : `lsst.afw.image.MaskedImage`
+        ``rawMaskedImage`` trimmed to the appropriate size
+    Raises
+    ------
+    RuntimeError
+       Rasied if ``rawMaskedImage`` cannot be symmetrically trimmed to
+       match ``calibMaskedImage``.
     """
+    nx, ny = rawMaskedImage.getBBox().getDimensions() - calibMaskedImage.getBBox().getDimensions()
+    if nx != ny:
+        raise RuntimeError("Raw and calib maskedImages are trimmed differently in X and Y.")
+    if nx % 2 != 0:
+        raise RuntimeError("Calibration maskedImage is trimmed unevenly in X.")
+    if nx <= 0:
+        raise RuntimeError("Calibration maskedImage is larger than raw data.")
+
+    nEdge = nx//2
+    if nEdge > 0:
+        replacementMaskedImage = rawMaskedImage[nEdge:-nEdge, nEdge:-nEdge, afwImage.LOCAL]
+        SourceDetectionTask.setEdgeBits(
+            rawMaskedImage,
+            replacementMaskedImage.getBBox(),
+            rawMaskedImage.getMask().getPlaneBitMask("EDGE")
+        )
+    else:
+        replacementMaskedImage = rawMaskedImage
+
+    return replacementMaskedImage
+
+
+def biasCorrection(maskedImage, biasMaskedImage, trimToFit=False):
+    """Apply bias correction in place.
+
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+       Image to process.  The image is modified by this method.
+    biasMaskedImage : `lsst.afw.image.MaskedImage`
+        Bias image of the same size as ``maskedImage``
+    trimToFit : `Bool`, optional
+        If True, raw data is symmetrically trimmed to match
+        calibration size.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if ``maskedImage`` and ``biasMaskedImage`` do not have
+        the same size.
+
+    """
+    if trimToFit:
+        maskedImage = trimToMatchCalibBBox(maskedImage, biasMaskedImage)
+
     if maskedImage.getBBox(afwImage.LOCAL) != biasMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != biasMaskedImage bbox %s" %
                            (maskedImage.getBBox(afwImage.LOCAL), biasMaskedImage.getBBox(afwImage.LOCAL)))
     maskedImage -= biasMaskedImage
 
 
-def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=False):
-    """Apply dark correction in place
+def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=False, trimToFit=False):
+    """Apply dark correction in place.
 
-    maskedImage -= dark * expScaling / darkScaling
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+       Image to process.  The image is modified by this method.
+    darkMaskedImage : `lsst.afw.image.MaskedImage`
+        Dark image of the same size as ``maskedImage``.
+    expScale : scalar
+        Dark exposure time for ``maskedImage``.
+    darkScale : scalar
+        Dark exposure time for ``darkMaskedImage``.
+    invert : `Bool`, optional
+        If True, re-add the dark to an already corrected image.
+    trimToFit : `Bool`, optional
+        If True, raw data is symmetrically trimmed to match
+        calibration size.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] darkMaskedImage  dark afw.image.MaskedImage
-    @param[in] expScale  exposure scale
-    @param[in] darkScale  dark scale
-    @param[in] invert     if True, remove the dark from an already-corrected image
+    Raises
+    ------
+    RuntimeError
+        Raised if ``maskedImage`` and ``darkMaskedImage`` do not have
+        the same size.
+
+    Notes
+    -----
+    The dark correction is applied by calculating:
+        maskedImage -= dark * expScaling / darkScaling
     """
+    if trimToFit:
+        maskedImage = trimToMatchCalibBBox(maskedImage, darkMaskedImage)
+
     if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != darkMaskedImage bbox %s" %
                            (maskedImage.getBBox(afwImage.LOCAL), darkMaskedImage.getBBox(afwImage.LOCAL)))
@@ -232,11 +396,16 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
 
 
 def updateVariance(maskedImage, gain, readNoise):
-    """Set the variance plane based on the image plane
+    """Set the variance plane based on the image plane.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage; image plane is read and variance plane is written
-    @param[in] gain  amplifier gain (e-/ADU)
-    @param[in] readNoise  amplifier read noise (ADU/pixel)
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  The variance plane is modified.
+    gain : scalar
+        The amplifier gain in electrons/ADU.
+    readNoise : scalar
+        The amplifier read nmoise in ADU/pixel.
     """
     var = maskedImage.getVariance()
     var[:] = maskedImage.getImage()
@@ -244,15 +413,37 @@ def updateVariance(maskedImage, gain, readNoise):
     var += readNoise**2
 
 
-def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False):
-    """Apply flat correction in place
+def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False, trimToFit=False):
+    """Apply flat correction in place.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] flatMaskedImage  flat field afw.image.MaskedImage
-    @param[in] scalingType  how to compute flat scale; one of 'MEAN', 'MEDIAN' or 'USER'
-    @param[in] userScale  scale to use if scalingType is 'USER', else ignored
-    @param[in] invert  if True, unflatten an already-flattened image instead.
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  The image is modified.
+    flatMaskedImage : `lsst.afw.image.MaskedImage`
+        Flat image of the same size as ``maskedImage``
+    scalingType : str
+        Flat scale computation method.  Allowed values are 'MEAN',
+        'MEDIAN', or 'USER'.
+    userScale : scalar, optional
+        Scale to use if ``scalingType``='USER'.
+    invert : `Bool`, optional
+        If True, unflatten an already flattened image.
+    trimToFit : `Bool`, optional
+        If True, raw data is symmetrically trimmed to match
+        calibration size.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if ``maskedImage`` and ``flatMaskedImage`` do not have
+        the same size.
+    pexExcept.Exception
+        Raised if ``scalingType`` is not an allowed value.
     """
+    if trimToFit:
+        maskedImage = trimToMatchCalibBBox(maskedImage, flatMaskedImage)
+
     if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != flatMaskedImage bbox %s" %
                            (maskedImage.getBBox(afwImage.LOCAL), flatMaskedImage.getBBox(afwImage.LOCAL)))
@@ -275,11 +466,22 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
 
 
 def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
-    """Apply illumination correction in place
+    """Apply illumination correction in place.
 
-    @param[in,out] maskedImage  afw.image.MaskedImage to correct
-    @param[in] illumMaskedImage  illumination correction masked image
-    @param[in] illumScale  scale value for illumination correction
+    Parameters
+    ----------
+    maskedImage : `lsst.afw.image.MaskedImage`
+        Image to process.  The image is modified.
+    illumMaskedImage : `lsst.afw.image.MaskedImage`
+        Illumination correction image of the same size as ``maskedImage``.
+    illumScale : scalar
+        Scale factor for the illumination correction.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if ``maskedImage`` and ``illumMaskedImage`` do not have
+        the same size.
     """
     if maskedImage.getBBox(afwImage.LOCAL) != illumMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != illumMaskedImage bbox %s" %
@@ -288,13 +490,9 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
     maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
 
 
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, statControl=None,
-                       overscanIsInt=True):
-    """Apply overscan correction in-place
-
-    The ``ampMaskedImage`` and ``overscanImage`` are modified, with the fit
-    subtracted. Note that the ``overscanImage`` should not be a subimage of
-    the ``ampMaskedImage``, to avoid being subtracted twice.
+def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0,
+                       statControl=None, overscanIsInt=True):
+    """Apply overscan correction in place.
 
     Parameters
     ----------
@@ -322,7 +520,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         Statistics control object.  In particular, we pay attention to numSigmaClip
     overscanIsInt : `bool`
         Treat the overscan region as consisting of integers, even if it's been
-        converted to float.  E.g. handle ties properly
+        converted to float.  E.g. handle ties properly.
 
     Returns
     -------
@@ -333,6 +531,24 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             `lsst.afw.image.Image`)
         - ``overscanFit``: Value(s) removed from overscan (scalar or
             `lsst.afw.image.Image`)
+        - ``overscanImage``: Overscan corrected overscan region
+            (`lsst.afw.image.Image`)
+    Raises
+    ------
+    pexExcept.Exception
+        Raised if ``fitType`` is not an allowed value.
+
+    Notes
+    -----
+    The ``ampMaskedImage`` and ``overscanImage`` are modified, with the fit
+    subtracted. Note that the ``overscanImage`` should not be a subimage of
+    the ``ampMaskedImage``, to avoid being subtracted twice.
+
+    Debug plots are available for the SPLINE fitTypes by setting the
+    `debug.display` for `name` == "lsst.ip.isr.isrFunctions".  These
+    plots show the scatter plot of the overscan data (collapsed along
+    the perpendicular dimension) as a function of position on the CCD
+    (normalized between +/-1).
     """
     ampImage = ampMaskedImage.getImage()
     if statControl is None:
@@ -441,6 +657,8 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             if collapsedMask.sum() > 0:
                 axes.plot(indices[collapsedMask], collapsed.data[collapsedMask], 'b+')
             axes.plot(indices, fitBiasArr, 'r-')
+            plot.xlabel("centered/scaled position along overscan region")
+            plot.ylabel("pixel value/fit value")
             figure.show()
             prompt = "Press Enter or c to continue [chp]... "
             while True:
@@ -452,7 +670,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
                     pdb.set_trace()
                 elif ans in ("h", ):
                     print("h[elp] c[ontinue] p[db]")
-                figure.close()
+            plot.close()
 
         offImage = ampImage.Factory(ampImage.getDimensions())
         offArray = offImage.getArray()
@@ -494,7 +712,156 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         raise pexExcept.Exception('%s : %s an invalid overscan type' % ("overscanCorrection", fitType))
     ampImage -= offImage
     overscanImage -= overscanFit
-    return Struct(imageFit=offImage, overscanFit=overscanFit)
+    return Struct(imageFit=offImage, overscanFit=overscanFit, overscanImage=overscanImage)
+
+
+def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain):
+    """Apply brighter fatter correction in place for the image.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to have brighter-fatter correction applied.  Modified
+        by this method.
+    kernel : `numpy.ndarray`
+        Brighter-fatter kernel to apply.
+    maxIter : scalar
+        Number of correction iterations to run.
+    threshold : scalar
+        Convergence threshold in terms of the sum of absolute
+        deviations between an iteration and the previous one.
+    applyGain : `Bool`
+        If True, then the exposure values are scaled by the gain prior
+        to correction.
+
+    Notes
+    -----
+    This correction takes a kernel that has been derived from flat
+    field images to redistribute the charge.  The gradient of the
+    kernel is the deflection field due to the accumulated charge.
+
+    Given the original image I(x) and the kernel K(x) we can compute
+    the corrected image Ic(x) using the following equation:
+
+    Ic(x) = I(x) + 0.5*d/dx(I(x)*d/dx(int( dy*K(x-y)*I(y))))
+
+    To evaluate the derivative term we expand it as follows:
+
+    0.5 * ( d/dx(I(x))*d/dx(int(dy*K(x-y)*I(y))) + I(x)*d^2/dx^2(int(dy* K(x-y)*I(y))) )
+
+    Because we use the measured counts instead of the incident counts
+    we apply the correction iteratively to reconstruct the original
+    counts and the correction.  We stop iterating when the summed
+    difference between the current corrected image and the one from
+    the previous iteration is below the threshold.  We do not require
+    convergence because the number of iterations is too large a
+    computational cost.  How we define the threshold still needs to be
+    evaluated, the current default was shown to work reasonably well
+    on a small set of images.  For more information on the method see
+    DocuShare Document-19407.
+
+    The edges as defined by the kernel are not corrected because they
+    have spurious values due to the convolution.
+    """
+    image = exposure.getMaskedImage().getImage()
+
+    # The image needs to be units of electrons/holes
+    with gainContext(exposure, image, applyGain):
+
+        kLx = numpy.shape(kernel)[0]
+        kLy = numpy.shape(kernel)[1]
+        kernelImage = afwImage.ImageD(kLx, kLy)
+        kernelImage.getArray()[:, :] = kernel
+        tempImage = image.clone()
+
+        nanIndex = numpy.isnan(tempImage.getArray())
+        tempImage.getArray()[nanIndex] = 0.
+
+        outImage = afwImage.ImageF(image.getDimensions())
+        corr = numpy.zeros_like(image.getArray())
+        prev_image = numpy.zeros_like(image.getArray())
+        convCntrl = afwMath.ConvolutionControl(False, True, 1)
+        fixedKernel = afwMath.FixedKernel(kernelImage)
+
+        # Define boundary by convolution region.  The region that the correction will be
+        # calculated for is one fewer in each dimension because of the second derivative terms.
+        # NOTE: these need to use integer math, as we're using start:end as numpy index ranges.
+        startX = kLx//2
+        endX = -kLx//2
+        startY = kLy//2
+        endY = -kLy//2
+
+        for iteration in range(maxIter):
+
+            afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
+            tmpArray = tempImage.getArray()
+            outArray = outImage.getArray()
+
+            with numpy.errstate(invalid="ignore", over="ignore"):
+                # First derivative term
+                gradTmp = numpy.gradient(tmpArray[startY:endY, startX:endX])
+                gradOut = numpy.gradient(outArray[startY:endY, startX:endX])
+                first = (gradTmp[0]*gradOut[0] + gradTmp[1]*gradOut[1])[1:-1, 1:-1]
+
+                # Second derivative term
+                diffOut20 = numpy.diff(outArray, 2, 0)[startY:endY, startX + 1:endX - 1]
+                diffOut21 = numpy.diff(outArray, 2, 1)[startY + 1:endY - 1, startX:endX]
+                second = tmpArray[startY + 1:endY - 1, startX + 1:endX - 1]*(diffOut20 + diffOut21)
+
+                corr[startY + 1:endY - 1, startX + 1:endX - 1] = 0.5*(first + second)
+
+                tmpArray[:, :] = image.getArray()[:, :]
+                tmpArray[nanIndex] = 0.
+                tmpArray[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
+
+            if iteration > 0:
+                diff = numpy.sum(numpy.abs(prev_image - tmpArray))
+
+                if diff < threshold:
+                    break
+                prev_image[:, :] = tmpArray[:, :]
+
+                #        if iteration == maxIter - 1:
+                #            self.log.warn("Brighter fatter correction did not converge,
+                #                          final difference %f" % diff)
+
+                #    self.log.info("Finished brighter fatter in %d iterations" % (iteration + 1))
+        image.getArray()[startY + 1:endY - 1, startX + 1:endX - 1] += \
+            corr[startY + 1:endY - 1, startX + 1:endX - 1]
+
+
+@contextmanager
+def gainContext(exp, image, apply):
+    """Context manager that applies and removes gain.
+
+    Parameters
+    ----------
+    exp : `lsst.afw.image.Exposure`
+        Exposure to apply/remove gain.
+    image : `lsst.afw.image.Image`
+        Image to apply/remove gain.
+    apply : `Bool`
+        If True, apply and remove the amplifier gain.
+
+    Yields
+    ------
+    exp : `lsst.afw.image.Exposure`
+        Exposure with the gain applied.
+    """
+    if apply:
+        ccd = exp.getDetector()
+        for amp in ccd:
+            sim = image.Factory(image, amp.getBBox())
+            sim *= amp.getGain()
+
+    try:
+        yield exp
+    finally:
+        if apply:
+            ccd = exp.getDetector()
+            for amp in ccd:
+                sim = image.Factory(image, amp.getBBox())
+                sim /= amp.getGain()
 
 
 def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmission=None,
@@ -522,13 +889,15 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
         A ``TransmissionCurve`` that represents the throughput of the
         atmosphere, assumed to be spatially constant.
 
-    All ``TransmissionCurve`` arguments are optional; if none are provided, the
-    attached ``TransmissionCurve`` will have unit transmission everywhere.
-
     Returns
     -------
-    combined : ``lsst.afw.image.TransmissionCurve``
+    combined : `lsst.afw.image.TransmissionCurve`
         The TransmissionCurve attached to the exposure.
+
+    Notes
+    -----
+    All ``TransmissionCurve`` arguments are optional; if none are provided, the
+    attached ``TransmissionCurve`` will have unit transmission everywhere.
     """
     combined = afwImage.TransmissionCurve.makeIdentity()
     if atmosphereTransmission is not None:
@@ -545,3 +914,173 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
         combined *= sensorTransmission
     exposure.getInfo().setTransmissionCurve(combined)
     return combined
+
+
+def addDistortionModel(exposure, camera):
+    """!Update the WCS in exposure with a distortion model based on camera
+    geometry.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to process.  Must contain a Detector and WCS.  The
+        exposure is modified.
+    camera : `lsst.afw.cameraGeom.Camera`
+        Camera geometry.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if ``exposure`` is lacking a Detector or WCS, or if
+        ``camera`` is None.
+    Notes
+    -----
+    Add a model for optical distortion based on geometry found in ``camera``
+    and the ``exposure``'s detector. The raw input exposure is assumed
+    have a TAN WCS that has no compensation for optical distortion.
+    Two other possibilities are:
+    - The raw input exposure already has a model for optical distortion,
+    as is the case for raw DECam data.
+    In that case you should set config.doAddDistortionModel False.
+    - The raw input exposure has a model for distortion, but it has known
+    deficiencies severe enough to be worth fixing (e.g. because they
+    cause problems for fitting a better WCS). In that case you should
+    override this method with a version suitable for your raw data.
+
+    """
+    wcs = exposure.getWcs()
+    if wcs is None:
+        raise RuntimeError("exposure has no WCS")
+    if camera is None:
+        raise RuntimeError("camera is None")
+    detector = exposure.getDetector()
+    if detector is None:
+        raise RuntimeError("exposure has no Detector")
+    pixelToFocalPlane = detector.getTransform(camGeom.PIXELS, camGeom.FOCAL_PLANE)
+    focalPlaneToFieldAngle = camera.getTransformMap().getTransform(camGeom.FOCAL_PLANE,
+                                                                   camGeom.FIELD_ANGLE)
+    distortedWcs = makeDistortedTanWcs(wcs, pixelToFocalPlane, focalPlaneToFieldAngle)
+    exposure.setWcs(distortedWcs)
+
+
+def applyGains(exposure, normalizeGains=False):
+    """Scale an exposure by the amplifier gains.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to process.  The image is modified.
+    normalizeGains : `Bool`, optional
+        If True, then amplifiers are scaled to force the median of
+        each amplifier to equal the median of those medians.
+    """
+    ccd = exposure.getDetector()
+    ccdImage = exposure.getMaskedImage()
+
+    medians = []
+    for amp in ccd:
+        sim = ccdImage.Factory(ccdImage, amp.getBBox())
+        sim *= amp.getGain()
+
+        if normalizeGains:
+            medians.append(numpy.median(sim.getImage().getArray()))
+
+    if normalizeGains:
+        median = numpy.median(numpy.array(medians))
+        for index, amp in enumerate(ccd):
+            sim = ccdImage.Factory(ccdImage, amp.getDataSec())
+            sim *= median/medians[index]
+
+
+def widenSaturationTrails(mask):
+    """Grow the saturation trails by an amount dependent on the width of the trail.
+
+    Parameters
+    ----------
+    mask : `lsst.afw.image.Mask`
+        Mask which will have the saturated areas grown.
+    """
+
+    extraGrowDict = {}
+    for i in range(1, 6):
+        extraGrowDict[i] = 0
+    for i in range(6, 8):
+        extraGrowDict[i] = 1
+    for i in range(8, 10):
+        extraGrowDict[i] = 3
+    extraGrowMax = 4
+
+    if extraGrowMax <= 0:
+        return
+
+    saturatedBit = mask.getPlaneBitMask("SAT")
+
+    xmin, ymin = mask.getBBox().getMin()
+    width = mask.getWidth()
+
+    thresh = afwDetection.Threshold(saturatedBit, afwDetection.Threshold.BITMASK)
+    fpList = afwDetection.FootprintSet(mask, thresh).getFootprints()
+
+    for fp in fpList:
+        for s in fp.getSpans():
+            x0, x1 = s.getX0(), s.getX1()
+
+            extraGrow = extraGrowDict.get(x1 - x0 + 1, extraGrowMax)
+            if extraGrow > 0:
+                y = s.getY() - ymin
+                x0 -= xmin + extraGrow
+                x1 -= xmin - extraGrow
+
+                if x0 < 0:
+                    x0 = 0
+                if x1 >= width - 1:
+                    x1 = width - 1
+
+                mask.array[y, x0:x1+1] |= saturatedBit
+
+
+def setBadRegions(exposure, badStatistic="MEDIAN"):
+    """Set all BAD areas of the chip to the average of the rest of the exposure
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to mask.  The exposure mask is modified.
+    badStatistic : `str`, optional
+        Statistic to use to generate the replacement value from the
+        image data.  Allowed values are 'MEDIAN' or 'MEANCLIP'.
+
+    Returns
+    -------
+    badPixelCount : scalar
+        Number of bad pixels masked.
+    badPixelValue : scalar
+        Value substituted for bad pixels.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if `badStatistic` is not an allowed value.
+    """
+    if badStatistic == "MEDIAN":
+        statistic = afwMath.MEDIAN
+    elif badStatistic == "MEANCLIP":
+        statistic = afwMath.MEANCLIP
+    else:
+        raise RuntimeError("Impossible method %s of bad region correction" % badStatistic)
+
+    mi = exposure.getMaskedImage()
+    mask = mi.getMask()
+    BAD = mask.getPlaneBitMask("BAD")
+    INTRP = mask.getPlaneBitMask("INTRP")
+
+    sctrl = afwMath.StatisticsControl()
+    sctrl.setAndMask(BAD)
+    value = afwMath.makeStatistics(mi, statistic, sctrl).getValue()
+
+    maskArray = mask.getArray()
+    imageArray = mi.getImage().getArray()
+    badPixels = numpy.logical_and((maskArray & BAD) > 0, (maskArray & INTRP) == 0)
+    imageArray[:] = numpy.where(badPixels, value, imageArray)
+
+    return badPixels.sum(), value

@@ -34,9 +34,16 @@ __all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosst
 
 class CrosstalkConfig(Config):
     """Configuration for intra-CCD crosstalk removal"""
-    minPixelToMask = Field(dtype=float, default=45000,
-                           doc="Set crosstalk mask plane for pixels over this value")
-    crosstalkMaskPlane = Field(dtype=str, default="CROSSTALK", doc="Name for crosstalk mask plane")
+    minPixelToMask = Field(
+        dtype=float,
+        doc="Set crosstalk mask plane for pixels over this value",
+        default=45000
+    )
+    crosstalkMaskPlane = Field(
+        dtype=str,
+        doc="Name for crosstalk mask plane",
+        default="CROSSTALK"
+    )
 
 
 class CrosstalkTask(Task):
@@ -45,6 +52,11 @@ class CrosstalkTask(Task):
 
     def prepCrosstalk(self, dataRef):
         """Placeholder for crosstalk preparation method, e.g., for inter-CCD crosstalk.
+
+        Parameters
+        ----------
+        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
+            Butler reference of the detector data to be processed.
 
         See also
         --------
@@ -79,6 +91,11 @@ X_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: True,
           lsst.afw.table.UL: False, lsst.afw.table.UR: True}
 Y_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: False,
           lsst.afw.table.UL: True, lsst.afw.table.UR: True}
+
+
+class NullCrosstalkTask(CrosstalkTask):
+    def run(self, exposure, crosstalkSources=None):
+        self.log.info("Not performing any crosstalk correction")
 
 
 def extractAmp(image, amp, corner, isTrimmed=False):
