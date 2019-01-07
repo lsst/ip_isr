@@ -75,11 +75,16 @@ class CrosstalkTask(Task):
             Image data and crosstalk coefficients from other CCDs/amps that are
             sources of crosstalk in exposure.
             The default for intra-CCD crosstalk here is None.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if called for a detector that does not have a
+            crosstalk correction
         """
         detector = exposure.getDetector()
         if not detector.hasCrosstalk():
-            self.log.warn("Crosstalk correction skipped: no crosstalk coefficients for detector")
-            return
+            raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
         self.log.info("Applying crosstalk correction")
         subtractCrosstalk(exposure, minPixelToMask=self.config.minPixelToMask,
                           crosstalkStr=self.config.crosstalkMaskPlane)
