@@ -835,7 +835,7 @@ class IsrTask(pipeBase.CmdLineTask):
                 if self.config.doOverscan and not badAmp:
                     # Overscan correction on amp-by-amp basis.
                     overscanResults = self.overscanCorrection(ccdExposure, amp)
-                    self.log.info("Corrected overscan for amplifier %s" % (amp.getName()))
+                    self.log.debug("Corrected overscan for amplifier %s" % (amp.getName()))
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         if isinstance(overscanResults.overscanFit, float):
                             qaMedian = overscanResults.overscanFit
@@ -848,8 +848,8 @@ class IsrTask(pipeBase.CmdLineTask):
 
                         self.metadata.set("ISR OSCAN {} MEDIAN".format(amp.getName()), qaMedian)
                         self.metadata.set("ISR OSCAN {} STDEV".format(amp.getName()), qaStdev)
-                        self.log.info("  Overscan stats for amplifer %s: %f +/- %f" %
-                                      (amp.getName(), qaMedian, qaStdev))
+                        self.log.debug("  Overscan stats for amplifer %s: %f +/- %f" %
+                                       (amp.getName(), qaMedian, qaStdev))
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
                     self.log.warn("Amplifier %s is bad." % (amp.getName()))
@@ -885,7 +885,7 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doVariance:
             for amp, overscanResults in zip(ccd, overscans):
                 if ccdExposure.getBBox().contains(amp.getBBox()):
-                    self.log.info("Constructing variance map for amplifer %s" % (amp.getName()))
+                    self.log.debug("Constructing variance map for amplifer %s" % (amp.getName()))
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                     if overscanResults is not None:
                         self.updateVariance(ampExposure, amp,
@@ -900,9 +900,9 @@ class IsrTask(pipeBase.CmdLineTask):
                                           qaStats.getValue(afwMath.MEDIAN))
                         self.metadata.set("ISR VARIANCE {} STDEV".format(amp.getName()),
                                           qaStats.getValue(afwMath.STDEVCLIP))
-                        self.log.info("  Variance stats for amplifer %s: %f +/- %f" %
-                                      (amp.getName(), qaStats.getValue(afwMath.MEDIAN),
-                                       qaStats.getValue(afwMath.STDEVCLIP)))
+                        self.log.debug("  Variance stats for amplifer %s: %f +/- %f" %
+                                       (amp.getName(), qaStats.getValue(afwMath.MEDIAN),
+                                        qaStats.getValue(afwMath.STDEVCLIP)))
 
         if self.doLinearize(ccd):
             self.log.info("Applying linearizer.")
@@ -1031,9 +1031,9 @@ class IsrTask(pipeBase.CmdLineTask):
                                       qaStats.getValue(afwMath.MEDIAN))
                     self.metadata.set("ISR BACKGROUND {} STDEV".format(amp.getName()),
                                       qaStats.getValue(afwMath.STDEVCLIP))
-                    self.log.info("  Background stats for amplifer %s: %f +/- %f" %
-                                  (amp.getName(), qaStats.getValue(afwMath.MEDIAN),
-                                   qaStats.getValue(afwMath.STDEVCLIP)))
+                    self.log.debug("  Background stats for amplifer %s: %f +/- %f" %
+                                   (amp.getName(), qaStats.getValue(afwMath.MEDIAN),
+                                    qaStats.getValue(afwMath.STDEVCLIP)))
 
         self.debugView(ccdExposure, "postISRCCD")
 
