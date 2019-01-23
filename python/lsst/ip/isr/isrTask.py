@@ -1331,19 +1331,19 @@ class IsrTask(pipeBase.CmdLineTask):
                                              afwGeom.Extent2I(dataBBox.getWidth(), yLower)))
             overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() +
                                                 afwGeom.Extent2I(x0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1, yLower)))
+                                                afwGeom.Extent2I(oscanBBox.getWidth() - x0 + x1, yLower)))
 
             imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin() + afwGeom.Extent2I(0, yLower),
                                              afwGeom.Extent2I(dataBBox.getWidth(), yUpper)))
 
             overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(x0, yLower),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1, yUpper)))
+                                                afwGeom.Extent2I(oscanBBox.getWidth() - x0 + x1, yUpper)))
         else:
             imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
                                              afwGeom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
 
             overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(x0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1,
+                                                afwGeom.Extent2I(oscanBBox.getWidth() - x0 + x1,
                                                                  oscanBBox.getHeight())))
 
         # Perform overscan correction on subregions, ensuring saturated pixels are masked.
