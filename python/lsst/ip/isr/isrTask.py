@@ -1620,14 +1620,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
             imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin() + afwGeom.Extent2I(0, yLower),
                                              afwGeom.Extent2I(dataBBox.getWidth(), yUpper)))
-
             overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, yLower),
                                                 afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
                                                                  yUpper)))
         else:
             imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
                                              afwGeom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
-
             overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, 0),
                                                 afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
                                                                  oscanBBox.getHeight())))
