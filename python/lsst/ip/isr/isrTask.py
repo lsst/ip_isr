@@ -1584,16 +1584,16 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # Determine the bounding boxes
         dataBBox = amp.getRawDataBBox()
         oscanBBox = amp.getRawHorizontalOverscanBBox()
-        x0 = 0
-        x1 = 0
+        dx0 = 0
+        dx1 = 0
 
         prescanBBox = amp.getRawPrescanBBox()
         if (oscanBBox.getBeginX() > prescanBBox.getBeginX()):  # amp is at the right
-            x0 += self.config.overscanNumLeadingColumnsToSkip
-            x1 -= self.config.overscanNumTrailingColumnsToSkip
+            dx0 += self.config.overscanNumLeadingColumnsToSkip
+            dx1 -= self.config.overscanNumTrailingColumnsToSkip
         else:
-            x0 += self.config.overscanNumTrailingColumnsToSkip
-            x1 -= self.config.overscanNumLeadingColumnsToSkip
+            dx0 += self.config.overscanNumTrailingColumnsToSkip
+            dx1 -= self.config.overscanNumLeadingColumnsToSkip
 
         # Determine if we need to work on subregions of the amplifier and overscan.
         imageBBoxes = []
@@ -1614,28 +1614,28 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
                                              afwGeom.Extent2I(dataBBox.getWidth(), yLower)))
             overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() +
-                                                afwGeom.Extent2I(x0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1, yLower)))
+                                                afwGeom.Extent2I(dx0, 0),
+                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                 yLower)))
 
             imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin() + afwGeom.Extent2I(0, yLower),
                                              afwGeom.Extent2I(dataBBox.getWidth(), yUpper)))
 
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(x0, yLower),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1, yUpper)))
+            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, yLower),
+                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                 yUpper)))
         else:
             imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
                                              afwGeom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
 
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(x0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() + x1,
+            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, 0),
+                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
                                                                  oscanBBox.getHeight())))
 
         # Perform overscan correction on subregions, ensuring saturated pixels are masked.
         for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
-            ampImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), imageBBox,
-                                             afwImage.PARENT)
-            overscanImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), overscanBBox,
-                                                  afwImage.PARENT)
+            ampImage = ccdExposure.maskedImage[imageBBox]
+            overscanImage = ccdExposure.maskedImage[overscanBBox]
 
             overscanArray = overscanImage.getImage().getArray()
             median = numpy.ma.median(numpy.ma.masked_where(overscanImage.getMask().getArray(),
