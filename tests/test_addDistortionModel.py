@@ -86,7 +86,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         """Test IsrTask.run with config.doAddDistortionModel true"""
         isrConfig = self.makeMinimalIsrConfig()
         isrConfig.doAddDistortionModel = True
-        isrTask = IsrTask(isrConfig)
+        isrTask = IsrTask(config=isrConfig)
         with self.assertRaises(RuntimeError):
             # the camera argument is required
             isrTask.run(ccdExposure=self.exposure)
@@ -97,7 +97,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
     def testRunWithoutAddDistortionModel(self):
         """Test IsrTask.run with config.doAddDistortionModel false"""
         isrConfig = self.makeMinimalIsrConfig()
-        isrTask = IsrTask(isrConfig)
+        isrTask = IsrTask(config=isrConfig)
 
         # the camera argument is not needed
         exposure = isrTask.run(ccdExposure=self.exposure).exposure

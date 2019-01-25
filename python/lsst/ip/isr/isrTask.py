@@ -38,9 +38,11 @@ from lsst.afw.display import getDisplay
 from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
 from lsst.meas.algorithms.detection import SourceDetectionTask
+from lsst.meas.algorithms import Defect
 
 from . import isrFunctions
 from . import isrQa
+from . import linearize
 
 from .assembleCcdTask import AssembleCcdTask
 from .crosstalk import CrosstalkTask
@@ -59,16 +61,133 @@ class IsrTaskConfig(pexConfig.Config):
     Items are grouped in the order in which they are executed by the task.
     """
     # General ISR configuration
+
+    # gen3 options
+    isrName = pexConfig.Field(
+        dtype=str,
+        doc="Name of ISR",
+        default="ISR",
+    )
+
+    # input datasets
+    ccdExposure = pipeBase.InputDatasetField(
+        doc="Input exposure to process",
+        name="raw",
+        scalar=True,
+        storageClass="ExposureU",
+        dimensions=["Instrument", "Exposure", "Detector"],
+    )
+    camera = pipeBase.InputDatasetField(
+        doc="Input camera to construct complete exposures.",
+        name="camera",
+        scalar=True,
+        storageClass="TablePersistableCamera",
+        dimensions=["Instrument", "ExposureRange"],
+    )
+    bias = pipeBase.InputDatasetField(
+        doc="Input bias calibration.",
+        name="bias",
+        scalar=True,
+        storageClass="ImageF",
+        dimensions=["Instrument", "ExposureRange", "Detector"],
+    )
+    dark = pipeBase.InputDatasetField(
+        doc="Input dark calibration.",
+        name="dark",
+        scalar=True,
+        storageClass="ImageF",
+        dimensions=["Instrument", "ExposureRange", "Detector"],
+    )
+    flat = pipeBase.InputDatasetField(
+        doc="Input flat calibration.",
+        name="flat",
+        scalar=True,
+        storageClass="MaskedImageF",
+        dimensions=["Instrument", "PhysicalFilter", "ExposureRange", "Detector"],
+    )
+    bfKernel = pipeBase.InputDatasetField(
+        doc="Input brighter-fatter kernel.",
+        name="bfKernel",
+        scalar=True,
+        storageClass="NumpyArray",
+        dimensions=["Instrument", "ExposureRange"],
+    )
+    defects = pipeBase.InputDatasetField(
+        doc="Input defect tables.",
+        name="defects",
+        scalar=True,
+        storageClass="Catalog",
+        dimensions=["Instrument", "ExposureRange", "Detector"],
+    )
+    opticsTransmission = pipeBase.InputDatasetField(
+        doc="Transmission curve due to the optics.",
+        name="transmission_optics",
+        scalar=True,
+        storageClass="TablePersistableTransmissionCurve",
+        dimensions=["Instrument", "ExposureRange"],
+    )
+    filterTransmission = pipeBase.InputDatasetField(
+        doc="Transmission curve due to the filter.",
+        name="transmission_filter",
+        scalar=True,
+        storageClass="TablePersistableTransmissionCurve",
+        dimensions=["Instrument", "PhysicalFilter", "ExposureRange"],
+    )
+    sensorTransmission = pipeBase.InputDatasetField(
+        doc="Transmission curve due to the sensor.",
+        name="transmission_sensor",
+        scalar=True,
+        storageClass="TablePersistableTransmissionCurve",
+        dimensions=["Instrument", "ExposureRange", "Detector"],
+    )
+    atmosphereTransmission = pipeBase.InputDatasetField(
+        doc="Transmission curve due to the atmosphere.",
+        name="transmission_atmosphere",
+        scalar=True,
+        storageClass="TablePersistableTransmissionCurve",
+        dimensions=["Instrument"],
+    )
+
+    # output datasets
+    outputExposure = pipeBase.OutputDatasetField(
+        doc="Output ISR processed exposure.",
+        name="postISRCCD",
+        scalar=True,
+        storageClass="ExposureF",
+        dimensions=["Instrument", "Visit", "Detector"],
+    )
+    outputOssThumbnail = pipeBase.OutputDatasetField(
+        doc="Output Overscan-subtracted thumbnail image.",
+        name="OssThumb",
+        scalar=True,
+        storageClass="Thumbnail",
+        dimensions=["Instrument", "Visit", "Detector"],
+    )
+    outputFlattenedThumbnail = pipeBase.OutputDatasetField(
+        doc="Output flat-corrected thumbnail image.",
+        name="FlattenedThumb",
+        scalar=True,
+        storageClass="TextStorage",
+        dimensions=["Instrument", "Visit", "Detector"],
+    )
+
+    quantum = pipeBase.QuantumConfig(
+        dimensions=["Visit", "Detector", "Instrument"],
+    )
+
+    ## Original gen2 config
     datasetType = pexConfig.Field(
         dtype=str,
         doc="Dataset type for input data; users will typically leave this alone, "
         "but camera-specific ISR tasks will override it",
         default="raw",
     )
+
     fallbackFilterName = pexConfig.Field(
         dtype=str,
         doc="Fallback default filter name for calibrations.",
-        optional=True)
+        optional=True
+    )
     expectWcs = pexConfig.Field(
         dtype=bool,
         default=True,
@@ -543,7 +662,7 @@ class IsrTaskConfig(pexConfig.Config):
             raise ValueError("You may not specify both doFlat and doApplyGains")
 
 
-class IsrTask(pipeBase.CmdLineTask):
+class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
     r"""Apply common instrument signature correction algorithms to a raw frame.
 
     The process for correcting imaging data is very similar from
@@ -574,15 +693,112 @@ class IsrTask(pipeBase.CmdLineTask):
     ConfigClass = IsrTaskConfig
     _DefaultName = "isr"
 
-    def __init__(self, *args, **kwargs):
-        pipeBase.Task.__init__(self, *args, **kwargs)
-
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.makeSubtask("assembleCcd")
         self.makeSubtask("crosstalk")
         self.makeSubtask("strayLight")
         self.makeSubtask("fringe")
         self.makeSubtask("masking")
         self.makeSubtask("vignette")
+
+    @classmethod
+    def getInputDatasetTypes(cls, config):
+        inputTypeDict = super().getInputDatasetTypes(config)
+
+        # Delete entries from the dictionary of InputDatasetTypes that we know we don't
+        # need because the configuration tells us we will not be bothering with the
+        # correction that uses that IDT.
+        if config.doBias is not True:
+            del inputTypeDict["bias"]
+        if config.doLinearize is not True:
+            del inputTypeDict["linearizer"]
+        if config.doCrosstalk is not True:
+            del inputTypeDict["crosstalkSources"]
+        if config.doBrighterFatter is not True:
+            del inputTypeDict["bfKernel"]
+        if config.doDefect is not True:
+            del inputTypeDict["defects"]
+        if config.doDark is not True:
+            del inputTypeDict["dark"]
+        if config.doFlat is not True:
+            del inputTypeDict["flat"]
+        if config.doFringe is not True:
+            del inputTypeDict["fringes"]
+        if config.doAttachTransmissionCurve is not True:
+            del inputTypeDict["opticsTransmission"]
+            del inputTypeDict["filterTransmission"]
+            del inputTypeDict["sensorTransmission"]
+            del inputTypeDict["atmosphereTransmission"]
+        if config.doUseOpticsTransmission is not True:
+            del inputTypeDict["opticsTransmission"]
+        if config.doUseFilterTransmission is not True:
+            del inputTypeDict["filterTransmission"]
+        if config.doUseSensorTransmission is not True:
+            del inputTypeDict["sensorTransmission"]
+        if config.doUseAtmosphereTransmission is not True:
+            del inputTypeDict["atmosphereTransmission"]
+
+        return inputTypeDict
+
+    @classmethod
+    def getOutputDatasetTypes(cls, config):
+        outputTypeDict = super().getOutputDatasetTypes(config)
+
+        if config.qa.doThumbnailOss is not True:
+            del outputTypeDict["outputOssThumbnail"]
+        if config.qa.doThumbnailFlattened is not True:
+            del outputTypeDict["outputFlattenedThumbnail"]
+        if config.doWrite is not True:
+            del outputTypeDict["outputExposure"]
+
+        return outputTypeDict
+
+    def adaptArgsAndRun(self, inputData, inputDataIds, outputDataIds, butler):
+        try:
+            inputData['detectorNum'] = int(inputDataIds['ccdExposure']['detector'])
+        except Exception as e:
+            raise ValueError(f"Failure to find valid detectorNum value for Dataset {inputDataIds}: {e}")
+
+        inputData['isGen3'] = True
+
+        if self.config.doLinearize is True:
+            if 'linearizer' not in inputData.keys():
+                detector = inputData['camera'][inputData['detectorNum']]
+                linearityName = detector.getAmpInfoCatalog()[0].getLinearityType()
+                inputData['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
+
+        if inputData['defects'] is not None:
+            # defects is loaded as a BaseCatalog with columns x0, y0, width, height.
+            # masking expects a list of defects defined by their bounding box
+            defectList = []
+
+            for r in inputData['defects']:
+                bbox = afwGeom.BoxI(afwGeom.PointI(r.get("x0"), r.get("y0")),
+                                    afwGeom.ExtentI(r.get("width"), r.get("height")))
+                defectList.append(Defect(bbox))
+
+            inputData['defects'] = defectList
+
+        # Broken: DM-17169
+        # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
+        # fixed for non-HSC cameras in the future.
+        # inputData['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputDataIds['ccdExposure'])
+        #                        if self.config.doCrosstalk else None)
+
+        # Broken: DM-17152
+        # Fringes are not tested to be handled correctly by Gen3 butler.
+        # inputData['fringes'] = (self.fringe.readFringes(inputDataIds['ccdExposure'],
+        #                                                 assembler=self.assembleCcd
+        #                                                 if self.config.doAssembleIsrExposures else None)
+        #                         if self.config.doFringe and
+        #                            self.fringe.checkFilter(inputData['ccdExposure'])
+        #                         else pipeBase.Struct(fringes=None))
+
+        return super().adaptArgsAndRun(inputData, inputDataIds, outputDataIds, butler)
+
+    def makeDatasetType(self, dsConfig):
+        return super().makeDatasetType(dsConfig)
 
     def readIsrData(self, dataRef, rawExposure):
         """!Retrieve necessary frames for instrument signature removal.
@@ -687,6 +903,7 @@ class IsrTask(pipeBase.CmdLineTask):
             dark=None, flat=None, bfKernel=None, defects=None, fringes=None,
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
+            detectorNum=None, isGen3=False
             ):
         """!Perform instrument signature removal on an exposure.
 
@@ -747,6 +964,10 @@ class IsrTask(pipeBase.CmdLineTask):
         atmosphereTransmission : `lsst.afw.image.TransmissionCurve`
             A ``TransmissionCurve`` that represents the throughput of the
             atmosphere, assumed to be spatially constant.
+        detectorNum : `int`, optional
+            The integer number for the detector to process.
+        isGen3 : bool, optional
+            Flag this call to run() as using the Gen3 butler environment.
 
         Returns
         -------
@@ -754,6 +975,8 @@ class IsrTask(pipeBase.CmdLineTask):
             Result struct with component:
             - ``exposure`` : `afw.image.Exposure`
                 The fully ISR corrected exposure.
+            - ``outputExposure`` : `afw.image.Exposure`
+                An alias for `exposure`
             - ``ossThumb`` : `numpy.ndarray`
                 Thumbnail image of the exposure after overscan subtraction.
             - ``flattenedThumb`` : `numpy.ndarray`
@@ -788,11 +1011,25 @@ class IsrTask(pipeBase.CmdLineTask):
         exposure after all ISR processing has finished.
 
         """
-        if isinstance(ccdExposure, ButlerDataRef):
-            return self.runDataRef(ccdExposure)
 
-        self.log.info("Performing ISR on exposure %s" %
-                      (ccdExposure.getInfo().getVisitInfo().getExposureId()))
+        if isGen3 is True:
+            # Gen3 currently cannot automatically do configuration overrides.
+            # DM-15257 looks to discuss this issue.
+
+            self.config.doFringe = False
+
+            # Configure input exposures;
+            if detectorNum is None:
+                raise RuntimeError("Must supply the detectorNum if running as Gen3")
+
+            ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
+            bias = self.ensureExposure(bias, camera, detectorNum)
+            dark = self.ensureExposure(dark, camera, detectorNum)
+            flat = self.ensureExposure(flat, camera, detectorNum)
+        else:
+            if isinstance(ccdExposure, ButlerDataRef):
+                return self.runDataRef(ccdExposure)
+
         ccd = ccdExposure.getDetector()
 
         if not ccd:
@@ -1040,7 +1277,11 @@ class IsrTask(pipeBase.CmdLineTask):
         return pipeBase.Struct(
             exposure=ccdExposure,
             ossThumb=ossThumb,
-            flattenedThumb=flattenedThumb
+            flattenedThumb=flattenedThumb,
+
+            outputExposure=ccdExposure,
+            outputOssThumbnail=ossThumb,
+            outputFlattenedThumbnail=flattenedThumb,
         )
 
     @pipeBase.timeMethod
@@ -1076,6 +1317,7 @@ class IsrTask(pipeBase.CmdLineTask):
 
         """
         self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
+
         ccdExposure = sensorRef.get(self.config.datasetType)
 
         camera = sensorRef.get("camera")
@@ -1135,6 +1377,50 @@ class IsrTask(pipeBase.CmdLineTask):
         if self.config.doAssembleIsrExposures:
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
+
+    def ensureExposure(self, inputExp, camera, detectorNum):
+        """Ensure that the data returned by Butler is a fully constructed exposure.
+
+        ISR requires exposure-level image data for historical reasons, so if we did
+        not recieve that from Butler, construct it from what we have, modifying the
+        input in place.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`, `lsst.afw.image.DecoratedImageU`, or
+                   `lsst.afw.image.ImageF`
+            The input data structure obtained from Butler.
+        camera : `lsst.afw.cameraGeom.camera`
+            The camera associated with the image.  Used to find the appropriate
+            detector.
+        detectorNum : `int`
+            The detector this exposure should match.
+
+        Returns
+        -------
+        inputExp : `lsst.afw.image.Exposure`
+            The re-constructed exposure, with appropriate detector parameters.
+
+        Raises
+        ------
+        TypeError
+            Raised if the input data cannot be used to construct an exposure.
+        """
+        if isinstance(inputExp, afwImage.DecoratedImageU):
+            inputExp = afwImage.makeExposure(afwImage.makeMaskedImage(inputExp))
+        elif isinstance(inputExp, afwImage.ImageF):
+            inputExp = afwImage.makeExposure(afwImage.makeMaskedImage(inputExp))
+        elif isinstance(inputExp, afwImage.MaskedImageF):
+            inputExp = afwImage.makeExposure(inputExp)
+        elif isinstance(inputExp, afwImage.Exposure):
+            pass
+        else:
+            raise TypeError(f"Input Exposure is not known type in isrTask.ensureExposure: {type(inputExp)}")
+
+        if inputExp.getDetector() is None:
+            inputExp.setDetector(camera[detectorNum])
+
+        return inputExp
 
     def convertIntToFloat(self, exposure):
         """Convert exposure image from uint16 to float.
@@ -1463,7 +1749,13 @@ class IsrTask(pipeBase.CmdLineTask):
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
             raise RuntimeError("Exposure darktime is NAN")
-        darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
+        if darkExposure.getInfo().getVisitInfo() is not None:
+            darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
+        else:
+            # DM-17444: darkExposure.getInfo.getVisitInfo() is None
+            #           so getDarkTime() does not exist.
+            darkScale = 1.0
+
         if math.isnan(darkScale):
             raise RuntimeError("Dark calib darktime is NAN")
         isrFunctions.darkCorrection(

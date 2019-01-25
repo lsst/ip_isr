@@ -29,6 +29,26 @@ from .applyLookupTable import applyLookupTable
 __all__ = ["LinearizeBase", "LinearizeLookupTable", "LinearizeSquared"]
 
 
+def getLinearityTypeByName(linearityTypeName):
+    """Determine the linearity class to use if the type is known.
+
+    Parameters
+    ----------
+    linearityTypeName : str
+        String name of the linearity type that is needed.
+
+    Returns
+    -------
+    linearityType : `~lsst.ip.isr.linearize.LinearizeSquared`
+        The appropriate linearity class to use.  If no matching class
+        is found, `None` is returned.
+    """
+    for t in [LinearizeLookupTable, LinearizeSquared]:
+        if t.LinearityType == linearityTypeName:
+            return t
+    return None
+
+
 class LinearizeBase(metaclass=abc.ABCMeta):
     """Abstract base class functor for correcting non-linearity
 
