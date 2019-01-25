@@ -723,8 +723,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             del inputTypeDict["dark"]
         if config.doFlat is not True:
             del inputTypeDict["flat"]
-        if config.doFringe is not True:
-            del inputTypeDict["fringes"]
         if config.doAttachTransmissionCurve is not True:
             del inputTypeDict["opticsTransmission"]
             del inputTypeDict["filterTransmission"]
