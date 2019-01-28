@@ -1286,16 +1286,8 @@ class IsrTask(pipeBase.CmdLineTask):
             self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
             return None
 
-        # Construct views
-        ampImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), amp.getRawDataBBox(),
-                                         afwImage.PARENT)
-        overscanImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(),
-                                              amp.getRawHorizontalOverscanBBox(),
-                                              afwImage.PARENT)
-        overscanArray = overscanImage.getImage().getArray()
-
         statControl = afwMath.StatisticsControl()
-        statControl.setAndMask(ccdExposure.getMaskedImage().getMask().getPlaneBitMask("SAT"))
+        statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
 
         # Determine the bounding boxes
         dataBBox = amp.getRawDataBBox()
@@ -1348,19 +1340,16 @@ class IsrTask(pipeBase.CmdLineTask):
 
         # Perform overscan correction on subregions, ensuring saturated pixels are masked.
         for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
-            ampImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), imageBBox,
-                                             afwImage.PARENT)
-            overscanImage = afwImage.MaskedImageF(ccdExposure.getMaskedImage(), overscanBBox,
-                                                  afwImage.PARENT)
+            ampImage = ccdExposure.maskedImage[imageBBox]         # Use .clone() if you need a copy
+            overscanImage = ccdExposure.maskedImage[overscanBBox]  # Ditto
 
-            overscanArray = overscanImage.getImage().getArray()
-            median = numpy.ma.median(numpy.ma.masked_where(overscanImage.getMask().getArray(),
-                                                           overscanArray))
+            overscanArray = overscanImage.image.array
+            median = numpy.ma.median(numpy.ma.masked_where(overscanImage.mask.array, overscanArray))
             bad = numpy.where(numpy.abs(overscanArray - median) > self.config.overscanMaxDev)
-            overscanImage.getMask().getArray()[bad] = overscanImage.getMask().getPlaneBitMask("SAT")
+            overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("SAT")
 
             statControl = afwMath.StatisticsControl()
-            statControl.setAndMask(ccdExposure.getMaskedImage().getMask().getPlaneBitMask("SAT"))
+            statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
 
             overscanResults = isrFunctions.overscanCorrection(ampMaskedImage=ampImage,
                                                               overscanImage=overscanImage,
