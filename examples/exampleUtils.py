@@ -196,8 +196,8 @@ def createDetector(nAmpX, nAmpY, nPixX, nPixY, pre, hOscan, vOscan, ext, isPerAm
     detConfig.transposeDetector = False
     detConfig.transformDict.nativeSys = PIXELS.getSysName()
 
-    fpTransform = afwGeom.xyTransformRegistry['identity']()
-    return makeDetector(detConfig, ampCatalog, fpTransform)
+    fieldAngleToFocalPlane = afwGeom.makeRadialTransform([])
+    return makeDetector(detConfig, ampCatalog, fieldAngleToFocalPlane)
 
 
 def makeFakeWcs():
@@ -213,7 +213,7 @@ def makeFakeWcs():
 def makeExpFromIm(im, detector):
     wcs = makeFakeWcs()
     var = afwImage.ImageF(im)
-    mask = afwImage.MaskU(im.getDimensions())
+    mask = afwImage.Mask(im.getDimensions())
     mi = afwImage.makeMaskedImage(im, mask, var)
     exp = afwImage.makeExposure(mi)
     exp.setDetector(detector)
