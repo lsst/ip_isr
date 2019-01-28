@@ -220,8 +220,8 @@ class FringeTask(Task):
                 with disp.Buffering():
                     for x, y in positions:
                         corners = numpy.array([[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]) + [[x, y]]
-                        disp.line(corners * self.config.small, ctype=afwDisplay.GREEN)
-                        disp.line(corners * self.config.large, ctype=afwDisplay.BLUE)
+                        disp.line(corners*self.config.small, ctype=afwDisplay.GREEN)
+                        disp.line(corners*self.config.large, ctype=afwDisplay.BLUE)
 
         return fringes
 
@@ -269,9 +269,9 @@ class FringeTask(Task):
 
         for i in range(self.config.iterations):
             solution = self._solve(science, fringes)
-            resid = science - numpy.sum(solution * fringes, 1)
+            resid = science - numpy.sum(solution*fringes, 1)
             rms = stdev(resid)
-            good = numpy.logical_not(abs(resid) > self.config.clip * rms)
+            good = numpy.logical_not(abs(resid) > self.config.clip*rms)
             self.log.debug("Iteration %d: RMS=%f numGood=%d", i, rms, good.sum())
             self.log.debug("Solution %d: %s", i, solution)
             newNum = good.sum()
@@ -292,12 +292,12 @@ class FringeTask(Task):
                     others = set(range(fringes.shape[1]))
                     others.discard(j)
                     for k in others:
-                        adjust -= solution[k] * fringes[:, k]
+                        adjust -= solution[k]*fringes[:, k]
                     ax.plot(fringes[:, j], adjust, 'r.')
                     xmin = fringes[:, j].min()
                     xmax = fringes[:, j].max()
-                    ymin = solution[j] * xmin
-                    ymax = solution[j] * xmax
+                    ymin = solution[j]*xmin
+                    ymax = solution[j]*xmax
                     ax.plot([xmin, xmax], [ymin, ymax], 'b-')
                     ax.set_title("Fringe %d: %f" % (j, solution[j]))
                     ax.set_xlabel("Fringe amplitude")
@@ -376,7 +376,7 @@ def stdev(vector):
     @return Standard deviation
     """
     q1, q3 = numpy.percentile(vector, (25, 75))
-    return 0.74*(q3-q1)
+    return 0.74*(q3 - q1)
 
 
 def select(vector, clip):

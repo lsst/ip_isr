@@ -27,7 +27,8 @@ import exampleUtils
 
 
 def runAssembler():
-    '''Run the task to assemble amps into a ccd'''
+    """Run the task to assemble amps into a ccd.
+    """
 
     # Create the assemble task with default config
     assembleConfig = AssembleCcdTask.ConfigClass()
@@ -42,7 +43,7 @@ def runAssembler():
         assemblyInput = exampleUtils.makeAssemblyInput(isPerAmp)
         assembledExposure = assembleTask.assembleCcd(assemblyInput)
         afwDisplay.Display(frame=frame).mtv(assembledExposure.getMaskedImage(),
-                                            title="Per amp input is %s"%(isPerAmp))
+                                            title="Per amp input is %s" % isPerAmp)
         frame += 1
 
 
