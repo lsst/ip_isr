@@ -27,12 +27,12 @@ import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
 import lsst.afw.geom as afwGeom
-import lsst.afw.display.ds9 as ds9
-import lsst.afw.display.utils as displayUtils
 import lsst.ip.isr as ipIsr
 
-# set to True to display images in ds9
-display = False
+display = False  # set to True to display images
+if display:
+    import lsst.afw.display as afwDisplay
+    afwDisplay.setDefaultMaskTransparency(75)
 
 
 class DefectTestCases(lsst.utils.tests.TestCase):
@@ -70,10 +70,11 @@ class DefectTestCases(lsst.utils.tests.TestCase):
             self.assertTrue((bad.getArray() & bitMask == bitMask).all())
 
         if display:
-            ds9.mtv(ccdImage.getImage(), title="Defects")
+            disp = afwDisplay.Display()
+            disp.mtv(ccdImage.getImage(), title=self._testMethodName + ": Defects")
             for d in defectList:
-                displayUtils.drawBBox(d.getBBox(), ctype=ds9.CYAN, borderWidth=.5)
-            ds9.incrDefaultFrame()
+                afwDisplay.utils.drawBBox(d.getBBox(), ctype=afwDisplay.CYAN, borderWidth=.5)
+                disp.incrDefaultFrame()
 
         ipIsr.interpolateDefectList(ccdImage, defectList, 2.)
         im = ccdImage.getImage()
@@ -84,10 +85,11 @@ class DefectTestCases(lsst.utils.tests.TestCase):
             self.assertImagesEqual(intrp, expect)
 
         if display:
-            ds9.mtv(ccdImage.getImage(), title="Defects Interpolated")
+            disp = afwDisplay.Display()
+            disp.mtv(ccdImage.getImage(), title=self._testMethodName + ": Defects Interpolated")
             for d in defectList:
-                displayUtils.drawBBox(d.getBBox(), ctype=ds9.CYAN, borderWidth=.5)
-            ds9.incrDefaultFrame()
+                afwDisplay.utils.drawBBox(d.getBBox(), ctype=afwDisplay.CYAN, borderWidth=.5)
+                disp.incrDefaultFrame()
 
     def testDefectsFromMaskedImage(self):
         """Test creation of a DefectList from a MaskedImage."""

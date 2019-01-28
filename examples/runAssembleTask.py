@@ -22,7 +22,7 @@
 import sys
 
 from lsst.ip.isr import AssembleCcdTask
-import lsst.afw.display.ds9 as ds9
+import lsst.afw.display as afwDisplay
 import exampleUtils
 
 
@@ -41,7 +41,8 @@ def runAssembler():
     for isPerAmp in (True, False):
         assemblyInput = exampleUtils.makeAssemblyInput(isPerAmp)
         assembledExposure = assembleTask.assembleCcd(assemblyInput)
-        ds9.mtv(assembledExposure.getMaskedImage(), frame=frame, title="Per amp input is %s"%(isPerAmp))
+        afwDisplay.Display(frame=frame).mtv(assembledExposure.getMaskedImage(),
+                                            title="Per amp input is %s"%(isPerAmp))
         frame += 1
 
 

@@ -21,11 +21,11 @@
 
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
+import lsst.afw.display as afwDisplay
 import lsst.afw.image as afwImage
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsstDebug import getDebugFrame
-from lsst.afw.display import getDisplay
 
 __all__ = ["AssembleCcdTask"]
 
@@ -252,7 +252,7 @@ class AssembleCcdTask(pipeBase.Task):
 
         frame = getDebugFrame(self._display, "assembledExposure")
         if frame:
-            getDisplay(frame).mtv(outExposure)
+            afwDisplay.Display(frame=frame).mtv(outExposure, title="postprocessExposure")
 
     def setWcs(self, outExposure, inExposure):
         """Set output WCS = input WCS, adjusted as required for datasecs not starting at lower left corner

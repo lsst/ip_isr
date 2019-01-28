@@ -26,14 +26,16 @@ import numpy as np
 import lsst.utils.tests
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
-import lsst.afw.display.ds9 as ds9
 import lsst.afw.image.utils as afwImageUtils
 from lsst.ip.isr.fringe import FringeTask
 
 try:
-    debug
+    display
 except NameError:
-    debug = False
+    display = False
+else:
+    import lsst.afw.display as afwDisplay
+    afwDisplay.setDefaultMaskTransparency(75)
 
 
 def checkDebug():
@@ -82,9 +84,6 @@ def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
     return exp
 
 
-frame = 1  # ds9 frame
-
-
 class FringeTestCase(lsst.utils.tests.TestCase):
     """Tests of the FringeTask"""
 
@@ -109,22 +108,23 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         @param dataRef      Data reference that will provide the fringes
         @param stddevMax    Maximum allowable standard deviation
         """
-        if debug:
-            global frame
-            ds9.mtv(exp, frame=frame, title="Science exposure")
+        if display:
+            frame = 0
+            afwDisplay.Display(frame=frame).mtv(exp, title=self._testMethodName + ": Science exposure")
             frame += 1
             if not isinstance(fringes, list):
                 fringe = [fringes]
             for i, f in enumerate(fringe):
-                ds9.mtv(f, frame=frame, title="Fringe frame %d" % (i+1))
+                afwDisplay.Display(frame=frame).mtv(f, title=self._testMethodName +
+                                                    ": Fringe frame %d" % (i+1))
                 frame += 1
 
         task.run(exp, fringes)
 
         mi = exp.getMaskedImage()
 
-        if debug:
-            ds9.mtv(exp, frame=frame, title="Subtracted")
+        if display:
+            afwDisplay.Display(frame=frame).mtv(exp, title=self._testMethodName + ": Subtracted")
             frame += 1
 
         mi -= afwMath.makeStatistics(mi, afwMath.MEAN).getValue()

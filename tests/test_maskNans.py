@@ -25,10 +25,12 @@ import numpy as np
 
 import lsst.utils.tests
 import lsst.afw.image as afwImage
-import lsst.afw.display.ds9 as ds9
 from lsst.ip.isr import maskNans
 
-debug = False
+display = False
+if display:
+    import lsst.afw.display as afwDisplay
+    afwDisplay.setDefaultMaskTransparency(75)
 
 
 class MaskNansTestCase(lsst.utils.tests.TestCase):
@@ -48,10 +50,10 @@ class MaskNansTestCase(lsst.utils.tests.TestCase):
         image.getMask().getArray()[y, x] = np.where(x*y % self.freqMask, 0, self.allowMask)
         image.getVariance().getArray()[y, x] = np.where(x*y % self.freqVariance, 0, np.nan)
 
-        if debug:
-            ds9.mtv(image.getImage(), frame=1, title="Image")
-            ds9.mtv(image.getVariance(), frame=2, title="Variance")
-            ds9.mtv(image.getMask(), frame=3, title="Original mask")
+        if display:
+            afwDisplay.Display(frame=1).mtv(image.getImage(), title=self._testMethodName + ": Image")
+            afwDisplay.Display(frame=2).mtv(image.getVariance(), title=self._testMethodName + ": Variance")
+            afwDisplay.Display(frame=3).mtv(image.getMask(), title=self._testMethodName + ": Original mask")
 
         isUnmasked = np.logical_not(image.getMask().getArray() & self.allowMask)
         isNan = np.logical_or(np.isnan(image.getImage().getArray()),
@@ -63,8 +65,8 @@ class MaskNansTestCase(lsst.utils.tests.TestCase):
 
         numNans = maskNans(image, self.afterMask, self.allowMask)
 
-        if debug:
-            ds9.mtv(image.getMask(), frame=4, title="UNC-ed mask")
+        if display:
+            afwDisplay.Display(frame=4).mtv(image.getMask(), title=self._testMethodName + ": UNC-ed mask")
 
         self.assertEqual(numNans, numExpected)
         self.assertMasksEqual(image.getMask(), maskExpected)

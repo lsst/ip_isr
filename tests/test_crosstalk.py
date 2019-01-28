@@ -35,12 +35,12 @@ from lsst.ip.isr import (IsrTask, subtractCrosstalk, extractCrosstalkRatios, mea
                          MeasureCrosstalkTask)
 
 try:
-    debug
+    display
 except NameError:
-    debug = False
+    display = False
 else:
-    import lsst.afw.display
-    display = lsst.afw.display.Display(backend="ds9", frame=1)
+    import lsst.afw.display as afwDisplay
+    afwDisplay.setDefaultMaskTransparency(75)
 
 
 class CrosstalkTestCase(lsst.utils.tests.TestCase):
@@ -114,11 +114,11 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
 
         self.corrected = construct(withoutCrosstalk)
 
-        if debug:
-            display.mtv(self.exposure)
-            display.incrDefaultFrame()
-            display.mtv(self.corrected)
-            display.incrDefaultFrame()
+        if display:
+            disp = lsst.afw.display.Display(frame=1)
+            disp.mtv(self.exposure, title="exposure")
+            disp = lsst.afw.display.Display(frame=0)
+            disp.mtv(self.corrected, title="corrected exposure")
 
     def tearDown(self):
         del self.exposure
