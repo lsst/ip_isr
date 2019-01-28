@@ -38,20 +38,6 @@ else:
     afwDisplay.setDefaultMaskTransparency(75)
 
 
-def checkDebug():
-    """Turn on Task debugging if desired"""
-    if debug:
-        import lsstDebug
-        print("Importing debug settings...")
-
-        def DebugInfo(name):
-            di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
-            if name == "lsst.ip.isr.fringe":
-                di.plot = True
-            return di
-        lsstDebug.Info = DebugInfo
-
-
 class FringeDataRef(object):
     """Quacks like a ButlerDataRef, so we can provide an in-memory fringe frame"""
 
@@ -114,6 +100,8 @@ class FringeTestCase(lsst.utils.tests.TestCase):
             frame += 1
             if not isinstance(fringes, list):
                 fringe = [fringes]
+            else:
+                fringe = fringes
             for i, f in enumerate(fringe):
                 afwDisplay.Display(frame=frame).mtv(f, title=self._testMethodName +
                                                     ": Fringe frame %d" % (i+1))
