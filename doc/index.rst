@@ -9,5 +9,4 @@ ip_isr documentation preview
 .. toctree::
    :maxdepth: 1
 
-   ip_isr/index
    lsst.ip.isr/index
