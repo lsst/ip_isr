@@ -710,32 +710,32 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # need because the configuration tells us we will not be bothering with the
         # correction that uses that IDT.
         if config.doBias is not True:
-            del inputTypeDict["bias"]
+            inputTypeDict.pop("bias", None)
         if config.doLinearize is not True:
-            del inputTypeDict["linearizer"]
+            inputTypeDict.pop("linearizer", None)
         if config.doCrosstalk is not True:
-            del inputTypeDict["crosstalkSources"]
+            inputTypeDict.pop("crosstalkSources", None)
         if config.doBrighterFatter is not True:
-            del inputTypeDict["bfKernel"]
+            inputTypeDict.pop("bfKernel", None)
         if config.doDefect is not True:
-            del inputTypeDict["defects"]
+            inputTypeDict.pop("defects", None)
         if config.doDark is not True:
-            del inputTypeDict["dark"]
+            inputTypeDict.pop("dark", None)
         if config.doFlat is not True:
-            del inputTypeDict["flat"]
+            inputTypeDict.pop("flat", None)
         if config.doAttachTransmissionCurve is not True:
-            del inputTypeDict["opticsTransmission"]
-            del inputTypeDict["filterTransmission"]
-            del inputTypeDict["sensorTransmission"]
-            del inputTypeDict["atmosphereTransmission"]
+            inputTypeDict.pop("opticsTransmission", None)
+            inputTypeDict.pop("filterTransmission", None)
+            inputTypeDict.pop("sensorTransmission", None)
+            inputTypeDict.pop("atmosphereTransmission", None)
         if config.doUseOpticsTransmission is not True:
-            del inputTypeDict["opticsTransmission"]
+            inputTypeDict.pop("opticsTransmission", None)
         if config.doUseFilterTransmission is not True:
-            del inputTypeDict["filterTransmission"]
+            inputTypeDict.pop("filterTransmission", None)
         if config.doUseSensorTransmission is not True:
-            del inputTypeDict["sensorTransmission"]
+            inputTypeDict.pop("sensorTransmission", None)
         if config.doUseAtmosphereTransmission is not True:
-            del inputTypeDict["atmosphereTransmission"]
+            inputTypeDict.pop("atmosphereTransmission", None)
 
         return inputTypeDict
 
@@ -744,11 +744,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         outputTypeDict = super().getOutputDatasetTypes(config)
 
         if config.qa.doThumbnailOss is not True:
-            del outputTypeDict["outputOssThumbnail"]
+            outputTypeDict.pop("outputOssThumbnail", None)
         if config.qa.doThumbnailFlattened is not True:
-            del outputTypeDict["outputFlattenedThumbnail"]
+            outputTypeDict.pop("outputFlattenedThumbnail", None)
         if config.doWrite is not True:
-            del outputTypeDict["outputExposure"]
+            outputTypeDict.pop("outputExposure", None)
 
         return outputTypeDict
 
