@@ -1223,7 +1223,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.config.doSetBadRegions:
             badPixelCount, badPixelValue = isrFunctions.setBadRegions(ccdExposure)
-            self.log.info("Set %d BAD pixels to %f." % (badPixelCount, badPixelValue))
+            if badPixelCount > 0:
+                self.log.info("Set %d BAD pixels to %f." % (badPixelCount, badPixelValue))
 
         flattenedThumb = None
         if self.config.qa.doThumbnailFlattened:
