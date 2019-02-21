@@ -757,8 +757,18 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         return outputTypeDict
 
     @classmethod
+    def getPrerequisiteDatasetTypes(cls, config):
+        # Input calibration datasets should not constrain the QuantumGraph
+        # (it'd be confusing if not having flats just silently resulted in no
+        # data being processed).  Our nomenclature for that is that these are
+        # "prerequisite" datasets (only "ccdExposure" == "raw" isn't).
+        names = set(cls.getInputDatasetTypes(config))
+        names.remove("ccdExposure")
+        return names
+
+    @classmethod
     def getPerDatasetTypeDimensions(cls, config):
-        # Tnput calibration datasets of different types (i.e. flat, bias) need
+        # Input calibration datasets of different types (i.e. flat, bias) need
         # not have the same validity range.  That makes CalibrationLabel
         # (which maps directly to a validity range) a "per-DatasetType
         # dimension".
