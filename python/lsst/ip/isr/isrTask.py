@@ -213,7 +213,9 @@ class IsrTaskConfig(pexConfig.Config):
     # Saturated pixel handling.
     doSaturation = pexConfig.Field(
         dtype=bool,
-        doc="Mask saturated pixels?",
+        doc="Mask saturated pixels? NB: this is totally independent of the"
+        " interpolation option - this is ONLY setting the bits in the mask."
+        " To have them interpolated make sure doSaturationInterpolation=True",
         default=True,
     )
     saturatedMaskName = pexConfig.Field(
@@ -472,7 +474,9 @@ class IsrTaskConfig(pexConfig.Config):
     )
     doSaturationInterpolation = pexConfig.Field(
         dtype=bool,
-        doc="Perform interpolation over pixels masked as saturated?",
+        doc="Perform interpolation over pixels masked as saturated?"
+        " NB: This is independent of doSaturation; if that is False this plane"
+        " will likely be blank, resulting in a no-op here.",
         default=True,
     )
     numEdgeSuspect = pexConfig.Field(
@@ -1209,7 +1213,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Masking and interpolating defects.")
             self.maskAndInterpDefect(ccdExposure, defects)
 
-        if self.config.doSaturation and not interpolationDone:
+        if self.config.doSaturationInterpolation and not interpolationDone:
             self.log.info("Interpolating saturated pixels.")
             self.saturationInterpolation(ccdExposure)
 
