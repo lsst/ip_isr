@@ -71,6 +71,7 @@ class FringeTask(Task):
     and solve for the scales simultaneously.
     """
     ConfigClass = FringeConfig
+    _DefaultName = 'isrFringe'
 
     def readFringes(self, dataRef, assembler=None):
         """Read the fringe frame(s)

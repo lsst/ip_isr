@@ -29,7 +29,8 @@ import lsst.afw.detection
 from lsst.pex.config import Config, Field, ChoiceField
 from lsst.pipe.base import Task
 
-__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosstalkCoeffs"]
+__all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosstalkCoeffs",
+           "NullCrosstalkTask"]
 
 
 class CrosstalkConfig(Config):
@@ -59,6 +60,7 @@ class CrosstalkConfig(Config):
 class CrosstalkTask(Task):
     """Apply intra-CCD crosstalk correction"""
     ConfigClass = CrosstalkConfig
+    _DefaultName = 'isrCrosstalk'
 
     def prepCrosstalk(self, dataRef):
         """Placeholder for crosstalk preparation method, e.g., for inter-CCD crosstalk.

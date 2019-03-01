@@ -94,8 +94,9 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     if fallbackValue is None:
         fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict():
-        maskedImage.getMask.addMaskPlane('INTRP')
+        maskedImage.getMask().addMaskPlane('INTRP')
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
+    return maskedImage
 
 
 @deprecated(reason="Replaced by Defects.fromFootPrintList() (will be removed after v18)",
@@ -196,7 +197,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     fs = afwDetection.FootprintSet(maskedImage, thresh)
 
     if growFootprints > 0:
-        fs = afwDetection.FootprintSet(fs, growFootprints)
+        fs = afwDetection.FootprintSet(fs, rGrow=growFootprints, isotropic=False)
     fpList = fs.getFootprints()
 
     # set mask
@@ -234,6 +235,8 @@ def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fal
     defectList = measAlg.Defects.fromFootprintList(fpSet.getFootprints())
     interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
+    return maskedImage
+
 
 def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interpolate=True, maskName='SAT',
                          fallbackValue=None):
@@ -264,6 +267,8 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
     )
     if interpolate:
         interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
+
+    return maskedImage
 
 
 def trimToMatchCalibBBox(rawMaskedImage, calibMaskedImage):
@@ -296,7 +301,7 @@ def trimToMatchCalibBBox(rawMaskedImage, calibMaskedImage):
         raise RuntimeError("Raw and calib maskedImages are trimmed differently in X and Y.")
     if nx % 2 != 0:
         raise RuntimeError("Calibration maskedImage is trimmed unevenly in X.")
-    if nx <= 0:
+    if nx < 0:
         raise RuntimeError("Calibration maskedImage is larger than raw data.")
 
     nEdge = nx//2
@@ -977,8 +982,9 @@ def applyGains(exposure, normalizeGains=False):
     if normalizeGains:
         median = numpy.median(numpy.array(medians))
         for index, amp in enumerate(ccd):
-            sim = ccdImage.Factory(ccdImage, amp.getDataSec())
-            sim *= median/medians[index]
+            sim = ccdImage.Factory(ccdImage, amp.getBBox())
+            if medians[index] != 0.0:
+                sim *= median/medians[index]
 
 
 def widenSaturationTrails(mask):

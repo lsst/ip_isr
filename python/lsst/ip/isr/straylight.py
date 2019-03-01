@@ -38,6 +38,7 @@ class StrayLightTask(Task):
     This is a dummy task to be retargeted with an camera-specific version.
     """
     ConfigClass = StrayLightConfig
+    _DefaultName = "isrStrayLight"
 
     def readIsrData(self, dataRef, rawExposure):
         """Read and return calibration products relevant for correcting

@@ -1140,7 +1140,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                        (amp.getName(), qaMedian, qaStdev))
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
-                    self.log.warn("Amplifier %s is bad." % (amp.getName()))
+                    if badAmp:
+                        self.log.warn("Amplifier %s is bad." % (amp.getName()))
                     overscanResults = None
 
                 overscans.append(overscanResults if overscanResults is not None else None)
@@ -2216,7 +2217,6 @@ class FakeAmp(object):
 
     def getSuspectLevel(self):
         return float("NaN")
-
 
 
 class RunIsrConfig(pexConfig.Config):
