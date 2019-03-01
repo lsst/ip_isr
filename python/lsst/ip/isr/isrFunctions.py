@@ -428,9 +428,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
     ------
     RuntimeError
         Raised if ``maskedImage`` and ``flatMaskedImage`` do not have
-        the same size.
-    pexExcept.Exception
-        Raised if ``scalingType`` is not an allowed value.
+        the same size or if ``scalingType`` is not an allowed value.
     """
     if trimToFit:
         maskedImage = trimToMatchCalibBBox(maskedImage, flatMaskedImage)
@@ -448,7 +446,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
     elif scalingType == 'USER':
         flatScale = userScale
     else:
-        raise pexExcept.Exception('%s : %s not implemented' % ("flatCorrection", scalingType))
+        raise RuntimeError('%s : %s not implemented' % ("flatCorrection", scalingType))
 
     if not invert:
         maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)

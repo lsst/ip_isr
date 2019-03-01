@@ -26,7 +26,6 @@ import os
 
 import lsst.utils.tests
 import lsst.afw.image as afwImage
-# import lsst.ip.isr as ipIsr
 import lsst.ip.isr.isrFunctions as isrFunctions
 
 
@@ -54,7 +53,6 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
         mi = afwImage.makeMaskedImage(image)
         exp = afwImage.makeExposure(mi)
 
-#        isrTask = ipIsr.IsrTask()
         with open(self.filename, 'rb') as f:
             bfKernel = pickle.load(f)
 
