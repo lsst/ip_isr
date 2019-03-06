@@ -82,63 +82,63 @@ class IsrTaskConfig(pexConfig.Config):
         name="camera",
         scalar=True,
         storageClass="TablePersistableCamera",
-        dimensions=["Instrument", "ExposureRange"],
+        dimensions=["Instrument", "CalibrationLabel"],
     )
     bias = pipeBase.InputDatasetField(
         doc="Input bias calibration.",
         name="bias",
         scalar=True,
         storageClass="ImageF",
-        dimensions=["Instrument", "ExposureRange", "Detector"],
+        dimensions=["Instrument", "CalibrationLabel", "Detector"],
     )
     dark = pipeBase.InputDatasetField(
         doc="Input dark calibration.",
         name="dark",
         scalar=True,
         storageClass="ImageF",
-        dimensions=["Instrument", "ExposureRange", "Detector"],
+        dimensions=["Instrument", "CalibrationLabel", "Detector"],
     )
     flat = pipeBase.InputDatasetField(
         doc="Input flat calibration.",
         name="flat",
         scalar=True,
         storageClass="MaskedImageF",
-        dimensions=["Instrument", "PhysicalFilter", "ExposureRange", "Detector"],
+        dimensions=["Instrument", "PhysicalFilter", "CalibrationLabel", "Detector"],
     )
     bfKernel = pipeBase.InputDatasetField(
         doc="Input brighter-fatter kernel.",
         name="bfKernel",
         scalar=True,
         storageClass="NumpyArray",
-        dimensions=["Instrument", "ExposureRange"],
+        dimensions=["Instrument", "CalibrationLabel"],
     )
     defects = pipeBase.InputDatasetField(
         doc="Input defect tables.",
         name="defects",
         scalar=True,
         storageClass="Catalog",
-        dimensions=["Instrument", "ExposureRange", "Detector"],
+        dimensions=["Instrument", "CalibrationLabel", "Detector"],
     )
     opticsTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the optics.",
         name="transmission_optics",
         scalar=True,
         storageClass="TablePersistableTransmissionCurve",
-        dimensions=["Instrument", "ExposureRange"],
+        dimensions=["Instrument", "CalibrationLabel"],
     )
     filterTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the filter.",
         name="transmission_filter",
         scalar=True,
         storageClass="TablePersistableTransmissionCurve",
-        dimensions=["Instrument", "PhysicalFilter", "ExposureRange"],
+        dimensions=["Instrument", "PhysicalFilter", "CalibrationLabel"],
     )
     sensorTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the sensor.",
         name="transmission_sensor",
         scalar=True,
         storageClass="TablePersistableTransmissionCurve",
-        dimensions=["Instrument", "ExposureRange", "Detector"],
+        dimensions=["Instrument", "CalibrationLabel", "Detector"],
     )
     atmosphereTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the atmosphere.",
@@ -755,6 +755,24 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             outputTypeDict.pop("outputExposure", None)
 
         return outputTypeDict
+
+    @classmethod
+    def getPrerequisiteDatasetTypes(cls, config):
+        # Input calibration datasets should not constrain the QuantumGraph
+        # (it'd be confusing if not having flats just silently resulted in no
+        # data being processed).  Our nomenclature for that is that these are
+        # "prerequisite" datasets (only "ccdExposure" == "raw" isn't).
+        names = set(cls.getInputDatasetTypes(config))
+        names.remove("ccdExposure")
+        return names
+
+    @classmethod
+    def getPerDatasetTypeDimensions(cls, config):
+        # Input calibration datasets of different types (i.e. flat, bias) need
+        # not have the same validity range.  That makes CalibrationLabel
+        # (which maps directly to a validity range) a "per-DatasetType
+        # dimension".
+        return frozenset(["CalibrationLabel"])
 
     def adaptArgsAndRun(self, inputData, inputDataIds, outputDataIds, butler):
         try:
