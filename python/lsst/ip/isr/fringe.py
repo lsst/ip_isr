@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+# This file is part of ip_isr.
 #
-# LSST Data Management System
-# Copyright 2012 LSST Corporation.
-#
-# This product includes software developed by the
-# LSST Project (http://www.lsst.org/).
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,20 +16,20 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and
-# the GNU General Public License along with this program.  If not,
-# see <http://www.lsstcorp.org/LegalNotices/>.
-#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import numpy
 
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
-import lsst.afw.display.ds9 as ds9
+import lsst.afw.display as afwDisplay
 
 from lsst.pipe.base import Task, Struct, timeMethod
 from lsst.pex.config import Config, Field, ListField, ConfigField
+
+afwDisplay.setDefaultMaskTransparency(75)
 
 
 def getFrame():
@@ -141,7 +141,7 @@ class FringeTask(Task):
         solution = self.solve(expFringes, fluxes)
         self.subtract(exposure, fringes, solution)
         if display:
-            ds9.mtv(exposure, title="Fringe subtracted", frame=getFrame())
+            afwDisplay.Display(frame=getFrame()).mtv(exposure, title="Fringe subtracted")
 
     @timeMethod
     def runDataRef(self, exposure, dataRef, assembler=None):
@@ -214,14 +214,14 @@ class FringeTask(Task):
         import lsstDebug
         display = lsstDebug.Info(__name__).display
         if display:
-            frame = getFrame()
-            ds9.mtv(exposure, frame=frame, title=title)
+            disp = afwDisplay.Display(frame=getFrame())
+            disp.mtv(exposure, title=title)
             if False:
-                with ds9.Buffering():
+                with disp.Buffering():
                     for x, y in positions:
                         corners = numpy.array([[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]) + [[x, y]]
-                        ds9.line(corners * self.config.small, frame=frame, ctype="green")
-                        ds9.line(corners * self.config.large, frame=frame, ctype="blue")
+                        disp.line(corners*self.config.small, ctype=afwDisplay.GREEN)
+                        disp.line(corners*self.config.large, ctype=afwDisplay.BLUE)
 
         return fringes
 
@@ -269,9 +269,9 @@ class FringeTask(Task):
 
         for i in range(self.config.iterations):
             solution = self._solve(science, fringes)
-            resid = science - numpy.sum(solution * fringes, 1)
+            resid = science - numpy.sum(solution*fringes, 1)
             rms = stdev(resid)
-            good = numpy.logical_not(abs(resid) > self.config.clip * rms)
+            good = numpy.logical_not(abs(resid) > self.config.clip*rms)
             self.log.debug("Iteration %d: RMS=%f numGood=%d", i, rms, good.sum())
             self.log.debug("Solution %d: %s", i, solution)
             newNum = good.sum()
@@ -292,12 +292,12 @@ class FringeTask(Task):
                     others = set(range(fringes.shape[1]))
                     others.discard(j)
                     for k in others:
-                        adjust -= solution[k] * fringes[:, k]
+                        adjust -= solution[k]*fringes[:, k]
                     ax.plot(fringes[:, j], adjust, 'r.')
                     xmin = fringes[:, j].min()
                     xmax = fringes[:, j].max()
-                    ymin = solution[j] * xmin
-                    ymax = solution[j] * xmax
+                    ymin = solution[j]*xmin
+                    ymax = solution[j]*xmax
                     ax.plot([xmin, xmax], [ymin, ymax], 'b-')
                     ax.set_title("Fringe %d: %f" % (j, solution[j]))
                     ax.set_xlabel("Fringe amplitude")
@@ -376,7 +376,7 @@ def stdev(vector):
     @return Standard deviation
     """
     q1, q3 = numpy.percentile(vector, (25, 75))
-    return 0.74*(q3-q1)
+    return 0.74*(q3 - q1)
 
 
 def select(vector, clip):

@@ -1,9 +1,10 @@
+# This file is part of ip_isr.
 #
-# LSST Data Management System
-# Copyright 2012 LSST Corporation.
-#
-# This product includes software developed by the
-# LSST Project (http://www.lsst.org/).
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,10 +16,9 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and
-# the GNU General Public License along with this program.  If not,
-# see <http://www.lsstcorp.org/LegalNotices/>.
-#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import unittest
 
 import numpy as np
@@ -26,33 +26,21 @@ import numpy as np
 import lsst.utils.tests
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
-import lsst.afw.display.ds9 as ds9
 import lsst.afw.image.utils as afwImageUtils
 from lsst.ip.isr.fringe import FringeTask
 
 try:
-    debug
+    display
 except NameError:
-    debug = False
-
-
-def checkDebug():
-    """Turn on Task debugging if desired"""
-    if debug:
-        import lsstDebug
-        print("Importing debug settings...")
-
-        def DebugInfo(name):
-            di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
-            if name == "lsst.ip.isr.fringe":
-                di.plot = True
-            return di
-        lsstDebug.Info = DebugInfo
+    display = False
+else:
+    import lsst.afw.display as afwDisplay
+    afwDisplay.setDefaultMaskTransparency(75)
 
 
 class FringeDataRef(object):
-    """Quacks like a ButlerDataRef, so we can provide an in-memory fringe frame"""
-
+    """Quacks like a ButlerDataRef, so we can provide an in-memory fringe frame.
+    """
     def __init__(self, fringe):
         self.fringe = fringe
         self.dataId = {'test': True}
@@ -65,12 +53,21 @@ class FringeDataRef(object):
 
 
 def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
-    """Create a fringe frame
+    """Create a fringe frame.
 
-    @param width, height    Size of image
-    @param xFreq, yFreq     Frequency of sinusoids in x and y
-    @param xOffset, yOffset Phase of sinusoids in x and y
-    @return Fringe frame
+    Parameters
+    ----------
+    width, height : `int`
+       Size of image.
+    xFreq, yFreq : `float`
+       Frequency of sinusoids in x and y.
+    xOffset, yOffset : `float`
+       Phase of sinusoids in x and y.
+
+    Returns
+    -------
+    exp : `lsst.afw.image.ExposureF`
+       Fringe frame.
     """
     image = afwImage.ImageF(width, height)
     array = image.getArray()
@@ -82,12 +79,9 @@ def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
     return exp
 
 
-frame = 1  # ds9 frame
-
-
 class FringeTestCase(lsst.utils.tests.TestCase):
-    """Tests of the FringeTask"""
-
+    """Tests of the FringeTask.
+    """
     def setUp(self):
         self.size = 512
         self.config = FringeTask.ConfigClass()
@@ -102,43 +96,56 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         afwImageUtils.resetFilters()
 
     def checkFringe(self, task, exp, fringes, stddevMax):
-        """Run fringe subtraction and verify
+        """Run fringe subtraction and verify.
 
-        @param task         Task to run
-        @param exp          Science exposure
-        @param dataRef      Data reference that will provide the fringes
-        @param stddevMax    Maximum allowable standard deviation
+        Parameters
+        ----------
+        task : `lsst.ip.isr.fringe.FringeTask`
+           Task to run.
+        exp : `lsst.afw.image.ExposureF`
+           Science exposure.
+        fringes : `list` of `lsst.afw.image.ExposureF`
+           Data reference that will provide the fringes.
+        stddevMax : `float`
+           Maximum allowable standard deviation.
         """
-        if debug:
-            global frame
-            ds9.mtv(exp, frame=frame, title="Science exposure")
+        if display:
+            frame = 0
+            afwDisplay.Display(frame=frame).mtv(exp, title=self._testMethodName + ": Science exposure")
             frame += 1
             if not isinstance(fringes, list):
                 fringe = [fringes]
+            else:
+                fringe = fringes
             for i, f in enumerate(fringe):
-                ds9.mtv(f, frame=frame, title="Fringe frame %d" % (i+1))
+                afwDisplay.Display(frame=frame).mtv(f, title=self._testMethodName +
+                                                    ": Fringe frame %d" % (i + 1))
                 frame += 1
 
         task.run(exp, fringes)
 
         mi = exp.getMaskedImage()
 
-        if debug:
-            ds9.mtv(exp, frame=frame, title="Subtracted")
+        if display:
+            afwDisplay.Display(frame=frame).mtv(exp, title=self._testMethodName + ": Subtracted")
             frame += 1
 
         mi -= afwMath.makeStatistics(mi, afwMath.MEAN).getValue()
         self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), stddevMax)
 
     def testSingle(self, pedestal=0.0, stddevMax=1.0e-4):
-        """Test subtraction of a single fringe frame
+        """Test subtraction of a single fringe frame.
 
-        @param pedestal    Pedestal to add into fringe frame
-        @param stddevMax    Maximum allowable standard deviation
+        Parameters
+        ----------
+        pedestal : `float`, optional
+           Pedestal to add into fringe frame
+        stddevMax : `float`, optional
+           Maximum allowable standard deviation.
         """
-        xFreq = np.pi / 10.0
+        xFreq = np.pi/10.0
         xOffset = 1.0
-        yFreq = np.pi / 15.0
+        yFreq = np.pi/15.0
         yOffset = 0.5
         scale = 1.0
         fringe = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
@@ -152,13 +159,16 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         self.checkFringe(task, exp, fringe, stddevMax)
 
     def testBad(self, bad="BAD"):
-        """Test fringe subtraction with bad inputs
+        """Test fringe subtraction with bad inputs.
 
-        @param bad    Mask plane to use
+        Parameters
+        ----------
+        bad : `str`, optional
+           Mask plane to use.
         """
-        xFreq = np.pi / 10.0
+        xFreq = np.pi/10.0
         xOffset = 1.0
-        yFreq = np.pi / 15.0
+        yFreq = np.pi/15.0
         yOffset = 0.5
         fringe = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
         exp = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)
@@ -174,7 +184,8 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsEqual(exp.maskedImage.image.array, 0.0)
 
     def testPedestal(self):
-        """Test subtraction of a fringe frame with a pedestal"""
+        """Test subtraction of a fringe frame with a pedestal.
+        """
         self.config.pedestal = True
         self.testSingle(pedestal=10000.0, stddevMax=1.0e-3)  # Not sure why this produces worse sttdev
         self.testMultiple(pedestal=10000.0)
@@ -182,7 +193,10 @@ class FringeTestCase(lsst.utils.tests.TestCase):
     def testMultiple(self, pedestal=0.0):
         """Test subtraction of multiple fringe frames
 
-        @param pedestal    Pedestal to add into fringe frame
+        Paramters
+        ---------
+        pedestal : `float`, optional
+           Pedestal to add into fringe frame.
         """
         xFreqList = [0.1, 0.13, 0.06]
         xOffsetList = [0.0, 0.1, 0.2]
@@ -209,14 +223,18 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         self.checkFringe(task, exp, fringeList, stddevMax=1.0e-2)
 
     def testRunDataRef(self, pedestal=0.0, stddevMax=1.0e-4):
-        """Test the .runDataRef method for complete test converage
+        """Test the .runDataRef method for complete test converage.
 
-        @param pedestal    Pedestal to add into fringe frame
-        @param stddevMax   Maximum allowable standard deviation
+        Paramters
+        ---------
+        pedestal : `float`, optional
+           Pedestal to add into fringe frame.
+        stddevMax : `float`, optional
+           Maximum allowable standard deviation.
         """
-        xFreq = np.pi / 10.0
+        xFreq = np.pi/10.0
         xOffset = 1.0
-        yFreq = np.pi / 15.0
+        yFreq = np.pi/15.0
         yOffset = 0.5
         scale = 1.0
         fringe = createFringe(self.size, self.size, xFreq, xOffset, yFreq, yOffset)

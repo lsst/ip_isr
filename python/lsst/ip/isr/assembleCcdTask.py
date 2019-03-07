@@ -1,9 +1,10 @@
+# This file is part of ip_isr.
 #
-# LSST Data Management System
-# Copyright 2008-2016 AURA/LSST.
-#
-# This product includes software developed by the
-# LSST Project (http://www.lsst.org/).
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,17 +16,16 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and
-# the GNU General Public License along with this program.  If not,
-# see <http://www.lsstcorp.org/LegalNotices/>.
-#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
+import lsst.afw.display as afwDisplay
 import lsst.afw.image as afwImage
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsstDebug import getDebugFrame
-from lsst.afw.display import getDisplay
 
 __all__ = ["AssembleCcdTask"]
 
@@ -252,7 +252,7 @@ class AssembleCcdTask(pipeBase.Task):
 
         frame = getDebugFrame(self._display, "assembledExposure")
         if frame:
-            getDisplay(frame).mtv(outExposure)
+            afwDisplay.Display(frame=frame).mtv(outExposure, title="postprocessExposure")
 
     def setWcs(self, outExposure, inExposure):
         """Set output WCS = input WCS, adjusted as required for datasecs not starting at lower left corner
