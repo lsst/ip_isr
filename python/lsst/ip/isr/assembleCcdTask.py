@@ -235,7 +235,7 @@ class AssembleCcdTask(pipeBase.Task):
 
         @param[in,out]  outExposure assembled exposure:
                                     - removes unwanted keywords
-                                    - sets calib, filter, and detector
+                                    - sets photoCalib, filter, and detector
         @param[in]      inExposure  input exposure
         """
         self.setWcs(outExposure=outExposure, inExposure=inExposure)
@@ -246,7 +246,7 @@ class AssembleCcdTask(pipeBase.Task):
                 exposureMetadata.remove(key)
         outExposure.setMetadata(exposureMetadata)
 
-        # note: Calib is not copied, presumably because it is assumed unknown in raw data
+        # note: don't copy PhotoCalib, because it is assumed to be unknown in raw data
         outExposure.setFilter(inExposure.getFilter())
         outExposure.getInfo().setVisitInfo(inExposure.getInfo().getVisitInfo())
 

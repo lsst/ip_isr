@@ -2085,7 +2085,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             return
 
         self.log.info("Setting rough magnitude zero point: %f" % (2.5*math.log10(fluxMag0*expTime),))
-        exposure.getCalib().setFluxMag0(fluxMag0*expTime)
+        exposure.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0*expTime, 0.0))
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
         """!Set the valid polygon as the intersection of fpPolygon and the ccd corners.
