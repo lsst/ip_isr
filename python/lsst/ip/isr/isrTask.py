@@ -1192,7 +1192,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
             if (self.config.brighterFatterLevel == 'DETECTOR'
                 and bfKernel.level == 'DETECTOR'):
-                kernelElement = bfKernel.kernel[0]
+                kernelElement = bfKernel.kernel[ccdExposure.getDetector().getId()]
             else:
                 # TODO: DM-15631 for implementing this
                 raise NotImplementedError("per-amplifier brighter-fatter correction not yet implemented")
