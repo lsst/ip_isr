@@ -879,7 +879,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         if self.config.doDark else None)
         flatExposure = (self.getIsrExposure(dataRef, self.config.flatDataProductName)
                         if self.config.doFlat else None)
-        brighterFatterKernel = (dataRef.get("bfKernel")
+        brighterFatterKernel = (dataRef.get("brighterFatterKernel")
                                 if self.config.doBrighterFatter else None)
         defectList = (dataRef.get("defects")
                       if self.config.doDefect else None)
@@ -1190,8 +1190,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 self.maskAndInterpNan(ccdExposure)
                 interpolationDone = True
 
-            if self.config.brighterFatterLevel == 'DETECTOR':
-                kernelElement = bfKernel
+            if (self.config.brighterFatterLevel == 'DETECTOR'
+                and bfKernel.level == 'DETECTOR'):
+                kernelElement = bfKernel.kernel[0]
             else:
                 # TODO: DM-15631 for implementing this
                 raise NotImplementedError("per-amplifier brighter-fatter correction not yet implemented")
