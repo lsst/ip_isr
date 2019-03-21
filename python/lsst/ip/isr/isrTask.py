@@ -37,6 +37,7 @@ from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, NullLinearityType
 from lsst.afw.display import getDisplay
 from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
+from lsst.daf.persistence.butler import NoResults
 from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.meas.algorithms import Defect
 
@@ -865,6 +866,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 A ``TransmissionCurve`` that represents the throughput of the
                 atmosphere, assumed to be spatially constant.
 
+        Raises
+        ------
+        NotImplementedError :
+            Raised if a per-amplifier brighter-fatter kernel is requested by the configuration.
         """
         ccd = rawExposure.getDetector()
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
@@ -879,8 +884,28 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         if self.config.doDark else None)
         flatExposure = (self.getIsrExposure(dataRef, self.config.flatDataProductName)
                         if self.config.doFlat else None)
-        brighterFatterKernel = (dataRef.get("bfKernel")
-                                if self.config.doBrighterFatter else None)
+
+        brighterFatterKernel = None
+        if self.config.doBrighterFatter is True:
+
+            # Use the new-style cp_pipe version of the kernel is it exists.
+            try:
+                brighterFatterKernel = dataRef.get("brighterFatterKernel")
+            except NoResults:
+                # Fall back to the old-style numpy-ndarray style kernel if necessary.
+                try:
+                    brighterFatterKernel = dataRef.get("bfKernel")
+                except NoResults:
+                    brighterFatterKernel = None
+            if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
+                # If the kernel is not an ndarray, it's the cp_pipe version, so extract the kernel for
+                # this detector, or raise an error.
+                if self.config.brighterFatterLevel == 'DETECTOR':
+                    brighterFatterKernel = brighterFatterKernel.kernel[ccd.getId()]
+                else:
+                    # TODO DM-15631 for implementing this
+                    raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
+
         defectList = (dataRef.get("defects")
                       if self.config.doDefect else None)
         fringeStruct = (self.fringe.readFringes(dataRef, assembler=self.assembleCcd
@@ -1190,13 +1215,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 self.maskAndInterpNan(ccdExposure)
                 interpolationDone = True
 
-            if self.config.brighterFatterLevel == 'DETECTOR':
-                kernelElement = bfKernel
-            else:
-                # TODO: DM-15631 for implementing this
-                raise NotImplementedError("per-amplifier brighter-fatter correction not yet implemented")
             self.log.info("Applying brighter fatter correction.")
-            isrFunctions.brighterFatterCorrection(ccdExposure, kernelElement,
+            isrFunctions.brighterFatterCorrection(ccdExposure, bfKernel,
                                                   self.config.brighterFatterMaxIter,
                                                   self.config.brighterFatterThreshold,
                                                   self.config.brighterFatterApplyGain,
