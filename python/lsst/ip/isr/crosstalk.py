@@ -64,7 +64,7 @@ class CrosstalkTask(Task):
         """
         return
 
-    def run(self, exposure, crosstalkSources=None):
+    def run(self, exposure, crosstalkSources=None, isTrimmed=False):
         """Apply intra-CCD crosstalk correction
 
         Parameters
@@ -75,6 +75,9 @@ class CrosstalkTask(Task):
             Image data and crosstalk coefficients from other CCDs/amps that are
             sources of crosstalk in exposure.
             The default for intra-CCD crosstalk here is None.
+        isTrimmed : `bool`
+            The image is already trimmed.
+            This should no longer be needed once DM-15409 is resolved.
 
         Raises
         ------
@@ -87,7 +90,7 @@ class CrosstalkTask(Task):
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
         self.log.info("Applying crosstalk correction")
         subtractCrosstalk(exposure, minPixelToMask=self.config.minPixelToMask,
-                          crosstalkStr=self.config.crosstalkMaskPlane)
+                          crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed)
 
 
 # Flips required to get the corner to the lower-left
@@ -159,7 +162,8 @@ def calculateBackground(mi, badPixels=["BAD"]):
     return lsst.afw.math.makeStatistics(mi, lsst.afw.math.MEDIAN, stats).getValue()
 
 
-def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crosstalkStr="CROSSTALK"):
+def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
+                      crosstalkStr="CROSSTALK", isTrimmed=False):
     """Subtract the intra-CCD crosstalk from an exposure
 
     We set the mask plane indicated by ``crosstalkStr`` in a target amplifier
@@ -182,6 +186,9 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
         ``crosstalkStr`` mask plane in target amplifier.
     crosstalkStr : `str`
         Mask plane name for pixels greatly modified by crosstalk.
+    isTrimmed : `bool`
+        The image is already trimmed.
+        This should no longer be needed once DM-15409 is resolved.
     """
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
@@ -202,14 +209,14 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     subtrahend = mi.Factory(mi.getBBox())
     subtrahend.set((0, 0, 0))
     for ii, iAmp in enumerate(ccd):
-        iImage = subtrahend[iAmp.getRawDataBBox()]
+        iImage = subtrahend[iAmp.getBBox() if isTrimmed else iAmp.getRawDataBBox()]
         for jj, jAmp in enumerate(ccd):
             if ii == jj:
                 assert coeffs[ii, jj] == 0.0
             if coeffs[ii, jj] == 0.0:
                 continue
 
-            jImage = extractAmp(mi, jAmp, iAmp.getReadoutCorner())
+            jImage = extractAmp(mi, jAmp, iAmp.getReadoutCorner(), isTrimmed)
             jImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
             jImage -= backgrounds[jj]
 
