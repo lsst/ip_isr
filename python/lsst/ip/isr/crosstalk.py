@@ -26,7 +26,7 @@ Apply intra-CCD crosstalk corrections
 import lsst.afw.math
 import lsst.afw.table
 import lsst.afw.detection
-from lsst.pex.config import Config, Field
+from lsst.pex.config import Config, Field, ChoiceField
 from lsst.pipe.base import Task
 
 __all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosstalkCoeffs"]
@@ -36,13 +36,23 @@ class CrosstalkConfig(Config):
     """Configuration for intra-CCD crosstalk removal"""
     minPixelToMask = Field(
         dtype=float,
-        doc="Set crosstalk mask plane for pixels over this value",
+        doc="Set crosstalk mask plane for pixels over this value.",
         default=45000
     )
     crosstalkMaskPlane = Field(
         dtype=str,
-        doc="Name for crosstalk mask plane",
+        doc="Name for crosstalk mask plane.",
         default="CROSSTALK"
+    )
+    crosstalkBackgroundMethod = ChoiceField(
+        dtype=str,
+        doc="Type of background subtraction to use when applying correction.",
+        default="None",
+        allowed={
+            "None": "Do no background subtraction.",
+            "AMP": "Subtract amplifier-by-amplifier background levels.",
+            "DETECTOR": "Subtract detector level background."
+        },
     )
 
 
@@ -90,7 +100,8 @@ class CrosstalkTask(Task):
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
         self.log.info("Applying crosstalk correction")
         subtractCrosstalk(exposure, minPixelToMask=self.config.minPixelToMask,
-                          crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed)
+                          crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
+                          backgroundMethod=self.config.crosstalkBackgroundMethod)
 
 
 # Flips required to get the corner to the lower-left
@@ -163,7 +174,8 @@ def calculateBackground(mi, badPixels=["BAD"]):
 
 
 def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
-                      crosstalkStr="CROSSTALK", isTrimmed=False):
+                      crosstalkStr="CROSSTALK", isTrimmed=False,
+                      backgroundMethod="None"):
     """Subtract the intra-CCD crosstalk from an exposure
 
     We set the mask plane indicated by ``crosstalkStr`` in a target amplifier
@@ -189,6 +201,11 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
     isTrimmed : `bool`
         The image is already trimmed.
         This should no longer be needed once DM-15409 is resolved.
+    backgroundMethod : `str`
+        Method used to subtract the background.  "AMP" uses
+        amplifier-by-amplifier background levels, "DETECTOR" uses full
+        exposure/maskedImage levels.  Any other value results in no
+        background subtraction.
     """
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
@@ -204,7 +221,15 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
     footprints.setMask(mask, crosstalkStr)
     crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
-    backgrounds = [calculateBackground(mi[amp.getBBox()], badPixels) for amp in ccd]
+    backgrounds = [0.0 for amp in ccd]
+    if backgroundMethod is None:
+        pass
+    elif backgroundMethod == "AMP":
+        backgrounds = [calculateBackground(mi[amp.getBBox()], badPixels) for amp in ccd]
+    elif backgroundMethod == "DETECTOR":
+        backgrounds = [calculateBackground(mi, badPixels) for amp in ccd]
+    else:
+        pass
 
     subtrahend = mi.Factory(mi.getBBox())
     subtrahend.set((0, 0, 0))
