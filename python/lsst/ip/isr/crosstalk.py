@@ -187,6 +187,10 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
     enough if the crosstalk is small (e.g., coefficients < ~ 1e-3), but if it's
     larger you may want to iterate.
 
+    This method needs unittests (DM-18876), but such testing requires
+    DM-18610 to allow the test detector to have the crosstalk
+    parameters set.
+
     Parameters
     ----------
     exposure : `lsst.afw.image.Exposure`
@@ -194,8 +198,9 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
     badPixels : `list` of `str`
         Mask planes to ignore.
     minPixelToMask : `float`
-        Minimum pixel value in source amplifier for which to set
-        ``crosstalkStr`` mask plane in target amplifier.
+        Minimum pixel value (relative to the background level) in
+        source amplifier for which to set ``crosstalkStr`` mask plane
+        in target amplifier.
     crosstalkStr : `str`
         Mask plane name for pixels greatly modified by crosstalk.
     isTrimmed : `bool`
@@ -215,11 +220,11 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
     coeffs = ccd.getCrosstalk()
     assert coeffs.shape == (numAmps, numAmps)
 
-    # Set the crosstalkStr bit for the bright pixels (those which will have significant crosstalk correction)
-    crosstalkPlane = mask.addMaskPlane(crosstalkStr)
-    footprints = lsst.afw.detection.FootprintSet(mi, lsst.afw.detection.Threshold(minPixelToMask))
-    footprints.setMask(mask, crosstalkStr)
-    crosstalk = mask.getPlaneBitMask(crosstalkStr)
+    # Set background level based on the requested method.  The
+    # thresholdBackground holds the offset needed so that we only mask
+    # pixels high relative to the background, not in an absolute
+    # sense.
+    thresholdBackground = calculateBackground(mi, badPixels)
 
     backgrounds = [0.0 for amp in ccd]
     if backgroundMethod is None:
@@ -228,9 +233,15 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
         backgrounds = [calculateBackground(mi[amp.getBBox()], badPixels) for amp in ccd]
     elif backgroundMethod == "DETECTOR":
         backgrounds = [calculateBackground(mi, badPixels) for amp in ccd]
-    else:
-        pass
 
+    # Set the crosstalkStr bit for the bright pixels (those which will have significant crosstalk correction)
+    crosstalkPlane = mask.addMaskPlane(crosstalkStr)
+    footprints = lsst.afw.detection.FootprintSet(mi, lsst.afw.detection.Threshold(minPixelToMask +
+                                                                                  thresholdBackground))
+    footprints.setMask(mask, crosstalkStr)
+    crosstalk = mask.getPlaneBitMask(crosstalkStr)
+
+    # Do pixel level crosstalk correction.
     subtrahend = mi.Factory(mi.getBBox())
     subtrahend.set((0, 0, 0))
     for ii, iAmp in enumerate(ccd):
