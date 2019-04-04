@@ -26,7 +26,7 @@ Apply intra-CCD crosstalk corrections
 import lsst.afw.math
 import lsst.afw.table
 import lsst.afw.detection
-from lsst.pex.config import Config, Field
+from lsst.pex.config import Config, Field, ChoiceField
 from lsst.pipe.base import Task
 
 __all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosstalkCoeffs"]
@@ -36,13 +36,23 @@ class CrosstalkConfig(Config):
     """Configuration for intra-CCD crosstalk removal"""
     minPixelToMask = Field(
         dtype=float,
-        doc="Set crosstalk mask plane for pixels over this value",
+        doc="Set crosstalk mask plane for pixels over this value.",
         default=45000
     )
     crosstalkMaskPlane = Field(
         dtype=str,
-        doc="Name for crosstalk mask plane",
+        doc="Name for crosstalk mask plane.",
         default="CROSSTALK"
+    )
+    crosstalkBackgroundMethod = ChoiceField(
+        dtype=str,
+        doc="Type of background subtraction to use when applying correction.",
+        default="None",
+        allowed={
+            "None": "Do no background subtraction.",
+            "AMP": "Subtract amplifier-by-amplifier background levels.",
+            "DETECTOR": "Subtract detector level background."
+        },
     )
 
 
@@ -64,7 +74,7 @@ class CrosstalkTask(Task):
         """
         return
 
-    def run(self, exposure, crosstalkSources=None):
+    def run(self, exposure, crosstalkSources=None, isTrimmed=False):
         """Apply intra-CCD crosstalk correction
 
         Parameters
@@ -75,6 +85,9 @@ class CrosstalkTask(Task):
             Image data and crosstalk coefficients from other CCDs/amps that are
             sources of crosstalk in exposure.
             The default for intra-CCD crosstalk here is None.
+        isTrimmed : `bool`
+            The image is already trimmed.
+            This should no longer be needed once DM-15409 is resolved.
 
         Raises
         ------
@@ -87,7 +100,8 @@ class CrosstalkTask(Task):
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
         self.log.info("Applying crosstalk correction")
         subtractCrosstalk(exposure, minPixelToMask=self.config.minPixelToMask,
-                          crosstalkStr=self.config.crosstalkMaskPlane)
+                          crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
+                          backgroundMethod=self.config.crosstalkBackgroundMethod)
 
 
 # Flips required to get the corner to the lower-left
@@ -159,7 +173,9 @@ def calculateBackground(mi, badPixels=["BAD"]):
     return lsst.afw.math.makeStatistics(mi, lsst.afw.math.MEDIAN, stats).getValue()
 
 
-def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crosstalkStr="CROSSTALK"):
+def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
+                      crosstalkStr="CROSSTALK", isTrimmed=False,
+                      backgroundMethod="None"):
     """Subtract the intra-CCD crosstalk from an exposure
 
     We set the mask plane indicated by ``crosstalkStr`` in a target amplifier
@@ -171,6 +187,10 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     enough if the crosstalk is small (e.g., coefficients < ~ 1e-3), but if it's
     larger you may want to iterate.
 
+    This method needs unittests (DM-18876), but such testing requires
+    DM-18610 to allow the test detector to have the crosstalk
+    parameters set.
+
     Parameters
     ----------
     exposure : `lsst.afw.image.Exposure`
@@ -178,10 +198,19 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     badPixels : `list` of `str`
         Mask planes to ignore.
     minPixelToMask : `float`
-        Minimum pixel value in source amplifier for which to set
-        ``crosstalkStr`` mask plane in target amplifier.
+        Minimum pixel value (relative to the background level) in
+        source amplifier for which to set ``crosstalkStr`` mask plane
+        in target amplifier.
     crosstalkStr : `str`
         Mask plane name for pixels greatly modified by crosstalk.
+    isTrimmed : `bool`
+        The image is already trimmed.
+        This should no longer be needed once DM-15409 is resolved.
+    backgroundMethod : `str`
+        Method used to subtract the background.  "AMP" uses
+        amplifier-by-amplifier background levels, "DETECTOR" uses full
+        exposure/maskedImage levels.  Any other value results in no
+        background subtraction.
     """
     mi = exposure.getMaskedImage()
     mask = mi.getMask()
@@ -191,25 +220,39 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000, crossta
     coeffs = ccd.getCrosstalk()
     assert coeffs.shape == (numAmps, numAmps)
 
+    # Set background level based on the requested method.  The
+    # thresholdBackground holds the offset needed so that we only mask
+    # pixels high relative to the background, not in an absolute
+    # sense.
+    thresholdBackground = calculateBackground(mi, badPixels)
+
+    backgrounds = [0.0 for amp in ccd]
+    if backgroundMethod is None:
+        pass
+    elif backgroundMethod == "AMP":
+        backgrounds = [calculateBackground(mi[amp.getBBox()], badPixels) for amp in ccd]
+    elif backgroundMethod == "DETECTOR":
+        backgrounds = [calculateBackground(mi, badPixels) for amp in ccd]
+
     # Set the crosstalkStr bit for the bright pixels (those which will have significant crosstalk correction)
     crosstalkPlane = mask.addMaskPlane(crosstalkStr)
-    footprints = lsst.afw.detection.FootprintSet(mi, lsst.afw.detection.Threshold(minPixelToMask))
+    footprints = lsst.afw.detection.FootprintSet(mi, lsst.afw.detection.Threshold(minPixelToMask +
+                                                                                  thresholdBackground))
     footprints.setMask(mask, crosstalkStr)
     crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
-    backgrounds = [calculateBackground(mi[amp.getBBox()], badPixels) for amp in ccd]
-
+    # Do pixel level crosstalk correction.
     subtrahend = mi.Factory(mi.getBBox())
     subtrahend.set((0, 0, 0))
     for ii, iAmp in enumerate(ccd):
-        iImage = subtrahend[iAmp.getRawDataBBox()]
+        iImage = subtrahend[iAmp.getBBox() if isTrimmed else iAmp.getRawDataBBox()]
         for jj, jAmp in enumerate(ccd):
             if ii == jj:
                 assert coeffs[ii, jj] == 0.0
             if coeffs[ii, jj] == 0.0:
                 continue
 
-            jImage = extractAmp(mi, jAmp, iAmp.getReadoutCorner())
+            jImage = extractAmp(mi, jAmp, iAmp.getReadoutCorner(), isTrimmed)
             jImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
             jImage -= backgrounds[jj]
 
