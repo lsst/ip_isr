@@ -106,6 +106,13 @@ class IsrTaskConfig(pexConfig.Config):
         storageClass="MaskedImageF",
         dimensions=["Instrument", "PhysicalFilter", "CalibrationLabel", "Detector"],
     )
+    fringes = pipeBase.InputDatasetField(
+        doc="Input fringe calibration.",
+        name="fringe",
+        scalar=True,
+        storageClass="ExposureF",
+        dimensions=["Instrument", "PhysicalFilter", "CalibrationLabel", "Detector"],
+    )
     bfKernel = pipeBase.InputDatasetField(
         doc="Input brighter-fatter kernel.",
         name="bfKernel",
@@ -728,6 +735,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             inputTypeDict.pop("dark", None)
         if config.doFlat is not True:
             inputTypeDict.pop("flat", None)
+#        if (config.doFringe is not True or 0):
+#            self.fringe.checkFilter(inputData['ccdExposure']) is not True):
+#            inputTypeDict.pop("fringe", None)
         if config.doAttachTransmissionCurve is not True:
             inputTypeDict.pop("opticsTransmission", None)
             inputTypeDict.pop("filterTransmission", None)
@@ -815,6 +825,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         #                         if self.config.doFringe and
         #                            self.fringe.checkFilter(inputData['ccdExposure'])
         #                         else pipeBase.Struct(fringes=None))
+
+        if inputData['fringes'] is not None:
+            if self.config.doFringe and self.fringe.checkFilter(inputData['ccdExposure']):
+                fringeStruct = pipeBase.Struct(fringes=inputData['fringes'],
+                                               seed=1234)
+            else:
+                fringeStruct = pipeBase.Struct(fringes=None)
+            inputData['fringes'] = fringeStruct
 
         return super().adaptArgsAndRun(inputData, inputDataIds, outputDataIds, butler)
 
