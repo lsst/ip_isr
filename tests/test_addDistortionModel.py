@@ -23,7 +23,7 @@ import unittest
 
 import lsst.utils.tests
 import lsst.afw.geom as afwGeom
-from lsst.afw.image import ExposureF, ExposureInfo, Calib, VisitInfo
+from lsst.afw.image import ExposureF, ExposureInfo, PhotoCalib, VisitInfo
 from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
 from lsst.afw.cameraGeom import FIELD_ANGLE, FOCAL_PLANE, PIXELS
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper, CameraWrapper
@@ -49,7 +49,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
 
         # set the few items of ExposureInfo needed by IsrTask.run
         # when only adding a distortion model
-        exposureInfo = ExposureInfo(calib=Calib(1.0),
+        exposureInfo = ExposureInfo(photoCalib=PhotoCalib(1.0),
                                     detector=self.detector,
                                     visitInfo=VisitInfo(exposureTime=1.0),
                                     wcs=self.wcs)
