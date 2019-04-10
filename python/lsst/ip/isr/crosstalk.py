@@ -22,11 +22,12 @@
 """
 Apply intra-CCD crosstalk corrections
 """
+import numpy as np
 
 import lsst.afw.math
 import lsst.afw.table
 import lsst.afw.detection
-from lsst.pex.config import Config, Field, ChoiceField
+from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
 __all__ = ["CrosstalkConfig", "CrosstalkTask", "subtractCrosstalk", "writeCrosstalkCoeffs",
@@ -55,6 +56,73 @@ class CrosstalkConfig(Config):
             "DETECTOR": "Subtract detector level background."
         },
     )
+    useConfigCoefficients = Field(
+        dtype=bool,
+        doc="Ignore the detector crosstalk information in favor of CrosstalkConfig values?",
+        default=False,
+    )
+    crosstalkValues = ListField(
+        dtype=float,
+        doc="Amplifier-indexed crosstalk coefficients to use.",
+        default=[0.0],
+    )
+    crosstalkShape = ListField(
+        dtype=int,
+        doc="Shape of the coefficient array.  This should be equal to [nAmp, nAmp].",
+        default=[1],
+    )
+
+    def getCrosstalk(self, detector=None):
+        """Return a 2-D numpy array of crosstalk coefficients of the proper shape.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.detector`
+            Detector that is to be crosstalk corrected.
+
+        Returns
+        -------
+        coeffs : `numpy.ndarray`
+            Crosstalk coefficients that can be used to correct the detector.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if no coefficients could be generated from this detector/configuration.
+        """
+        if self.useConfigCoefficients is True:
+            coeffs = np.array(self.crosstalkValues).reshape(self.crosstalkShape)
+            if detector is not None:
+                nAmp = len(detector)
+                if coeffs.shape != (nAmp, nAmp):
+                    raise RuntimeError("Constructed crosstalk coeffients do not match detector shape. %s %s",
+                                       coeffs.shape, nAmp)
+            return coeffs
+        elif detector is not None and detector.hasCrosstalk() is True:
+            # Assume the detector defines itself consistently.
+            return detector.getCrosstalk()
+        else:
+            raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
+
+    def hasCrosstalk(self, detector=None):
+        """Return a boolean indicating if crosstalk coefficients exist.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.detector`
+            Detector that is to be crosstalk corrected.
+
+        Returns
+        -------
+        hasCrosstalk : `bool`
+            True if this detector/configuration has crosstalk coefficients defined.
+        """
+        if self.useConfigCoefficients is True and self.crosstalkValues is not None:
+            return True
+        elif detector is not None and detector.hasCrosstalk() is True:
+            return True
+        else:
+            return False
 
 
 class CrosstalkTask(Task):
@@ -98,10 +166,13 @@ class CrosstalkTask(Task):
             crosstalk correction
         """
         detector = exposure.getDetector()
-        if not detector.hasCrosstalk():
+        if not self.config.hasCrosstalk(detector=detector):
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
+        coeffs = self.config.getCrosstalk(detector=detector)
+
         self.log.info("Applying crosstalk correction.")
-        subtractCrosstalk(exposure, minPixelToMask=self.config.minPixelToMask,
+        subtractCrosstalk(exposure, crosstalkCoeffs=coeffs,
+                          minPixelToMask=self.config.minPixelToMask,
                           crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
                           backgroundMethod=self.config.crosstalkBackgroundMethod)
 
@@ -175,7 +246,8 @@ def calculateBackground(mi, badPixels=["BAD"]):
     return lsst.afw.math.makeStatistics(mi, lsst.afw.math.MEDIAN, stats).getValue()
 
 
-def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
+def subtractCrosstalk(exposure, crosstalkCoeffs=None,
+                      badPixels=["BAD"], minPixelToMask=45000,
                       crosstalkStr="CROSSTALK", isTrimmed=False,
                       backgroundMethod="None"):
     """Subtract the intra-CCD crosstalk from an exposure
@@ -197,6 +269,8 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
     ----------
     exposure : `lsst.afw.image.Exposure`
         Exposure for which to subtract crosstalk.
+    crosstalkCoeffs : `numpy.ndarray`
+        Coefficients to use to correct crosstalk.
     badPixels : `list` of `str`
         Mask planes to ignore.
     minPixelToMask : `float`
@@ -219,7 +293,10 @@ def subtractCrosstalk(exposure, badPixels=["BAD"], minPixelToMask=45000,
 
     ccd = exposure.getDetector()
     numAmps = len(ccd)
-    coeffs = ccd.getCrosstalk()
+    if crosstalkCoeffs is None:
+        coeffs = ccd.getCrosstalk()
+    else:
+        coeffs = crosstalkCoeffs
     assert coeffs.shape == (numAmps, numAmps)
 
     # Set background level based on the requested method.  The
