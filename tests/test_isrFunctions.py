@@ -121,17 +121,21 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
     def test_makeThresholdMask(self):
         """Expect list of defects to have elements.
         """
-        defectList = ipIsr.makeThresholdMask(self.mi, 200, growFootprints=2, maskName='SAT')
+        defectList = ipIsr.makeThresholdMask(self.mi, 200,
+                                             growFootprints=2,
+                                             maskName='SAT')
 
         self.assertEqual(len(defectList), 1)
 
     def test_interpolateFromMask(self):
         """Expect number of interpolated pixels to be non-zero.
         """
-        ipIsr.makeThresholdMask(self.mi, 200, growFootprints=2, maskName='SAT')
+        ipIsr.makeThresholdMask(self.mi, 200, growFootprints=2,
+                                maskName='SAT')
         for growFootprints in range(0, 3):
             interpMaskedImage = ipIsr.interpolateFromMask(self.mi, 2.0,
-                                                          growFootprints=growFootprints, maskName='SAT')
+                                                          growSaturatedFootprints=growFootprints,
+                                                          maskNameList=['SAT'])
             numBit = countMaskedPixels(interpMaskedImage, "INTRP")
             self.assertEqual(numBit, 40800, msg=f"interpolateFromMask with growFootprints={growFootprints}")
 
