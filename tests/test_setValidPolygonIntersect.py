@@ -35,6 +35,7 @@ import unittest
 import numpy as np
 
 import lsst.utils.tests
+import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 from lsst.ip.isr.isrTask import IsrTask
@@ -47,7 +48,7 @@ def makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints):
     xx = fpRadius*np.cos(theta) + fpCenterX
     yy = fpRadius*np.sin(theta) + fpCenterY
     points = np.array([xx, yy]).transpose()
-    polygon = afwGeom.Polygon([afwGeom.Point2D(x, y) for x, y in reversed(points)])
+    polygon = afwGeom.Polygon([lsst.geom.Point2D(x, y) for x, y in reversed(points)])
     return polygon
 
 
@@ -55,7 +56,7 @@ def makeSquarePolygon(fpX0, fpY0, fpSize):
     xx = [fpX0, fpX0, fpX0 + fpSize - 1, fpX0 + fpSize - 1, fpX0]
     yy = [fpY0, fpY0 + fpSize - 1, fpY0 + fpSize - 1, fpY0, fpY0]
     points = np.array([xx, yy]).transpose()
-    polygon = afwGeom.Polygon([afwGeom.Point2D(x, y) for x, y in points])
+    polygon = afwGeom.Polygon([lsst.geom.Point2D(x, y) for x, y in points])
     return polygon
 
 
@@ -102,7 +103,7 @@ class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
         task.setValidPolygonIntersect(exposure, fpPolygon)
         # all vertices of polygon should be contained within the ccd
         for x in exposure.getInfo().getValidPolygon():
-            self.assertTrue(ccdPolygonPix.contains(afwGeom.Point2D(x)))
+            self.assertTrue(ccdPolygonPix.contains(lsst.geom.Point2D(x)))
         # intersection is smaller than the ccd
         self.assertNotEqual(exposure.getInfo().getValidPolygon(), ccdPolygonPix)
 
@@ -111,10 +112,10 @@ class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
         fpPolygon = makeSquarePolygon(fpCenterX, fpCenterY, fpPolygonSize)
         task.setValidPolygonIntersect(exposure, fpPolygon)
         # Check that the polygon contains the central pixel (offset by one to actually be "contained")
-        pixCenterPlusOne = afwGeom.Point2D(pixCenter[0] + 1, pixCenter[1] + 1)
-        self.assertTrue(exposure.getInfo().getValidPolygon().contains(afwGeom.Point2D(pixCenterPlusOne)))
+        pixCenterPlusOne = lsst.geom.Point2D(pixCenter[0] + 1, pixCenter[1] + 1)
+        self.assertTrue(exposure.getInfo().getValidPolygon().contains(lsst.geom.Point2D(pixCenterPlusOne)))
         # Check that the polygon contains the upper right ccd edge
-        self.assertTrue(exposure.getInfo().getValidPolygon().contains(afwGeom.Point2D(pixX1, pixY1)))
+        self.assertTrue(exposure.getInfo().getValidPolygon().contains(lsst.geom.Point2D(pixX1, pixY1)))
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

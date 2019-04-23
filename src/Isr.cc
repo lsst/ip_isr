@@ -24,6 +24,7 @@
  
 #include <cmath>
 
+#include "lsst/geom.h"
 #include "lsst/afw/math.h"
 #include "lsst/afw/math/Statistics.h"
 #include "lsst/ip/isr/isr.h"
@@ -69,12 +70,12 @@ void fitOverscanImage(
     
     for (int y = 0; y < height; ++y) {
         /**
-        afw::geom::Box2I bbox       = afw::geom::Box2I( afw::geom::Point2I(0, y),
-                                              afw::geom::Point2I(0, width) );
+        geom::Box2I bbox       = geom::Box2I( geom::Point2I(0, y),
+                                              geom::Point2I(0, width) );
         The above was how this was defined before ticket #1556.  As I understand it
         the following is the new way to do this
         **/
-        afw::geom::Box2I bbox = afw::geom::Box2I(afw::geom::Point2I(0,y), afw::geom::Point2I(width,y));
+        geom::Box2I bbox = geom::Box2I(geom::Point2I(0,y), geom::Point2I(width,y));
         MaskedImage mi         = MaskedImage(overscan, bbox);
         afw::math::Statistics stats = afw::math::makeStatistics(*(mi.getImage()), afw::math::MEAN | afw::math::STDEV);
 

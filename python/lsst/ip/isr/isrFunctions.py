@@ -23,6 +23,7 @@ import math
 import numpy
 from deprecated.sphinx import deprecated
 
+import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
@@ -68,7 +69,7 @@ def transposeMaskedImage(maskedImage):
     transposed : `lsst.afw.image.MaskedImage`
         The transposed copy of the input image.
     """
-    transposed = maskedImage.Factory(afwGeom.Extent2I(maskedImage.getHeight(), maskedImage.getWidth()))
+    transposed = maskedImage.Factory(lsst.geom.Extent2I(maskedImage.getHeight(), maskedImage.getWidth()))
     transposed.getImage().getArray()[:] = maskedImage.getImage().getArray().T
     transposed.getMask().getArray()[:] = maskedImage.getMask().getArray().T
     transposed.getVariance().getArray()[:] = maskedImage.getVariance().getArray().T

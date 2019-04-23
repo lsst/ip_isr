@@ -24,7 +24,7 @@ import unittest
 import numpy as np
 
 import lsst.utils.tests
-import lsst.afw.geom as afwGeom
+import lsst.geom
 import lsst.afw.image as afwImage
 from lsst.afw.image.testUtils import makeRampImage
 from lsst.ip.isr import applyLookupTable
@@ -67,7 +67,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
     def testBasics(self):
         """!Test basic functionality of applyLookupTable
         """
-        bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(-31, 22), lsst.geom.Extent2I(100, 85))
         imMin = -5
         imMax = 2500
         tableLen = 2000
@@ -95,7 +95,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         """
         # generate a small ramp image with ascending integer values
         # starting at some small negative value going positive
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(3, 4))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(3, 4))
         numPix = bbox.getWidth()*bbox.getHeight()
         start = -3
         stop = start + numPix - 1

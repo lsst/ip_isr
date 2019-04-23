@@ -23,8 +23,8 @@
 import unittest
 
 import lsst.utils.tests
+import lsst.geom
 import lsst.afw.image as afwImage
-import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
 
@@ -37,17 +37,17 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         del self.overscanKeyword
 
     def testOverscanCorrectionY(self, **kwargs):
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(9, 12))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                               lsst.geom.Point2I(9, 12))
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 10),
-                             afwGeom.Point2I(9, 12))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 10),
+                               lsst.geom.Point2I(9, 12))
         biassec = '[1:10,11:13]'
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
@@ -68,17 +68,17 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
     def testOverscanCorrectionX(self, **kwargs):
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(12, 9))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                               lsst.geom.Point2I(12, 9))
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
-        bbox = afwGeom.Box2I(afwGeom.Point2I(10, 0),
-                             afwGeom.Point2I(12, 9))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(10, 0),
+                               lsst.geom.Point2I(12, 9))
         biassec = '[11:13,1:10]'
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
@@ -99,17 +99,17 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
     def checkPolyOverscanCorrectionX(self, **kwargs):
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(12, 9))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                               lsst.geom.Point2I(12, 9))
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
-        bbox = afwGeom.Box2I(afwGeom.Point2I(10, 0),
-                             afwGeom.Point2I(12, 9))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(10, 0),
+                               lsst.geom.Point2I(12, 9))
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[1]):
@@ -132,17 +132,17 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - j)
 
     def checkPolyOverscanCorrectionY(self, **kwargs):
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0),
-                             afwGeom.Point2I(9, 12))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                               lsst.geom.Point2I(9, 12))
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(10, 10))
+        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
 
         # these should be functionally equivalent
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 10),
-                             afwGeom.Point2I(9, 12))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 10),
+                               lsst.geom.Point2I(9, 12))
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[0]):

@@ -25,7 +25,7 @@ import pickle
 import numpy as np
 
 import lsst.utils.tests
-import lsst.afw.geom as afwGeom
+import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.afw.table as afwTable
 import lsst.afw.cameraGeom as cameraGeom
@@ -56,7 +56,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
 
     def setUp(self):
         # the following values are all arbitrary, but sane and varied
-        self.bbox = afwGeom.Box2I(afwGeom.Point2I(-31, 22), afwGeom.Extent2I(100, 85))
+        self.bbox = lsst.geom.Box2I(lsst.geom.Point2I(-31, 22), lsst.geom.Extent2I(100, 85))
         self.numAmps = (2, 3)
         self.sqCoeffs = np.array([[0, 5e-6, 2.5e-5], [1e-5, 1.1e-6, 2.1e-5]], dtype=float)
         self.detector = self.makeDetector()
@@ -92,7 +92,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         """!Test a few known values
         """
         numAmps = (2, 2)
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(4, 4))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(4, 4))
         # make a 4x4 image with 4 identical 2x2 subregions that flatten to -1, 0, 1, 2
         im = afwImage.ImageF(bbox)
         imArr = im.getArray()
@@ -169,7 +169,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         detId = 1
         detSerial = "123"
         orientation = cameraGeom.Orientation()
-        pixelSize = afwGeom.Extent2D(1, 1)
+        pixelSize = lsst.geom.Extent2D(1, 1)
         transMap = {}
         return cameraGeom.Detector(
             detName,

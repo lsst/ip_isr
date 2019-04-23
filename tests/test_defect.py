@@ -24,9 +24,9 @@ import unittest
 import numpy as np
 
 import lsst.utils.tests
+import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.meas.algorithms as measAlg
-import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
 display = False  # set to True to display images
@@ -57,7 +57,7 @@ class DefectTestCases(lsst.utils.tests.TestCase):
             (34, 81, 34, 100),
             (180, 100, 182, 130),
         ]:
-            bbox = afwGeom.Box2I(afwGeom.Point2I(x0, y0), afwGeom.Point2I(x1, y1))
+            bbox = lsst.geom.Box2I(lsst.geom.Point2I(x0, y0), lsst.geom.Point2I(x1, y1))
             defectList.append(bbox)
             bad = ccdImage.Factory(ccdImage, bbox, afwImage.LOCAL)
             bad.set(100)

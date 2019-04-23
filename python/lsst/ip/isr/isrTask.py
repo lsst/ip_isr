@@ -22,7 +22,7 @@
 import math
 import numpy
 
-import lsst.afw.geom as afwGeom
+import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.afw.table as afwTable
@@ -1655,24 +1655,24 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 yUpper = self.config.overscanBiasJumpLocation
                 yLower = dataBBox.getHeight() - yUpper
 
-            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
-                                             afwGeom.Extent2I(dataBBox.getWidth(), yLower)))
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() +
-                                                afwGeom.Extent2I(dx0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                 yLower)))
+            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
+                                               lsst.geom.Extent2I(dataBBox.getWidth(), yLower)))
+            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() +
+                                                  lsst.geom.Extent2I(dx0, 0),
+                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                     yLower)))
 
-            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin() + afwGeom.Extent2I(0, yLower),
-                                             afwGeom.Extent2I(dataBBox.getWidth(), yUpper)))
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, yLower),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                 yUpper)))
+            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin() + lsst.geom.Extent2I(0, yLower),
+                                               lsst.geom.Extent2I(dataBBox.getWidth(), yUpper)))
+            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, yLower),
+                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                     yUpper)))
         else:
-            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
-                                             afwGeom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                 oscanBBox.getHeight())))
+            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
+                                               lsst.geom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
+            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, 0),
+                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                     oscanBBox.getHeight())))
 
         # Perform overscan correction on subregions, ensuring saturated pixels are masked.
         for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
@@ -2053,7 +2053,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     xURC = xc + meshXHalf - 1
                     yURC = yc + meshYHalf - 1
 
-                    bbox = afwGeom.Box2I(afwGeom.Point2I(xLLC, yLLC), afwGeom.Point2I(xURC, yURC))
+                    bbox = lsst.geom.Box2I(lsst.geom.Point2I(xLLC, yLLC), lsst.geom.Point2I(xURC, yURC))
                     miMesh = maskedImage.Factory(exposure.getMaskedImage(), bbox, afwImage.LOCAL)
 
                     skyLevels[i, j] = afwMath.makeStatistics(miMesh, stat, statsControl).getValue()
@@ -2183,7 +2183,7 @@ class FakeAmp(object):
 
     def __init__(self, exposure, config):
         self._bbox = exposure.getBBox(afwImage.LOCAL)
-        self._RawHorizontalOverscanBBox = afwGeom.Box2I()
+        self._RawHorizontalOverscanBBox = lsst.geom.Box2I()
         self._gain = config.gain
         self._readNoise = config.readNoise
         self._saturation = config.saturation

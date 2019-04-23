@@ -23,8 +23,8 @@
 import unittest
 
 import lsst.utils.tests
+import lsst.geom
 import lsst.afw.image as afwImage
-import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
 
@@ -33,12 +33,12 @@ class IsrTestCases(lsst.utils.tests.TestCase):
     def testSaturation(self):
         saturation = 1000
 
-        bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Point2I(19, 19))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Point2I(19, 19))
         maskedImage = afwImage.MaskedImageF(bbox)
         maskedImage.set(100, 0x0, 1)
 
-        bbox = afwGeom.Box2I(afwGeom.Point2I(9, 5),
-                             afwGeom.Point2I(9, 15))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(9, 5),
+                               lsst.geom.Point2I(9, 15))
         submi = afwImage.MaskedImageF(maskedImage, bbox, afwImage.PARENT, False)
         submi.set(saturation, 0x0, 1)
 

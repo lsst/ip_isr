@@ -548,9 +548,9 @@ class IsrMock(pipeBase.Task):
         wcs : `lsst.afw.geom.SkyWcs`
             Test WCS transform.
         """
-        return afwGeom.makeSkyWcs(crpix=afwGeom.Point2D(0.0, 100.0),
-                                  crval=afwGeom.SpherePoint(45.0, 25.0, afwGeom.degrees),
-                                  cdMatrix=afwGeom.makeCdMatrix(scale=1.0*afwGeom.degrees))
+        return afwGeom.makeSkyWcs(crpix=lsst.geom.Point2D(0.0, 100.0),
+                                  crval=lsst.geom.SpherePoint(45.0, 25.0, lsst.geom.degrees),
+                                  cdMatrix=afwGeom.makeCdMatrix(scale=1.0*lsst.geom.degrees))
 
     def localCoordToExpCoord(self, ampData, x, y):
         r"""Convert between a local amplifier coordinate and the full

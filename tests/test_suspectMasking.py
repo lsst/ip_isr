@@ -25,8 +25,8 @@ import unittest
 import numpy as np
 
 import lsst.utils.tests
+import lsst.geom
 import lsst.afw.image as afwImage
-import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
 import lsst.ip.isr as ipIsr
 
@@ -37,7 +37,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         ampInfoShema = afwTable.AmpInfoTable.makeMinimalSchema()
         ampInfoCat = afwTable.AmpInfoCatalog(ampInfoShema)
         ampInfo = ampInfoCat.addNew()
-        ampInfo.setRawBBox(afwGeom.Box2I(afwGeom.Point2I(-5, 7), afwGeom.Extent2I(53, 104)))
+        ampInfo.setRawBBox(lsst.geom.Box2I(lsst.geom.Point2I(-5, 7), lsst.geom.Extent2I(53, 104)))
         ampInfo.setSuspectLevel(25000)
         self.ampInfo = ampInfo
         self.isrTask = ipIsr.IsrTask()

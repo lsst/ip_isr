@@ -21,7 +21,7 @@
 
 import numpy
 
-import lsst.afw.geom as afwGeom
+import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.afw.display as afwDisplay
@@ -364,7 +364,8 @@ def measure(mi, x, y, size, statistic, stats):
     @param stats       StatisticsControl object
     @return Value of statistic within aperture
     """
-    bbox = afwGeom.Box2I(afwGeom.Point2I(int(x) - size, int(y - size)), afwGeom.Extent2I(2*size, 2*size))
+    bbox = lsst.geom.Box2I(lsst.geom.Point2I(int(x) - size, int(y - size)),
+                           lsst.geom.Extent2I(2*size, 2*size))
     subImage = mi.Factory(mi, bbox, afwImage.LOCAL)
     return afwMath.makeStatistics(subImage, statistic, stats).getValue()
 
