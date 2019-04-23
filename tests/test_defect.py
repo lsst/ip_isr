@@ -46,7 +46,7 @@ class DefectTestCases(lsst.utils.tests.TestCase):
     def testDefectBase(self):
         """Test DefectBases"""
 
-        defectList = []
+        defectList = measAlg.Defects()
         ccdImage = afwImage.MaskedImageF(250, 225)
         ccdImage.set(self.setVal, 0, self.setVal)
         #
@@ -58,7 +58,7 @@ class DefectTestCases(lsst.utils.tests.TestCase):
             (180, 100, 182, 130),
         ]:
             bbox = afwGeom.Box2I(afwGeom.Point2I(x0, y0), afwGeom.Point2I(x1, y1))
-            defectList.append(measAlg.Defect(bbox))
+            defectList.append(bbox)
             bad = ccdImage.Factory(ccdImage, bbox, afwImage.LOCAL)
             bad.set(100)
 

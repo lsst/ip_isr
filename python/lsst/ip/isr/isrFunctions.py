@@ -21,6 +21,7 @@
 #
 import math
 import numpy
+from deprecated.sphinx import deprecated
 
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
@@ -81,7 +82,7 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     ----------
     maskedImage : `lsst.afw.image.MaskedImage`
         Image to process.
-    defectList : `list`
+    defectList : `lsst.meas.algorithms.Defects`
         List of defects to interpolate over.
     fwhm : scalar
         FWHM of double Gaussian smoothing kernel.
@@ -97,6 +98,8 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
 
 
+@deprecated(reason="Replaced by Defects.fromFootPrintList() (will be removed after v18)",
+            category=FutureWarning)
 def defectListFromFootprintList(fpList):
     """Compute a defect list from a footprint list, optionally growing the footprints.
 
@@ -107,37 +110,29 @@ def defectListFromFootprintList(fpList):
 
     Returns
     -------
-    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+    defectList : `lsst.meas.algorithms.Defects`
         List of defects.
     """
-    defectList = []
-    for fp in fpList:
-        for bbox in afwDetection.footprintToBBoxList(fp):
-            defect = measAlg.Defect(bbox)
-            defectList.append(defect)
-    return defectList
+    return measAlg.Defects.fromFootprintList(fpList)
 
-
+@deprecated(reason="Replaced by Defects.transpose() (will be removed after v18)",
+            category=FutureWarning)
 def transposeDefectList(defectList):
     """Make a transposed copy of a defect list.
 
     Parameters
     ----------
-    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+    defectList : `lsst.meas.algorithms.Defects`
         Input list of defects.
 
     Returns
     -------
-    retDefectList : `list` of `lsst.afw.meas.algorithms.Defect`
+    retDefectList : `lsst.meas.algorithms.Defects`
         Transposed list of defects.
     """
-    retDefectList = []
-    for defect in defectList:
-        bbox = defect.getBBox()
-        nbbox = afwGeom.Box2I(afwGeom.Point2I(bbox.getMinY(), bbox.getMinX()),
-                              afwGeom.Extent2I(bbox.getDimensions()[1], bbox.getDimensions()[0]))
-        retDefectList.append(measAlg.Defect(nbbox))
-    return retDefectList
+    if isinstance(defectList, measAlg.Defects):
+        return defectList.transpose()
+    return measAlg.Defects(defectList).transpose()
 
 
 def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
@@ -147,7 +142,7 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     ----------
     maskedImage : `lsst.afw.image.MaskedImage`
         Image to process.  Only the mask plane is updated.
-    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+    defectList : `lsst.meas.algorithms.Defects`
         Defect list to mask.
     maskName : str, optional
         Mask plane name to use.
@@ -167,18 +162,18 @@ def getDefectListFromMask(maskedImage, maskName):
     ----------
     maskedImage : `lsst.afw.image.MaskedImage`
         Image to process.
-    maskName : str or `list`
+    maskName : `str` or `list`
         Mask plane name, or list of names to convert.
 
     Returns
     -------
-    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+    defectList : `lsst.meas.algorithms.Defects`
         Defect list constructed from masked pixels.
     """
     mask = maskedImage.getMask()
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
     fpList = afwDetection.FootprintSet(mask, thresh).getFootprints()
-    return defectListFromFootprintList(fpList)
+    return measAlg.Defects.fromFootprintList(fpList)
 
 
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
@@ -197,7 +192,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
 
     Returns
     -------
-    defectList : `list` of `lsst.afw.meas.algorithms.Defect`
+    defectList : `lsst.meas.algorithms.Defects`
         Defect list constructed from pixels above the threshold.
     """
     # find saturated regions
@@ -213,7 +208,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     bitmask = mask.getPlaneBitMask(maskName)
     afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
-    return defectListFromFootprintList(fpList)
+    return measAlg.Defects.fromFootprintList(fpList)
 
 
 def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
@@ -240,7 +235,7 @@ def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fal
         # If we are interpolating over an area larger than the original masked region, we need
         # to expand the original mask bit to the full area to explain why we interpolated there.
         fpSet.setMask(mask, maskName)
-    defectList = defectListFromFootprintList(fpSet.getFootprints())
+    defectList = measAlg.Defects.fromFootprintList(fpSet.getFootprints())
     interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
 

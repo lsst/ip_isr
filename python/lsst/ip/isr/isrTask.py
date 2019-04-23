@@ -26,7 +26,6 @@ import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.afw.table as afwTable
-import lsst.meas.algorithms as measAlg
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 
@@ -39,7 +38,7 @@ from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
 from lsst.daf.persistence.butler import NoResults
 from lsst.meas.algorithms.detection import SourceDetectionTask
-from lsst.meas.algorithms import Defect
+from lsst.meas.algorithms import Defects
 
 from . import isrFunctions
 from . import isrQa
@@ -792,14 +791,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if inputData['defects'] is not None:
             # defects is loaded as a BaseCatalog with columns x0, y0, width, height.
             # masking expects a list of defects defined by their bounding box
-            defectList = []
-
-            for r in inputData['defects']:
-                bbox = afwGeom.BoxI(afwGeom.PointI(r.get("x0"), r.get("y0")),
-                                    afwGeom.ExtentI(r.get("width"), r.get("height")))
-                defectList.append(Defect(bbox))
-
-            inputData['defects'] = defectList
+            if not isinstance(inputData["defects"], Defects):
+                inputData["defects"] = Defects.fromTable(inputData["defects"])
 
         # Broken: DM-17169
         # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
@@ -848,7 +841,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             - ``dark``: dark calibration frame (`afw.image.Exposure`)
             - ``flat``: flat calibration frame (`afw.image.Exposure`)
             - ``bfKernel``: Brighter-Fatter kernel (`numpy.ndarray`)
-            - ``defects``: list of defects (`list`)
+            - ``defects``: list of defects (`lsst.meas.algorithms.Defects`)
             - ``fringes``: `lsst.pipe.base.Struct` with components:
                 - ``fringes``: fringe calibration frame (`afw.image.Exposure`)
                 - ``seed``: random seed derived from the ccdExposureId for random
@@ -999,7 +992,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Flat calibration frame.
         bfKernel : `numpy.ndarray`, optional
             Brighter-fatter kernel.
-        defects : `list`, optional
+        defects : `lsst.meas.algorithms.Defects`, optional
             List of defects.
         fringes : `lsst.pipe.base.Struct`, optional
             Struct containing the fringe correction data, with
@@ -1525,7 +1518,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         amp : `lsst.afw.table.AmpInfoCatalog`
             Catalog of parameters defining the amplifier on this
             exposure to mask.
-        defects : `list`
+        defects : `lsst.meas.algorithms.Defects`
             List of defects.  Used to determine if the entire
             amplifier is bad.
 
@@ -1948,7 +1941,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         ----------
         ccdExposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `List`
+        defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
+                         `lsst.afw.image.DefectBase`.
             List of defects to mask and interpolate.
 
         Notes
@@ -1956,11 +1950,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         Call this after CCD assembly, since defects may cross amplifier boundaries.
         """
         maskedImage = ccdExposure.getMaskedImage()
-        defectList = []
-        for d in defectBaseList:
-            bbox = d.getBBox()
-            nd = measAlg.Defect(bbox)
-            defectList.append(nd)
+        if not isinstance(defectBaseList, Defects):
+            # Promotes DefectBase to Defect
+            defectList = Defects(defectBaseList)
+        else:
+            defectList = defectBaseList
         isrFunctions.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
         isrFunctions.interpolateDefectList(
             maskedImage=maskedImage,
