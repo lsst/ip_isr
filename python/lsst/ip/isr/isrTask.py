@@ -116,7 +116,7 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Input defect tables.",
         name="defects",
         scalar=True,
-        storageClass="Catalog",
+        storageClass="DefectsList",
         dimensions=["Instrument", "CalibrationLabel", "Detector"],
     )
     opticsTransmission = pipeBase.InputDatasetField(
