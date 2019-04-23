@@ -1,9 +1,9 @@
 // -*- LSST-C++ -*- 
 
-/* 
+/*
  * LSST Data Management System
  * Copyright 2016 LSST Corporation.
- * 
+ *
  * This product includes software developed by the
  * LSST Project (http://www.lsst.org/).
  *
@@ -11,29 +11,29 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
- * You should have received a copy of the LSST License Statement and 
- * the GNU General Public License along with this program.  If not, 
+ *
+ * You should have received a copy of the LSST License Statement and
+ * the GNU General Public License along with this program.  If not,
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
- 
+
 /**
   * \file
   *
   * \ingroup isr
   *
-  * \brief Implementation of the templated Instrument Signature Removal 
+  * \brief Implementation of the templated Instrument Signature Removal
   * stage of the nightly LSST Image Processing Pipeline.
   */
-	
+
 #ifndef LSST_IP_ISR_ISR_H
 #define LSST_IP_ISR_ISR_H
-	
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,9 +45,9 @@
 #include "lsst/pex/exceptions/Exception.h"
 
 /** \brief Remove all non-astronomical counts from the Chunk Exposure's pixels.
-  * 
+  *
   */
-	
+
 namespace lsst {
 namespace ip {
 namespace isr {
@@ -56,7 +56,7 @@ namespace isr {
     class CountMaskedPixels {
     public:
         typedef typename lsst::afw::image::MaskedImage<ImageT>::x_iterator x_iterator;
-        CountMaskedPixels() : 
+        CountMaskedPixels() :
             _count(0) {} ;
         virtual ~CountMaskedPixels() {};
 
@@ -78,7 +78,7 @@ namespace isr {
 
         // Return the total counts
         int getCount() const { return _count; }
-        
+
     private:
         int _count;
     };
@@ -106,5 +106,5 @@ namespace isr {
         );
 
 }}} // namespace lsst::ip::isr
-	
+
 #endif // !defined(LSST_IP_ISR_ISR_H)
