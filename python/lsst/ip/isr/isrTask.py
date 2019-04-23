@@ -865,6 +865,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             - ``atmosphereTransmission`` : `lsst.afw.image.TransmissionCurve`
                 A ``TransmissionCurve`` that represents the throughput of the
                 atmosphere, assumed to be spatially constant.
+            - ``strayLightData`` : `object`
+                An opaque object containing calibration information for
+                stray-light correction.  If `None`, no correction will be
+                performed.
 
         Raises
         ------
@@ -928,6 +932,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             sensorTransmission = None
             atmosphereTransmission = None
 
+        if self.config.doStrayLight:
+            strayLightData = self.strayLight.readIsrData(dataRef, rawExposure)
+        else:
+            strayLightData = None
+
         # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
                                linearizer=linearizer,
@@ -941,6 +950,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                filterTransmission=filterTransmission,
                                sensorTransmission=sensorTransmission,
                                atmosphereTransmission=atmosphereTransmission,
+                               strayLightData=strayLightData
                                )
 
     @pipeBase.timeMethod
@@ -948,7 +958,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             dark=None, flat=None, bfKernel=None, defects=None, fringes=None,
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
-            detectorNum=None, isGen3=False
+            detectorNum=None, strayLightData=None, isGen3=False,
             ):
         """!Perform instrument signature removal on an exposure.
 
@@ -1013,6 +1023,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             The integer number for the detector to process.
         isGen3 : bool, optional
             Flag this call to run() as using the Gen3 butler environment.
+        strayLightData : `object`, optional
+            Opaque object containing calibration information for stray-light
+            correction.  If `None`, no correction will be performed.
 
         Returns
         -------
@@ -1234,9 +1247,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.debugView(ccdExposure, "doFringe")
 
         if self.config.doStrayLight:
-            self.log.info("Applying stray light correction.")
-            self.strayLight.run(ccdExposure)
-            self.debugView(ccdExposure, "doStrayLight")
+            if strayLightData is not None:
+                self.log.info("Applying stray light correction.")
+                self.strayLight.run(ccdExposure, strayLightData)
+                self.debugView(ccdExposure, "doStrayLight")
+            else:
+                self.log.debug("Skipping stray light correction: no data found for this image.")
 
         if self.config.doFlat:
             self.log.info("Applying flat correction.")

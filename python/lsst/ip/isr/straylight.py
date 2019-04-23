@@ -39,14 +39,44 @@ class StrayLightTask(Task):
     """
     ConfigClass = StrayLightConfig
 
-    def run(self, exposure, **kwargs):
+    def readIsrData(self, dataRef, rawExposure):
+        """Read and return calibration products relevant for correcting
+        stray light in the given exposure.
+
+        Parameters
+        ----------
+        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
+            Butler reference of the detector data to be processed
+        rawExposure : `afw.image.Exposure`
+            The raw exposure that will later be corrected with the
+            retrieved calibration data; should not be modified in this
+            method.
+
+        Returns
+        -------
+        straylightData : `object`, optional
+            An opaque object that should be passed as the second argument to
+            the `run` method.  If `None`, no stray light correction will be
+            performed for the given image.  Any other object (e.g. `True`)
+            may be used to signal that stray light correction should be
+            performed even if there is nothing to read.
+
+        Notes
+        -----
+        This method will be called only when `IsrTask` is run by the Gen2
+        Middleware (i.e. CmdLineTask).
+        """
+        return None
+
+    def run(self, exposure, strayLightData):
         """Correct stray light.
 
         Parameters
         ----------
         exposure : `lsst.afw.image.Exposure`
            Exposure to correct.
-
+        strayLightData : `object`, optional
+            An opaque object that contains any calibration data used to
+            correct for stray light.
         """
-        self.log.info("The generic StrayLightTask does not correct anything.")
-        return
+        raise NotImplementedError("Must be implemented by subclasses.")
