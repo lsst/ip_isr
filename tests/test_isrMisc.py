@@ -42,8 +42,8 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         """Assert that the straylight task does not error when given an exposure.
         """
         task = straylight.StrayLightTask()
-        task.run(self.inputExp)
-        self.assertTrue(True)
+        with self.assertRaises(NotImplementedError):
+            task.run(self.inputExp, None)
 
     def test_vignette_noWrite(self):
         """Assert that the vignette task does not error when given an exposure
