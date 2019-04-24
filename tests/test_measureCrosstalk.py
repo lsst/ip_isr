@@ -99,7 +99,7 @@ class MeasureCrosstalkTaskCases(lsst.utils.tests.TestCase):
         # DM-18528 This doesn't always fully converge, so be permissive
         # for now.  This is also more challenging on the test
         # chip due to density issues.
-        self.assertTrue(np.any(coeffErr))
+        self.assertTrue(np.all(coeffErr))
 
     def testMeasureCrosstalkTaskUntrimmed(self):
         """Measure crosstalk from a sequence of untrimmed mocked images.
@@ -109,7 +109,7 @@ class MeasureCrosstalkTaskCases(lsst.utils.tests.TestCase):
         # DM-18528 This doesn't always fully converge, so be permissive
         # for now.  This is also more challenging on the test
         # chip due to density issues.
-        self.assertTrue(np.any(coeffErr))
+        self.assertTrue(np.all(coeffErr))
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

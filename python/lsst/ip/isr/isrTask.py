@@ -52,6 +52,7 @@ from .masking import MaskingTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
 
+
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
 
@@ -421,7 +422,7 @@ class IsrTaskConfig(pexConfig.Config):
     doCrosstalkBeforeAssemble = pexConfig.Field(
         dtype=bool,
         doc="Apply crosstalk correction before CCD assembly, and before trimming?",
-        default=True,
+        default=False,
     )
     crosstalk = pexConfig.ConfigurableField(
         target=CrosstalkTask,
