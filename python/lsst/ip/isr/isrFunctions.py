@@ -24,7 +24,6 @@ import numpy
 from deprecated.sphinx import deprecated
 
 import lsst.geom
-import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
@@ -136,6 +135,8 @@ def transposeDefectList(defectList):
     return measAlg.Defects(defectList).transpose()
 
 
+@deprecated(reason="Replaced by Defects.maskPixels() (will be removed after v18)",
+            category=FutureWarning)
 def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     """Set mask plane based on a defect list.
 
@@ -148,14 +149,11 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     maskName : str, optional
         Mask plane name to use.
     """
-    # mask bad pixels
-    mask = maskedImage.getMask()
-    bitmask = mask.getPlaneBitMask(maskName)
-    for defect in defectList:
-        bbox = defect.getBBox()
-        afwGeom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
+    return defectList.maskPixels(maskedImage, maskName=maskName)
 
 
+@deprecated(reason="Replaced by Defects.fromMask() (will be removed after v18)",
+            category=FutureWarning)
 def getDefectListFromMask(maskedImage, maskName):
     """Compute a defect list from a specified mask plane.
 
@@ -171,10 +169,7 @@ def getDefectListFromMask(maskedImage, maskName):
     defectList : `lsst.meas.algorithms.Defects`
         Defect list constructed from masked pixels.
     """
-    mask = maskedImage.getMask()
-    thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
-    fpList = afwDetection.FootprintSet(mask, thresh).getFootprints()
-    return measAlg.Defects.fromFootprintList(fpList)
+    return measAlg.Defects.fromMask(maskedImage, maskName)
 
 
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):

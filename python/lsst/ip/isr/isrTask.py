@@ -1955,7 +1955,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             defectList = Defects(defectBaseList)
         else:
             defectList = defectBaseList
-        isrFunctions.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
+        defectList.maskPixels(maskedImage, maskName="BAD")
         isrFunctions.interpolateDefectList(
             maskedImage=maskedImage,
             defectList=defectList,
@@ -2000,7 +2000,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # Interpolate over these previously-unmasked NaNs
         if numNans > 0:
             self.log.warn("There were %i unmasked NaNs", numNans)
-            nanDefectList = isrFunctions.getDefectListFromMask(
+            nanDefectList = Defects.fromMask(
                 maskedImage=maskedImage,
                 maskName='UNMASKEDNAN',
             )
