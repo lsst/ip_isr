@@ -330,8 +330,11 @@ class IsrMock(pipeBase.Task):
         defectList : `lsst.meas.algorithms.Defects`
             Simulated defect list
         """
-        return Defects(lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                                       lsst.geom.Extent2I(40, 50)))
+        defectList = []
+        box = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                              lsst.geom.Extent2I(40, 50))
+        defectList.append(box)
+        return Defects(defectList)
 
     def makeCrosstalkCoeff(self):
         """Generate the simulated crosstalk coefficients.
