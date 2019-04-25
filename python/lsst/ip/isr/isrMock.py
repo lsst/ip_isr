@@ -22,11 +22,12 @@
 import numpy as np
 import tempfile
 
+import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.afw.cameraGeom.utils as afwUtils
 import lsst.afw.cameraGeom.testUtils as afwTestUtils
-from lsst.meas.algorithms import Defect
+from lsst.meas.algorithms import Defects
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 
@@ -326,14 +327,11 @@ class IsrMock(pipeBase.Task):
 
         Returns
         -------
-        defectList : `list` of `Defects`
+        defectList : `lsst.meas.algorithms.Defects`
             Simulated defect list
         """
-        defectList = []
-        bbox = afwGeom.BoxI(afwGeom.PointI(0, 0),
-                            afwGeom.ExtentI(40, 50))
-        defectList.append(Defect(bbox))
-        return defectList
+        return Defects(lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                       lsst.geom.Extent2I(40, 50)))
 
     def makeCrosstalkCoeff(self):
         r"""Generate the simulated crosstalk coefficients.
@@ -550,9 +548,9 @@ class IsrMock(pipeBase.Task):
         wcs : `lsst.afw.geom.SkyWcs`
             Test WCS transform.
         """
-        return afwGeom.makeSkyWcs(crpix=afwGeom.Point2D(0.0, 100.0),
-                                  crval=afwGeom.SpherePoint(45.0, 25.0, afwGeom.degrees),
-                                  cdMatrix=afwGeom.makeCdMatrix(scale=1.0*afwGeom.degrees))
+        return afwGeom.makeSkyWcs(crpix=lsst.geom.Point2D(0.0, 100.0),
+                                  crval=lsst.geom.SpherePoint(45.0, 25.0, lsst.geom.degrees),
+                                  cdMatrix=afwGeom.makeCdMatrix(scale=1.0*lsst.geom.degrees))
 
     def localCoordToExpCoord(self, ampData, x, y):
         r"""Convert between a local amplifier coordinate and the full

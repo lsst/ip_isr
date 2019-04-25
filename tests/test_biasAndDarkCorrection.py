@@ -23,16 +23,16 @@
 import unittest
 
 import lsst.utils.tests
+import lsst.geom
 import lsst.afw.image as afwImage
-import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
 
 class IsrTestCases(unittest.TestCase):
 
     def setUp(self):
-        self.pmin = afwGeom.Point2I(1, 1)
-        self.pmax = afwGeom.Point2I(10, 10)
+        self.pmin = lsst.geom.Point2I(1, 1)
+        self.pmax = lsst.geom.Point2I(10, 10)
         self.meanCountsKeyword = "IMMODE"
         self.filenameKeyword = "filename"
 
@@ -43,10 +43,10 @@ class IsrTestCases(unittest.TestCase):
         del self.filenameKeyword
 
     def testBias(self):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
 
-        bias = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        bias = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         bias.getImage().set(1)
         biasexposure = afwImage.ExposureF(bias, None)
         bmetadata = biasexposure.getMetadata()
@@ -62,10 +62,10 @@ class IsrTestCases(unittest.TestCase):
                 self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 9)
 
     def doDark(self, scaling):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
 
-        dark = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        dark = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         dark.getImage().set(1)
         darkexposure = afwImage.ExposureF(dark, None)
         dmetadata = darkexposure.getMetadata()

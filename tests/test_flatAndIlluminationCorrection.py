@@ -23,16 +23,16 @@
 import unittest
 
 import lsst.utils.tests
+import lsst.geom
 import lsst.afw.image as afwImage
-import lsst.afw.geom as afwGeom
 import lsst.ip.isr as ipIsr
 
 
 class IsrTestCases(unittest.TestCase):
 
     def setUp(self):
-        self.pmin = afwGeom.Point2I(1, 1)
-        self.pmax = afwGeom.Point2I(10, 10)
+        self.pmin = lsst.geom.Point2I(1, 1)
+        self.pmax = lsst.geom.Point2I(10, 10)
         self.flatScaleKeyword = "IMMODE"
         self.filenameKeyword = "filename"
 
@@ -43,10 +43,10 @@ class IsrTestCases(unittest.TestCase):
         del self.filenameKeyword
 
     def doFlat(self, scaling):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
 
-        flat = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        flat = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         flat.getImage().set(1)
         flatexposure = afwImage.ExposureF(flat, None)
         dmetadata = flatexposure.getMetadata()
@@ -70,10 +70,10 @@ class IsrTestCases(unittest.TestCase):
         self.doFlat(scaling=3.7)
 
     def doIllum(self, scaling):
-        maskedImage = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        maskedImage = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
 
-        illum = afwImage.MaskedImageF(afwGeom.Box2I(self.pmin, self.pmax))
+        illum = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         illum.getImage().set(1)
         illumexposure = afwImage.ExposureF(illum, None)
         dmetadata = illumexposure.getMetadata()

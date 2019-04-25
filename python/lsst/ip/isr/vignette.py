@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import numpy
 
+import lsst.geom
 import lsst.afw.geom as afwGeom
 
 from lsst.pex.config import Config, Field
@@ -83,7 +84,7 @@ class VignetteTask(Task):
             x = self.config.radius*numpy.cos(theta) + self.config.xCenter
             y = self.config.radius*numpy.sin(theta) + self.config.yCenter
             points = numpy.array([x, y]).transpose()
-            polygon = afwGeom.Polygon([afwGeom.Point2D(x1, y1) for x1, y1 in reversed(points)])
+            polygon = afwGeom.Polygon([lsst.geom.Point2D(x1, y1) for x1, y1 in reversed(points)])
             return polygon
         else:
             return None

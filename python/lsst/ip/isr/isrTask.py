@@ -22,11 +22,10 @@
 import math
 import numpy
 
-import lsst.afw.geom as afwGeom
+import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.afw.table as afwTable
-import lsst.meas.algorithms as measAlg
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 
@@ -39,7 +38,7 @@ from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
 from lsst.daf.persistence.butler import NoResults
 from lsst.meas.algorithms.detection import SourceDetectionTask
-from lsst.meas.algorithms import Defect
+from lsst.meas.algorithms import Defects
 
 from . import isrFunctions
 from . import isrQa
@@ -117,7 +116,7 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Input defect tables.",
         name="defects",
         scalar=True,
-        storageClass="Catalog",
+        storageClass="DefectsList",
         dimensions=["Instrument", "CalibrationLabel", "Detector"],
     )
     opticsTransmission = pipeBase.InputDatasetField(
@@ -792,14 +791,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if inputData['defects'] is not None:
             # defects is loaded as a BaseCatalog with columns x0, y0, width, height.
             # masking expects a list of defects defined by their bounding box
-            defectList = []
-
-            for r in inputData['defects']:
-                bbox = afwGeom.BoxI(afwGeom.PointI(r.get("x0"), r.get("y0")),
-                                    afwGeom.ExtentI(r.get("width"), r.get("height")))
-                defectList.append(Defect(bbox))
-
-            inputData['defects'] = defectList
+            if not isinstance(inputData["defects"], Defects):
+                inputData["defects"] = Defects.fromTable(inputData["defects"])
 
         # Broken: DM-17169
         # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
@@ -848,7 +841,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             - ``dark``: dark calibration frame (`afw.image.Exposure`)
             - ``flat``: flat calibration frame (`afw.image.Exposure`)
             - ``bfKernel``: Brighter-Fatter kernel (`numpy.ndarray`)
-            - ``defects``: list of defects (`list`)
+            - ``defects``: list of defects (`lsst.meas.algorithms.Defects`)
             - ``fringes``: `lsst.pipe.base.Struct` with components:
                 - ``fringes``: fringe calibration frame (`afw.image.Exposure`)
                 - ``seed``: random seed derived from the ccdExposureId for random
@@ -999,7 +992,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Flat calibration frame.
         bfKernel : `numpy.ndarray`, optional
             Brighter-fatter kernel.
-        defects : `list`, optional
+        defects : `lsst.meas.algorithms.Defects`, optional
             List of defects.
         fringes : `lsst.pipe.base.Struct`, optional
             Struct containing the fringe correction data, with
@@ -1525,7 +1518,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         amp : `lsst.afw.table.AmpInfoCatalog`
             Catalog of parameters defining the amplifier on this
             exposure to mask.
-        defects : `list`
+        defects : `lsst.meas.algorithms.Defects`
             List of defects.  Used to determine if the entire
             amplifier is bad.
 
@@ -1662,24 +1655,24 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 yUpper = self.config.overscanBiasJumpLocation
                 yLower = dataBBox.getHeight() - yUpper
 
-            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
-                                             afwGeom.Extent2I(dataBBox.getWidth(), yLower)))
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() +
-                                                afwGeom.Extent2I(dx0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                 yLower)))
+            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
+                                               lsst.geom.Extent2I(dataBBox.getWidth(), yLower)))
+            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() +
+                                                  lsst.geom.Extent2I(dx0, 0),
+                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                     yLower)))
 
-            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin() + afwGeom.Extent2I(0, yLower),
-                                             afwGeom.Extent2I(dataBBox.getWidth(), yUpper)))
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, yLower),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                 yUpper)))
+            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin() + lsst.geom.Extent2I(0, yLower),
+                                               lsst.geom.Extent2I(dataBBox.getWidth(), yUpper)))
+            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, yLower),
+                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                     yUpper)))
         else:
-            imageBBoxes.append(afwGeom.Box2I(dataBBox.getBegin(),
-                                             afwGeom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
-            overscanBBoxes.append(afwGeom.Box2I(oscanBBox.getBegin() + afwGeom.Extent2I(dx0, 0),
-                                                afwGeom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                 oscanBBox.getHeight())))
+            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
+                                               lsst.geom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
+            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, 0),
+                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
+                                                                     oscanBBox.getHeight())))
 
         # Perform overscan correction on subregions, ensuring saturated pixels are masked.
         for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
@@ -1948,7 +1941,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         ----------
         ccdExposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `List`
+        defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
+                         `lsst.afw.image.DefectBase`.
             List of defects to mask and interpolate.
 
         Notes
@@ -1956,12 +1950,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         Call this after CCD assembly, since defects may cross amplifier boundaries.
         """
         maskedImage = ccdExposure.getMaskedImage()
-        defectList = []
-        for d in defectBaseList:
-            bbox = d.getBBox()
-            nd = measAlg.Defect(bbox)
-            defectList.append(nd)
-        isrFunctions.maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD')
+        if not isinstance(defectBaseList, Defects):
+            # Promotes DefectBase to Defect
+            defectList = Defects(defectBaseList)
+        else:
+            defectList = defectBaseList
+        defectList.maskPixels(maskedImage, maskName="BAD")
         isrFunctions.interpolateDefectList(
             maskedImage=maskedImage,
             defectList=defectList,
@@ -2006,7 +2000,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # Interpolate over these previously-unmasked NaNs
         if numNans > 0:
             self.log.warn("There were %i unmasked NaNs", numNans)
-            nanDefectList = isrFunctions.getDefectListFromMask(
+            nanDefectList = Defects.fromMask(
                 maskedImage=maskedImage,
                 maskName='UNMASKEDNAN',
             )
@@ -2059,7 +2053,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     xURC = xc + meshXHalf - 1
                     yURC = yc + meshYHalf - 1
 
-                    bbox = afwGeom.Box2I(afwGeom.Point2I(xLLC, yLLC), afwGeom.Point2I(xURC, yURC))
+                    bbox = lsst.geom.Box2I(lsst.geom.Point2I(xLLC, yLLC), lsst.geom.Point2I(xURC, yURC))
                     miMesh = maskedImage.Factory(exposure.getMaskedImage(), bbox, afwImage.LOCAL)
 
                     skyLevels[i, j] = afwMath.makeStatistics(miMesh, stat, statsControl).getValue()
@@ -2189,7 +2183,7 @@ class FakeAmp(object):
 
     def __init__(self, exposure, config):
         self._bbox = exposure.getBBox(afwImage.LOCAL)
-        self._RawHorizontalOverscanBBox = afwGeom.Box2I()
+        self._RawHorizontalOverscanBBox = lsst.geom.Box2I()
         self._gain = config.gain
         self._readNoise = config.readNoise
         self._saturation = config.saturation
