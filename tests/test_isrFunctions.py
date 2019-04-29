@@ -75,7 +75,7 @@ def computeImageMedianAndStd(image):
 
 
 class IsrFunctionsCases(lsst.utils.tests.TestCase):
-    """Test functions for ISR produce expected outputs.
+    """Test that functions for ISR produce expected outputs.
     """
     def setUp(self):
         self.inputExp = isrMock.TrimmedRawMock().run()
@@ -182,13 +182,12 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         self.assertMaskedImagesAlmostEqual(self.mi, mi, atol=1e-3)
 
         darkMi = darkMi[1:-1, 1:-1, afwImage.LOCAL]
-
         with self.assertRaises(RuntimeError):
             ipIsr.darkCorrection(self.mi, darkMi, 1.0, 1.0, trimToFit=False)
 
     def test_biasCorrection(self):
         """Expect smaller median image value after.
-        Expect RuntimeError is sizes are different.
+        Expect RuntimeError if sizes are different.
         """
         biasExp = isrMock.BiasMock().run()
         biasMi = biasExp.getMaskedImage()
@@ -199,13 +198,12 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                         computeImageMedianAndStd(mi.getImage())[0])
 
         biasMi = biasMi[1:-1, 1:-1, afwImage.LOCAL]
-
         with self.assertRaises(RuntimeError):
             ipIsr.biasCorrection(self.mi, biasMi, trimToFit=False)
 
     def test_flatCorrection(self):
         """Expect round-trip application to be equal.
-        Expect RuntimeError if sizes are different or if scaling type isn't known.
+        Expect RuntimeError if sizes are different.
         """
         flatExp = isrMock.FlatMock().run()
         flatMi = flatExp.getMaskedImage()
@@ -250,7 +248,6 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                            computeImageMedianAndStd(mi.getImage())[0])
 
         flatMi = flatMi[1:-1, 1:-1, afwImage.LOCAL]
-
         with self.assertRaises(RuntimeError):
             ipIsr.illuminationCorrection(self.mi, flatMi, 1.0)
 
@@ -393,6 +390,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                                                  filterTransmission=curve,
                                                  sensorTransmission=curve,
                                                  atmosphereTransmission=curve)
+        # DM-19707: ip_isr functionality not fully tested by unit tests
         self.assertIsNotNone(combined)
 
     def test_attachTransmissionCurve_None(self):
@@ -404,6 +402,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                                                  filterTransmission=curve,
                                                  sensorTransmission=curve,
                                                  atmosphereTransmission=curve)
+        # DM-19707: ip_isr functionality not fully tested by unit tests
         self.assertIsNotNone(combined)
 
 

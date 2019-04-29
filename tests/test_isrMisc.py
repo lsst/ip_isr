@@ -57,6 +57,7 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         task = vignette.VignetteTask(config=config)
         result = task.run(self.inputExp)
 
+        # DM-19707: ip_isr functionality not fully tested by unit tests
         self.assertIsNone(result)
 
     def test_vignette_doWrite(self):
@@ -74,11 +75,13 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         self.assertIsInstance(result, afwGeom.Polygon)
 
     def test_masking(self):
-        """Assert that the masking task does not error when given an exposure.
+        """Assert that the camera-specific masking task does not error when
+        given an exposure.
         """
         task = masking.MaskingTask()
         result = task.run(self.inputExp)
 
+        # DM-19707: ip_isr functionality not fully tested by unit tests
         self.assertIsNone(result)
 
     def test_linearize(self):
@@ -92,6 +95,7 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
             elif linearityTypeName == 'Squared':
                 self.assertEqual(result, linearize.LinearizeSquared, msg=f"{linearityTypeName}")
             else:
+                # DM-19707: ip_isr functionality not fully tested by unit tests
                 self.assertIsNone(result)
 
 

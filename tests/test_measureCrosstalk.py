@@ -30,8 +30,25 @@ import lsst.ip.isr.isrMock as isrMock
 
 class MeasureCrosstalkTaskCases(lsst.utils.tests.TestCase):
 
-    def testMeasureCrosstalkTaskTrimmed(self):
-        """Measure crosstalk from a sequence of mocked images.
+    def setup_measureCrosstalk(self, isTrimmed=False, nSources=8):
+        """Generate a simulated set of exposures and test the measured
+        crosstalk matrix.
+
+        Parameters
+        ----------
+        isTrimmed : `bool`, optional
+            Should the simulation use trimmed or untrimmed raw
+            exposures?
+        nSources : `int`, optional
+            Number of random simulated sources to generate in the
+            simulated exposures.
+
+        Returns
+        -------
+        coeffErr : `np.ndarray`
+            Array of booleans indicating if the measured and expected
+            crosstalk ratios are smaller than the measured uncertainty
+            in the crosstalk ratio.
         """
         config = isrMock.IsrMockConfig()
         config.rngSeed = 12345
@@ -45,27 +62,39 @@ class MeasureCrosstalkTaskCases(lsst.utils.tests.TestCase):
         mct = MeasureCrosstalkTask(config=mcConfig)
         fullResult = []
 
-        config.isTrimmed = True
+        config.isTrimmed = isTrimmed
 
+        # Generate simulated set of exposures.
         for idx in range(0, 10):
             config.rngSeed = 12345 + idx * 1000
-            config.sourceAmp = [0, 1, 2, 3, 4, 5, 6, 7]
-            config.sourceFlux = [45000.0, 45000.0, 45000.0, 45000.0,
-                                 45000.0, 45000.0, 45000.0, 45000.0]
-            config.sourceX = [50.0, 25.0, 75.0, 12.5, 37.5, 67.5, 82.5]
-            config.sourceY = [25.0, 12.5, 37.5, 26.75, 22.25, 12.5, 37.5]
+
+            # Allow each simulated exposure to have nSources random
+            # bright sources.
+            config.sourceAmp = (np.random.randint(8, size=nSources)).tolist()
+            config.sourceFlux = ((np.random.random(size=nSources) * 25000.0 + 20000.0).tolist())
+            config.sourceX = ((np.random.random(size=nSources) * 100.0).tolist())
+            config.sourceY = ((np.random.random(size=nSources) * 50.0).tolist())
+
             exposure = isrMock.CalibratedRawMock(config=config).run()
             result = mct.run(exposure, dataId=None)
             fullResult.append(result)
 
+        # Generate the final measured CT ratios, uncertainties, pixel counts.
         coeff, coeffSig, coeffNum = mct.reduce(fullResult)
 
         # Needed because measureCrosstalk cannot find coefficients equal to 0.0
         coeff = np.nan_to_num(coeff)
         coeffSig = np.nan_to_num(coeffSig)
 
+        # Compare result against expectation used to create the simulation.
         expectation = isrMock.CrosstalkCoeffMock().run()
         coeffErr = abs(coeff - expectation) <= coeffSig
+        return coeffErr
+
+    def testMeasureCrosstalkTaskTrimmed(self):
+        """Measure crosstalk from a sequence of trimmed mocked images.
+        """
+        coeffErr = self.setup_measureCrosstalk(isTrimmed=True, nSources=8)
 
         # DM-18528 This doesn't always fully converge, so be permissive
         # for now.  This is also more challenging on the test
@@ -73,41 +102,9 @@ class MeasureCrosstalkTaskCases(lsst.utils.tests.TestCase):
         self.assertTrue(np.any(coeffErr))
 
     def testMeasureCrosstalkTaskUntrimmed(self):
-        """Measure crosstalk from a sequence of mocked images.
+        """Measure crosstalk from a sequence of untrimmed mocked images.
         """
-        config = isrMock.IsrMockConfig()
-        config.rngSeed = 12345
-        config.doAddCrosstalk = True
-        config.doAddSky = True
-        config.doAddSource = True
-        config.skyLevel = 0.0
-        config.readNoise = 0.0
-        mcConfig = MeasureCrosstalkConfig()
-        mcConfig.threshold = 4000
-        mct = MeasureCrosstalkTask(config=mcConfig)
-        fullResult = []
-
-        config.isTrimmed = False
-
-        for idx in range(0, 10):
-            config.rngSeed = 12345 + idx * 1000
-            config.sourceAmp = [0, 1, 2, 3, 4, 5, 6, 7]
-            config.sourceFlux = [45000.0, 45000.0, 45000.0, 45000.0,
-                                 45000.0, 45000.0, 45000.0, 45000.0]
-            config.sourceX = [50.0, 25.0, 75.0, 12.5, 37.5, 67.5, 82.5]
-            config.sourceY = [25.0, 12.5, 37.5, 26.75, 22.25, 12.5, 37.5]
-            exposure = isrMock.CalibratedRawMock(config=config).run()
-            result = mct.run(exposure, dataId=None)
-            fullResult.append(result)
-
-        coeff, coeffSig, coeffNum = mct.reduce(fullResult)
-
-        # Needed because measureCrosstalk cannot find coefficients equal to 0.0
-        coeff = np.nan_to_num(coeff)
-        coeffSig = np.nan_to_num(coeffSig)
-
-        expectation = isrMock.CrosstalkCoeffMock().run()
-        coeffErr = abs(coeff - expectation) <= coeffSig
+        coeffErr = self.setup_measureCrosstalk(isTrimmed=False, nSources=8)
 
         # DM-18528 This doesn't always fully converge, so be permissive
         # for now.  This is also more challenging on the test

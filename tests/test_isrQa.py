@@ -46,14 +46,6 @@ class IsrQaCases(lsst.utils.tests.TestCase):
 
         self.assertTrue(np.nonzero(thumb))
 
-    def test_writeThumbnail(self):
-        """Test that a thumbnail can be "written" to disk by a mock dataRef.
-        """
-        dataRef = isrMock.DataRefMock()
-        thumb = isrQa.makeThumbnail(self.inputExp, self.config)
-
-        isrQa.writeThumbnail(dataRef, thumb, "thumbnail")
-
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

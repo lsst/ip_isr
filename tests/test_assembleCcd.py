@@ -34,7 +34,8 @@ class AssembleCcdTestCases(lsst.utils.tests.TestCase):
         self.outputUntrimmedExp = isrMock.RawMock().run()
 
     def runTest(self, inputExp=None, doTrim=False):
-        """Test guts to avoid code duplication.
+        """Create an appropriate assembly configuration and task, returning
+        the results of AssembleCcdTask.assembleCcd().
 
         Parameters
         ----------
