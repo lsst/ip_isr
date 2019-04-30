@@ -149,7 +149,7 @@ def maskPixelsFromDefectList(maskedImage, defectList, maskName='BAD'):
     maskName : str, optional
         Mask plane name to use.
     """
-    return defectList.maskPixels(maskedImage, maskName=maskName)
+    return lsst.meas.algorithms.Defects(defectList).maskPixels(maskedImage, maskName=maskName)
 
 
 @deprecated(reason="Replaced by Defects.fromMask() (will be removed after v18)",
