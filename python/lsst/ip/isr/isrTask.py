@@ -100,6 +100,12 @@ class IsrTaskConfig(pexConfig.Config):
         storageClass="MaskedImageF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
+    fringeCalib = pipeBase.InputDatasetField(
+        doc="Input fringe calibration.",
+        name="fringe",
+        storageClass="MaskedImageF",
+        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+    )
     bfKernel = pipeBase.InputDatasetField(
         doc="Input brighter-fatter kernel.",
         name="bfKernel",
@@ -713,6 +719,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             inputTypeDict.pop("dark", None)
         if config.doFlat is not True:
             inputTypeDict.pop("flat", None)
+        if config.doFringe is not True:
+            inputTypeDict.pop("fringeCalib", None)
         if config.doAttachTransmissionCurve is not True:
             inputTypeDict.pop("opticsTransmission", None)
             inputTypeDict.pop("filterTransmission", None)
@@ -760,6 +768,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # dimension".
         return frozenset(["calibration_label"])
 
+    @classmethod
+    def getDatasetTypeMultiplicities(cls, config):
+        # Fringes are optional, because we only have them for some bands.
+        if config.doFringe:
+            return dict(fringeCalib=pipeBase.multiplicity.Scalar(optional=True))
+        else:
+            return dict()
+
     def adaptArgsAndRun(self, inputData, inputDataIds, outputDataIds, butler):
         try:
             inputData['detectorNum'] = int(inputDataIds['ccdExposure']['detector'])
@@ -786,14 +802,23 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # inputData['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputDataIds['ccdExposure'])
         #                        if self.config.doCrosstalk else None)
 
-        # Broken: DM-17152
-        # Fringes are not tested to be handled correctly by Gen3 butler.
-        # inputData['fringes'] = (self.fringe.readFringes(inputDataIds['ccdExposure'],
-        #                                                 assembler=self.assembleCcd
-        #                                                 if self.config.doAssembleIsrExposures else None)
-        #                         if self.config.doFringe and
-        #                            self.fringe.checkFilter(inputData['ccdExposure'])
-        #                         else pipeBase.Struct(fringes=None))
+        # This block duplicates and updates the logic in
+        # FringeTask.readFringes, which could be removed when Gen2 is retired.
+        if self.config.doFringe:
+            if self.config.doAssembleIsrExposures:
+                raise RuntimeError("Cannot perform fringe correction in Gen3 "
+                                   "if doAssembleIsrExposures is True.")
+            if self.fringe.checkFilter(inputData["ccdExposure"]) and inputData['fringeCalib'] is None:
+                raise ValueError(f"Required fringe for {inputDataIds['ccdExposure']} not found.")
+            expId = butler.registry.packDataId("exposure_detector",
+                                               inputDataIds["ccdExposure"],
+                                               returnMaxBits=False)
+            seed = self.config.stats.rngSeedOffset + expId
+            # Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
+            seed %= 2**32
+            # Add seed, rename argument to "fringe" (which we can't use in the
+            # config because it's already the name of the subtask).
+            inputData["fringe"] = pipeBase.Struct(fringes=inputData.pop("fringeCalib"), seed=seed)
 
         return super().adaptArgsAndRun(inputData, inputDataIds, outputDataIds, butler)
 
@@ -1050,11 +1075,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         """
 
         if isGen3 is True:
-            # Gen3 currently cannot automatically do configuration overrides.
-            # DM-15257 looks to discuss this issue.
-
-            self.config.doFringe = False
-
             # Configure input exposures;
             if detectorNum is None:
                 raise RuntimeError("Must supply the detectorNum if running as Gen3")
