@@ -73,77 +73,66 @@ class IsrTaskConfig(pexConfig.Config):
     ccdExposure = pipeBase.InputDatasetField(
         doc="Input exposure to process",
         name="raw",
-        scalar=True,
         storageClass="ExposureU",
         dimensions=["instrument", "exposure", "detector"],
     )
     camera = pipeBase.InputDatasetField(
         doc="Input camera to construct complete exposures.",
         name="camera",
-        scalar=True,
         storageClass="TablePersistableCamera",
         dimensions=["instrument", "calibration_label"],
     )
     bias = pipeBase.InputDatasetField(
         doc="Input bias calibration.",
         name="bias",
-        scalar=True,
         storageClass="ImageF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     dark = pipeBase.InputDatasetField(
         doc="Input dark calibration.",
         name="dark",
-        scalar=True,
         storageClass="ImageF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     flat = pipeBase.InputDatasetField(
         doc="Input flat calibration.",
         name="flat",
-        scalar=True,
         storageClass="MaskedImageF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
     bfKernel = pipeBase.InputDatasetField(
         doc="Input brighter-fatter kernel.",
         name="bfKernel",
-        scalar=True,
         storageClass="NumpyArray",
         dimensions=["instrument", "calibration_label"],
     )
     defects = pipeBase.InputDatasetField(
         doc="Input defect tables.",
         name="defects",
-        scalar=True,
         storageClass="DefectsList",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     opticsTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the optics.",
         name="transmission_optics",
-        scalar=True,
         storageClass="TablePersistableTransmissionCurve",
         dimensions=["instrument", "calibration_label"],
     )
     filterTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the filter.",
         name="transmission_filter",
-        scalar=True,
         storageClass="TablePersistableTransmissionCurve",
         dimensions=["instrument", "physical_filter", "calibration_label"],
     )
     sensorTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the sensor.",
         name="transmission_sensor",
-        scalar=True,
         storageClass="TablePersistableTransmissionCurve",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     atmosphereTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the atmosphere.",
         name="transmission_atmosphere",
-        scalar=True,
         storageClass="TablePersistableTransmissionCurve",
         dimensions=["instrument"],
     )
@@ -152,21 +141,18 @@ class IsrTaskConfig(pexConfig.Config):
     outputExposure = pipeBase.OutputDatasetField(
         doc="Output ISR processed exposure.",
         name="postISRCCD",
-        scalar=True,
         storageClass="ExposureF",
         dimensions=["instrument", "visit", "detector"],
     )
     outputOssThumbnail = pipeBase.OutputDatasetField(
         doc="Output Overscan-subtracted thumbnail image.",
         name="OssThumb",
-        scalar=True,
         storageClass="Thumbnail",
         dimensions=["instrument", "visit", "detector"],
     )
     outputFlattenedThumbnail = pipeBase.OutputDatasetField(
         doc="Output flat-corrected thumbnail image.",
         name="FlattenedThumb",
-        scalar=True,
         storageClass="TextStorage",
         dimensions=["instrument", "visit", "detector"],
     )
