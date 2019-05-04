@@ -74,7 +74,7 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Input exposure to process",
         name="raw",
         scalar=True,
-        storageClass="ExposureU",
+        storageClass="Exposure",
         dimensions=["instrument", "exposure", "detector"],
     )
     camera = pipeBase.InputDatasetField(
