@@ -370,7 +370,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
     fwhm = pexConfig.Field(
         dtype=float,
-        doc="FWHM of PSF in arcseconds.",
+        doc="FWHM of PSF in arcseconds (currently unused).",
         default=1.0,
     )
     qa = pexConfig.ConfigField(
