@@ -127,6 +127,16 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         with self.assertRaises(RuntimeError):
             llt(image, detBadLinType)
 
+        # wrong dimension
+        badTable = table[..., np.newaxis]
+        with self.assertRaises(RuntimeError):
+            LinearizeLookupTable(table=badTable, detector=self.detector)
+
+        # wrong size
+        badTable = np.resize(table, (2, 8))
+        with self.assertRaises(RuntimeError):
+            LinearizeLookupTable(table=badTable, detector=self.detector)
+
     def testKnown(self):
         """!Test a few known values
         """

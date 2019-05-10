@@ -40,7 +40,7 @@ __all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock
 
 
 class IsrMockConfig(pexConfig.Config):
-    r"""Configuration parameters for isrMock.
+    """Configuration parameters for isrMock.
 
     These parameters produce generic fixed position signals from
     various sources, and combine them in a way that matches how those
@@ -229,7 +229,7 @@ class IsrMockConfig(pexConfig.Config):
 
 
 class IsrMock(pipeBase.Task):
-    r"""Class to generate consistent mock images for ISR testing.
+    """Class to generate consistent mock images for ISR testing.
 
     ISR testing currently relies on one-off fake images that do not
     accurately mimic the full set of detector effects. This class
@@ -259,7 +259,7 @@ class IsrMock(pipeBase.Task):
                                   [1., 4., 7., 4., 1.]]) / 273.0
 
     def run(self):
-        r"""Generate a mock ISR product, and return it.
+        """Generate a mock ISR product, and return it.
 
         Returns
         -------
@@ -285,7 +285,7 @@ class IsrMock(pipeBase.Task):
             return None
 
     def makeData(self):
-        r"""Generate simulated ISR data.
+        """Generate simulated ISR data.
 
         Currently, only the class defined crosstalk coefficient
         matrix, brighter-fatter kernel, a constant unity transmission
@@ -313,7 +313,7 @@ class IsrMock(pipeBase.Task):
             return None
 
     def makeBfKernel(self):
-        r"""Generate a simple Gaussian brighter-fatter kernel.
+        """Generate a simple Gaussian brighter-fatter kernel.
 
         Returns
         -------
@@ -323,18 +323,18 @@ class IsrMock(pipeBase.Task):
         return self.bfKernel
 
     def makeDefectList(self):
-        r"""Generate a simple single-entry defect list.
+        """Generate a simple single-entry defect list.
 
         Returns
         -------
         defectList : `lsst.meas.algorithms.Defects`
             Simulated defect list
         """
-        return Defects(lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                                       lsst.geom.Extent2I(40, 50)))
+        return Defects([lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                        lsst.geom.Extent2I(40, 50))])
 
     def makeCrosstalkCoeff(self):
-        r"""Generate the simulated crosstalk coefficients.
+        """Generate the simulated crosstalk coefficients.
 
         Returns
         -------
@@ -345,7 +345,7 @@ class IsrMock(pipeBase.Task):
         return self.crosstalkCoeffs
 
     def makeTransmissionCurve(self):
-        r"""Generate a simulated flat transmission curve.
+        """Generate a simulated flat transmission curve.
 
         Returns
         -------
@@ -356,7 +356,7 @@ class IsrMock(pipeBase.Task):
         return afwImage.TransmissionCurve.makeIdentity()
 
     def makeImage(self):
-        r"""Generate a simulated ISR image.
+        """Generate a simulated ISR image.
 
         Returns
         -------
@@ -474,7 +474,7 @@ class IsrMock(pipeBase.Task):
 
     # afw primatives to construct the image structure
     def getCamera(self):
-        r"""Construct a test camera object.
+        """Construct a test camera object.
 
         Returns
         -------
@@ -486,7 +486,7 @@ class IsrMock(pipeBase.Task):
         return camera
 
     def getExposure(self):
-        r"""Construct a test exposure.
+        """Construct a test exposure.
 
         The test exposure has a simple WCS set, as well as a list of
         unlikely header keywords that can be removed during ISR
@@ -536,7 +536,7 @@ class IsrMock(pipeBase.Task):
         return exposure
 
     def getWcs(self):
-        r"""Construct a dummy WCS object.
+        """Construct a dummy WCS object.
 
         Taken from the deprecated ip_isr/examples/exampleUtils.py.
 
@@ -553,7 +553,7 @@ class IsrMock(pipeBase.Task):
                                   cdMatrix=afwGeom.makeCdMatrix(scale=1.0*lsst.geom.degrees))
 
     def localCoordToExpCoord(self, ampData, x, y):
-        r"""Convert between a local amplifier coordinate and the full
+        """Convert between a local amplifier coordinate and the full
         exposure coordinate.
 
         Parameters
@@ -584,7 +584,7 @@ class IsrMock(pipeBase.Task):
 
     # Simple data values.
     def amplifierAddNoise(self, ampData, mean, sigma):
-        r"""Add Gaussian noise to an amplifier's image data.
+        """Add Gaussian noise to an amplifier's image data.
 
          This method operates in the amplifier coordinate frame.
 
@@ -602,7 +602,7 @@ class IsrMock(pipeBase.Task):
                                                 size=ampData.getDimensions()).transpose()
 
     def amplifierAddYGradient(self, ampData, start, end):
-        r"""Add a y-axis linear gradient to an amplifier's image data.
+        """Add a y-axis linear gradient to an amplifier's image data.
 
          This method operates in the amplifier coordinate frame.
 
@@ -621,7 +621,7 @@ class IsrMock(pipeBase.Task):
                                  np.zeros(ampData.getDimensions()).transpose())
 
     def amplifierAddSource(self, ampData, scale, x0, y0):
-        r"""Add a single Gaussian source to an amplifier.
+        """Add a single Gaussian source to an amplifier.
 
          This method operates in the amplifier coordinate frame.
 
@@ -642,7 +642,7 @@ class IsrMock(pipeBase.Task):
                                        scale * np.exp(-0.5 * ((x - x0)**2 + (y - y0)**2) / 3.0**2))
 
     def amplifierAddCT(self, ampDataSource, ampDataTarget, scale):
-        r"""Add a scaled copy of an amplifier to another, simulating crosstalk.
+        """Add a scaled copy of an amplifier to another, simulating crosstalk.
 
          This method operates in the amplifier coordinate frame.
 
@@ -664,7 +664,7 @@ class IsrMock(pipeBase.Task):
 
     # Functional form data values
     def amplifierAddFringe(self, amp, ampData, scale):
-        r"""Add a fringe-like ripple pattern to an amplifier's image data.
+        """Add a fringe-like ripple pattern to an amplifier's image data.
 
         Parameters
         ----------
@@ -690,7 +690,7 @@ class IsrMock(pipeBase.Task):
                                        scale * np.sinc(((u - 100)/150)**2 + (v / 150)**2))
 
     def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
-        r"""Multiply an amplifier's image data by a flat-like pattern.
+        """Multiply an amplifier's image data by a flat-like pattern.
 
         Parameters
         ----------
@@ -725,7 +725,7 @@ class IsrMock(pipeBase.Task):
 
 
 class RawMock(IsrMock):
-    r"""Generate a raw exposure suitable for ISR.
+    """Generate a raw exposure suitable for ISR.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -741,7 +741,7 @@ class RawMock(IsrMock):
 
 
 class TrimmedRawMock(RawMock):
-    r"""Generate a trimmed raw exposure.
+    """Generate a trimmed raw exposure.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -750,7 +750,7 @@ class TrimmedRawMock(RawMock):
 
 
 class CalibratedRawMock(RawMock):
-    r"""Generate a trimmed raw exposure.
+    """Generate a trimmed raw exposure.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -766,7 +766,7 @@ class CalibratedRawMock(RawMock):
 
 
 class RawDictMock(RawMock):
-    r"""Generate a raw exposure dict suitable for ISR.
+    """Generate a raw exposure dict suitable for ISR.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -774,7 +774,7 @@ class RawDictMock(RawMock):
 
 
 class MasterMock(IsrMock):
-    r"""Parent class for those that make master calibrations.
+    """Parent class for those that make master calibrations.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -792,7 +792,7 @@ class MasterMock(IsrMock):
 
 
 class BiasMock(MasterMock):
-    r"""Simulated master bias calibration.
+    """Simulated master bias calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -801,7 +801,7 @@ class BiasMock(MasterMock):
 
 
 class DarkMock(MasterMock):
-    r"""Simulated master dark calibration.
+    """Simulated master dark calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -810,7 +810,7 @@ class DarkMock(MasterMock):
 
 
 class FlatMock(MasterMock):
-    r"""Simulated master flat calibration.
+    """Simulated master flat calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -818,7 +818,7 @@ class FlatMock(MasterMock):
 
 
 class FringeMock(MasterMock):
-    r"""Simulated master fringe calibration.
+    """Simulated master fringe calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -826,7 +826,7 @@ class FringeMock(MasterMock):
 
 
 class UntrimmedFringeMock(FringeMock):
-    r"""Simulated untrimmed master fringe calibration.
+    """Simulated untrimmed master fringe calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -834,7 +834,7 @@ class UntrimmedFringeMock(FringeMock):
 
 
 class BfKernelMock(IsrMock):
-    r"""Simulated brighter-fatter kernel.
+    """Simulated brighter-fatter kernel.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -847,7 +847,7 @@ class BfKernelMock(IsrMock):
 
 
 class DefectMock(IsrMock):
-    r"""Simulated defect list.
+    """Simulated defect list.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -860,7 +860,7 @@ class DefectMock(IsrMock):
 
 
 class CrosstalkCoeffMock(IsrMock):
-    r"""Simulated crosstalk coefficient matrix.
+    """Simulated crosstalk coefficient matrix.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -873,7 +873,7 @@ class CrosstalkCoeffMock(IsrMock):
 
 
 class TransmissionMock(IsrMock):
-    r"""Simulated transmission curve.
+    """Simulated transmission curve.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -886,7 +886,7 @@ class TransmissionMock(IsrMock):
 
 
 class DataRefMock(object):
-    r"""Simulated gen2 butler data ref.
+    """Simulated gen2 butler data ref.
 
     Currently only supports get and put operations, which are most
     likely to be called for data in ISR processing.
@@ -918,7 +918,7 @@ class DataRefMock(object):
         self.config.doGenerateData = True
 
     def get(self, dataType, **kwargs):
-        r"""Return an appropriate data product.
+        """Return an appropriate data product.
 
         Parameters
         ----------
@@ -971,7 +971,7 @@ class DataRefMock(object):
             raise RuntimeError("ISR DataRefMock cannot return %s.", dataType)
 
     def put(self, exposure, filename):
-        r"""Write an exposure to a FITS file.
+        """Write an exposure to a FITS file.
 
         Parameters
         ----------

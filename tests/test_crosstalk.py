@@ -21,6 +21,7 @@
 
 import unittest
 import itertools
+import tempfile
 
 import numpy as np
 
@@ -32,7 +33,8 @@ import lsst.afw.cameraGeom
 from lsst.afw.table import LL, LR, UL, UR
 from lsst.pipe.base import Struct
 from lsst.ip.isr import (IsrTask, subtractCrosstalk, extractCrosstalkRatios, measureCrosstalkCoefficients,
-                         MeasureCrosstalkTask)
+                         MeasureCrosstalkTask, writeCrosstalkCoeffs, CrosstalkTask, NullCrosstalkTask)
+
 
 try:
     display
@@ -41,6 +43,9 @@ except NameError:
 else:
     import lsst.afw.display as afwDisplay
     afwDisplay.setDefaultMaskTransparency(75)
+
+
+outputName = None    # specify a name (as a string) to save the output crosstalk coeffs.
 
 
 class CrosstalkTestCase(lsst.utils.tests.TestCase):
@@ -173,6 +178,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
                           crosstalkStr=self.crosstalkStr)
         self.checkSubtracted(self.exposure)
 
+        outPath = tempfile.mktemp() if outputName is None else "{}-isrCrosstalk".format(outputName)
+        writeCrosstalkCoeffs(outPath, coeff, det=None, crosstalkName="testDirectAPI", indent=2)
+
     def testTaskAPI(self):
         """Test that the Tasks work
 
@@ -200,6 +208,23 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         isr = IsrTask(config=config)
         isr.crosstalk.run(self.exposure)
         self.checkSubtracted(self.exposure)
+
+    def test_prepCrosstalk(self):
+        """Test that prep crosstalk does not error when given a dataRef with no
+        crosstalkSources to find.
+        """
+        dataRef = Struct(dataId={'fake': 1})
+        task = CrosstalkTask()
+        result = task.prepCrosstalk(dataRef)
+        self.assertIsNone(result)
+
+    def test_nullCrosstalkTask(self):
+        """Test that the null crosstalk task does not create an error.
+        """
+        exposure = self.exposure
+        task = NullCrosstalkTask()
+        result = task.run(exposure, crosstalkSources=None)
+        self.assertIsNone(result)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

@@ -27,7 +27,10 @@ import lsst.utils.tests
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.afw.image.utils as afwImageUtils
+import lsst.pipe.base as pipeBase
 from lsst.ip.isr.fringe import FringeTask
+
+import lsst.ip.isr.isrMock as isrMock
 
 try:
     display
@@ -90,6 +93,7 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         self.config.small = 1
         self.config.large = 128
         self.config.pedestal = False
+        self.config.iterations = 10
         afwImageUtils.defineFilter('FILTER', lambdaEff=0)
 
     def tearDown(self):
@@ -251,6 +255,15 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         mi = exp.getMaskedImage()
         mi -= afwMath.makeStatistics(mi, afwMath.MEAN).getValue()
         self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), stddevMax)
+
+    def test_readFringes(self):
+        """Test that fringes can be successfully accessed from the butler.
+        """
+        task = FringeTask()
+        dataRef = isrMock.DataRefMock()
+
+        result = task.readFringes(dataRef, assembler=None)
+        self.assertIsInstance(result, pipeBase.Struct)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

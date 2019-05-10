@@ -667,7 +667,7 @@ class IsrTaskConfig(pexConfig.Config):
 
 
 class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
-    r"""Apply common instrument signature correction algorithms to a raw frame.
+    """Apply common instrument signature correction algorithms to a raw frame.
 
     The process for correcting imaging data is very similar from
     camera to camera.  This task provides a vanilla implementation of
@@ -1140,7 +1140,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                        (amp.getName(), qaMedian, qaStdev))
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
-                    self.log.warn("Amplifier %s is bad." % (amp.getName()))
+                    if badAmp:
+                        self.log.warn("Amplifier %s is bad." % (amp.getName()))
                     overscanResults = None
 
                 overscans.append(overscanResults if overscanResults is not None else None)
@@ -1464,6 +1465,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             inputExp = afwImage.makeExposure(inputExp)
         elif isinstance(inputExp, afwImage.Exposure):
             pass
+        elif inputExp is None:
+            # Assume this will be caught by the setup if it is a problem.
+            return inputExp
         else:
             raise TypeError(f"Input Exposure is not known type in isrTask.ensureExposure: {type(inputExp)}")
 
@@ -1555,6 +1559,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             limits.update({self.config.saturatedMaskName: amp.getSaturation()})
         if self.config.doSuspect and not badAmp:
             limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
+        if math.isfinite(self.config.saturation):
+            limits.update({self.config.saturatedMaskName: self.config.saturation})
 
         for maskName, maskThreshold in limits.items():
             if not math.isnan(maskThreshold):
