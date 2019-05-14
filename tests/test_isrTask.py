@@ -220,7 +220,6 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         flatExp = isrMock.FlatMock().run()
 
         mi = self.inputExp.getMaskedImage().clone()
-        self.inputExp.writeFits("/tmp/czwBefore.fits")
         with self.task.flatContext(self.inputExp, flatExp, darkExp):
             contextStat = computeImageMedianAndStd(self.inputExp.getMaskedImage().getImage())
             self.assertFloatsAlmostEqual(contextStat[0], 37269.914, atol=1e-2)
