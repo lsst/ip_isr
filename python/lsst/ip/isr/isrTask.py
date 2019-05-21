@@ -147,6 +147,13 @@ class IsrTaskConfig(pexConfig.Config):
         storageClass="TablePersistableTransmissionCurve",
         dimensions=["instrument"],
     )
+    illumMaskedImage = pipeBase.InputDatasetField(
+        doc="Input illumination correction.",
+        name="illum",
+        scalar=True,
+        storageClass="MaskedImageF",
+        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+    )
 
     # output datasets
     outputExposure = pipeBase.OutputDatasetField(
@@ -679,6 +686,28 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Load and use transmission_atmosphere (if doAttachTransmissionCurve is True)?"
     )
 
+    # Illumination correction.
+    doIlluminationCorrection = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Perform illumination correction?"
+    )
+    illuminationCorrectionDataProductName = pexConfig.Field(
+        dtype=str,
+        doc="Name of the illumination correction data product.",
+        default="illumcor",
+    )
+    illumScale = pexConfig.Field(
+        dtype=float,
+        doc="Scale factor for the illumination correction.",
+        default=1.0,
+    )
+    illumFilters = pexConfig.ListField(
+        dtype=str,
+        default=[],
+        doc="Only perform illumination correction for these filters."
+    )
+
     # Write the outputs to disk.  If ISR is run as a subtask, this may not be needed.
     doWrite = pexConfig.Field(
         dtype=bool,
@@ -770,6 +799,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             inputTypeDict.pop("sensorTransmission", None)
         if config.doUseAtmosphereTransmission is not True:
             inputTypeDict.pop("atmosphereTransmission", None)
+        if config.doIlluminationCorrection is not True:
+            inputTypeDict.pop("illuminationCorrection", None)
 
         return inputTypeDict
 
@@ -892,6 +923,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 An opaque object containing calibration information for
                 stray-light correction.  If `None`, no correction will be
                 performed.
+            - ``illumMaskedImage`` : illumination correction image (`lsst.afw.image.MaskedImage`)
 
         Raises
         ------
@@ -899,6 +931,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Raised if a per-amplifier brighter-fatter kernel is requested by the configuration.
         """
         ccd = rawExposure.getDetector()
+        filterName = afwImage.Filter(rawExposure.getFilter().getId()).getName()  # Canonical name for filter
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
         biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
                         if self.config.doBias else None)
@@ -960,6 +993,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         else:
             strayLightData = None
 
+        illumMaskedImage = (self.getIsrExposure(dataRef,
+                            self.config.illuminationCorrectionDataProductName).getMaskedImage()
+                            if (self.config.doIlluminationCorrection and
+                            filterName in self.config.illumFilters)
+                            else None)
+
         # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
                                linearizer=linearizer,
@@ -973,7 +1012,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                filterTransmission=filterTransmission,
                                sensorTransmission=sensorTransmission,
                                atmosphereTransmission=atmosphereTransmission,
-                               strayLightData=strayLightData
+                               strayLightData=strayLightData,
+                               illumMaskedImage=illumMaskedImage
                                )
 
     @pipeBase.timeMethod
@@ -981,7 +1021,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             dark=None, flat=None, bfKernel=None, defects=None, fringes=None,
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
-            detectorNum=None, strayLightData=None, isGen3=False,
+            detectorNum=None, strayLightData=None, illumMaskedImage=None,
+            isGen3=False,
             ):
         """!Perform instrument signature removal on an exposure.
 
@@ -1049,6 +1090,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         strayLightData : `object`, optional
             Opaque object containing calibration information for stray-light
             correction.  If `None`, no correction will be performed.
+        illumMaskedImage : `lsst.afw.image.MaskedImage`, optional
+            Illumination correction image.
 
         Returns
         -------
@@ -1112,6 +1155,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 return self.runDataRef(ccdExposure)
 
         ccd = ccdExposure.getDetector()
+        filterName = afwImage.Filter(ccdExposure.getFilter().getId()).getName()  # Canonical name for filter
 
         if not ccd:
             assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd"
@@ -1136,6 +1180,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             raise RuntimeError("Must supply defects if config.doDefect=True.")
         if self.config.doAddDistortionModel and camera is None:
             raise RuntimeError("Must supply camera if config.doAddDistortionModel=True.")
+        if (self.config.doIlluminationCorrection and filterName in self.config.illumFilters and
+                illumMaskedImage is None):
+            raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1334,6 +1381,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         flattenedThumb = None
         if self.config.qa.doThumbnailFlattened:
             flattenedThumb = isrQa.makeThumbnail(ccdExposure, isrQaConfig=self.config.qa)
+
+        if self.config.doIlluminationCorrection and filterName in self.config.illumFilters:
+            self.log.info("Performing illumination correction.")
+            isrFunctions.illuminationCorrection(ccdExposure.getMaskedImage(),
+                                                illumMaskedImage, illumScale=self.config.illumScale,
+                                                trimToFit=self.config.doTrimToMatchCalib)
 
         preInterpExp = None
         if self.config.doSaveInterpPixels:
