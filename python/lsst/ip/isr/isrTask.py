@@ -52,7 +52,7 @@ from .masking import MaskingTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
 
-__all__ = ["IsrTask", "RunIsrTask"]
+__all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
 
 class IsrTaskConfig(pexConfig.Config):
