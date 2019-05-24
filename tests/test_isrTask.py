@@ -147,7 +147,7 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         statAfter = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
         self.assertGreater(statAfter[0], statBefore[0])
         self.assertFloatsAlmostEqual(statBefore[0], 0.0, atol=1e-2)
-        self.assertFloatsAlmostEqual(statAfter[0], 8175.6885, atol=1e-2)
+        self.assertFloatsAlmostEqual(statAfter[0], 8170.0195, atol=1e-2)
 
     def test_darkCorrection(self):
         """Expect the median image value should decrease after this operation.
@@ -158,8 +158,8 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         self.task.darkCorrection(self.inputExp, darkIm)
         statAfter = computeImageMedianAndStd(self.inputExp.image[self.amp.getBBox()])
         self.assertLess(statAfter[0], statBefore[0])
-        self.assertFloatsAlmostEqual(statBefore[0], 8075.6885, atol=1e-2)
-        self.assertFloatsAlmostEqual(statAfter[0], 8051.6206, atol=1e-2)
+        self.assertFloatsAlmostEqual(statBefore[0], 8070.0195, atol=1e-2)
+        self.assertFloatsAlmostEqual(statAfter[0], 8045.7773, atol=1e-2)
 
     def test_darkCorrection_noVisitInfo(self):
         """Expect the median image value should decrease after this operation.
@@ -171,8 +171,8 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         self.task.darkCorrection(self.inputExp, darkIm)
         statAfter = computeImageMedianAndStd(self.inputExp.image[self.amp.getBBox()])
         self.assertLess(statAfter[0], statBefore[0])
-        self.assertFloatsAlmostEqual(statBefore[0], 8075.6885, atol=1e-2)
-        self.assertFloatsAlmostEqual(statAfter[0], 8051.6206, atol=1e-2)
+        self.assertFloatsAlmostEqual(statBefore[0], 8070.0195, atol=1e-2)
+        self.assertFloatsAlmostEqual(statAfter[0], 8045.7773, atol=1e-2)
 
     def test_flatCorrection(self):
         """Expect the image median should increase (divide by < 1).
@@ -183,8 +183,8 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         self.task.flatCorrection(self.inputExp, flatIm)
         statAfter = computeImageMedianAndStd(self.inputExp.image[self.amp.getBBox()])
         self.assertGreater(statAfter[1], statBefore[1])
-        self.assertFloatsAlmostEqual(statAfter[1], 147417.36, atol=1e-2)
-        self.assertFloatsAlmostEqual(statBefore[1], 148.28436, atol=1e-2)
+        self.assertFloatsAlmostEqual(statAfter[1], 147407.02, atol=1e-2)
+        self.assertFloatsAlmostEqual(statBefore[1], 147.55304, atol=1e-2)
 
     def test_saturationDetection(self):
         """Expect the saturation level detection/masking to scale with
@@ -200,7 +200,7 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
 
         self.assertLessEqual(countBefore, countAfter)
         self.assertEqual(countBefore, 43)
-        self.assertEqual(countAfter, 141)
+        self.assertEqual(countAfter, 136)
 
     def test_measureBackground(self):
         """Expect the background measurement runs successfully and to save
@@ -222,7 +222,7 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         mi = self.inputExp.getMaskedImage().clone()
         with self.task.flatContext(self.inputExp, flatExp, darkExp):
             contextStat = computeImageMedianAndStd(self.inputExp.getMaskedImage().getImage())
-            self.assertFloatsAlmostEqual(contextStat[0], 37269.914, atol=1e-2)
+            self.assertFloatsAlmostEqual(contextStat[0], 37165.594, atol=1e-2)
 
         self.assertMaskedImagesAlmostEqual(mi, self.inputExp.getMaskedImage())
 

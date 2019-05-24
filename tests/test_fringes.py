@@ -265,6 +265,34 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         result = task.readFringes(dataRef, assembler=None)
         self.assertIsInstance(result, pipeBase.Struct)
 
+    def test_multiFringes(self):
+        """Test that multi-fringe results are handled correctly by the task.
+        """
+        self.config.filters.append("_unknown_")
+        self.config.large = 16
+        task = FringeTask(name="multiFringeMock", config=self.config)
+
+        config = isrMock.IsrMockConfig()
+        config.fringeScale = [750.0, 240.0, 220.0]
+        config.fringeX0 = [100.0, 150.0, 200.0]
+        config.fringeY0 = [0.0, 200.0, 0.0]
+        dataRef = isrMock.FringeDataRefMock(config=config)
+
+        exp = dataRef.get("raw")
+        medianBefore = np.nanmedian(exp.getImage().getArray())
+        fringes = task.readFringes(dataRef, assembler=None)
+
+        solution, rms = task.run(exp, **fringes.getDict())
+        medianAfter = np.nanmedian(exp.getImage().getArray())
+        stdAfter = np.nanstd(exp.getImage().getArray())
+
+        self.assertLess(medianAfter, medianBefore)
+        self.assertFloatsAlmostEqual(medianAfter, 3002.233, atol=1e-4)
+        self.assertFloatsAlmostEqual(stdAfter, 3549.9375, atol=1e-4)
+
+        deviation = np.abs(solution - config.fringeScale)
+        self.assertTrue(np.all(deviation / rms < 1.0))
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

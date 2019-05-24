@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import copy
 import numpy as np
 import tempfile
 
@@ -136,10 +137,20 @@ class IsrMockConfig(pexConfig.Config):
         default=0.1,
         doc="Fractional flux drop due to flat from center to edge of detector along x-axis.",
     )
-    fringeScale = pexConfig.Field(
+    fringeScale = pexConfig.ListField(
         dtype=float,
-        default=200.0,
-        doc="Peak flux for the fringe ripple in DN.",
+        default=[200.0],
+        doc="Peak fluxes for the components of the fringe ripple in DN.",
+    )
+    fringeX0 = pexConfig.ListField(
+        dtype=float,
+        default=[-100],
+        doc="Center position for the fringe ripples.",
+    )
+    fringeY0 = pexConfig.ListField(
+        dtype=float,
+        default=[-0],
+        doc="Center position for the fringe ripples.",
     )
 
     # Inclusion parameters
@@ -156,7 +167,7 @@ class IsrMockConfig(pexConfig.Config):
     doAddCrosstalk = pexConfig.Field(
         dtype=bool,
         default=False,
-        doc="Apply simulated crosstalk to output image.  This cannot be corrected by ISR, "
+        doc="Apply simulated crosstalk to output image. This cannot be corrected by ISR, "
         "as detector.hasCrosstalk()==False.",
     )
     doAddOverscan = pexConfig.Field(
@@ -414,7 +425,9 @@ class IsrMock(pipeBase.Task):
                         self.amplifierAddSource(ampData, sourceFlux, sourceX, sourceY)
 
             if self.config.doAddFringe is True:
-                self.amplifierAddFringe(amp, ampData, self.config.fringeScale)
+                self.amplifierAddFringe(amp, ampData, np.array(self.config.fringeScale),
+                                        x0=np.array(self.config.fringeX0),
+                                        y0=np.array(self.config.fringeY0))
 
             if self.config.doAddFlat is True:
                 if ampData.getArray().sum() == 0.0:
@@ -662,18 +675,22 @@ class IsrMock(pipeBase.Task):
         ampDataTarget.array[:] = (ampDataTarget.array[:] +
                                   scale * ampDataSource.array[:])
 
-    # Functional form data values
-    def amplifierAddFringe(self, amp, ampData, scale):
+    # Functional form data values.
+    def amplifierAddFringe(self, amp, ampData, scale, x0=100, y0=0):
         """Add a fringe-like ripple pattern to an amplifier's image data.
 
         Parameters
         ----------
-        amp : `lsst.afw.ampInfo.AmpInfoRecord`
+        amp : `~lsst.afw.ampInfo.AmpInfoRecord`
             Amplifier to operate on. Needed for amp<->exp coordinate transforms.
         ampData : `lsst.afw.image.ImageF`
             Amplifier image to operate on.
-        scale : `float`
+        scale : `numpy.array` or `float`
             Peak intensity scaling for the ripple.
+        x0 : `numpy.array` or `float`, optional
+            Fringe center
+        y0 : `numpy.array` or `float`, optional
+            Fringe center
 
         Notes
         -----
@@ -686,8 +703,10 @@ class IsrMock(pipeBase.Task):
         for x in range(0, ampData.getDimensions().getX()):
             for y in range(0, ampData.getDimensions().getY()):
                 (u, v) = self.localCoordToExpCoord(amp, x, y)
-                ampData.array[y][x] = (ampData.array[y][x] +
-                                       scale * np.sinc(((u - 100)/150)**2 + (v / 150)**2))
+                ampData.getArray()[y][x] = np.sum((ampData.getArray()[y][x] +
+                                                   scale *
+                                                   np.sinc(((u - x0) / 50)**2 +
+                                                           ((v - y0) / 50)**2)))
 
     def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
         """Multiply an amplifier's image data by a flat-like pattern.
@@ -755,12 +774,17 @@ class CalibratedRawMock(RawMock):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.isTrimmed = True
+        self.config.doGenerateImage = True
         self.config.doAddOverscan = False
-        self.config.doAddBias = True
+        self.config.doAddSky = True
+        self.config.doAddSource = True
+        self.config.doAddCrosstalk = False
+
+        self.config.doAddBias = False
         self.config.doAddDark = False
         self.config.doAddFlat = False
-        self.config.doAddFringe = False
-        self.config.doAddCrosstalk = True
+        self.config.doAddFringe = True
+
         self.config.biasLevel = 0.0
         self.config.readNoise = 10.0
 
@@ -969,6 +993,91 @@ class DataRefMock(object):
             return None
         else:
             raise RuntimeError("ISR DataRefMock cannot return %s.", dataType)
+
+    def put(self, exposure, filename):
+        """Write an exposure to a FITS file.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Image data to write out.
+        filename : `str`
+            Base name of the output file.
+        """
+        exposure.writeFits(filename+".fits")
+
+
+class FringeDataRefMock(object):
+    """Simulated gen2 butler data ref.
+
+    Currently only supports get and put operations, which are most
+    likely to be called for data in ISR processing.
+
+    """
+    dataId = "isrMock Fake Data"
+    darkval = 2.  # e-/sec
+    oscan = 250.  # DN
+    gradient = .10
+    exptime = 15  # seconds
+    darkexptime = 40.  # seconds
+
+    def __init__(self, **kwargs):
+        if 'config' in kwargs.keys():
+            self.config = kwargs['config']
+        else:
+            self.config = IsrMockConfig()
+            self.config.isTrimmed = True
+            self.config.doAddFringe = True
+            self.config.readNoise = 10.0
+
+    def get(self, dataType, **kwargs):
+        """Return an appropriate data product.
+
+        Parameters
+        ----------
+        dataType : `str`
+            Type of data product to return.
+
+        Returns
+        -------
+        mock : IsrMock.run() result
+            The output product.
+        """
+        if "_filename" in dataType:
+            return tempfile.mktemp(), "mock"
+        elif 'transmission_' in dataType:
+            return TransmissionMock(config=self.config).run()
+        elif dataType == 'ccdExposureId':
+            return 20090913
+        elif dataType == 'camera':
+            return IsrMock(config=self.config).getCamera()
+        elif dataType == 'raw':
+            return CalibratedRawMock(config=self.config).run()
+        elif dataType == 'bias':
+            return BiasMock(config=self.config).run()
+        elif dataType == 'dark':
+            return DarkMock(config=self.config).run()
+        elif dataType == 'flat':
+            return FlatMock(config=self.config).run()
+        elif dataType == 'fringe':
+            fringes = []
+            configCopy = copy.deepcopy(self.config)
+            for scale, x, y in zip(self.config.fringeScale, self.config.fringeX0, self.config.fringeY0):
+                configCopy.fringeScale = [1.0]
+                configCopy.fringeX0 = [x]
+                configCopy.fringeY0 = [y]
+                fringes.append(FringeMock(config=configCopy).run())
+            return fringes
+        elif dataType == 'defects':
+            return DefectMock(config=self.config).run()
+        elif dataType == 'bfKernel':
+            return BfKernelMock(config=self.config).run()
+        elif dataType == 'linearizer':
+            return None
+        elif dataType == 'crosstalkSources':
+            return None
+        else:
+            return None
 
     def put(self, exposure, filename):
         """Write an exposure to a FITS file.
