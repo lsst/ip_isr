@@ -208,8 +208,9 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     return measAlg.Defects.fromFootprintList(fpList)
 
 
-def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fallbackValue=None):
-    """Interpolate over defects identified by a particular mask plane.
+def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
+                        maskNameList=['SAT'], fallbackValue=None):
+    """Interpolate over defects identified by a particular set of mask planes.
 
     Parameters
     ----------
@@ -217,22 +218,27 @@ def interpolateFromMask(maskedImage, fwhm, growFootprints=1, maskName='SAT', fal
         Image to process.
     fwhm : scalar
         FWHM of double Gaussian smoothing kernel.
-    growFootprints : scalar, optional
-        Number of pixels to grow footprints of detected regions.
-    maskName : str, optional
+    growSaturatedFootprints : scalar, optional
+        Number of pixels to grow footprints for saturated pixels.
+    maskNameList : `List` of `str`, optional
         Mask plane name.
     fallbackValue : scalar, optional
         Value of last resort for interpolation.
     """
     mask = maskedImage.getMask()
-    thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskName), afwDetection.Threshold.BITMASK)
-    fpSet = afwDetection.FootprintSet(mask, thresh)
-    if growFootprints > 0:
-        fpSet = afwDetection.FootprintSet(fpSet, rGrow=growFootprints, isotropic=False)
+
+    if growSaturatedFootprints > 0 and "SAT" in maskNameList:
+        thresh = afwDetection.Threshold(mask.getPlaneBitMask("SAT"), afwDetection.Threshold.BITMASK)
+        fpSet = afwDetection.FootprintSet(mask, thresh)
         # If we are interpolating over an area larger than the original masked region, we need
         # to expand the original mask bit to the full area to explain why we interpolated there.
-        fpSet.setMask(mask, maskName)
+        fpSet = afwDetection.FootprintSet(fpSet, rGrow=growSaturatedFootprints, isotropic=False)
+        fpSet.setMask(mask, "SAT")
+
+    thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskNameList), afwDetection.Threshold.BITMASK)
+    fpSet = afwDetection.FootprintSet(mask, thresh)
     defectList = measAlg.Defects.fromFootprintList(fpSet.getFootprints())
+
     interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
     return maskedImage
