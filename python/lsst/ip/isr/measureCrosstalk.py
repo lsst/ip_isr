@@ -71,6 +71,11 @@ class MeasureCrosstalkConfig(Config):
         default=2.0,
         doc="Rejection threshold (sigma) for final coefficient calculation."
     )
+    isTrimmed = Field(
+        dtype=bool,
+        default=True,
+        doc="Have the amplifiers been trimmed before measuring CT?"
+    )
 
     def setDefaults(self):
         Config.setDefaults(self)
@@ -293,7 +298,7 @@ class MeasureCrosstalkTask(CmdLineTask):
             for jj, jAmp in enumerate(ccd):
                 if ii == jj:
                     continue
-                jImage = extractAmp(mi.image, jAmp, iAmp.getReadoutCorner(), isTrimmed=True)
+                jImage = extractAmp(mi.image, jAmp, iAmp.getReadoutCorner(), isTrimmed=self.config.isTrimmed)
                 ratios[jj][ii] = (jImage.array[select] - bg)/iImage.image.array[select]
                 self.debugPixels('pixels', iImage.image.array[select], jImage.array[select] - bg, ii, jj)
         return ratios
