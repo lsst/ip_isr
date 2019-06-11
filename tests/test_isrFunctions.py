@@ -253,7 +253,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
 
         flatMi = flatMi[1:-1, 1:-1, afwImage.LOCAL]
         with self.assertRaises(RuntimeError):
-            ipIsr.illuminationCorrection(self.mi, flatMi, 1.0)
+            ipIsr.illuminationCorrection(self.mi, flatMi, 1.0, trimToFit=False)
 
     def test_overscanCorrection_isInt(self):
         """Expect smaller median/smaller std after.

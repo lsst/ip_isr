@@ -465,7 +465,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
         maskedImage.scaledMultiplies(1.0/flatScale, flatMaskedImage)
 
 
-def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
+def illuminationCorrection(maskedImage, illumMaskedImage, illumScale, trimToFit=True):
     """Apply illumination correction in place.
 
     Parameters
@@ -476,6 +476,9 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
         Illumination correction image of the same size as ``maskedImage``.
     illumScale : scalar
         Scale factor for the illumination correction.
+    trimToFit : `Bool`, optional
+        If True, raw data is symmetrically trimmed to match
+        calibration size.
 
     Raises
     ------
@@ -483,11 +486,14 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale):
         Raised if ``maskedImage`` and ``illumMaskedImage`` do not have
         the same size.
     """
+    if trimToFit:
+        maskedImage = trimToMatchCalibBBox(maskedImage, illumMaskedImage)
+
     if maskedImage.getBBox(afwImage.LOCAL) != illumMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != illumMaskedImage bbox %s" %
                            (maskedImage.getBBox(afwImage.LOCAL), illumMaskedImage.getBBox(afwImage.LOCAL)))
 
-    maskedImage.scaledDivides(1./illumScale, illumMaskedImage)
+    maskedImage.scaledDivides(1.0/illumScale, illumMaskedImage)
 
 
 def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0,
