@@ -740,6 +740,13 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain):
         If True, then the exposure values are scaled by the gain prior
         to correction.
 
+    Returns
+    -------
+    diff : `float`
+        Final difference between iterations achieved in correction.
+    iteration : `int`
+        Number of iterations used to calculate correction.
+
     Notes
     -----
     This correction takes a kernel that has been derived from flat
@@ -827,13 +834,10 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain):
                     break
                 prev_image[:, :] = tmpArray[:, :]
 
-                #        if iteration == maxIter - 1:
-                #            self.log.warn("Brighter fatter correction did not converge,
-                #                          final difference %f" % diff)
-
-                #    self.log.info("Finished brighter fatter in %d iterations" % (iteration + 1))
         image.getArray()[startY + 1:endY - 1, startX + 1:endX - 1] += \
             corr[startY + 1:endY - 1, startX + 1:endX - 1]
+
+    return diff, iteration
 
 
 @contextmanager

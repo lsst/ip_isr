@@ -100,7 +100,7 @@ class CrosstalkTask(Task):
         detector = exposure.getDetector()
         if not detector.hasCrosstalk():
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
-        self.log.info("Applying crosstalk correction")
+        self.log.info("Applying crosstalk correction.")
         subtractCrosstalk(exposure, minPixelToMask=self.config.minPixelToMask,
                           crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
                           backgroundMethod=self.config.crosstalkBackgroundMethod)

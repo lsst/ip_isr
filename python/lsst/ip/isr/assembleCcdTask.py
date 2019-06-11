@@ -105,27 +105,6 @@ class AssembleCcdTask(pipeBase.Task):
 
     @section ip_isr_assemble_Example A complete example of using AssembleCcdTask
 
-    This code is in runAssembleTask.py in the examples directory, and can be run as @em e.g.
-    @code
-    python examples/runAssembleTask.py
-    @endcode
-
-    @dontinclude runAssembleTask.py
-    Import the task.  There are other imports.  Read the source file for more info.
-    @skipline AssembleCcdTask
-
-    @dontinclude exampleUtils.py
-    Create some input images with the help of some utilities in examples/exampleUtils.py
-    @skip makeAssemblyInput
-    @until inputData
-    The above numbers can be changed.  The assumption that the readout corner is flipped on every other amp is
-    hardcoded in createDetector.
-
-    @dontinclude runAssembleTask.py
-    Run the assembler task
-    @skip runAssembler
-    @until frame += 1
-
     <HR>
     To investigate the @ref ip_isr_assemble_Debug, put something like
     @code{.py}

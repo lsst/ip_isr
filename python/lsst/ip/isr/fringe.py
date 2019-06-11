@@ -74,7 +74,7 @@ class FringeTask(Task):
     _DefaultName = 'isrFringe'
 
     def readFringes(self, dataRef, assembler=None):
-        """Read the fringe frame(s)
+        """Read the fringe frame(s), and pack data into a Struct
 
         The current implementation assumes only a single fringe frame and
         will have to be updated to support multi-mode fringe subtraction.
@@ -82,10 +82,23 @@ class FringeTask(Task):
         This implementation could be optimised by persisting the fringe
         positions and fluxes.
 
-        @param dataRef     Data reference for the science exposure
-        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
-        @return Struct(fringes: fringe exposure or list of fringe exposures;
-                       seed: 32-bit uint derived from ccdExposureId for random number generator
+        Parameters
+        ----------
+        dataRef : `daf.butler.butlerSubset.ButlerDataRef`
+            Butler reference for the exposure that will have fringing
+            removed.
+        assembler : `lsst.ip.isr.AssembleCcdTask`, optional
+            An instance of AssembleCcdTask (for assembling fringe
+            frames).
+
+        Returns
+        -------
+        fringeData : `pipeBase.Struct`
+            Struct containing fringe data:
+            - ``fringes`` : `lsst.afw.image.Exposure` or `list` thereof
+                Calibration fringe files containing master fringe frames.
+            - ``seed`` : `int`, optional
+                Seed for random number generation.
         """
         try:
             fringe = dataRef.get("fringe", immediate=True)
@@ -108,14 +121,27 @@ class FringeTask(Task):
         Primary method of FringeTask.  Fringes are only subtracted if the
         science exposure has a filter listed in the configuration.
 
-        @param exposure    Science exposure from which to remove fringes
-        @param fringes     Exposure or list of Exposures
-        @param seed        32-bit unsigned integer for random number generator
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Science exposure from which to remove fringes.
+        fringes : `lsst.afw.image.Exposure` or `list` thereof
+            Calibration fringe files containing master fringe frames.
+        seed : `int`, optional
+            Seed for random number generation.
+
+        Returns
+        -------
+        solution : `np.array`
+            Fringe solution amplitudes for each input fringe frame.
+        rms : `float`
+            RMS error for the fit solution for this exposure.
         """
         import lsstDebug
         display = lsstDebug.Info(__name__).display
 
         if not self.checkFilter(exposure):
+            self.log.info("Filter not found in FringeTaskConfig.filters. Skipping fringe correction.")
             return
 
         if seed is None:
@@ -148,25 +174,57 @@ class FringeTask(Task):
         """Remove fringes from the provided science exposure.
 
         Retrieve fringes from butler dataRef provided and remove from
-        provided science exposure.
-        Fringes are only subtracted if the science exposure has a filter
-        listed in the configuration.
+        provided science exposure. Fringes are only subtracted if the
+        science exposure has a filter listed in the configuration.
 
-        @param exposure    Science exposure from which to remove fringes
-        @param dataRef     Data reference for the science exposure
-        @param assembler   An instance of AssembleCcdTask (for assembling fringe frames)
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Science exposure from which to remove fringes.
+        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
+            Butler reference to the exposure.  Used to find
+            appropriate fringe data.
+        assembler : `lsst.ip.isr.AssembleCcdTask`, optional
+            An instance of AssembleCcdTask (for assembling fringe
+            frames).
+
+        Returns
+        -------
+        solution : `np.array`
+            Fringe solution amplitudes for each input fringe frame.
+        rms : `float`
+            RMS error for the fit solution for this exposure.
         """
         if not self.checkFilter(exposure):
+            self.log.info("Filter not found in FringeTaskConfig.filters. Skipping fringe correction.")
             return
         fringeStruct = self.readFringes(dataRef, assembler=assembler)
         return self.run(exposure, **fringeStruct.getDict())
 
     def checkFilter(self, exposure):
-        """Check whether we should fringe-subtract the science exposure"""
+        """Check whether we should fringe-subtract the science exposure.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to check the filter of.
+
+        Returns
+        -------
+        needsFringe : `bool`
+            If True, then the exposure has a filter listed in the
+            configuration, and should have the fringe applied.
+        """
         return exposure.getFilter().getName() in self.config.filters
 
     def removePedestal(self, fringe):
-        """Remove pedestal from fringe exposure"""
+        """Remove pedestal from fringe exposure.
+
+        Parameters
+        ----------
+        fringe : `lsst.afw.image.Exposure`
+            Fringe data to subtract the pedestal value from.
+        """
         stats = afwMath.StatisticsControl()
         stats.setNumSigmaClip(self.config.stats.clip)
         stats.setNumIter(self.config.stats.iterations)
@@ -176,7 +234,21 @@ class FringeTask(Task):
         mi -= pedestal
 
     def generatePositions(self, exposure, rng):
-        """Generate a random distribution of positions for measuring fringe amplitudes"""
+        """Generate a random distribution of positions for measuring fringe amplitudes.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to measure the positions on.
+        rng : `numpy.random.RandomState`
+            Random number generator to use.
+
+        Returns
+        -------
+        positions : `numpy.array`
+            Two-dimensional array containing the positions to sample
+            for fringe amplitudes.
+        """
         start = self.config.large
         num = self.config.num
         width = exposure.getWidth() - self.config.large
@@ -192,10 +264,21 @@ class FringeTask(Task):
         aperture.  The statistic within a larger aperture are subtracted so
         as to remove the background.
 
-        @param exposure    Exposure to measure
-        @param positions   Array of (x,y) for fringe measurement
-        @param title       Title for display
-        @return Array of fringe measurements
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to measure the positions on.
+        positions : `numpy.array`
+            Two-dimensional array containing the positions to sample
+            for fringe amplitudes.
+        title : `str`, optional
+            Title used for debug out plots.
+
+        Returns
+        -------
+        fringes : `numpy.array`
+            Array of measured exposure values at each of the positions
+            supplied.
         """
         stats = afwMath.StatisticsControl()
         stats.setNumSigmaClip(self.config.stats.clip)
@@ -227,11 +310,23 @@ class FringeTask(Task):
 
     @timeMethod
     def solve(self, science, fringes):
-        """Solve (with iterative clipping) for the scale factors
+        """Solve for the scale factors with iterative clipping.
 
-        @param science     Array of science exposure fringe amplitudes
-        @param fringes     Array of arrays of fringe frame fringe amplitudes
-        @return Array of scale factors for the fringe frames
+        Parameters
+        ----------
+        science : `numpy.array`
+            Array of measured science image values at each of the
+            positions supplied.
+        fringes : `numpy.array`
+            Array of measured fringe values at each of the positions
+            supplied.
+
+        Returns
+        -------
+        solution : `np.array`
+            Fringe solution amplitudes for each input fringe frame.
+        rms : `float`
+            RMS error for the fit solution for this exposure.
         """
         import lsstDebug
         doPlot = lsstDebug.Info(__name__).plot
@@ -330,21 +425,42 @@ class FringeTask(Task):
         return solution, rms
 
     def _solve(self, science, fringes):
-        """Solve for the scale factors
+        """Solve for the scale factors.
 
-        @param science     Array of science exposure fringe amplitudes
-        @param fringes     Array of arrays of fringe frame fringe amplitudes
-        @return Array of scale factors for the fringe frames
+        Parameters
+        ----------
+        science : `numpy.array`
+            Array of measured science image values at each of the
+            positions supplied.
+        fringes : `numpy.array`
+            Array of measured fringe values at each of the positions
+            supplied.
+
+        Returns
+        -------
+        solution : `np.array`
+            Fringe solution amplitudes for each input fringe frame.
         """
         return afwMath.LeastSquares.fromDesignMatrix(fringes, science,
                                                      afwMath.LeastSquares.DIRECT_SVD).getSolution()
 
     def subtract(self, science, fringes, solution):
-        """Subtract the fringes
+        """Subtract the fringes.
 
-        @param science     Science exposure
-        @param fringes     List of fringe frames
-        @param solution    Array of scale factors for the fringe frames
+        Parameters
+        ----------
+        science : `lsst.afw.image.Exposure`
+            Science exposure from which to remove fringes.
+        fringes : `lsst.afw.image.Exposure` or `list` thereof
+            Calibration fringe files containing master fringe frames.
+        solution : `np.array`
+            Fringe solution amplitudes for each input fringe frame.
+
+        Raises
+        ------
+        RuntimeError :
+            Raised if the number of fringe frames does not match the
+            number of measured amplitudes.
         """
         if len(solution) != len(fringes):
             raise RuntimeError("Number of fringe frames (%s) != number of scale factors (%s)" %
