@@ -1312,7 +1312,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             interpExp = ccdExposure.clone()
             with self.flatContext(interpExp, flat, dark):
                 isrFunctions.interpolateFromMask(
-                    maskedImage=ccdExposure.getMaskedImage(),
+                    maskedImage=interpExp.getMaskedImage(),
                     fwhm=self.config.fwhm,
                     growSaturatedFootprints=self.config.growSaturationFootprintSize,
                     maskNameList=self.config.maskListToInterpolate
@@ -1399,6 +1399,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.doSaveInterpPixels:
             preInterpExp = ccdExposure.clone()
 
+        if self.config.doSetBadRegions:
+            # This is like an interpolation.
+            badPixelCount, badPixelValue = isrFunctions.setBadRegions(ccdExposure)
+            if badPixelCount > 0:
+                self.log.info("Set %d BAD pixels to %f." % (badPixelCount, badPixelValue))
+
         if self.config.doInterpolate:
             self.log.info("Interpolating masked pixels.")
             isrFunctions.interpolateFromMask(
@@ -1407,12 +1413,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
                 maskNameList=list(self.config.maskListToInterpolate)
             )
-
-        if self.config.doSetBadRegions:
-            # This is like an interpolation.
-            badPixelCount, badPixelValue = isrFunctions.setBadRegions(ccdExposure)
-            if badPixelCount > 0:
-                self.log.info("Set %d BAD pixels to %f." % (badPixelCount, badPixelValue))
 
         self.roughZeroPoint(ccdExposure)
 
