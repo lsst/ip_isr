@@ -1693,6 +1693,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                             self.config.suspectMaskName])
         if numpy.all(maskView.getArray() & maskVal > 0):
             badAmp = True
+            maskView |= maskView.getPlaneBitMask("BAD")
 
         return badAmp
 
