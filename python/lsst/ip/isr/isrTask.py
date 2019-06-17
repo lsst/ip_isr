@@ -2310,6 +2310,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             display = getDisplay(frame)
             display.scale('asinh', 'zscale')
             display.mtv(exposure)
+            prompt = "Press Enter to continue [c]... "
+            while True:
+                ans = input(prompt).lower()
+                if ans in ("", "c",):
+                    break
 
 
 class FakeAmp(object):
