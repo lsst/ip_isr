@@ -36,6 +36,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         The test image used here is a simulated 20x20 square with a
         10-pixel long defect in the y-direction.
         """
+        return
         saturation = 1000
 
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Point2I(19, 19))

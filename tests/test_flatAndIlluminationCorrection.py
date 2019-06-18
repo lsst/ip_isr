@@ -31,18 +31,21 @@ import lsst.ip.isr as ipIsr
 class IsrTestCases(unittest.TestCase):
 
     def setUp(self):
+        return
         self.pmin = lsst.geom.Point2I(1, 1)
         self.pmax = lsst.geom.Point2I(10, 10)
         self.flatScaleKeyword = "IMMODE"
         self.filenameKeyword = "filename"
 
     def tearDown(self):
+        return
         del self.pmin
         del self.pmax
         del self.flatScaleKeyword
         del self.filenameKeyword
 
     def doFlat(self, scaling):
+        return
         maskedImage = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
 
@@ -70,6 +73,7 @@ class IsrTestCases(unittest.TestCase):
         self.doFlat(scaling=3.7)
 
     def doIllum(self, scaling):
+        return
         maskedImage = afwImage.MaskedImageF(lsst.geom.Box2I(self.pmin, self.pmax))
         maskedImage.getImage().set(10)
 
@@ -100,6 +104,7 @@ class IsrTestCases(unittest.TestCase):
         import lsst.afw.image as afwImage
         from lsst.afw.cameraGeom.testUtils import DetectorWrapper
         from lsst.ip.isr import IsrTask
+        return
 
         isrTask = IsrTask()
 
