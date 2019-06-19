@@ -800,7 +800,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if config.doUseAtmosphereTransmission is not True:
             inputTypeDict.pop("atmosphereTransmission", None)
         if config.doIlluminationCorrection is not True:
-            inputTypeDict.pop("illuminationCorrection", None)
+            inputTypeDict.pop("illumMaskedImage", None)
 
         return inputTypeDict
 
