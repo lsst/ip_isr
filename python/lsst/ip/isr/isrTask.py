@@ -904,9 +904,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             - ``bfKernel``: Brighter-Fatter kernel (`numpy.ndarray`)
             - ``defects``: list of defects (`lsst.meas.algorithms.Defects`)
             - ``fringes``: `lsst.pipe.base.Struct` with components:
-                - ``fringes``: fringe calibration frame (`afw.image.Exposure`)
-                - ``seed``: random seed derived from the ccdExposureId for random
-                    number generator (`uint32`)
+              - ``fringes``: fringe calibration frame (`afw.image.Exposure`)
+              - ``seed``: random seed derived from the ccdExposureId for random
+                  number generator (`uint32`).
             - ``opticsTransmission``: `lsst.afw.image.TransmissionCurve`
                 A ``TransmissionCurve`` that represents the throughput of the optics,
                 to be evaluated in focal-plane coordinates.
@@ -1018,7 +1018,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
     @pipeBase.timeMethod
     def run(self, ccdExposure, camera=None, bias=None, linearizer=None, crosstalkSources=None,
-            dark=None, flat=None, bfKernel=None, defects=None, fringes=None,
+            dark=None, flat=None, bfKernel=None, defects=None, fringes=pipeBase.Struct(fringes=None),
             opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
@@ -1144,7 +1144,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
             # Configure input exposures;
             if detectorNum is None:
-                raise RuntimeError("Must supply the detectorNum if running as Gen3")
+                raise RuntimeError("Must supply the detectorNum if running as Gen3.")
 
             ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
             bias = self.ensureExposure(bias, camera, detectorNum)
@@ -1158,7 +1158,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         filterName = afwImage.Filter(ccdExposure.getFilter().getId()).getName()  # Canonical name for filter
 
         if not ccd:
-            assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd"
+            assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd."
             ccd = [FakeAmp(ccdExposure, self.config)]
 
         # Validate Input
@@ -1170,23 +1170,26 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a kernel if config.doBrighterFatter=True.")
         if self.config.doDark and dark is None:
             raise RuntimeError("Must supply a dark exposure if config.doDark=True.")
-        if fringes is None:
-            fringes = pipeBase.Struct(fringes=None)
-        if self.config.doFringe and not isinstance(fringes, pipeBase.Struct):
-            raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct.")
         if self.config.doFlat and flat is None:
             raise RuntimeError("Must supply a flat exposure if config.doFlat=True.")
         if self.config.doDefect and defects is None:
             raise RuntimeError("Must supply defects if config.doDefect=True.")
         if self.config.doAddDistortionModel and camera is None:
             raise RuntimeError("Must supply camera if config.doAddDistortionModel=True.")
+        if (self.config.doFringe and filterName in self.fringe.config.filters and
+                fringes.fringes is None):
+            # The `fringes` object needs to be a pipeBase.Struct, as
+            # we use it as a `dict` for the parameters of
+            # `FringeTask.run()`.  The `fringes.fringes` `list` may
+            # not be `None` if `doFringe=True`.  Otherwise, raise.
+            raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct.")
         if (self.config.doIlluminationCorrection and filterName in self.config.illumFilters and
                 illumMaskedImage is None):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
-            self.log.info("Converting exposure to floating point values")
+            self.log.info("Converting exposure to floating point values.")
             ccdExposure = self.convertIntToFloat(ccdExposure)
 
         # Amplifier level processing.
@@ -1200,7 +1203,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 if self.config.doOverscan and not badAmp:
                     # Overscan correction on amp-by-amp basis.
                     overscanResults = self.overscanCorrection(ccdExposure, amp)
-                    self.log.debug("Corrected overscan for amplifier %s" % (amp.getName()))
+                    self.log.debug(f"Corrected overscan for amplifier {amp.getName()}.")
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         if isinstance(overscanResults.overscanFit, float):
                             qaMedian = overscanResults.overscanFit
@@ -1211,19 +1214,19 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                             qaMedian = qaStats.getValue(afwMath.MEDIAN)
                             qaStdev = qaStats.getValue(afwMath.STDEVCLIP)
 
-                        self.metadata.set("ISR OSCAN {} MEDIAN".format(amp.getName()), qaMedian)
-                        self.metadata.set("ISR OSCAN {} STDEV".format(amp.getName()), qaStdev)
+                        self.metadata.set(f"ISR OSCAN {amp.getName()} MEDIAN", qaMedian)
+                        self.metadata.set(f"ISR OSCAN {amp.getName()} STDEV", qaStdev)
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f" %
                                        (amp.getName(), qaMedian, qaStdev))
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
                     if badAmp:
-                        self.log.warn("Amplifier %s is bad." % (amp.getName()))
+                        self.log.warn(f"Amplifier {amp.getName()} is bad.")
                     overscanResults = None
 
                 overscans.append(overscanResults if overscanResults is not None else None)
             else:
-                self.log.info("Skipped OSCAN")
+                self.log.info(f"Skipped OSCAN for {amp.getName()}.")
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
@@ -1231,11 +1234,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.debugView(ccdExposure, "doCrosstalk")
 
         if self.config.doAssembleCcd:
-            self.log.info("Assembling CCD from amplifiers")
+            self.log.info("Assembling CCD from amplifiers.")
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
             if self.config.expectWcs and not ccdExposure.getWcs():
-                self.log.warn("No WCS found in input exposure")
+                self.log.warn("No WCS found in input exposure.")
             self.debugView(ccdExposure, "doAssembleCcd")
 
         ossThumb = None
@@ -1251,7 +1254,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.doVariance:
             for amp, overscanResults in zip(ccd, overscans):
                 if ccdExposure.getBBox().contains(amp.getBBox()):
-                    self.log.debug("Constructing variance map for amplifer %s" % (amp.getName()))
+                    self.log.debug(f"Constructing variance map for amplifer {amp.getName()}.")
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                     if overscanResults is not None:
                         self.updateVariance(ampExposure, amp,
@@ -1262,11 +1265,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
                                                          afwMath.MEDIAN | afwMath.STDEVCLIP)
-                        self.metadata.set("ISR VARIANCE {} MEDIAN".format(amp.getName()),
+                        self.metadata.set(f"ISR VARIANCE {amp.getName()} MEDIAN",
                                           qaStats.getValue(afwMath.MEDIAN))
-                        self.metadata.set("ISR VARIANCE {} STDEV".format(amp.getName()),
+                        self.metadata.set(f"ISR VARIANCE {amp.getName()} STDEV",
                                           qaStats.getValue(afwMath.STDEVCLIP))
-                        self.log.debug("  Variance stats for amplifer %s: %f +/- %f" %
+                        self.log.debug("  Variance stats for amplifer %s: %f +/- %f." %
                                        (amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                         qaStats.getValue(afwMath.STDEVCLIP)))
 
@@ -1317,11 +1320,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             bfExp = interpExp.clone()
 
             self.log.info("Applying brighter fatter correction.")
-            isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
-                                                  self.config.brighterFatterMaxIter,
-                                                  self.config.brighterFatterThreshold,
-                                                  self.config.brighterFatterApplyGain,
-                                                  )
+            bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
+                                                              self.config.brighterFatterMaxIter,
+                                                              self.config.brighterFatterThreshold,
+                                                              self.config.brighterFatterApplyGain
+                                                              )
+            if bfResults[1] == self.config.brighterFatterMaxIter:
+                self.log.warn("Brighter fatter correction did not converge, final difference {bfResults[0]}.")
+            else:
+                self.log.info("Finished brighter fatter correction in {bfResults[1]} iterations.")
             image = ccdExposure.getMaskedImage().getImage()
             bfCorr = bfExp.getMaskedImage().getImage()
             bfCorr -= interpExp.getMaskedImage().getImage()
@@ -1410,7 +1417,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.roughZeroPoint(ccdExposure)
 
         if self.config.doMeasureBackground:
-            self.log.info("Measuring background level:")
+            self.log.info("Measuring background level.")
             self.measureBackground(ccdExposure, self.config.qa)
 
             if self.config.qa is not None and self.config.qa.saveStats is True:
@@ -1471,14 +1478,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             required calibration data does not exist.
 
         """
-        self.log.info("Performing ISR on sensor %s" % (sensorRef.dataId))
+        self.log.info("Performing ISR on sensor %s." % (sensorRef.dataId))
 
         ccdExposure = sensorRef.get(self.config.datasetType)
 
         camera = sensorRef.get("camera")
         if camera is None and self.config.doAddDistortionModel:
             raise RuntimeError("config.doAddDistortionModel is True "
-                               "but could not get a camera from the butler")
+                               "but could not get a camera from the butler.")
         isrData = self.readIsrData(sensorRef, ccdExposure)
 
         result = self.run(ccdExposure, camera=camera, **isrData.getDict())
@@ -1523,13 +1530,13 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             exp = dataRef.get(datasetType, immediate=immediate)
         except Exception as exc1:
             if not self.config.fallbackFilterName:
-                raise RuntimeError("Unable to retrieve %s for %s: %s" % (datasetType, dataRef.dataId, exc1))
+                raise RuntimeError("Unable to retrieve %s for %s: %s." % (datasetType, dataRef.dataId, exc1))
             try:
                 exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
             except Exception as exc2:
-                raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s" %
+                raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s." %
                                    (datasetType, dataRef.dataId, self.config.fallbackFilterName, exc1, exc2))
-            self.log.warn("Using fallback calibration from filter %s" % self.config.fallbackFilterName)
+            self.log.warn("Using fallback calibration from filter %s." % self.config.fallbackFilterName)
 
         if self.config.doAssembleIsrExposures:
             exp = self.assembleCcd.assembleCcd(exp)
@@ -1575,7 +1582,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             # Assume this will be caught by the setup if it is a problem.
             return inputExp
         else:
-            raise TypeError(f"Input Exposure is not known type in isrTask.ensureExposure: {type(inputExp)}")
+            raise TypeError(f"Input Exposure is not known type in isrTask.ensureExposure: {type(inputExp)}.")
 
         if inputExp.getDetector() is None:
             inputExp.setDetector(camera[detectorNum])
@@ -1608,9 +1615,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         """
         if isinstance(exposure, afwImage.ExposureF):
             # Nothing to be done
+            self.log.debug("Exposure already of type float.")
             return exposure
         if not hasattr(exposure, "convertF"):
-            raise RuntimeError("Unable to convert exposure (%s) to float" % type(exposure))
+            raise RuntimeError("Unable to convert exposure (%s) to float." % type(exposure))
 
         newexposure = exposure.convertF()
         newexposure.variance[:] = 1
@@ -1808,7 +1816,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                                               overscanIsInt=self.config.overscanIsInt
                                                               )
 
-            # Measure average overscan levels and record them in the metadata
+            # Measure average overscan levels and record them in the metadata.
             levelStat = afwMath.MEDIAN
             sigmaStat = afwMath.STDEVCLIP
 
@@ -1854,18 +1862,18 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.warn("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
         elif gain <= 0:
             patchedGain = 1.0
-            self.log.warn("Gain for amp %s == %g <= 0; setting to %f" %
+            self.log.warn("Gain for amp %s == %g <= 0; setting to %f." %
                           (amp.getName(), gain, patchedGain))
             gain = patchedGain
 
         if self.config.doEmpiricalReadNoise and overscanImage is None:
-            self.log.info("Overscan is none for EmpiricalReadNoise")
+            self.log.info("Overscan is none for EmpiricalReadNoise.")
 
         if self.config.doEmpiricalReadNoise and overscanImage is not None:
             stats = afwMath.StatisticsControl()
             stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
             readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
-            self.log.info("Calculated empirical read noise for amp %s: %f", amp.getName(), readNoise)
+            self.log.info("Calculated empirical read noise for amp %s: %f.", amp.getName(), readNoise)
         else:
             readNoise = amp.getReadNoise()
 
@@ -1899,16 +1907,17 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         """
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
-            raise RuntimeError("Exposure darktime is NAN")
+            raise RuntimeError("Exposure darktime is NAN.")
         if darkExposure.getInfo().getVisitInfo() is not None:
             darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
         else:
             # DM-17444: darkExposure.getInfo.getVisitInfo() is None
             #           so getDarkTime() does not exist.
+            self.log.warn("darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.")
             darkScale = 1.0
 
         if math.isnan(darkScale):
-            raise RuntimeError("Dark calib darktime is NAN")
+            raise RuntimeError("Dark calib darktime is NAN.")
         isrFunctions.darkCorrection(
             maskedImage=exposure.getMaskedImage(),
             darkMaskedImage=darkExposure.getMaskedImage(),
@@ -2122,7 +2131,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         numNans = maskNans(maskedImage, maskVal)
         self.metadata.set("NUMNANS", numNans)
         if numNans > 0:
-            self.log.warn(f"There were {numNans} unmasked NaNs")
+            self.log.warn(f"There were {numNans} unmasked NaNs.")
 
     def maskAndInterpolateNan(self, exposure):
         """"Mask and interpolate NaNs using mask plane "UNMASKEDNAN", in place.
@@ -2164,7 +2173,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             stats = afwMath.makeStatistics(maskedImage, afwMath.MEDIAN | afwMath.STDEVCLIP, statsControl)
             skyLevel = stats.getValue(afwMath.MEDIAN)
             skySigma = stats.getValue(afwMath.STDEVCLIP)
-            self.log.info("Flattened sky level: %f +/- %f" % (skyLevel, skySigma))
+            self.log.info("Flattened sky level: %f +/- %f." % (skyLevel, skySigma))
             metadata = exposure.getMetadata()
             metadata.set('SKYLEVEL', skyLevel)
             metadata.set('SKYSIGMA', skySigma)
@@ -2198,8 +2207,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             flatness_rms = numpy.std(flatness)
             flatness_pp = flatness.max() - flatness.min() if len(flatness) > 0 else numpy.nan
 
-            self.log.info("Measuring sky levels in %dx%d grids: %f" % (nX, nY, skyMedian))
-            self.log.info("Sky flatness in %dx%d grids - pp: %f rms: %f" %
+            self.log.info("Measuring sky levels in %dx%d grids: %f." % (nX, nY, skyMedian))
+            self.log.info("Sky flatness in %dx%d grids - pp: %f rms: %f." %
                           (nX, nY, flatness_pp, flatness_rms))
 
             metadata.set('FLATNESS_PP', float(flatness_pp))
@@ -2220,12 +2229,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if filterName in self.config.fluxMag0T1:
             fluxMag0 = self.config.fluxMag0T1[filterName]
         else:
-            self.log.warn("No rough magnitude zero point set for filter %s" % filterName)
+            self.log.warn("No rough magnitude zero point set for filter %s." % filterName)
             fluxMag0 = self.config.defaultFluxMag0T1
 
         expTime = exposure.getInfo().getVisitInfo().getExposureTime()
         if not expTime > 0:  # handle NaN as well as <= 0
-            self.log.warn("Non-positive exposure time; skipping rough zero point")
+            self.log.warn("Non-positive exposure time; skipping rough zero point.")
             return
 
         self.log.info("Setting rough magnitude zero point: %f" % (2.5*math.log10(fluxMag0*expTime),))
