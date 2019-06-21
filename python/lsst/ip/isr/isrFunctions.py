@@ -926,6 +926,8 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
     return combined
 
 
+@deprecated(reason="Camera geometry-based SkyWcs are now set when reading raws. To be removed after v19.",
+            category=FutureWarning)
 def addDistortionModel(exposure, camera):
     """!Update the WCS in exposure with a distortion model based on camera
     geometry.

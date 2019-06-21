@@ -33,8 +33,10 @@ from lsst.ip.isr import IsrTask
 import lsst.ip.isr.isrFunctions as isrFunctions
 
 
-class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
-    """Test IsrTask.addDistortionModel
+class AddDistortionModelTestCase(lsst.utils.tests.TestCase):
+    """Test IsrTask.addDistortionModel.
+
+    DEPRECATED: to be removed with addDistortionModel
     """
 
     def setUp(self):
@@ -82,18 +84,6 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         pixelToFocalPlane = self.detector.getTransform(PIXELS, FOCAL_PLANE)
         focalPlaneToFieldAngle = self.camera.getTransformMap().getTransform(FOCAL_PLANE, FIELD_ANGLE)
         return makeDistortedTanWcs(self.wcs, pixelToFocalPlane, focalPlaneToFieldAngle)
-
-    def testRunWithAddDistortionModel(self):
-        """Test IsrTask.run with config.doAddDistortionModel true"""
-        isrConfig = self.makeMinimalIsrConfig()
-        isrConfig.doAddDistortionModel = True
-        isrTask = IsrTask(config=isrConfig)
-        with self.assertRaises(RuntimeError):
-            # the camera argument is required
-            isrTask.run(ccdExposure=self.exposure)
-        exposure = isrTask.run(ccdExposure=self.exposure, camera=self.camera).exposure
-        desiredWcs = self.makeDesiredDistortedWcs()
-        self.assertWcsAlmostEqualOverBBox(desiredWcs, exposure.getWcs(), self.bbox)
 
     def testRunWithoutAddDistortionModel(self):
         """Test IsrTask.run with config.doAddDistortionModel false"""
