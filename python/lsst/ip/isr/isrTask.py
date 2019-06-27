@@ -252,11 +252,6 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Name of mask plane to use for suspect pixels",
         default="SUSPECT",
     )
-    numEdgeSuspect = pexConfig.Field(
-        dtype=int,
-        doc="Number of edge pixels to be flagged as untrustworthy.",
-        default=0,
-    )
 
     # Initial masking options.
     doSetBadRegions = pexConfig.Field(
@@ -1277,6 +1272,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Masking defects.")
             self.maskDefect(ccdExposure, defects)
 
+            if self.config.numEdgeSuspect > 0:
+                self.log.info("Masking edges as SUSPECT.")
+                self.maskEdges(ccdExposure, numEdgePixels=self.config.numEdgeSuspect,
+                               maskPlane="SUSPECT")
+
         if self.config.doNanMasking:
             self.log.info("Masking NAN value pixels.")
             self.maskNan(ccdExposure)
@@ -2084,15 +2084,30 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             defectList = defectBaseList
         defectList.maskPixels(maskedImage, maskName="BAD")
 
-        if self.config.numEdgeSuspect > 0:
+    def maskEdges(self, exposure, numEdgePixels=0, maskPlane="SUSPECT"):
+        """!Mask edge pixels with applicable mask plane.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        numEdgePixels : `int`, optional
+            Number of edge pixels to mask.
+        maskPlane : `str`, optional
+            Mask plane name to use.
+        """
+        maskedImage = exposure.getMaskedImage()
+        maskBitMask = maskedImage.getMask().getPlaneBitMask(maskPlane)
+
+        if numEdgePixels > 0:
             goodBBox = maskedImage.getBBox()
             # This makes a bbox numEdgeSuspect pixels smaller than the image on each side
-            goodBBox.grow(-self.config.numEdgeSuspect)
-            # Mask pixels outside goodBBox as SUSPECT
+            goodBBox.grow(-numEdgePixels)
+            # Mask pixels outside goodBBox
             SourceDetectionTask.setEdgeBits(
                 maskedImage,
                 goodBBox,
-                maskedImage.getMask().getPlaneBitMask("SUSPECT")
+                maskBitMask
             )
 
     def maskAndInterpolateDefects(self, exposure, defectBaseList):
@@ -2105,7 +2120,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         defectBaseList : `List` of `Defects`
 
         """
-        self.maskDefects(exposure, defectBaseList)
+        self.maskDefect(exposure, defectBaseList)
+        self.maskEdges(exposure, numEdgePixels=self.config.numEdgeSuspect,
+                       maskPlane="SUSPECT")
         isrFunctions.interpolateFromMask(
             maskedImage=exposure.getMaskedImage(),
             fwhm=self.config.fwhm,
