@@ -1204,7 +1204,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     # Overscan correction on amp-by-amp basis.
                     overscanResults = self.overscanCorrection(ccdExposure, amp)
                     self.log.debug(f"Corrected overscan for amplifier {amp.getName()}.")
-                    if self.config.qa is not None and self.config.qa.saveStats is True:
+                    if overscanResults is not None and \
+                       self.config.qa is not None and self.config.qa.saveStats is True:
                         if isinstance(overscanResults.overscanFit, float):
                             qaMedian = overscanResults.overscanFit
                             qaStdev = float("NaN")
