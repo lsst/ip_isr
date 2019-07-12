@@ -827,14 +827,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         names.remove("ccdExposure")
         return names
 
-    @classmethod
-    def getPerDatasetTypeDimensions(cls, config):
-        # Input calibration datasets of different types (i.e. flat, bias) need
-        # not have the same validity range.  That makes calibration_label
-        # (which maps directly to a validity range) a "per-DatasetType
-        # dimension".
-        return frozenset(["calibration_label"])
-
     def adaptArgsAndRun(self, inputData, inputDataIds, outputDataIds, butler):
         try:
             inputData['detectorNum'] = int(inputDataIds['ccdExposure']['detector'])
