@@ -252,6 +252,11 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Name of mask plane to use for suspect pixels",
         default="SUSPECT",
     )
+    numEdgeSuspect = pexConfig.Field(
+        dtype=int,
+        doc="Number of edge pixels to be flagged as untrustworthy.",
+        default=0,
+    )
 
     # Initial masking options.
     doSetBadRegions = pexConfig.Field(
@@ -1325,6 +1330,16 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             bfCorr -= interpExp.getMaskedImage().getImage()
             image += bfCorr
 
+            # Applying the brighter-fatter correction applies a
+            # convolution to the science image. At the edges this
+            # convolution may not have sufficient valid pixels to
+            # produce a valid correction. Mark pixels within the size
+            # of the brighter-fatter kernel as EDGE to warn of this
+            # fact.
+            self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
+                           maskPlane="EDGE")
+            self.log.warn("Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.")
+
             self.debugView(ccdExposure, "doBrighterFatter")
 
         if self.config.doDark:
@@ -2070,7 +2085,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Exposure to process.
         defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
                          `lsst.afw.image.DefectBase`.
-            List of defects to mask and interpolate.
+            List of defects to mask.
 
         Notes
         -----
@@ -2117,8 +2132,13 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `List` of `Defects`
+        defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
+                         `lsst.afw.image.DefectBase`.
+            List of defects to mask and interpolate.
 
+        See Also
+        --------
+        lsst.ip.isr.isrTask.maskDefect()
         """
         self.maskDefect(exposure, defectBaseList)
         self.maskEdges(exposure, numEdgePixels=self.config.numEdgeSuspect,
