@@ -25,6 +25,7 @@ import tempfile
 
 import numpy as np
 
+import lsst.geom
 import lsst.utils.tests
 import lsst.afw.image
 import lsst.afw.table
@@ -100,18 +101,18 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
                                                (width, height, UR)]):
             amp = amplifiers.addNew()
             amp.setName("amp %d" % ii)
-            amp.setBBox(lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(xx, yy),
-                                            lsst.afw.geom.Extent2I(width, height)))
-            amp.setRawDataBBox(lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(xx, yy),
-                                                   lsst.afw.geom.Extent2I(width, height)))
+            amp.setBBox(lsst.geom.Box2I(lsst.geom.Point2I(xx, yy),
+                                        lsst.geom.Extent2I(width, height)))
+            amp.setRawDataBBox(lsst.geom.Box2I(lsst.geom.Point2I(xx, yy),
+                                               lsst.geom.Extent2I(width, height)))
             amp.setReadoutCorner(corner)
 
         # Put everything together
         ccd = lsst.afw.cameraGeom.Detector("detector", 123, lsst.afw.cameraGeom.SCIENCE, "serial",
-                                           lsst.afw.geom.Box2I(lsst.afw.geom.Point2I(0, 0),
-                                                               lsst.afw.geom.Extent2I(2*width, 2*height)),
+                                           lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                                           lsst.geom.Extent2I(2*width, 2*height)),
                                            amplifiers, lsst.afw.cameraGeom.Orientation(),
-                                           lsst.afw.geom.Extent2D(1, 1), {},
+                                           lsst.geom.Extent2D(1, 1), {},
                                            np.array(self.crosstalk, dtype=np.float32))
 
         self.exposure = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
