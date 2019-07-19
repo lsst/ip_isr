@@ -27,7 +27,7 @@ import lsst.utils.tests
 from lsst.daf.base import PropertyList
 from lsst.afw.cameraGeom import Detector, SCIENCE, Orientation
 from lsst.afw.table import AmpInfoCatalog, AmpInfoTable
-from lsst.afw.geom import Point2I, Extent2I, Box2I, Extent2D
+from lsst.geom import Point2I, Extent2I, Box2I, Extent2D
 from lsst.afw.image import ExposureF, VisitInfo
 
 from lsst.ip.isr.isrTask import IsrTask
