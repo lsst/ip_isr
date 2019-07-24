@@ -434,11 +434,6 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Apply correction for CCD defects, e.g. hot pixels?",
         default=True,
     )
-    numEdgeSuspect = pexConfig.Field(
-        dtype=int,
-        doc="Number of edge pixels to be flagged as untrustworthy.",
-        default=0,
-    )
     doNanMasking = pexConfig.Field(
         dtype=bool,
         doc="Mask NAN pixels?",
