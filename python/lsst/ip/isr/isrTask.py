@@ -28,6 +28,7 @@ import lsst.afw.math as afwMath
 import lsst.afw.table as afwTable
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
+import lsst.pipe.base.connectionTypes as cT
 
 from contextlib import contextmanager
 from lsstDebug import getDebugFrame
@@ -56,134 +57,159 @@ from .vignette import VignetteTask
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
 
-class IsrTaskConfig(pexConfig.Config):
+class IsrTaskConnections(pipeBase.PipelineTaskConnections,
+                         dimensions={"instrument", "visit", "detector"},
+                         defaultTemplates={}):
+    ccdExposure = cT.PrerequisiteInput(
+        name="raw",
+        doc="Input exposure to process.",
+        storageClass="Exposure",
+        dimensions=["instrument", "visit", "detector"],
+    )
+    camera = cT.PrerequisiteInput(
+        name="camera",
+        storageClass="Camera",
+        doc="Input camera to construct complete exposures.",
+        dimensions=["instrument", "calibration_label"],
+    )
+    bias = cT.PrerequisiteInput(
+        name="bias",
+        doc="Input bias calibration.",
+        storageClass="ImageF",
+        dimensions=["instrument", "calibration_label", "detector"],
+    )
+    dark = cT.PrerequisiteInput(
+        name='dark',
+        doc="Input dark calibration.",
+        storageClass="ImageF",
+        dimensions=["instrument", "calibration_label", "detector"],
+    )
+    flat = cT.PrerequisiteInput(
+        name="flat",
+        doc="Input flat calibration.",
+        storageClass="MaskedImageF",
+        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+    )
+    bfKernel = cT.PrerequisiteInput(
+        name='bfKernel',
+        doc="Input brighter-fatter kernel.",
+        storageClass="NumpyArray",
+        dimensions=["instrument", "calibration_label"],
+    )
+    defects = cT.PrerequisiteInput(
+        name='defects',
+        doc="Input defect tables.",
+        storageClass="DefectsList",
+        dimensions=["instrument", "calibration_label", "detector"],
+    )
+    opticsTransmission = cT.PrerequisiteInput(
+        name="transmission_optics",
+        storageClass="TransmissionCurve",
+        doc="Transmission curve due to the optics.",
+        dimensions=["instrument", "calibration_label"],
+    )
+    filterTransmission = cT.PrerequisiteInput(
+        name="transmission_filter",
+        storageClass="TransmissionCurve",
+        doc="Transmission curve due to the filter.",
+        dimensions=["instrument", "physical_filter", "calibration_label"],
+    )
+    sensorTransmission = cT.PrerequisiteInput(
+        name="transmission_sensor",
+        storageClass="TransmissionCurve",
+        doc="Transmission curve due to the sensor.",
+        dimensions=["instrument", "calibration_label", "detector"],
+    )
+    atmosphereTransmission = cT.PrerequisiteInput(
+        name="transmission_atmosphere",
+        storageClass="TransmissionCurve",
+        doc="Transmission curve due to the atmosphere.",
+        dimensions=["instrument"],
+    )
+    illumMaskedImage = cT.PrerequisiteInput(
+        name="illum",
+        doc="Input illumination correction.",
+        storageClass="MaskedImageF",
+        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+    )
+
+    outputExposure = cT.Output(
+        name='postISRCCD',
+        doc="Output ISR processed exposure.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "visit", "detector"],
+    )
+    preInterpExposure = cT.Output(
+        name='preInterpISRCCD',
+        doc="Output ISR processed exposure, with pixels left uninterpolated.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "visit", "detector"],
+    )
+    outputOssThumbnail = cT.Output(
+        name="OssThumb",
+        doc="Output Overscan-subtracted thumbnail image.",
+        storageClass="Thumbnail",
+        dimensions=["instrument", "visit", "detector"],
+    )
+    outputFlattenedThumbnail = cT.Output(
+        name="FlattenedThumb",
+        doc="Output flat-corrected thumbnail image.",
+        storageClass="Thumbnail",
+        dimensions=["instrument", "visit", "detector"],
+    )
+
+    def __init__(self, *, config=None):
+        super().__init__(config=config)
+
+        if config.doBias is not True:
+            self.prerequisiteInputs -= set(("bias",))
+        if config.doLinearize is not True:
+            self.prerequisiteInputs -= set(("linearizer",))
+        if config.doCrosstalk is not True:
+            self.prerequisiteInputs -= set(("crosstalkSources",))
+        if config.doBrighterFatter is not True:
+            self.prerequisiteInputs -= set(("bfKernel",))
+        if config.doDefect is not True:
+            self.prerequisiteInputs -= set(("defects",))
+        if config.doDark is not True:
+            self.prerequisiteInputs -= set(("dark",))
+        if config.doFlat is not True:
+            self.prerequisiteInputs -= set(("flat",))
+        if config.doAttachTransmissionCurve is not True:
+            self.prerequisiteInputs -= set(("opticsTransmission",))
+            self.prerequisiteInputs -= set(("filterTransmission",))
+            self.prerequisiteInputs -= set(("sensorTransmission",))
+            self.prerequisiteInputs -= set(("atmosphereTransmission",))
+        if config.doUseOpticsTransmission is not True:
+            self.prerequisiteInputs -= set(("opticsTransmission",))
+        if config.doUseFilterTransmission is not True:
+            self.prerequisiteInputs -= set(("filterTransmission",))
+        if config.doUseSensorTransmission is not True:
+            self.prerequisiteInputs -= set(("sensorTransmission",))
+        if config.doUseAtmosphereTransmission is not True:
+            self.prerequisiteInputs -= set(("atmosphereTransmission",))
+        if config.doIlluminationCorrection is not True:
+            self.prerequisiteInputs -= set(("illumMaskedImage",))
+
+        if config.doWrite is not True:
+            self.outputs.remove("outputExposure")
+            self.outputs.remove("preInterpExposure")
+            self.outputs.remove("outputFlattenedThumbnail")
+            self.outputs.remove("outputOssThumbnail")
+        if config.doSaveInterpPixels is not True:
+            self.outputs.remove("preInterpExposure")
+        if config.qa.doThumbnailOss is not True:
+            self.outputs.remove("outputOssThumbnail")
+        if config.qa.doThumbnailFlattened is not True:
+            self.outputs.remove("outputFlattenedThumbnail")
+
+
+class IsrTaskConfig(pipeBase.PipelineTaskConfig,
+                    pipelineConnections=IsrTaskConnections):
     """Configuration parameters for IsrTask.
 
     Items are grouped in the order in which they are executed by the task.
     """
-    # General ISR configuration
-
-    # gen3 options
-    isrName = pexConfig.Field(
-        dtype=str,
-        doc="Name of ISR",
-        default="ISR",
-    )
-
-    # input datasets
-    ccdExposure = pipeBase.InputDatasetField(
-        doc="Input exposure to process",
-        name="raw",
-        scalar=True,
-        storageClass="Exposure",
-        dimensions=["instrument", "exposure", "detector"],
-    )
-    camera = pipeBase.InputDatasetField(
-        doc="Input camera to construct complete exposures.",
-        name="camera",
-        scalar=True,
-        storageClass="Camera",
-        dimensions=["instrument", "calibration_label"],
-    )
-    bias = pipeBase.InputDatasetField(
-        doc="Input bias calibration.",
-        name="bias",
-        scalar=True,
-        storageClass="ImageF",
-        dimensions=["instrument", "calibration_label", "detector"],
-    )
-    dark = pipeBase.InputDatasetField(
-        doc="Input dark calibration.",
-        name="dark",
-        scalar=True,
-        storageClass="ImageF",
-        dimensions=["instrument", "calibration_label", "detector"],
-    )
-    flat = pipeBase.InputDatasetField(
-        doc="Input flat calibration.",
-        name="flat",
-        scalar=True,
-        storageClass="MaskedImageF",
-        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
-    )
-    bfKernel = pipeBase.InputDatasetField(
-        doc="Input brighter-fatter kernel.",
-        name="bfKernel",
-        scalar=True,
-        storageClass="NumpyArray",
-        dimensions=["instrument", "calibration_label"],
-    )
-    defects = pipeBase.InputDatasetField(
-        doc="Input defect tables.",
-        name="defects",
-        scalar=True,
-        storageClass="DefectsList",
-        dimensions=["instrument", "calibration_label", "detector"],
-    )
-    opticsTransmission = pipeBase.InputDatasetField(
-        doc="Transmission curve due to the optics.",
-        name="transmission_optics",
-        scalar=True,
-        storageClass="TransmissionCurve",
-        dimensions=["instrument", "calibration_label"],
-    )
-    filterTransmission = pipeBase.InputDatasetField(
-        doc="Transmission curve due to the filter.",
-        name="transmission_filter",
-        scalar=True,
-        storageClass="TransmissionCurve",
-        dimensions=["instrument", "physical_filter", "calibration_label"],
-    )
-    sensorTransmission = pipeBase.InputDatasetField(
-        doc="Transmission curve due to the sensor.",
-        name="transmission_sensor",
-        scalar=True,
-        storageClass="TransmissionCurve",
-        dimensions=["instrument", "calibration_label", "detector"],
-    )
-    atmosphereTransmission = pipeBase.InputDatasetField(
-        doc="Transmission curve due to the atmosphere.",
-        name="transmission_atmosphere",
-        scalar=True,
-        storageClass="TransmissionCurve",
-        dimensions=["instrument"],
-    )
-    illumMaskedImage = pipeBase.InputDatasetField(
-        doc="Input illumination correction.",
-        name="illum",
-        scalar=True,
-        storageClass="MaskedImageF",
-        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
-    )
-
-    # output datasets
-    outputExposure = pipeBase.OutputDatasetField(
-        doc="Output ISR processed exposure.",
-        name="postISRCCD",
-        scalar=True,
-        storageClass="ExposureF",
-        dimensions=["instrument", "visit", "detector"],
-    )
-    outputOssThumbnail = pipeBase.OutputDatasetField(
-        doc="Output Overscan-subtracted thumbnail image.",
-        name="OssThumb",
-        scalar=True,
-        storageClass="Thumbnail",
-        dimensions=["instrument", "visit", "detector"],
-    )
-    outputFlattenedThumbnail = pipeBase.OutputDatasetField(
-        doc="Output flat-corrected thumbnail image.",
-        name="FlattenedThumb",
-        scalar=True,
-        storageClass="TextStorage",
-        dimensions=["instrument", "visit", "detector"],
-    )
-
-    quantum = pipeBase.QuantumConfig(
-        dimensions=["visit", "detector", "instrument"],
-    )
-
-    ## Original gen2 config
     datasetType = pexConfig.Field(
         dtype=str,
         doc="Dataset type for input data; users will typically leave this alone, "
@@ -763,108 +789,46 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("masking")
         self.makeSubtask("vignette")
 
-    @classmethod
-    def getInputDatasetTypes(cls, config):
-        inputTypeDict = super().getInputDatasetTypes(config)
+    def runQuantum(self, butlerQC, inputRefs, outputRefs):
+        inputs = butlerQC.get(inputRefs)
 
-        # Delete entries from the dictionary of InputDatasetTypes that we know we don't
-        # need because the configuration tells us we will not be bothering with the
-        # correction that uses that IDT.
-        if config.doBias is not True:
-            inputTypeDict.pop("bias", None)
-        if config.doLinearize is not True:
-            inputTypeDict.pop("linearizer", None)
-        if config.doCrosstalk is not True:
-            inputTypeDict.pop("crosstalkSources", None)
-        if config.doBrighterFatter is not True:
-            inputTypeDict.pop("bfKernel", None)
-        if config.doDefect is not True:
-            inputTypeDict.pop("defects", None)
-        if config.doDark is not True:
-            inputTypeDict.pop("dark", None)
-        if config.doFlat is not True:
-            inputTypeDict.pop("flat", None)
-        if config.doAttachTransmissionCurve is not True:
-            inputTypeDict.pop("opticsTransmission", None)
-            inputTypeDict.pop("filterTransmission", None)
-            inputTypeDict.pop("sensorTransmission", None)
-            inputTypeDict.pop("atmosphereTransmission", None)
-        if config.doUseOpticsTransmission is not True:
-            inputTypeDict.pop("opticsTransmission", None)
-        if config.doUseFilterTransmission is not True:
-            inputTypeDict.pop("filterTransmission", None)
-        if config.doUseSensorTransmission is not True:
-            inputTypeDict.pop("sensorTransmission", None)
-        if config.doUseAtmosphereTransmission is not True:
-            inputTypeDict.pop("atmosphereTransmission", None)
-        if config.doIlluminationCorrection is not True:
-            inputTypeDict.pop("illumMaskedImage", None)
-
-        return inputTypeDict
-
-    @classmethod
-    def getOutputDatasetTypes(cls, config):
-        outputTypeDict = super().getOutputDatasetTypes(config)
-
-        if config.qa.doThumbnailOss is not True:
-            outputTypeDict.pop("outputOssThumbnail", None)
-        if config.qa.doThumbnailFlattened is not True:
-            outputTypeDict.pop("outputFlattenedThumbnail", None)
-        if config.doWrite is not True:
-            outputTypeDict.pop("outputExposure", None)
-
-        return outputTypeDict
-
-    @classmethod
-    def getPrerequisiteDatasetTypes(cls, config):
-        # Input calibration datasets should not constrain the QuantumGraph
-        # (it'd be confusing if not having flats just silently resulted in no
-        # data being processed).  Our nomenclature for that is that these are
-        # "prerequisite" datasets (only "ccdExposure" == "raw" isn't).
-        names = set(cls.getInputDatasetTypes(config))
-        names.remove("ccdExposure")
-        return names
-
-    def adaptArgsAndRun(self, inputData, inputDataIds, outputDataIds, butler):
         try:
-            inputData['detectorNum'] = int(inputDataIds['ccdExposure']['detector'])
+            inputs['detectorNum'] = inputRefs.ccdExposure.dataId['detector']
         except Exception as e:
             raise ValueError("Failure to find valid detectorNum value for Dataset %s: %s." %
-                             (inputDataIds, e))
+                             (inputRefs, e))
 
-        inputData['isGen3'] = True
+        inputs['isGen3'] = True
 
         if self.config.doLinearize is True:
-            if 'linearizer' not in inputData.keys():
-                detector = inputData['camera'][inputData['detectorNum']]
+            if 'linearizer' not in inputs.keys():
+                detector = inputs['camera'][inputs['detectorNum']]
                 linearityName = detector.getAmpInfoCatalog()[0].getLinearityType()
-                inputData['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
+                inputs['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
 
-        if inputData['defects'] is not None:
+        if inputs['defects'] is not None:
             # defects is loaded as a BaseCatalog with columns x0, y0, width, height.
             # masking expects a list of defects defined by their bounding box
-            if not isinstance(inputData["defects"], Defects):
-                inputData["defects"] = Defects.fromTable(inputData["defects"])
+            if not isinstance(inputs["defects"], Defects):
+                inputs["defects"] = Defects.fromTable(inputs["defects"])
 
         # Broken: DM-17169
         # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
         # fixed for non-HSC cameras in the future.
-        # inputData['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputDataIds['ccdExposure'])
+        # inputs['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputsIds['ccdExposure'])
         #                        if self.config.doCrosstalk else None)
 
         # Broken: DM-17152
         # Fringes are not tested to be handled correctly by Gen3 butler.
-        # inputData['fringes'] = (self.fringe.readFringes(inputDataIds['ccdExposure'],
+        # inputs['fringes'] = (self.fringe.readFringes(inputsIds['ccdExposure'],
         #                                                 assembler=self.assembleCcd
         #                                                 if self.config.doAssembleIsrExposures else None)
         #                         if self.config.doFringe and
-        #                            self.fringe.checkFilter(inputData['ccdExposure'])
+        #                            self.fringe.checkFilter(inputs['ccdExposure'])
         #                         else pipeBase.Struct(fringes=None))
 
-        return super().adaptArgsAndRun(inputData, inputDataIds, outputDataIds, butler)
-
-    def makeDatasetType(self, dsConfig):
-        return super().makeDatasetType(dsConfig)
+        outputs = self.run(**inputs)
+        butlerQC.put(outputs, outputRefs)
 
     def readIsrData(self, dataRef, rawExposure):
         """!Retrieve necessary frames for instrument signature removal.
