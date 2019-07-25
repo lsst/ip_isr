@@ -25,7 +25,6 @@ import numpy
 import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
-import lsst.afw.table as afwTable
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 import lsst.pipe.base.connectionTypes as cT
@@ -33,7 +32,8 @@ import lsst.pipe.base.connectionTypes as cT
 from contextlib import contextmanager
 from lsstDebug import getDebugFrame
 
-from lsst.afw.cameraGeom import PIXELS, FOCAL_PLANE, NullLinearityType
+from lsst.afw.cameraGeom import (PIXELS, FOCAL_PLANE, NullLinearityType,
+                                 ReadoutCorner)
 from lsst.afw.display import getDisplay
 from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
@@ -803,7 +803,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.doLinearize is True:
             if 'linearizer' not in inputs.keys():
                 detector = inputs['camera'][inputs['detectorNum']]
-                linearityName = detector.getAmpInfoCatalog()[0].getLinearityType()
+                linearityName = detector.getAmplifiers()[0].getLinearityType()
                 inputs['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
 
         if inputs['defects'] is not None:
@@ -1746,7 +1746,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             (ccdExposure.getMetadata().exists(self.config.overscanBiasJumpKeyword) and
              ccdExposure.getMetadata().getScalar(self.config.overscanBiasJumpKeyword) in
              self.config.overscanBiasJumpDevices)):
-            if amp.getReadoutCorner() in (afwTable.LL, afwTable.LR):
+            if amp.getReadoutCorner() in (ReadoutCorner.LL, ReadoutCorner.LR):
                 yLower = self.config.overscanBiasJumpLocation
                 yUpper = dataBBox.getHeight() - yLower
             else:
@@ -1923,7 +1923,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             If True, linearization should be performed.
         """
         return self.config.doLinearize and \
-            detector.getAmpInfoCatalog()[0].getLinearityType() != NullLinearityType
+            detector.getAmplifiers()[0].getLinearityType() != NullLinearityType
 
     def flatCorrection(self, exposure, flatExposure, invert=False):
         """!Apply flat correction in place.

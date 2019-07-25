@@ -84,7 +84,7 @@ class LinearizeBase(metaclass=abc.ABCMeta):
 
         @throw RuntimeError if anything doesn't match
         """
-        ampInfoType = detector.getAmpInfoCatalog()[0].getLinearityType()
+        ampInfoType = detector.getAmplifiers()[0].getLinearityType()
         if self.LinearityType != ampInfoType:
             raise RuntimeError("Linearity types don't match: %s != %s" % (self.LinearityType, ampInfoType))
 
@@ -133,7 +133,7 @@ class LinearizeLookupTable(LinearizeBase):
         self._detectorName = detector.getName()
         self._detectorSerial = detector.getSerial()
         self.checkLinearityType(detector)
-        ampInfoCat = detector.getAmpInfoCatalog()
+        ampInfoCat = detector.getAmplifiers()
         rowIndList = []
         colIndOffsetList = []
         numTableRows = table.shape[0]
@@ -168,7 +168,7 @@ class LinearizeLookupTable(LinearizeBase):
             or number of amplifiers does not match the saved data
         """
         self.checkDetector(detector)
-        ampInfoCat = detector.getAmpInfoCatalog()
+        ampInfoCat = detector.getAmplifiers()
         numOutOfRange = 0
         for ampInfo, rowInd, colIndOffset in zip(ampInfoCat, self._rowIndArr, self._colIndOffsetArr):
             bbox = ampInfo.getBBox()
@@ -200,7 +200,7 @@ class LinearizeLookupTable(LinearizeBase):
             raise RuntimeError("Detector serial numbers don't match: %s != %s" %
                                (self._detectorSerial, detector.getSerial()))
 
-        numAmps = len(detector.getAmpInfoCatalog())
+        numAmps = len(detector.getAmplifiers())
         if numAmps != len(self._rowIndArr):
             raise RuntimeError("Detector number of amps = %s does not match saved value %s" %
                                (numAmps, len(self._rowIndArr)))
@@ -231,7 +231,7 @@ class LinearizeSquared(LinearizeBase):
         @throw RuntimeError if the linearity type is wrong
         """
         self.checkLinearityType(detector)
-        ampInfoCat = detector.getAmpInfoCatalog()
+        ampInfoCat = detector.getAmplifiers()
         numLinearized = 0
         for ampInfo in ampInfoCat:
             sqCoeff = ampInfo.getLinearityCoeffs()[0]

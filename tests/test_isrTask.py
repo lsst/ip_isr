@@ -190,12 +190,13 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         """Expect the saturation level detection/masking to scale with
         threshold.
         """
-        self.amp.setSaturation(9000.0)
-        self.task.saturationDetection(self.inputExp, self.amp)
+        ampB = self.amp.rebuild()
+        ampB.setSaturation(9000.0)
+        self.task.saturationDetection(self.inputExp, ampB.finish())
         countBefore = countMaskedPixels(self.mi, "SAT")
 
-        self.amp.setSaturation(8250.0)
-        self.task.saturationDetection(self.inputExp, self.amp)
+        ampB.setSaturation(8250.0)
+        self.task.saturationDetection(self.inputExp, ampB.finish())
         countAfter = countMaskedPixels(self.mi, "SAT")
 
         self.assertLessEqual(countBefore, countAfter)

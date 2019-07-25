@@ -27,7 +27,6 @@ import numpy as np
 import lsst.utils.tests
 import lsst.geom
 import lsst.afw.image as afwImage
-import lsst.afw.table as afwTable
 import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
@@ -43,7 +42,7 @@ def refLinearizeSquared(image, detector):
     @param[in,out] image  image to correct in place (an lsst.afw.image.Image of some type)
     @param[in] detector  detector info (an lsst.afw.cameraGeom.Detector)
     """
-    ampInfoCat = detector.getAmpInfoCatalog()
+    ampInfoCat = detector.getAmplifiers()
     for ampInfo in ampInfoCat:
         bbox = ampInfo.getBBox()
         sqCoeff = ampInfo.getLinearityCoeffs()[0]
@@ -77,7 +76,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
             linRes = linSq(image=measImage, detector=self.detector)
             desNumLinearized = np.sum(self.sqCoeffs.flatten() > 0)
             self.assertEqual(linRes.numLinearized, desNumLinearized)
-            self.assertEqual(linRes.numAmps, len(self.detector.getAmpInfoCatalog()))
+            self.assertEqual(linRes.numAmps, len(self.detector.getAmplifiers()))
 
             refImage = inImage.Factory(inImage, True)
             refLinearizeSquared(image=refImage, detector=self.detector)
@@ -103,7 +102,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
 
         sqCoeffs = np.array(((0, 0.11), (-0.15, -12)))
         detector = self.makeDetector(bbox=bbox, numAmps=numAmps, sqCoeffs=sqCoeffs)
-        ampInfoCat = detector.getAmpInfoCatalog()
+        ampInfoCat = detector.getAmplifiers()
 
         linSq = LinearizeSquared()
         linSq(im, detector=detector)
@@ -155,33 +154,31 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         bbox = bbox if bbox is not None else self.bbox
         numAmps = numAmps if numAmps is not None else self.numAmps
         sqCoeffs = sqCoeffs if sqCoeffs is not None else self.sqCoeffs
-        schema = afwTable.AmpInfoTable.makeMinimalSchema()
-        ampInfoCat = afwTable.AmpInfoCatalog(schema)
-        boxArr = BoxGrid(box=bbox, numColRow=numAmps)
-        for i in range(numAmps[0]):
-            for j in range(numAmps[1]):
-                ampInfo = ampInfoCat.addNew()
-                ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
-                ampInfo.setBBox(boxArr[i, j])
-                ampInfo.setLinearityType(linearityType)
-                ampInfo.setLinearityCoeffs([sqCoeffs[i, j]])
+
         detName = "det_a"
         detId = 1
         detSerial = "123"
         orientation = cameraGeom.Orientation()
         pixelSize = lsst.geom.Extent2D(1, 1)
-        transMap = {}
-        return cameraGeom.Detector(
-            detName,
-            detId,
-            cameraGeom.SCIENCE,
-            detSerial,
-            bbox,
-            ampInfoCat,
-            orientation,
-            pixelSize,
-            transMap,
-        )
+
+        camBuilder = cameraGeom.Camera.Builder("fakeCam")
+        detBuilder = camBuilder.add(detName, detId)
+        detBuilder.setSerial(detSerial)
+        detBuilder.setBBox(bbox)
+        detBuilder.setOrientation(orientation)
+        detBuilder.setPixelSize(pixelSize)
+
+        boxArr = BoxGrid(box=bbox, numColRow=numAmps)
+        for i in range(numAmps[0]):
+            for j in range(numAmps[1]):
+                ampInfo = cameraGeom.Amplifier.Builder()
+                ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
+                ampInfo.setBBox(boxArr[i, j])
+                ampInfo.setLinearityType(linearityType)
+                ampInfo.setLinearityCoeffs([sqCoeffs[i, j]])
+                detBuilder.append(ampInfo)
+
+        return detBuilder
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

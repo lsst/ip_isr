@@ -182,10 +182,10 @@ class CrosstalkTask(Task):
 
 # Flips required to get the corner to the lower-left
 # (an arbitrary choice; flips are relative, so the choice of reference here is not important)
-X_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: True,
-          lsst.afw.table.UL: False, lsst.afw.table.UR: True}
-Y_FLIP = {lsst.afw.table.LL: False, lsst.afw.table.LR: False,
-          lsst.afw.table.UL: True, lsst.afw.table.UR: True}
+X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False, lsst.afw.cameraGeom.ReadoutCorner.LR: True,
+          lsst.afw.cameraGeom.ReadoutCorner.UL: False, lsst.afw.cameraGeom.ReadoutCorner.UR: True}
+Y_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False, lsst.afw.cameraGeom.ReadoutCorner.LR: False,
+          lsst.afw.cameraGeom.ReadoutCorner.UL: True, lsst.afw.cameraGeom.ReadoutCorner.UR: True}
 
 
 class NullCrosstalkTask(CrosstalkTask):
