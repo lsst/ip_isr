@@ -81,7 +81,7 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Input camera to construct complete exposures.",
         name="camera",
         scalar=True,
-        storageClass="TablePersistableCamera",
+        storageClass="Camera",
         dimensions=["instrument", "calibration_label"],
     )
     bias = pipeBase.InputDatasetField(
@@ -123,28 +123,28 @@ class IsrTaskConfig(pexConfig.Config):
         doc="Transmission curve due to the optics.",
         name="transmission_optics",
         scalar=True,
-        storageClass="TablePersistableTransmissionCurve",
+        storageClass="TransmissionCurve",
         dimensions=["instrument", "calibration_label"],
     )
     filterTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the filter.",
         name="transmission_filter",
         scalar=True,
-        storageClass="TablePersistableTransmissionCurve",
+        storageClass="TransmissionCurve",
         dimensions=["instrument", "physical_filter", "calibration_label"],
     )
     sensorTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the sensor.",
         name="transmission_sensor",
         scalar=True,
-        storageClass="TablePersistableTransmissionCurve",
+        storageClass="TransmissionCurve",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     atmosphereTransmission = pipeBase.InputDatasetField(
         doc="Transmission curve due to the atmosphere.",
         name="transmission_atmosphere",
         scalar=True,
-        storageClass="TablePersistableTransmissionCurve",
+        storageClass="TransmissionCurve",
         dimensions=["instrument"],
     )
     illumMaskedImage = pipeBase.InputDatasetField(
