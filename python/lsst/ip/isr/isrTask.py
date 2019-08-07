@@ -1277,6 +1277,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Masking defects.")
             self.maskDefect(ccdExposure, defects)
 
+            if self.config.numEdgeSuspect > 0:
+                self.log.info("Masking edges as SUSPECT.")
+                self.maskEdges(ccdExposure, numEdgePixels=self.config.numEdgeSuspect,
+                               maskPlane="SUSPECT")
+
         if self.config.doNanMasking:
             self.log.info("Masking NAN value pixels.")
             self.maskNan(ccdExposure)
@@ -1324,6 +1329,16 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             bfCorr = bfExp.getMaskedImage().getImage()
             bfCorr -= interpExp.getMaskedImage().getImage()
             image += bfCorr
+
+            # Applying the brighter-fatter correction applies a
+            # convolution to the science image. At the edges this
+            # convolution may not have sufficient valid pixels to
+            # produce a valid correction. Mark pixels within the size
+            # of the brighter-fatter kernel as EDGE to warn of this
+            # fact.
+            self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
+                           maskPlane="EDGE")
+            self.log.warn("Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.")
 
             self.debugView(ccdExposure, "doBrighterFatter")
 
@@ -2070,7 +2085,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Exposure to process.
         defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
                          `lsst.afw.image.DefectBase`.
-            List of defects to mask and interpolate.
+            List of defects to mask.
 
         Notes
         -----
@@ -2084,15 +2099,30 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             defectList = defectBaseList
         defectList.maskPixels(maskedImage, maskName="BAD")
 
-        if self.config.numEdgeSuspect > 0:
+    def maskEdges(self, exposure, numEdgePixels=0, maskPlane="SUSPECT"):
+        """!Mask edge pixels with applicable mask plane.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        numEdgePixels : `int`, optional
+            Number of edge pixels to mask.
+        maskPlane : `str`, optional
+            Mask plane name to use.
+        """
+        maskedImage = exposure.getMaskedImage()
+        maskBitMask = maskedImage.getMask().getPlaneBitMask(maskPlane)
+
+        if numEdgePixels > 0:
             goodBBox = maskedImage.getBBox()
             # This makes a bbox numEdgeSuspect pixels smaller than the image on each side
-            goodBBox.grow(-self.config.numEdgeSuspect)
-            # Mask pixels outside goodBBox as SUSPECT
+            goodBBox.grow(-numEdgePixels)
+            # Mask pixels outside goodBBox
             SourceDetectionTask.setEdgeBits(
                 maskedImage,
                 goodBBox,
-                maskedImage.getMask().getPlaneBitMask("SUSPECT")
+                maskBitMask
             )
 
     def maskAndInterpolateDefects(self, exposure, defectBaseList):
@@ -2102,10 +2132,17 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `List` of `Defects`
+        defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
+                         `lsst.afw.image.DefectBase`.
+            List of defects to mask and interpolate.
 
+        See Also
+        --------
+        lsst.ip.isr.isrTask.maskDefect()
         """
-        self.maskDefects(exposure, defectBaseList)
+        self.maskDefect(exposure, defectBaseList)
+        self.maskEdges(exposure, numEdgePixels=self.config.numEdgeSuspect,
+                       maskPlane="SUSPECT")
         isrFunctions.interpolateFromMask(
             maskedImage=exposure.getMaskedImage(),
             fwhm=self.config.fwhm,
