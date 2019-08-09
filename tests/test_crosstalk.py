@@ -33,9 +33,8 @@ import lsst.afw.cameraGeom
 
 from lsst.afw.table import LL, LR, UL, UR
 from lsst.pipe.base import Struct
-from lsst.ip.isr import (IsrTask, subtractCrosstalk, extractCrosstalkRatios, measureCrosstalkCoefficients,
+from lsst.ip.isr import (IsrTask, subtractCrosstalk,
                          MeasureCrosstalkTask, writeCrosstalkCoeffs, CrosstalkTask, NullCrosstalkTask)
-
 
 try:
     display
@@ -172,8 +171,10 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
 
     def testDirectAPI(self):
         """Test that individual function calls work"""
-        ratios = extractCrosstalkRatios(self.exposure, threshold=self.value - 1)
-        coeff, coeffErr, coeffNum = measureCrosstalkCoefficients(ratios)
+        config = MeasureCrosstalkTask.ConfigClass()
+        measure = MeasureCrosstalkTask(config=config)
+        ratios = measure.extractCrosstalkRatios(self.exposure, threshold=self.value - 1)
+        coeff, coeffErr, coeffNum = measure.measureCrosstalkCoefficients(ratios)
         self.checkCoefficients(coeff, coeffErr, coeffNum)
         subtractCrosstalk(self.exposure, minPixelToMask=self.value - 1,
                           crosstalkStr=self.crosstalkStr)
