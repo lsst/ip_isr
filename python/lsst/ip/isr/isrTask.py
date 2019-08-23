@@ -572,6 +572,8 @@ class IsrTaskConfig(pexConfig.Config):
         dtype=bool,
         doc="Apply a distortion model based on camera geometry to the WCS?",
         default=True,
+        deprecated=("Camera geometry is incorporated when reading the raw files."
+                    " This option no longer is used, and will be removed after v19.")
     )
 
     # Initial CCD-level background statistics options.
@@ -1163,8 +1165,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a flat exposure if config.doFlat=True.")
         if self.config.doDefect and defects is None:
             raise RuntimeError("Must supply defects if config.doDefect=True.")
-        if self.config.doAddDistortionModel and camera is None:
-            raise RuntimeError("Must supply camera if config.doAddDistortionModel=True.")
         if (self.config.doFringe and filterName in self.fringe.config.filters and
                 fringes.fringes is None):
             # The `fringes` object needs to be a pipeBase.Struct, as
@@ -1388,10 +1388,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                                  sensorTransmission=sensorTransmission,
                                                  atmosphereTransmission=atmosphereTransmission)
 
-        if self.config.doAddDistortionModel:
-            self.log.info("Adding a distortion model to the WCS.")
-            isrFunctions.addDistortionModel(exposure=ccdExposure, camera=camera)
-
         flattenedThumb = None
         if self.config.qa.doThumbnailFlattened:
             flattenedThumb = isrQa.makeThumbnail(ccdExposure, isrQaConfig=self.config.qa)
@@ -1502,9 +1498,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         ccdExposure = sensorRef.get(self.config.datasetType)
 
         camera = sensorRef.get("camera")
-        if camera is None and self.config.doAddDistortionModel:
-            raise RuntimeError("config.doAddDistortionModel is True "
-                               "but could not get a camera from the butler.")
         isrData = self.readIsrData(sensorRef, ccdExposure)
 
         result = self.run(ccdExposure, camera=camera, **isrData.getDict())
