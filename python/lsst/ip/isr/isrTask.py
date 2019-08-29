@@ -162,46 +162,46 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         super().__init__(config=config)
 
         if config.doBias is not True:
-            self.prerequisiteInputs -= set(("bias",))
+            self.prerequisiteInputs.discard("bias")
         if config.doLinearize is not True:
-            self.prerequisiteInputs -= set(("linearizer",))
+            self.prerequisiteInputs.discard("linearizer")
         if config.doCrosstalk is not True:
-            self.prerequisiteInputs -= set(("crosstalkSources",))
+            self.prerequisiteInputs.discard("crosstalkSources")
         if config.doBrighterFatter is not True:
-            self.prerequisiteInputs -= set(("bfKernel",))
+            self.prerequisiteInputs.discard("bfKernel")
         if config.doDefect is not True:
-            self.prerequisiteInputs -= set(("defects",))
+            self.prerequisiteInputs.discard("defects")
         if config.doDark is not True:
-            self.prerequisiteInputs -= set(("dark",))
+            self.prerequisiteInputs.discard("dark")
         if config.doFlat is not True:
-            self.prerequisiteInputs -= set(("flat",))
+            self.prerequisiteInputs.discard("flat")
         if config.doAttachTransmissionCurve is not True:
-            self.prerequisiteInputs -= set(("opticsTransmission",))
-            self.prerequisiteInputs -= set(("filterTransmission",))
-            self.prerequisiteInputs -= set(("sensorTransmission",))
-            self.prerequisiteInputs -= set(("atmosphereTransmission",))
+            self.prerequisiteInputs.discard("opticsTransmission")
+            self.prerequisiteInputs.discard("filterTransmission")
+            self.prerequisiteInputs.discard("sensorTransmission")
+            self.prerequisiteInputs.discard("atmosphereTransmission")
         if config.doUseOpticsTransmission is not True:
-            self.prerequisiteInputs -= set(("opticsTransmission",))
+            self.prerequisiteInputs.discard("opticsTransmission")
         if config.doUseFilterTransmission is not True:
-            self.prerequisiteInputs -= set(("filterTransmission",))
+            self.prerequisiteInputs.discard("filterTransmission")
         if config.doUseSensorTransmission is not True:
-            self.prerequisiteInputs -= set(("sensorTransmission",))
+            self.prerequisiteInputs.discard("sensorTransmission")
         if config.doUseAtmosphereTransmission is not True:
-            self.prerequisiteInputs -= set(("atmosphereTransmission",))
+            self.prerequisiteInputs.discard("atmosphereTransmission")
         if config.doIlluminationCorrection is not True:
-            self.prerequisiteInputs -= set(("illumMaskedImage",))
+            self.prerequisiteInputs.discard("illumMaskedImage")
 
         if config.doWrite is not True:
-            self.outputs.remove("outputExposure")
-            self.outputs.remove("preInterpExposure")
-            self.outputs.remove("outputFlattenedThumbnail")
-            self.outputs.remove("outputOssThumbnail")
+            self.outputs.discard("outputExposure")
+            self.outputs.discard("preInterpExposure")
+            self.outputs.discard("outputFlattenedThumbnail")
+            self.outputs.discard("outputOssThumbnail")
         if config.doSaveInterpPixels is not True:
-            self.outputs.remove("preInterpExposure")
+            self.outputs.discard("preInterpExposure")
         if config.qa.doThumbnailOss is not True:
-            self.outputs.remove("outputOssThumbnail")
+            self.outputs.discard("outputOssThumbnail")
         if config.qa.doThumbnailFlattened is not True:
-            self.outputs.remove("outputFlattenedThumbnail")
+            self.outputs.discard("outputFlattenedThumbnail")
 
 
 class IsrTaskConfig(pipeBase.PipelineTaskConfig,
