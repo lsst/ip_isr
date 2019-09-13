@@ -22,6 +22,8 @@
 
 import unittest
 
+import math
+
 import lsst.utils.tests
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -118,7 +120,8 @@ class IsrTestCases(unittest.TestCase):
             isrTask.updateVariance(raw, amp)
             if gain <= 0:               # behave the same way as amp.setGain
                 gain = 1
-
+            if math.isnan(gain):
+                gain = 1
             self.assertEqual(raw.variance[0, 0, afwImage.LOCAL], level/gain + readNoise**2)
 
 
