@@ -121,6 +121,7 @@ class IsrTestCases(unittest.TestCase):
 
             self.assertEqual(raw.variance[0, 0, afwImage.LOCAL], level/gain + readNoise**2)
 
+
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
 
