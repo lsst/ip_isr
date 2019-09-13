@@ -109,7 +109,7 @@ class IsrTestCases(unittest.TestCase):
         raw = afwImage.ExposureF(detector.getBBox())
 
         level = 10
-        readNoise = 1
+        readNoise = 1.5
         raw.image.set(level)
 
         amp = detector[0]
