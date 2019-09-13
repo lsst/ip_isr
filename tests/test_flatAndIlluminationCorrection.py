@@ -113,7 +113,7 @@ class IsrTestCases(unittest.TestCase):
         amp = detector[0]
         amp.setReadNoise(readNoise)
 
-        for gain in [-1, 0, 0.1, 1]:
+        for gain in [-1, 0, 0.1, 1, float("NaN")]:
             amp.setGain(gain)
             isrTask.updateVariance(raw, amp)
             if gain <= 0:               # behave the same way as amp.setGain
