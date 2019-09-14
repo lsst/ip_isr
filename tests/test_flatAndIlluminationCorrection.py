@@ -23,6 +23,7 @@
 import unittest
 
 import math
+import numpy as np
 
 import lsst.utils.tests
 import lsst.geom
@@ -115,7 +116,7 @@ class IsrTestCases(unittest.TestCase):
         amp = detector[0]
         amp.setReadNoise(readNoise)
 
-        for gain in [-1, 0, 0.1, 1, float("NaN")]:
+        for gain in [-1, 0, 0.1, 1, np.NaN]:
             amp.setGain(gain)
             isrTask.updateVariance(raw, amp)
             if gain <= 0:               # behave the same way as amp.setGain
