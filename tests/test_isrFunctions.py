@@ -112,7 +112,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         """Expect bbox dimension values to flip.
         """
         defectList = isrMock.DefectMock().run()
-        transposed = ipIsr.transposeDefectList(defectList)
+        transposed = defectList.transpose()
 
         for d, t in zip(defectList, transposed):
             self.assertEqual(d.getBBox().getDimensions().getX(), t.getBBox().getDimensions().getY())
