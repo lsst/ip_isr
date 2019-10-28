@@ -802,7 +802,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.config.doLinearize is True:
             if 'linearizer' not in inputs.keys():
-                detector = inputs['camera'][inputs['detectorNum']]
+                detector = inputs['ccdExposure'].getDetector()
                 linearityName = detector.getAmplifiers()[0].getLinearityType()
                 inputs['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
 
