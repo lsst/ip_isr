@@ -96,7 +96,12 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="ExposureF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
+    strayLightData = cT.PrerequisiteInput(
+        name='straylight',
+        doc="Input stray light calibration.",
+        storageClass="ExposureF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+        deferLoad=True,
     )
     bfKernel = cT.PrerequisiteInput(
         name='bfKernel',
@@ -836,6 +841,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         else:
             inputs['fringes'] = pipeBase.Struct(fringes=None)
 
+        if self.config.doStrayLight is True and self.strayLight.checkFilter(inputs['ccdExposure']):
+            if 'strayLightData' not in inputs:
+                inputs['strayLightData'] = None
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
@@ -1324,13 +1332,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.fringe.run(ccdExposure, **fringes.getDict())
             self.debugView(ccdExposure, "doFringe")
 
-        if self.config.doStrayLight:
-            if strayLightData is not None:
-                self.log.info("Applying stray light correction.")
-                self.strayLight.run(ccdExposure, strayLightData)
-                self.debugView(ccdExposure, "doStrayLight")
-            else:
-                self.log.debug("Skipping stray light correction: no data found for this image.")
+        if self.config.doStrayLight and self.strayLight.check(ccdExposure):
+            self.log.info("Checking strayLight correction.")
+            self.strayLight.run(ccdExposure, strayLightData)
+            self.debugView(ccdExposure, "doStrayLight")
 
         if self.config.doFlat:
             self.log.info("Applying flat correction.")

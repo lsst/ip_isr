@@ -18,12 +18,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-# import os
-
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from lsst.pex.config import Config, Field
+from lsst.pex.config import Config, Field, ListField
 from lsst.pipe.base import Task
 from lsst.geom import Angle
 
@@ -33,6 +31,11 @@ class StrayLightConfig(Config):
         dtype=bool,
         doc="",
         default=False,
+    )
+    filters = ListField(
+        dtype=str,
+        doc="Filters that need straylight correction.",
+        default=[],
     )
 
 
@@ -73,6 +76,16 @@ class StrayLightTask(Task):
         """
         return None
 
+    def check(self, exposure):
+        """Check if stray light correction should be run.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to correct.
+        """
+        return False
+
     def run(self, exposure, strayLightData):
         """Correct stray light.
 
@@ -85,6 +98,22 @@ class StrayLightTask(Task):
             correct for stray light.
         """
         raise NotImplementedError("Must be implemented by subclasses.")
+
+    def checkFilter(self, exposure):
+        """Check whether we should fringe-subtract the science exposure.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to check the filter of.
+
+        Returns
+        -------
+        needsFringe : `bool`
+            If True, then the exposure has a filter listed in the
+            configuration, and should have the fringe applied.
+        """
+        return exposure.getFilter().getName() in self.config.filters
 
 
 class StrayLightData(ABC):
