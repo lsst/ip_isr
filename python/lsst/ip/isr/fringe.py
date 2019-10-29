@@ -104,14 +104,47 @@ class FringeTask(Task):
             fringe = dataRef.get("fringe", immediate=True)
         except Exception as e:
             raise RuntimeError("Unable to retrieve fringe for %s: %s" % (dataRef.dataId, e))
-        if assembler is not None:
-            fringe = assembler.assembleCcd(fringe)
 
-        seed = self.config.stats.rngSeedOffset + dataRef.get("ccdExposureId", immediate=True)
+        return self.loadFringes(fringe, assembler)
+
+    def loadFringes(self, fringeExp, expId=0, assembler=None):
+        """Pack the fringe data into a Struct.
+
+        This method moves the struct parsing code into a butler
+        generation agnostic handler.
+
+        Parameters
+        ----------
+        fringeExp : `lsst.afw.exposure.Exposure`
+            The exposure containing the fringe data.
+        expId : `int`, optional
+            Exposure id to be fringe corrected, used to set RNG seed.
+        assembler : `lsst.ip.isr.AssembleCcdTask`, optional
+            An instance of AssembleCcdTask (for assembling fringe
+            frames).
+
+        Returns
+        -------
+        fringeData : `pipeBase.Struct`
+            Struct containing fringe data:
+            - ``fringes`` : `lsst.afw.image.Exposure` or `list` thereof
+                Calibration fringe files containing master fringe frames.
+            - ``seed`` : `int`, optional
+                Seed for random number generation.
+        """
+        if assembler is not None:
+            fringeExp = assembler.assembleCcd(fringeExp)
+
+        if expId is None:
+            seed = self.config.stats.rngSeedOffset
+        else:
+            print(f"{self.config.stats.rngSeedOffset} {expId}")
+            seed = self.config.stats.rngSeedOffset + expId
+
         # Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
         seed %= 2**32
 
-        return Struct(fringes=fringe,
+        return Struct(fringes=fringeExp,
                       seed=seed)
 
     @timeMethod

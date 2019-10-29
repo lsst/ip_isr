@@ -81,13 +81,21 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     dark = cT.PrerequisiteInput(
         name='dark',
         doc="Input dark calibration.",
-        storageClass="ImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     flat = cT.PrerequisiteInput(
         name="flat",
         doc="Input flat calibration.",
-        storageClass="MaskedImageF",
+        storageClass="ExposureF",
+        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+    )
+    fringes = cT.PrerequisiteInput(
+        name="fringe",
+        doc="Input fringe calibration.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+    )
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
     bfKernel = cT.PrerequisiteInput(
@@ -137,7 +145,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name='postISRCCD',
         doc="Output ISR processed exposure.",
         storageClass="ExposureF",
-        dimensions=["instrument", "visit", "detector"],
+        dimensions=["instrument", "visit", "detector", "exposure"],
     )
     preInterpExposure = cT.Output(
         name='preInterpISRCCD',
@@ -819,14 +827,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # inputs['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputsIds['ccdExposure'])
         #                        if self.config.doCrosstalk else None)
 
-        # Broken: DM-17152
-        # Fringes are not tested to be handled correctly by Gen3 butler.
-        # inputs['fringes'] = (self.fringe.readFringes(inputsIds['ccdExposure'],
-        #                                                 assembler=self.assembleCcd
-        #                                                 if self.config.doAssembleIsrExposures else None)
-        #                         if self.config.doFringe and
-        #                            self.fringe.checkFilter(inputs['ccdExposure'])
-        #                         else pipeBase.Struct(fringes=None))
+        if self.config.doFringe is True and self.fringe.checkFilter(inputs['ccdExposure']):
+            expId = inputs['ccdExposure'].getInfo().getVisitInfo().getExposureId()
+            inputs['fringes'] = self.fringe.loadFringes(inputs['fringes'],
+                                                        expId=expId,
+                                                        assembler=self.assembleCcd
+                                                        if self.config.doAssembleIsrExposures else None)
+        else:
+            inputs['fringes'] = pipeBase.Struct(fringes=None)
+
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
@@ -1095,9 +1104,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if isGen3 is True:
             # Gen3 currently cannot automatically do configuration overrides.
             # DM-15257 looks to discuss this issue.
-
-            self.config.doFringe = False
-
             # Configure input exposures;
             if detectorNum is None:
                 raise RuntimeError("Must supply the detectorNum if running as Gen3.")
