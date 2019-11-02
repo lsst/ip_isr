@@ -20,8 +20,12 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # import os
 
+from abc import ABC, abstractmethod
+from typing import Optional
+
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
+from lsst.geom import Angle
 
 
 class StrayLightConfig(Config):
@@ -79,5 +83,30 @@ class StrayLightTask(Task):
         strayLightData : `object`, optional
             An opaque object that contains any calibration data used to
             correct for stray light.
+        """
+        raise NotImplementedError("Must be implemented by subclasses.")
+
+
+class StrayLightData(ABC):
+    """An abstract base class for rotator-dependent stray light information.
+    """
+
+    @abstractmethod
+    def evaluate(self, angle_start: Angle, angle_end: Optional[Angle] = None):
+        """Get a stray light array for a range of rotator angles.
+
+        Parameters
+        ----------
+        angle_begin : `float`
+            Instrument rotation angle at the start of the exposure.
+        angle_end : `float`, optional
+            Instrument rotation angle at the end of the exposure.
+            If not provided, the returned array will reflect a snapshot at
+            `angle_start`.
+
+        Returns
+        -------
+        array : `numpy.ndarray`
+            A stray-light background image for this exposure.
         """
         raise NotImplementedError("Must be implemented by subclasses.")
