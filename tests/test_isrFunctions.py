@@ -344,7 +344,9 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         mi = self.inputExp.getMaskedImage().clone()
         with ipIsr.gainContext(self.inputExp, self.inputExp.getImage(), apply=True):
             pass
-        self.assertMaskedImagesEqual(self.inputExp.getMaskedImage(), mi)
+
+        self.assertIsNotNone(mi)
+        self.assertMaskedImagesAlmostEqual(self.inputExp.getMaskedImage(), mi)
 
     def test_addDistortionModel(self):
         """Expect RuntimeError if no model supplied, or incomplete exposure information.

@@ -29,9 +29,8 @@ import lsst.geom
 import lsst.utils.tests
 import lsst.afw.image
 import lsst.afw.table
-import lsst.afw.cameraGeom
+import lsst.afw.cameraGeom as cameraGeom
 
-from lsst.afw.table import LL, LR, UL, UR
 from lsst.pipe.base import Struct
 from lsst.ip.isr import (IsrTask, subtractCrosstalk,
                          MeasureCrosstalkTask, writeCrosstalkCoeffs, CrosstalkTask, NullCrosstalkTask)
@@ -91,28 +90,41 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
             image.getArray()[:] += self.noise
             return image
 
+        # Construct detector
+        detName = 'detector'
+        detId = 1
+        detSerial = 'serial'
+        orientation = cameraGeom.Orientation()
+        pixelSize = lsst.geom.Extent2D(1, 1)
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                               lsst.geom.Extent2I(2*width, 2*height))
+        crosstalk = np.array(self.crosstalk, dtype=np.float32)
+
+        camBuilder = cameraGeom.Camera.Builder("fakeCam")
+        detBuilder = camBuilder.add(detName, detId)
+        detBuilder.setSerial(detSerial)
+        detBuilder.setBBox(bbox)
+        detBuilder.setOrientation(orientation)
+        detBuilder.setPixelSize(pixelSize)
+        detBuilder.setCrosstalk(crosstalk)
+
         # Create amp info
-        schema = lsst.afw.table.AmpInfoTable.makeMinimalSchema()
-        amplifiers = lsst.afw.table.AmpInfoCatalog(schema)
-        for ii, (xx, yy, corner) in enumerate([(0, 0, LL),
-                                               (width, 0, LR),
-                                               (0, height, UL),
-                                               (width, height, UR)]):
-            amp = amplifiers.addNew()
+        for ii, (xx, yy, corner) in enumerate([(0, 0, lsst.afw.cameraGeom.ReadoutCorner.LL),
+                                               (width, 0, lsst.afw.cameraGeom.ReadoutCorner.LR),
+                                               (0, height, lsst.afw.cameraGeom.ReadoutCorner.UL),
+                                               (width, height, lsst.afw.cameraGeom.ReadoutCorner.UR)]):
+
+            amp = cameraGeom.Amplifier.Builder()
             amp.setName("amp %d" % ii)
             amp.setBBox(lsst.geom.Box2I(lsst.geom.Point2I(xx, yy),
                                         lsst.geom.Extent2I(width, height)))
             amp.setRawDataBBox(lsst.geom.Box2I(lsst.geom.Point2I(xx, yy),
                                                lsst.geom.Extent2I(width, height)))
             amp.setReadoutCorner(corner)
+            detBuilder.append(amp)
 
-        # Put everything together
-        ccd = lsst.afw.cameraGeom.Detector("detector", 123, lsst.afw.cameraGeom.SCIENCE, "serial",
-                                           lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                                                           lsst.geom.Extent2I(2*width, 2*height)),
-                                           amplifiers, lsst.afw.cameraGeom.Orientation(),
-                                           lsst.geom.Extent2D(1, 1), {},
-                                           np.array(self.crosstalk, dtype=np.float32))
+        cam = camBuilder.finish()
+        ccd = cam.get('detector')
 
         self.exposure = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
         self.exposure.setDetector(ccd)

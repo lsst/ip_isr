@@ -542,10 +542,18 @@ class IsrMock(pipeBase.Task):
         metadata.add("MONKEYS", 155, "monkeys per tree")
         metadata.add("VAMPIRES", 4, "How scary are vampires.")
 
-        for amp in exposure.getDetector():
-            amp.setLinearityCoeffs((0., 1., 0., 0.))
-            amp.setLinearityType("Polynomial")
-            amp.setGain(self.config.gain)
+        ccd = exposure.getDetector()
+        newCcd = ccd.rebuild()
+        newCcd.clear()
+        for amp in ccd:
+            newAmp = amp.rebuild()
+            newAmp.setLinearityCoeffs((0., 1., 0., 0.))
+            newAmp.setLinearityType("Polynomial")
+            newAmp.setGain(self.config.gain)
+            newAmp.setSuspectLevel(25000.0)
+            newAmp.setSaturation(32000.0)
+            newCcd.append(newAmp)
+        exposure.setDetector(newCcd.finish())
 
         exposure.image.array[:] = np.zeros(exposure.getImage().getDimensions()).transpose()
         exposure.mask.array[:] = np.zeros(exposure.getMask().getDimensions()).transpose()

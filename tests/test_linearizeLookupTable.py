@@ -27,7 +27,6 @@ import numpy as np
 import lsst.utils.tests
 import lsst.utils
 import lsst.afw.image as afwImage
-import lsst.afw.table as afwTable
 import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
@@ -46,7 +45,7 @@ def refLinearize(image, detector, table):
 
     @return the number of pixels whose values were out of range of the lookup table
     """
-    ampInfoCat = detector.getAmpInfoCatalog()
+    ampInfoCat = detector.getAmplifiers()
     numOutOfRange = 0
     for ampInfo in ampInfoCat:
         bbox = ampInfo.getBBox()
@@ -90,7 +89,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             refImage = inImage.Factory(inImage, True)
             refNumOutOfRange = refLinearize(image=refImage, detector=self.detector, table=table)
 
-            self.assertEqual(linRes.numAmps, len(self.detector.getAmpInfoCatalog()))
+            self.assertEqual(linRes.numAmps, len(self.detector.getAmplifiers()))
             self.assertEqual(linRes.numAmps, linRes.numLinearized)
             self.assertEqual(linRes.numOutOfRange, refNumOutOfRange)
             self.assertImagesAlmostEqual(refImage, measImage)
@@ -158,7 +157,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         rowInds = castAndReshape((3, 2, 1, 0))  # avoid the trivial mapping to exercise more of the code
         colIndOffsets = castAndReshape((0, 0, 1, 1))
         detector = self.makeDetector(bbox=bbox, numAmps=numAmps, rowInds=rowInds, colIndOffsets=colIndOffsets)
-        ampInfoCat = detector.getAmpInfoCatalog()
+        ampInfoCat = detector.getAmplifiers()
 
         # note: table rows are reversed relative to amplifier order because rowInds is a descending ramp
         table = np.array(((7, 6, 5, 4), (1, 1, 1, 1), (5, 4, 3, 2), (0, 0, 0, 0)), dtype=imArr.dtype)
@@ -222,32 +221,29 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         rowInds = rowInds if rowInds is not None else self.rowInds
         colIndOffsets = colIndOffsets if colIndOffsets is not None else self.colIndOffsets
 
-        schema = afwTable.AmpInfoTable.makeMinimalSchema()
-        ampInfoCat = afwTable.AmpInfoCatalog(schema)
+        detId = 1
+        orientation = cameraGeom.Orientation()
+        pixelSize = lsst.geom.Extent2D(1, 1)
+
+        camBuilder = cameraGeom.Camera.Builder("fakeCam")
+        detBuilder = camBuilder.add(detName, detId)
+        detBuilder.setSerial(detSerial)
+        detBuilder.setBBox(bbox)
+        detBuilder.setOrientation(orientation)
+        detBuilder.setPixelSize(pixelSize)
+
         boxArr = BoxGrid(box=bbox, numColRow=numAmps)
         for i in range(numAmps[0]):
             for j in range(numAmps[1]):
-                ampInfo = ampInfoCat.addNew()
+                ampInfo = cameraGeom.Amplifier.Builder()
                 ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
                 ampInfo.setBBox(boxArr[i, j])
                 ampInfo.setLinearityType(linearityType)
                 # setLinearityCoeffs is picky about getting a mixed int/float list.
                 ampInfo.setLinearityCoeffs(np.array([rowInds[i, j], colIndOffsets[i, j], 0, 0], dtype=float))
-        detId = 1
-        orientation = cameraGeom.Orientation()
-        pixelSize = lsst.geom.Extent2D(1, 1)
-        transMap = {}
-        return cameraGeom.Detector(
-            detName,
-            detId,
-            cameraGeom.SCIENCE,
-            detSerial,
-            bbox,
-            ampInfoCat,
-            orientation,
-            pixelSize,
-            transMap,
-        )
+                detBuilder.append(ampInfo)
+
+        return detBuilder
 
     def makeTable(self, image, numCols=None, numRows=2500, sigma=55):
         """!Make a 2D lookup table

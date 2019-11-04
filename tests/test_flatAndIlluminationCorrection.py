@@ -110,12 +110,12 @@ class IsrTestCases(unittest.TestCase):
         readNoise = 1
         raw.image.set(level)
 
-        amp = detector[0]
+        amp = detector[0].rebuild()
         amp.setReadNoise(readNoise)
 
         for gain in [-1, 0, 0.1, 1]:
             amp.setGain(gain)
-            isrTask.updateVariance(raw, amp)
+            isrTask.updateVariance(raw, amp.finish())
             if gain <= 0:
                 gain = 1
 
