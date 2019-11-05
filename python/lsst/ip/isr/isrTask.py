@@ -801,16 +801,17 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         inputs['isGen3'] = True
 
         if self.config.doLinearize is True:
-            if 'linearizer' not in inputs.keys():
+            if 'linearizer' not in inputs:
                 detector = inputs['ccdExposure'].getDetector()
                 linearityName = detector.getAmplifiers()[0].getLinearityType()
                 inputs['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
 
-        if inputs['defects'] is not None:
-            # defects is loaded as a BaseCatalog with columns x0, y0, width, height.
-            # masking expects a list of defects defined by their bounding box
-            if not isinstance(inputs["defects"], Defects):
-                inputs["defects"] = Defects.fromTable(inputs["defects"])
+        if self.config.doDefect is True:
+            if "defects" in inputs and inputs['defects'] is not None:
+                # defects is loaded as a BaseCatalog with columns x0, y0, width, height.
+                # masking expects a list of defects defined by their bounding box
+                if not isinstance(inputs["defects"], Defects):
+                    inputs["defects"] = Defects.fromTable(inputs["defects"])
 
         # Broken: DM-17169
         # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
