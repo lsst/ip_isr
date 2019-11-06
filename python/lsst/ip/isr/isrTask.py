@@ -97,11 +97,10 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
     strayLightData = cT.PrerequisiteInput(
-        name='straylight',
+        name='yBackground',
         doc="Input stray light calibration.",
-        storageClass="ExposureF",
+        storageClass="StrayLightData",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
-        deferLoad=True,
     )
     bfKernel = cT.PrerequisiteInput(
         name='bfKernel',
