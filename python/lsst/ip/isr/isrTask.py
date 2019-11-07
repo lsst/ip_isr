@@ -81,13 +81,13 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     dark = cT.PrerequisiteInput(
         name='dark',
         doc="Input dark calibration.",
-        storageClass="ExposureF",
+        storageClass="ImageF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     flat = cT.PrerequisiteInput(
         name="flat",
         doc="Input flat calibration.",
-        storageClass="ExposureF",
+        storageClass="MaskedImageF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
     fringes = cT.PrerequisiteInput(
@@ -149,7 +149,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name='postISRCCD',
         doc="Output ISR processed exposure.",
         storageClass="ExposureF",
-        dimensions=["instrument", "visit", "detector", "exposure"],
+        dimensions=["instrument", "visit", "detector"],
     )
     preInterpExposure = cT.Output(
         name='preInterpISRCCD',
