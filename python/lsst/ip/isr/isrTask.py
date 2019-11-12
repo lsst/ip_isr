@@ -272,7 +272,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     doSuspect = pexConfig.Field(
         dtype=bool,
         doc="Mask suspect pixels?",
-        default=True,
+        default=False,
     )
     suspectMaskName = pexConfig.Field(
         dtype=str,
