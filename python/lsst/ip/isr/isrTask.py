@@ -58,13 +58,13 @@ __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
 
 class IsrTaskConnections(pipeBase.PipelineTaskConnections,
-                         dimensions={"instrument", "visit", "detector"},
+                         dimensions={"instrument", "exposure", "detector"},
                          defaultTemplates={}):
     ccdExposure = cT.PrerequisiteInput(
         name="raw",
         doc="Input exposure to process.",
         storageClass="Exposure",
-        dimensions=["instrument", "visit", "detector"],
+        dimensions=["instrument", "exposure", "detector"],
     )
     camera = cT.PrerequisiteInput(
         name="camera",
@@ -81,13 +81,13 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     dark = cT.PrerequisiteInput(
         name='dark',
         doc="Input dark calibration.",
-        storageClass="ImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     flat = cT.PrerequisiteInput(
         name="flat",
         doc="Input flat calibration.",
-        storageClass="MaskedImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
     bfKernel = cT.PrerequisiteInput(
@@ -137,25 +137,38 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name='postISRCCD',
         doc="Output ISR processed exposure.",
         storageClass="ExposureF",
-        dimensions=["instrument", "visit", "detector"],
+        dimensions=["instrument", "detector", "exposure"],
     )
     preInterpExposure = cT.Output(
         name='preInterpISRCCD',
         doc="Output ISR processed exposure, with pixels left uninterpolated.",
         storageClass="ExposureF",
-        dimensions=["instrument", "visit", "detector"],
+        dimensions=["instrument", "detector", "exposure"],
     )
     outputOssThumbnail = cT.Output(
         name="OssThumb",
         doc="Output Overscan-subtracted thumbnail image.",
         storageClass="Thumbnail",
-        dimensions=["instrument", "visit", "detector"],
+        dimensions=["instrument", "detector", "exposure"],
     )
     outputFlattenedThumbnail = cT.Output(
         name="FlattenedThumb",
         doc="Output flat-corrected thumbnail image.",
         storageClass="Thumbnail",
-        dimensions=["instrument", "visit", "detector"],
+        dimensions=["instrument", "detector", "exposure"],
+    )
+
+    outputConfig = cT.Output(
+        name="isrConfig",
+        doc="CZW temp config output.",
+        storageClass="Config",
+        dimensions=["instrument", "detector", "visit"],
+    )
+    outputMetadata = cT.Output(
+        name="czwMetadata",
+        doc="CZW temp metadata output.",
+        storageClass="StructuredDataDict",
+        dimensions=["instrument", "detector", "visit"],
     )
 
     def __init__(self, *, config=None):
@@ -1424,6 +1437,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             outputExposure=ccdExposure,
             outputOssThumbnail=ossThumb,
             outputFlattenedThumbnail=flattenedThumb,
+            outputConfig=self.config,
+            outputMetadata=self.metadata.toDict(),
         )
 
     @pipeBase.timeMethod
