@@ -444,9 +444,8 @@ def deltaOverscanCorrection(ampMaskedImage, overscanMaskedImage,
     else:
         deltaOverscan = overscanImage.getArray()[:, firstColumn] - overscanImage.getArray()[:, lastColumn]
 
-
     lowMedian = afwMath.makeStatistics(deltaOverscan[: nrow // 2], afwMath.MEDIAN).getValue()
-    highMedian = afwMath.makeStatistics(deltaOverscan[nrow // 2: ], afwMath.MEDIAN).getValue()
+    highMedian = afwMath.makeStatistics(deltaOverscan[nrow // 2:], afwMath.MEDIAN).getValue()
 
     deltaFitPars = numpy.polyfit(numpy.array([nrow // 4, 3 * nrow // 4]),
                                  numpy.array([lowMedian, highMedian]), 1)

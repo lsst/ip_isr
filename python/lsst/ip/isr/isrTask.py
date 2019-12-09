@@ -1721,7 +1721,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("ISR_OSCAN: No overscan region.  Not performing delta overscan correction.")
             return None
 
-
         # Determine the bounding boxes
         dataBBox = amp.getRawDataBBox()
         overscanBBox = amp.getRawHorizontalOverscanBBox()
