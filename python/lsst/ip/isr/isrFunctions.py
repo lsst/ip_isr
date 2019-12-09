@@ -452,16 +452,14 @@ def deltaOverscanCorrection(ampMaskedImage, overscanMaskedImage,
 
     fitDeltaArr = deltaFitPars[1] + deltaFitPars[0] * numpy.arange(nrow)
 
+    # We only subtract the delta-overscan from the image, not from the overscan or
+    # else it completely cancels out
     offImage = ampImage.Factory(ampImage.getDimensions())
     offArray = offImage.getArray()
-    deltaFit = afwImage.ImageF(overscanImage.getDimensions())
-    deltaArray = deltaFit.getArray()
 
     offArray[:, :] = fitDeltaArr[:, numpy.newaxis]
-    deltaArray[:, :] = fitDeltaArr[:, numpy.newaxis]
 
     ampImage -= offImage
-    overscanImage -= deltaFit
 
     return Struct(deltaIntercept=deltaFitPars[1], deltaSlope=deltaFitPars[0])
 

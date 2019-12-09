@@ -1153,6 +1153,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Converting exposure to floating point values.")
             ccdExposure = self.convertIntToFloat(ccdExposure)
 
+        if self.config.doDeltaOverscanCorrection:
+            self.log.info("Applying delta-overscan correction.")
+
         # Amplifier level processing.
         overscans = []
         for amp in ccd:
