@@ -422,6 +422,51 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale, trimToFit=
     maskedImage.scaledDivides(1.0/illumScale, illumMaskedImage)
 
 
+def deltaOverscanCorrection(ampMaskedImage, overscanMaskedImage,
+                            firstColumn, lastColumn,
+                            statControl=None, overscanIsInt=True):
+    """Apply delta overscan correction in place.
+    """
+
+    ampImage = ampMaskedImage.getImage()
+    overscanImage = overscanMaskedImage.getImage()
+    if statControl is None:
+        statControl = afwMath.StatisticsControl()
+
+    # two two bins along the rows
+    nrow = overscanImage.getArray().shape[0]
+
+    # This will need to be changed to use a bbox to get the mask plane in, I think
+
+    if overscanIsInt:
+        deltaOverscan = (overscanImage.getArray()[:, firstColumn].astype(numpy.int32) -
+                         overscanImage.getArray()[:, lastColumn].astype(numpy.int32))
+    else:
+        deltaOverscan = overscanImage.getArray()[:, firstColumn] - overscanImage.getArray()[:, lastColumn]
+
+
+    lowMedian = afwMath.makeStatistics(deltaOverscan[: nrow // 2], afwMath.MEDIAN).getValue()
+    highMedian = afwMath.makeStatistics(deltaOverscan[nrow // 2: ], afwMath.MEDIAN).getValue()
+
+    deltaFitPars = numpy.polyfit(numpy.array([nrow // 4, 3 * nrow // 4]),
+                                 numpy.array([lowMedian, highMedian]), 1)
+
+    fitDeltaArr = deltaFitPars[1] + deltaFitPars[0] * numpy.arange(nrow)
+
+    offImage = ampImage.Factory(ampImage.getDimensions())
+    offArray = offImage.getArray()
+    deltaFit = afwImage.ImageF(overscanImage.getDimensions())
+    deltaArray = deltaFit.getArray()
+
+    offArray[:, :] = fitDeltaArr[:, numpy.newaxis]
+    deltaArray[:, :] = fitDeltaArr[:, numpy.newaxis]
+
+    ampImage -= offImage
+    overscanImage -= deltaFit
+
+    return Struct(deltaIntercept=deltaFitPars[1], deltaSlope=deltaFitPars[0])
+
+
 def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0,
                        statControl=None, overscanIsInt=True):
     """Apply overscan correction in place.

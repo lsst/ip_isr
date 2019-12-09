@@ -244,6 +244,13 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
+    # Delta-overscan configuration
+    doDeltaOverscanCorrection = pexConfig.Field(
+        dtype=bool,
+        doc="Perform HSC delta-overscan correction",
+        default=False,
+    )
+
     # Saturated pixel handling.
     doSaturation = pexConfig.Field(
         dtype=bool,
@@ -1154,6 +1161,17 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 # Check for fully masked bad amplifiers, and generate masks for SUSPECT and SATURATED values.
                 badAmp = self.maskAmplifier(ccdExposure, amp, defects)
 
+                if self.config.doDeltaOverscanCorrection and not badAmp:
+                    # Delta-overscan correction on amp-by-amp basis.
+                    deltaOverscanResults = self.deltaOverscanCorrection(ccdExposure, amp)
+                    self.log.debug("Corrected delta-overscan for amplifier %s.", amp.getName())
+                    if deltaOverscanResults is not None and \
+                            self.config.qa is not None and self.config.qa.saveStats is True:
+                        self.metadata.set(f"ISR OSCAN {amp.getName()} DELTAINT",
+                                          deltaOverscanResults.deltaIntercept)
+                        self.metadata.set(f"ISR OSCAN {amp.getName()} DELTASLOPE",
+                                          deltaOverscanResults.deltaSlope)
+
                 if self.config.doOverscan and not badAmp:
                     # Overscan correction on amp-by-amp basis.
                     overscanResults = self.overscanCorrection(ccdExposure, amp)
@@ -1674,6 +1692,72 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             maskView |= maskView.getPlaneBitMask("BAD")
 
         return badAmp
+
+    def deltaOverscanCorrection(self, ccdExposure, amp):
+        """Apply the delta overscan correction in place.
+
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.Exposure`
+            Exposure to have overscan correction performed.
+        amp : `lsst.afw.table.AmpInfoCatalog`
+            The amplifier to consider while correcting the overscan.
+
+        Returns
+        -------
+        deltaOverscanResults : `lsst.pipe.base.Struct`
+            Result struct with components:
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the ``amp`` does not contain raw pixel information.
+        """
+
+        if not amp.getHasRawInfo():
+            raise RuntimeError("This method must be executed on an amp with raw information.")
+
+        if amp.getRawHorizontalOverscanBBox().isEmpty():
+            self.log.info("ISR_OSCAN: No overscan region.  Not performing delta overscan correction.")
+            return None
+
+
+        # Determine the bounding boxes
+        dataBBox = amp.getRawDataBBox()
+        overscanBBox = amp.getRawHorizontalOverscanBBox()
+
+        ampMaskedImage = ccdExposure.maskedImage[dataBBox]
+        overscanMaskedImage = ccdExposure.maskedImage[overscanBBox]
+
+        # This is probably the wrong median, but it may not matter...
+        overscanArray = overscanMaskedImage.image.array
+        median = numpy.ma.median(numpy.ma.masked_where(overscanMaskedImage.mask.array, overscanArray))
+        bad = numpy.where(numpy.abs(overscanArray - median) > self.config.overscanMaxDev)
+        overscanMaskedImage.mask.array[bad] = overscanMaskedImage.mask.getPlaneBitMask("SAT")
+
+        statControl = afwMath.StatisticsControl()
+        statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
+
+        if amp.getReadoutCorner() in (ReadoutCorner.LL, ReadoutCorner.UL):
+            firstColumn = 0
+            lastColumn = -1
+        else:
+            firstColumn = -1
+            lastColumn = 0
+
+        deltaOverscanResults = isrFunctions.deltaOverscanCorrection(ampMaskedImage=ampMaskedImage,
+                                                                    overscanMaskedImage=overscanMaskedImage,
+                                                                    firstColumn=firstColumn,
+                                                                    lastColumn=lastColumn,
+                                                                    statControl=statControl)
+
+        metadata = ccdExposure.getMetadata()
+        ampNum = amp.getName()
+
+        metadata.set("ISR_OSCAN_DELTAINT%s" % ampNum, deltaOverscanResults.deltaIntercept)
+        metadata.set("ISR_OSCAN_DELTASLOPE%s" % ampNum, deltaOverscanResults.deltaSlope)
+
+        return deltaOverscanResults
 
     def overscanCorrection(self, ccdExposure, amp):
         """Apply overscan correction in place.
