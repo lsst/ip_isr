@@ -287,8 +287,8 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         stdAfter = np.nanstd(exp.getImage().getArray())
 
         self.assertLess(medianAfter, medianBefore)
-        self.assertFloatsAlmostEqual(medianAfter, 3002.233, atol=1e-4)
-        self.assertFloatsAlmostEqual(stdAfter, 3549.9375, atol=1e-4)
+        self.assertFloatsAlmostEqual(medianAfter, 3000.925, atol=1e-4)
+        self.assertFloatsAlmostEqual(stdAfter, 3549.9885, atol=1e-4)
 
         deviation = np.abs(solution - config.fringeScale)
         self.assertTrue(np.all(deviation / rms < 1.0))
