@@ -52,8 +52,18 @@ class IsrMockConfig(pexConfig.Config):
     # Detector parameters. "Exposure" parameters.
     isLsstLike = pexConfig.Field(
         dtype=bool,
-        default=True,
+        default=False,
         doc="If True, products have one raw image per amplifier, otherwise, one raw image per detector.",
+    )
+    plateScale = pexConfig.Field(
+        dtype=float,
+        default=20.0,
+        doc="Plate scale used in constructing mock camera.",
+    )
+    radialDistortion = pexConfig.Field(
+        dtype=float,
+        default=0.925,
+        doc="Radial distortion term used in constructing mock camera.",
     )
     isTrimmed = pexConfig.Field(
         dtype=bool,
@@ -499,7 +509,11 @@ class IsrMock(pipeBase.Task):
         camera : `lsst.afw.cameraGeom.camera`
             Test camera.
         """
-        cameraWrapper = afwTestUtils.CameraWrapper(self.config.isLsstLike)
+        cameraWrapper = afwTestUtils.CameraWrapper(
+            plateScale=self.config.plateScale,
+            radialDistortion=self.config.radialDistortion,
+            isLsstLike=self.config.isLsstLike,
+        )
         camera = cameraWrapper.camera
         return camera
 
