@@ -807,9 +807,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         inputs['isGen3'] = True
 
-        if self.config.doLinearize is True:
+        detector = inputs['ccdExposure'].getDetector()
+        if self.doLinearize(detector) is True:
             if 'linearizer' not in inputs:
-                detector = inputs['ccdExposure'].getDetector()
                 linearityName = detector.getAmplifiers()[0].getLinearityType()
                 inputs['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
 
