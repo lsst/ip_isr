@@ -22,10 +22,16 @@
 
 import unittest
 
+import math
+import numpy as np
+
 import lsst.utils.tests
 import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.ip.isr as ipIsr
+
+from lsst.afw.cameraGeom.testUtils import DetectorWrapper
+from lsst.ip.isr import IsrTask
 
 
 class IsrTestCases(unittest.TestCase):
@@ -97,9 +103,6 @@ class IsrTestCases(unittest.TestCase):
         self.doIllum(scaling=3.7)
 
     def testGainAndReadnoise(self):
-        import lsst.afw.image as afwImage
-        from lsst.afw.cameraGeom.testUtils import DetectorWrapper
-        from lsst.ip.isr import IsrTask
 
         isrTask = IsrTask()
 
@@ -107,19 +110,20 @@ class IsrTestCases(unittest.TestCase):
         raw = afwImage.ExposureF(detector.getBBox())
 
         level = 10
-        readNoise = 1
+        readNoise = 1.5
         raw.image.set(level)
 
-        amp = detector[0].rebuild()
+        amp = detector[0]
         amp.setReadNoise(readNoise)
 
-        for gain in [-1, 0, 0.1, 1]:
+        for gain in [-1, 0, 0.1, 1, np.NaN]:
             amp.setGain(gain)
-            isrTask.updateVariance(raw, amp.finish())
-            if gain <= 0:
+            isrTask.updateVariance(raw, amp)
+            if gain <= 0:               # behave the same way as amp.setGain
                 gain = 1
-
-        self.assertEqual(raw.variance[0, 0, afwImage.LOCAL], level/gain + readNoise**2)
+            if math.isnan(gain):
+                gain = 1
+            self.assertEqual(raw.variance[0, 0, afwImage.LOCAL], level/gain + readNoise**2)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
