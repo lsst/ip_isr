@@ -919,21 +919,25 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         brighterFatterKernel = None
         if self.config.doBrighterFatter is True:
-
-            # Use the new-style cp_pipe version of the kernel is it exists.
-            try:
+            try:  # Use the new-style cp_pipe version of the kernel is it exists.
                 brighterFatterKernel = dataRef.get("brighterFatterKernel")
+                self.log.info("New style bright-fatter kernel (brighterFatterKernel) loaded")
             except NoResults:
-                # Fall back to the old-style numpy-ndarray style kernel if necessary.
-                try:
+                try:  # Fall back to the old-style numpy-ndarray style kernel if necessary.
                     brighterFatterKernel = dataRef.get("bfKernel")
+                    self.log.info("Old style bright-fatter kernel (np.array) loaded")
                 except NoResults:
                     brighterFatterKernel = None
             if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
-                # If the kernel is not an ndarray, it's the cp_pipe version, so extract the kernel for
-                # this detector, or raise an error.
+                # If the kernel is not an ndarray, it's the cp_pipe version
+                # so extract the kernel for this detector, or raise an error
                 if self.config.brighterFatterLevel == 'DETECTOR':
-                    brighterFatterKernel = brighterFatterKernel.kernel[ccd.getId()]
+                    if brighterFatterKernel.detectorKernel:
+                        brighterFatterKernel = brighterFatterKernel.detectorKernel[ccd.getId()]
+                    elif brighterFatterKernel.detectorKernelFromAmpKernels:
+                        brighterFatterKernel = brighterFatterKernel.detectorKernelFromAmpKernels[ccd.getId()]
+                    else:
+                        raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
                 else:
                     # TODO DM-15631 for implementing this
                     raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
