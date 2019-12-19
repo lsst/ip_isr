@@ -21,3 +21,5 @@ tests/.tests
 tests/.cache
 version.py
 bin/
+.idea/
+.vscode/
