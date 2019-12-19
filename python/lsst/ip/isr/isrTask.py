@@ -499,11 +499,6 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             "DETECTOR": "One kernel per detector",
         }
     )
-    brighterFatterKernelFile = pexConfig.Field(
-        dtype=str,
-        default='',
-        doc="Kernel file used for the brighter fatter correction"
-    )
     brighterFatterMaxIter = pexConfig.Field(
         dtype=int,
         default=10,
