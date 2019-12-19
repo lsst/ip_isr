@@ -820,6 +820,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 if not isinstance(inputs["defects"], Defects):
                     inputs["defects"] = Defects.fromTable(inputs["defects"])
 
+        # TODO: DM-22776 add retrieval for brighter-fatter kernel for Gen3
+        # if we can get HSC to use a new kernel, or just translate the old
+        # one to the new format we could drop the whole new/old style support
+
         # Broken: DM-17169
         # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
         # fixed for non-HSC cameras in the future.
@@ -913,9 +917,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         if self.config.doFlat else None)
 
         brighterFatterKernel = None
+        brighterFatterGains = None
         if self.config.doBrighterFatter is True:
-            try:  # Use the new-style cp_pipe version of the kernel is it exists.
+            try:
+                # Use the new-style cp_pipe version of the kernel if it exists
+                # If using a new-style kernel, always use the self-consistent
+                # gains, i.e. the ones inside the kernel object itself
                 brighterFatterKernel = dataRef.get("brighterFatterKernel")
+                brighterFatterGains = brighterFatterKernel.gain
                 self.log.info("New style bright-fatter kernel (brighterFatterKernel) loaded")
             except NoResults:
                 try:  # Fall back to the old-style numpy-ndarray style kernel if necessary.
@@ -977,6 +986,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                dark=darkExposure,
                                flat=flatExposure,
                                bfKernel=brighterFatterKernel,
+                               bfGains=brighterFatterGains,
                                defects=defectList,
                                fringes=fringeStruct,
                                opticsTransmission=opticsTransmission,
@@ -989,8 +999,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
     @pipeBase.timeMethod
     def run(self, ccdExposure, camera=None, bias=None, linearizer=None, crosstalkSources=None,
-            dark=None, flat=None, bfKernel=None, defects=None, fringes=pipeBase.Struct(fringes=None),
-            opticsTransmission=None, filterTransmission=None,
+            dark=None, flat=None, bfKernel=None, bfGains=None, defects=None,
+            fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
             isGen3=False,
@@ -1034,6 +1044,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Flat calibration frame.
         bfKernel : `numpy.ndarray`, optional
             Brighter-fatter kernel.
+        bfGains : `dict` of `float`, optional
+            Gains used to override the detector's nominal gains for the
+            brighter-fatter correction. A dict keyed by amplifier name for
+            the detector in question.
         defects : `lsst.meas.algorithms.Defects`, optional
             List of defects.
         fringes : `lsst.pipe.base.Struct`, optional
@@ -1295,8 +1309,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
                                                               self.config.brighterFatterMaxIter,
                                                               self.config.brighterFatterThreshold,
-                                                              self.config.brighterFatterApplyGain
-                                                              )
+                                                              self.config.brighterFatterApplyGain,
+                                                              bfGains)
             if bfResults[1] == self.config.brighterFatterMaxIter:
                 self.log.warn("Brighter fatter correction did not converge, final difference %f.",
                               bfResults[0])
