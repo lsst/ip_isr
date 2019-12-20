@@ -30,6 +30,7 @@ import lsst.geom
 import lsst.afw.image as afwImage
 import lsst.ip.isr as ipIsr
 
+from lsst.afw.cameraGeom import Amplifier
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.ip.isr import IsrTask
 
@@ -114,11 +115,17 @@ class IsrTestCases(unittest.TestCase):
         raw.image.set(level)
 
         amp = detector[0]
-        amp.setReadNoise(readNoise)
 
         for gain in [-1, 0, 0.1, 1, np.NaN]:
-            amp.setGain(gain)
-            isrTask.updateVariance(raw, amp)
+            # Because amplifiers are immutable, we can't change the gain or
+            # read noise in-place. Instead, we clone, and update the clone.
+            testAmp = Amplifier.Builder()
+            testAmp.assign(amp)
+            testAmp.setReadNoise(readNoise)
+            testAmp.setGain(gain)
+            testAmp.finish()
+
+            isrTask.updateVariance(raw, testAmp)
             if gain <= 0:               # behave the same way as amp.setGain
                 gain = 1
             if math.isnan(gain):
