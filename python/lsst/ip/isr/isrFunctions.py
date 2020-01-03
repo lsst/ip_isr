@@ -647,7 +647,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
     return Struct(imageFit=offImage, overscanFit=overscanFit, overscanImage=overscanImage)
 
 
-def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain):
+def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, gains=None):
     """Apply brighter fatter correction in place for the image.
 
     Parameters
@@ -665,6 +665,9 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain):
     applyGain : `Bool`
         If True, then the exposure values are scaled by the gain prior
         to correction.
+    gains : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the gains to use.
+        If gains is None, the nominal gains in the amplifier object are used.
 
     Returns
     -------
@@ -705,7 +708,7 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain):
     image = exposure.getMaskedImage().getImage()
 
     # The image needs to be units of electrons/holes
-    with gainContext(exposure, image, applyGain):
+    with gainContext(exposure, image, applyGain, gains):
 
         kLx = numpy.shape(kernel)[0]
         kLy = numpy.shape(kernel)[1]
@@ -767,7 +770,7 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain):
 
 
 @contextmanager
-def gainContext(exp, image, apply):
+def gainContext(exp, image, apply, gains=None):
     """Context manager that applies and removes gain.
 
     Parameters
@@ -778,17 +781,32 @@ def gainContext(exp, image, apply):
         Image to apply/remove gain.
     apply : `Bool`
         If True, apply and remove the amplifier gain.
+    gains : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the gains to use.
+        If gains is None, the nominal gains in the amplifier object are used.
 
     Yields
     ------
     exp : `lsst.afw.image.Exposure`
         Exposure with the gain applied.
     """
+    # check we have all of them if provided because mixing and matching would
+    # be a real mess
+    if gains and apply is True:
+        ampNames = [amp.getName() for amp in exp.getDetector()]
+        for ampName in ampNames:
+            if ampName not in gains.keys():
+                raise RuntimeError(f"Gains provided to gain context, but no entry found for amp {ampName}")
+
     if apply:
         ccd = exp.getDetector()
         for amp in ccd:
             sim = image.Factory(image, amp.getBBox())
-            sim *= amp.getGain()
+            if gains:
+                gain = gains[amp.getName()]
+            else:
+                gain = amp.getGain()
+            sim *= gain
 
     try:
         yield exp
@@ -797,7 +815,11 @@ def gainContext(exp, image, apply):
             ccd = exp.getDetector()
             for amp in ccd:
                 sim = image.Factory(image, amp.getBBox())
-                sim /= amp.getGain()
+                if gains:
+                    gain = gains[amp.getName()]
+                else:
+                    gain = amp.getGain()
+                sim /= gain
 
 
 def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmission=None,
