@@ -840,6 +840,23 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # fixed for non-HSC cameras in the future.
         # inputs['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputsIds['ccdExposure'])
         #                        if self.config.doCrosstalk else None)
+        if self.config.doBrighterFatter:
+            brighterFatterKernel = inputs.get('bfKernel', None)
+            if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
+                inputs['bfGains'] = brighterFatterKernel.gain
+                # If the kernel is not an ndarray, it's the cp_pipe version
+                # so extract the kernel for this detector, or raise an error
+                if self.config.brighterFatterLevel == 'DETECTOR':
+                    ccd = inputs['ccdExposure']
+                    if brighterFatterKernel.detectorKernel:
+                        inputs['bfKernel'] = brighterFatterKernel.detectorKernel[ccd.getId()]
+                    elif brighterFatterKernel.detectorKernelFromAmpKernels:
+                        inputs['bfKernel'] = brighterFatterKernel.detectorKernelFromAmpKernels[ccd.getId()]
+                    else:
+                        raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
+                else:
+                    # TODO DM-15631 for implementing this
+                    raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
 
         if self.config.doFringe is True and self.fringe.checkFilter(inputs['ccdExposure']):
             expId = inputs['ccdExposure'].getInfo().getVisitInfo().getExposureId()
