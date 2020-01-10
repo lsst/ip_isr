@@ -234,6 +234,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Fallback default filter name for calibrations.",
         optional=True
     )
+    useFallbackDate = pexConfig.Field(
+        dtype=bool,
+        doc="Pass observation date when using fallback filter.",
+        default=False,
+    )
     expectWcs = pexConfig.Field(
         dtype=bool,
         default=True,
@@ -901,6 +906,13 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         NotImplementedError :
             Raised if a per-amplifier brighter-fatter kernel is requested by the configuration.
         """
+        try:
+            dateObs = rawExposure.getInfo().getVisitInfo().getDate()
+            dateObs = dateObs.toPython().isoformat()
+        except RuntimeError:
+            self.log.warn("Unable to identify dateObs for rawExposure.")
+            dateObs = None
+
         ccd = rawExposure.getDetector()
         filterName = afwImage.Filter(rawExposure.getFilter().getId()).getName()  # Canonical name for filter
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
@@ -913,7 +925,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                             if self.config.doCrosstalk else None)
         darkExposure = (self.getIsrExposure(dataRef, self.config.darkDataProductName)
                         if self.config.doDark else None)
-        flatExposure = (self.getIsrExposure(dataRef, self.config.flatDataProductName)
+        flatExposure = (self.getIsrExposure(dataRef, self.config.flatDataProductName,
+                                            dateObs=dateObs)
                         if self.config.doFlat else None)
 
         brighterFatterKernel = None
@@ -1501,7 +1514,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         return result
 
-    def getIsrExposure(self, dataRef, datasetType, immediate=True):
+    def getIsrExposure(self, dataRef, datasetType, dateObs=None, immediate=True):
         """!Retrieve a calibration dataset for removing instrument signature.
 
         Parameters
@@ -1512,6 +1525,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             for.
         datasetType : `str`
             Type of dataset to retrieve (e.g. 'bias', 'flat', etc).
+        dateObs : `str`, optional
+            Date of the observation.  Used to correct butler failures
+            when using fallback filters.
         immediate : `Bool`
             If True, disable butler proxies to enable error handling
             within this routine.
@@ -1532,7 +1548,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             if not self.config.fallbackFilterName:
                 raise RuntimeError("Unable to retrieve %s for %s: %s." % (datasetType, dataRef.dataId, exc1))
             try:
-                exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
+                if self.config.useFallbackDate and dateObs:
+                    exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName,
+                                      dateObs=dateObs, immediate=immediate)
+                else:
+                    exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
             except Exception as exc2:
                 raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s." %
                                    (datasetType, dataRef.dataId, self.config.fallbackFilterName, exc1, exc2))
