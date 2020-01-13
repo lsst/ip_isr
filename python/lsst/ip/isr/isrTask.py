@@ -1497,14 +1497,16 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Measuring background level.")
             self.measureBackground(ccdExposure, self.config.qa)
 
-            if self.config.qa is not None and self.config.qa.saveStats is True:
-                for amp in ccd:
+        if self.config.qa is not None and self.config.qa.saveStats is True:
+            # Having background levels downstream is helpful.
+            for amp in ccd:
+                if ccdExposure.getBBox().contains(amp.getBBox()):
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                     qaStats = afwMath.makeStatistics(ampExposure.getImage(),
                                                      afwMath.MEDIAN | afwMath.STDEVCLIP)
-                    self.metadata.set("ISR BACKGROUND {} MEDIAN".format(amp.getName()),
+                    self.metadata.set(f"ISR BKG {amp.getName()} MEDIAN",
                                       qaStats.getValue(afwMath.MEDIAN))
-                    self.metadata.set("ISR BACKGROUND {} STDEV".format(amp.getName()),
+                    self.metadata.set(f"ISR BKG {amp.getName()} STDEV",
                                       qaStats.getValue(afwMath.STDEVCLIP))
                     self.log.debug("  Background stats for amplifer %s: %f +/- %f",
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
