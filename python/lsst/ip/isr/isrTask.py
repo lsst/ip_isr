@@ -108,6 +108,12 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="NumpyArray",
         dimensions=["instrument", "calibration_label"],
     )
+    newBFKernel = cT.PrerequisiteInput(
+        name='brighterFatterKernel',
+        doc="Newer complete kernel + gain solutions.",
+        storageClass="BrighterFatterKernel",
+        dimensions=["instrument", "calibration_label", "detector"],
+    )
     defects = cT.PrerequisiteInput(
         name='defects',
         doc="Input defect tables.",
@@ -181,6 +187,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.prerequisiteInputs.discard("crosstalkSources")
         if config.doBrighterFatter is not True:
             self.prerequisiteInputs.discard("bfKernel")
+            self.prerequisiteInputs.discard("newBFKernel")
         if config.doDefect is not True:
             self.prerequisiteInputs.discard("defects")
         if config.doDark is not True:
@@ -831,32 +838,34 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 if not isinstance(inputs["defects"], Defects):
                     inputs["defects"] = Defects.fromTable(inputs["defects"])
 
-        # TODO: DM-22776 add retrieval for brighter-fatter kernel for Gen3
-        # if we can get HSC to use a new kernel, or just translate the old
-        # one to the new format we could drop the whole new/old style support
+        # Load the correct style of brighter fatter kernel, and repack
+        # the information as a numpy array.
+        if self.config.doBrighterFatter:
+            brighterFatterKernel = inputs.pop('newBFKernel', None)
+            if brighterFatterKernel is None:
+                brighterFatterKernel = inputs.get('bfKernel', None)
+
+            if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
+                detId = detector.getId()
+                inputs['bfGains'] = brighterFatterKernel.gain
+                # If the kernel is not an ndarray, it's the cp_pipe version
+                # so extract the kernel for this detector, or raise an error
+                if self.config.brighterFatterLevel == 'DETECTOR':
+                    if brighterFatterKernel.detectorKernel:
+                        inputs['bfKernel'] = brighterFatterKernel.detectorKernel[detId]
+                    elif brighterFatterKernel.detectorKernelFromAmpKernels:
+                        inputs['bfKernel'] = brighterFatterKernel.detectorKernelFromAmpKernels[detId]
+                    else:
+                        raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
+                else:
+                    # TODO DM-15631 for implementing this
+                    raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
 
         # Broken: DM-17169
         # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
         # fixed for non-HSC cameras in the future.
         # inputs['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputsIds['ccdExposure'])
         #                        if self.config.doCrosstalk else None)
-        if self.config.doBrighterFatter:
-            brighterFatterKernel = inputs.get('bfKernel', None)
-            if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
-                inputs['bfGains'] = brighterFatterKernel.gain
-                # If the kernel is not an ndarray, it's the cp_pipe version
-                # so extract the kernel for this detector, or raise an error
-                if self.config.brighterFatterLevel == 'DETECTOR':
-                    ccd = inputs['ccdExposure']
-                    if brighterFatterKernel.detectorKernel:
-                        inputs['bfKernel'] = brighterFatterKernel.detectorKernel[ccd.getId()]
-                    elif brighterFatterKernel.detectorKernelFromAmpKernels:
-                        inputs['bfKernel'] = brighterFatterKernel.detectorKernelFromAmpKernels[ccd.getId()]
-                    else:
-                        raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
-                else:
-                    # TODO DM-15631 for implementing this
-                    raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
 
         if self.config.doFringe is True and self.fringe.checkFilter(inputs['ccdExposure']):
             expId = inputs['ccdExposure'].getInfo().getVisitInfo().getExposureId()
@@ -1341,7 +1350,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 )
             bfExp = interpExp.clone()
 
-            self.log.info("Applying brighter fatter correction.")
+            self.log.info("Applying brighter fatter correction using kernel type %s / gains %s.",
+                          type(bfKernel), type(bfGains))
             bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
                                                               self.config.brighterFatterMaxIter,
                                                               self.config.brighterFatterThreshold,
