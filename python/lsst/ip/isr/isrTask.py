@@ -521,6 +521,12 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=True,
         doc="Should the gain be applied when applying the brighter fatter correction?"
     )
+    brighterFatterMaskGrowSize = pexConfig.Field(
+        dtype=int,
+        default=0,
+        doc="Number of pixels to grow the masks listed in config.maskListToInterpolate "
+        " when brighter-fatter correction is applied."
+    )
 
     # Dark subtraction.
     doDark = pexConfig.Field(
@@ -1341,9 +1347,17 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             # produce a valid correction. Mark pixels within the size
             # of the brighter-fatter kernel as EDGE to warn of this
             # fact.
+            self.log.info("Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.")
             self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
                            maskPlane="EDGE")
-            self.log.warn("Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.")
+
+            if self.config.brighterFatterMaskGrowSize > 0:
+                self.log.info("Growing masks to account for brighter-fatter kernel convolution.")
+                for maskPlane in self.config.maskListToInterpolate:
+                    isrFunctions.growMasks(ccdExposure.getMask(),
+                                           radius=self.config.brighterFatterMaskGrowSize,
+                                           maskNameList=maskPlane,
+                                           maskValue=maskPlane)
 
             self.debugView(ccdExposure, "doBrighterFatter")
 
