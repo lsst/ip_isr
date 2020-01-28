@@ -134,6 +134,27 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     return measAlg.Defects.fromFootprintList(fpList)
 
 
+def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
+    """Grow a mask by an amount and add to the requested plane.
+
+    Parameters
+    ----------
+    mask : `lsst.afw.image.Mask`
+        Mask image to process.
+    radius : scalar
+        Amount to grow the mask.
+    maskNameList : `str` or `list` [`str`]
+        Mask names that should be grown.
+    maskValue : `str`
+        Mask plane to assign the newly masked pixels to.
+    """
+    if radius > 0:
+        thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskNameList), afwDetection.Threshold.BITMASK)
+        fpSet = afwDetection.FootprintSet(mask, thresh)
+        fpSet = afwDetection.FootprintSet(fpSet, rGrow=radius, isotropic=False)
+        fpSet.setMask(mask, maskValue)
+
+
 def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
                         maskNameList=['SAT'], fallbackValue=None):
     """Interpolate over defects identified by a particular set of mask planes.
@@ -154,12 +175,9 @@ def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
     mask = maskedImage.getMask()
 
     if growSaturatedFootprints > 0 and "SAT" in maskNameList:
-        thresh = afwDetection.Threshold(mask.getPlaneBitMask("SAT"), afwDetection.Threshold.BITMASK)
-        fpSet = afwDetection.FootprintSet(mask, thresh)
         # If we are interpolating over an area larger than the original masked region, we need
         # to expand the original mask bit to the full area to explain why we interpolated there.
-        fpSet = afwDetection.FootprintSet(fpSet, rGrow=growSaturatedFootprints, isotropic=False)
-        fpSet.setMask(mask, "SAT")
+        growMasks(mask, radius=growSaturatedFootprints, maskNameList=['SAT'], maskValue="SAT")
 
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskNameList), afwDetection.Threshold.BITMASK)
     fpSet = afwDetection.FootprintSet(mask, thresh)
