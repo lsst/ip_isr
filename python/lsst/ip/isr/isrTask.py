@@ -345,6 +345,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             "MEAN": "Correct using the mean of the overscan region",
             "MEANCLIP": "Correct using a clipped mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
+            "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
         },
     )
     overscanOrder = pexConfig.Field(
@@ -360,7 +361,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
     overscanIsInt = pexConfig.Field(
         dtype=bool,
-        doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN",
+        doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN" +
+            " and overscan.FitType=MEDIAN_PER_ROW.",
         default=True,
     )
     overscanNumLeadingColumnsToSkip = pexConfig.Field(
