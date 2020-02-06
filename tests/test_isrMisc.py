@@ -88,7 +88,7 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         """Assert that the linearize task does not error when a linearity is requested.
         """
         for linearityTypeName in ('LookupTable', 'Squared', 'Unknown'):
-            result = linearize.getLinearityTypeByName(linearityTypeName)
+            result = linearize.Linearizer().getLinearityTypeByName(linearityTypeName)
             # These return the actual class to use, so use Equal instead of IsInstance.
             if linearityTypeName == 'LookupTable':
                 self.assertEqual(result, linearize.LinearizeLookupTable, msg=f"{linearityTypeName}")

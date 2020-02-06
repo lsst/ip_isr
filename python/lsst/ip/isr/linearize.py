@@ -26,226 +26,510 @@ import numpy as np
 from lsst.pipe.base import Struct
 from .applyLookupTable import applyLookupTable
 
-__all__ = ["LinearizeBase", "LinearizeLookupTable", "LinearizeSquared"]
+__all__ = ["Linearizer",
+           "LinearizeBase", "LinearizeLookupTable", "LinearizeSquared",
+           "LinearizeProportional", "LinearizePolynomial", "LinearizeNone"]
 
 
-def getLinearityTypeByName(linearityTypeName):
-    """Determine the linearity class to use if the type is known.
+class Linearizer(abc.ABC):
+    """Parameter set for linearization.
+
+    These parameters are included in cameraGeom.Amplifier, but
+    should be accessible externally to allow for testing.
 
     Parameters
     ----------
-    linearityTypeName : str
-        String name of the linearity type that is needed.
-
-    Returns
-    -------
-    linearityType : `~lsst.ip.isr.linearize.LinearizeSquared`
-        The appropriate linearity class to use.  If no matching class
-        is found, `None` is returned.
+    table : `numpy.array`, optional
+        Optional lookup table to use for correction.
+    override : `bool`, optional
+        Override the parameters defined in the detector/amplifier.
+    log : `lsst.log.Log`, optional
+        Logger to handle messages.
     """
-    for t in [LinearizeLookupTable, LinearizeSquared]:
-        if t.LinearityType == linearityTypeName:
-            return t
-    return None
+    def __init__(self, table=None, detector=None, override=False, log=None):
+        self._detectorName = None
+        self._detectorSerial = None
+
+        self.linearityCoeffs = dict()
+        self.linearityType = dict()
+        self.linearityThreshold = dict()
+        self.linearityMaximum = dict()
+        self.linearityUnits = dict()
+        self.linearityBBox = dict()
+
+        self.override = override
+        self.populated = False
+        self.log = log
+
+        self.tableData = None
+        if table is not None:
+            if len(table.shape) != 2:
+                raise RuntimeError("table shape = %s; must have two dimensions" % (table.shape,))
+            if table.shape[1] < table.shape[0]:
+                raise RuntimeError("table shape = %s; indices are switched" % (table.shape,))
+            self.tableData = np.array(table, order="C")
+
+        if detector:
+            self.fromDetector(detector)
+
+    def __call__(self, exposure):
+        """Apply linearity, setting parameters if necessary.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to correct.
+
+        Returns
+        -------
+        output : `lsst.pipe.base.Struct`
+            Linearization results:
+            ``"numAmps"``
+                Number of amplifiers considered.
+            ``"numLinearized"``
+                Number of amplifiers linearized.
+        """
+
+    def fromDetector(self, detector):
+        """Read linearity parameters from a detector.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.detector`
+            Input detector with parameters to use.
+        """
+        self._detectorName = detector.getName()
+        self._detectorSerial = detector.getSerial()
+        self.populated = True
+
+        # Do not translate Threshold, Maximum, Units.
+        for amp in detector.getAmplifiers():
+            ampName = amp.getName()
+            self.linearityCoeffs[ampName] = amp.getLinearityCoeffs()
+            self.linearityType[ampName] = amp.getLinearityType()
+            self.linearityBBox[ampName] = amp.getBBox()
+
+    def fromYaml(self, yamlObject):
+        """Read linearity parameters from a dict.
+
+        Parameters
+        ----------
+        yamlObject : `dict`
+            Dictionary containing detector and amplifier information.
+        """
+        self._detectorName = yamlObject['detectorName']
+        self._detectorSerial = yamlObject['detectorSerial']
+        self.populated = True
+        self.override = True
+
+        for amp in yamlObject['amplifiers']:
+            ampName = amp['name']
+            self.linearityCoeffs[ampName] = amp.get('linearityCoeffs', None)
+            self.linearityType[ampName] = amp.get('linearityType', 'None')
+            self.linearityBBox[ampName] = amp.get('linearityBBox', None)
+
+    def toDict(self):
+        """Return linearity parameters as a dict.
+
+        Returns
+        -------
+        outDict : `dict`:
+        """
+        outDict = {'detectorName': self._detectorName,
+                   'detectorSerial': self._detectorSerial,
+                   'hasTable': self._table is not None,
+                   'amplifiers': dict()}
+        for ampName in self.linearityType:
+            outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
+                                              'linearityCoeffs': self.linearityCoeffs[ampName],
+                                              'linearityBBox': self.linearityBBox[ampName]}
+
+    def getLinearityTypeByName(self, linearityTypeName):
+        """Determine the linearity class to use from the type name.
+
+        Parameters
+        ----------
+        linearityTypeName : str
+            String name of the linearity type that is needed.
+
+        Returns
+        -------
+        linearityType : `~lsst.ip.isr.linearize.LinearizeBase`
+            The appropriate linearity class to use.  If no matching class
+            is found, `None` is returned.
+        """
+        for t in [LinearizeLookupTable,
+                  LinearizeSquared,
+                  LinearizePolynomial,
+                  LinearizeProportional,
+                  LinearizeNone]:
+            if t.LinearityType == linearityTypeName:
+                return t
+        return None
+
+    def validate(self, detector=None, amplifier=None):
+        """Validate linearity for a detector/amplifier.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.Detector`, optional
+            Detector to validate, along with its amplifiers.
+        amplifier : `lsst.afw.cameraGeom.Amplifier`, optional
+            Single amplifier to validate.
+
+        Raises
+        ------
+        RuntimeError :
+            Raised if there is a mismatch in linearity parameters, and
+            the cameraGeom parameters are not being overridden.
+        """
+        amplifiersToCheck = []
+        if detector:
+            if self._detectorName != detector.getName():
+                raise RuntimeError("Detector names don't match: %s != %s" %
+                                   (self._detectorName, detector.getName()))
+            if self._detectorSerial != detector.getSerial():
+                raise RuntimeError("Detector serial numbers don't match: %s != %s" %
+                                   (self._detectorSerial, detector.getSerial()))
+            if len(detector.getAmplifiers()) != len(self.linearityCoeffs.keys()):
+                raise RuntimeError("Detector number of amps = %s does not match saved value %s" %
+                                   (len(detector.getAmplifiers()),
+                                    len(self.linearityCoeffs.keys())))
+            amplifiersToCheck.extend(detector.getAmplifiers())
+
+        if amplifier:
+            amplifiersToCheck.extend(amplifier)
+
+        for amp in amplifiersToCheck:
+            ampName = amp.getName()
+            if ampName not in self.linearityCoeffs.keys():
+                raise RuntimeError("Amplifier %s is not in linearity data" %
+                                   (ampName, ))
+            if amp.getLinearityType() != self.linearityType[ampName]:
+                if self.override:
+                    self.log.warn("Overriding amplifier defined linearityType (%s) for %s",
+                                  self.linearityType[ampName], ampName)
+                else:
+                    raise RuntimeError("Amplifier %s type %s does not match saved value %s" %
+                                       (ampName, amp.getLinearityType(), self.linearityType[ampName]))
+            if not np.allclose(amp.getLinearityCoeffs(), self.linearityCoeffs[ampName], equal_nan=True):
+                if self.override:
+                    self.log.warn("Overriding amplifier defined linearityCoeffs (%s) for %s",
+                                  self.linearityCoeffs[ampName], ampName)
+                else:
+                    raise RuntimeError("Amplifier %s coeffs %s does not match saved value %s" %
+                                       (ampName, amp.getLinearityCoeffs(), self.linearityCoeffs[ampName]))
+
+    def applyLinearity(self, image, detector=None, log=None):
+        """Is this a good idea?
+
+        Parameters
+        ----------
+        image : `~lsst.afw.image.image`
+            Image to correct.
+        detector : `~lsst.afw.cameraGeom.detector`
+            Detector to use for linearity parameters if not already
+            populated.
+        log : `~lsst.log.Log`, optional
+            Log object to use for logging.
+        """
+        if log is None:
+            log = self.log
+
+        if detector and not self.populated:
+            self.fromDetector(detector)
+
+        self.validate(detector)
+
+        numAmps = 0
+        numLinearized = 0
+        numOutOfRange = 0
+        for ampName in self.linearityType.keys():
+            linearizer = self.getLinearityTypeByName(self.linearityType[ampName])
+            numAmps += 1
+            if linearizer is not None:
+                ampView = image.Factory(image, self.linearityBBox[ampName])
+                success, outOfRange = linearizer()(ampView, **{'coeffs': self.linearityCoeffs[ampName],
+                                                               'table': self.tableData,
+                                                               'log': self.log})
+                numOutOfRange += outOfRange
+                if success:
+                    numLinearized += 1
+                elif log is not None:
+                    log.warn("Amplifier %s did not linearize.",
+                             ampName)
+        return Struct(
+            numAmps=numAmps,
+            numLinearized=numLinearized,
+            numOutOfRange=numOutOfRange
+        )
 
 
 class LinearizeBase(metaclass=abc.ABCMeta):
-    """Abstract base class functor for correcting non-linearity
+    """Abstract base class functor for correcting non-linearity.
 
-    Subclasses must define __call__ and set class variable LinearityType to a string
-    that will be used for linearity type in AmpInfoCatalog
+    Subclasses must define __call__ and set class variable
+    LinearityType to a string that will be used for linearity type in
+    the cameraGeom.Amplifier.linearityType field.
+
+    All linearity corrections should be defined in terms of an
+    additive correction, such that:
+
+    corrected_value = uncorrected_value + f(uncorrected_value)
     """
     LinearityType = None  # linearity type, a string used for AmpInfoCatalogs
 
     @abc.abstractmethod
-    def __call__(self, image, detector, log=None):
-        """Correct non-linearity
+    def __call__(self, image, **kwargs):
+        """Correct non-linearity.
 
-        @param[in] image  image to be corrected (an lsst.afw.image.Image)
-        @param[in] detector  detector information (an instance of lsst::afw::cameraGeom::Detector)
-        @param[in] log  logger (an lsst.log.Log), or None to disable logging;
-                    a warning is logged if amplifiers are skipped or other worrisome events occur
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+            ``"coeffs"``
+                Coefficient vector (`list` or `numpy.array`).
+            ``"table"``
+                Lookup table data (`numpy.array`).
+            ``"log"``
+                Logger to handle messages (`lsst.log.Log`).
 
-        @return an lsst.pipe.base.Struct containing at least the following fields:
-        - numAmps number of amplifiers found
-        - numLinearized  number of amplifiers linearized
+        Returns
+        -------
+        output : `bool`
+            If true, a correction was applied successfully.
 
-        @throw RuntimeError if the linearity type is wrong
-        @throw a subclass of Exception if linearization fails for any other reason
+        Raises
+        ------
+        RuntimeError:
+            Raised if the linearity type listed in the
+            detector does not match the class type.
         """
         pass
 
-    def checkLinearityType(self, detector):
-        """Verify that the linearity type is correct for this detector
-
-        @warning only checks the first record of the amp info catalog
-
-        @param[in] detector  detector information (an instance of lsst::afw::cameraGeom::Detector)
-
-        @throw RuntimeError if anything doesn't match
-        """
-        ampInfoType = detector.getAmplifiers()[0].getLinearityType()
-        if self.LinearityType != ampInfoType:
-            raise RuntimeError("Linearity types don't match: %s != %s" % (self.LinearityType, ampInfoType))
-
 
 class LinearizeLookupTable(LinearizeBase):
-    """Correct non-linearity with a persisted lookup table
+    """Correct non-linearity with a persisted lookup table.
 
     for each i,j of image:
         rowInd = int(c0)
         colInd = int(c1 + uncorrImage[i,j])
         corrImage[i,j] = uncorrImage[i,j] + table[rowInd, colInd]
 
-    where c0, c1 are collimation coefficients from the AmpInfoTable of the detector:
-    - c0: row index; used to identify which row of the table to use (typically one per amplifier,
-            though one can have multiple amplifiers use the same table)
-    - c1: column index offset; added to the uncorrected image value before truncation;
-            this supports tables that can handle negative image values; also, if the c1 ends with .5
-            then the nearest index is used instead of truncating to the next smaller index
+    where c0, c1 are collimation coefficients from the detector amplifier:
+    - c0: row index; used to identify which row of the table to use
+            (typically one per amplifier, though one can have multiple
+            amplifiers use the same table)
+    - c1: column index offset; added to the uncorrected image value
+            before truncation; this supports tables that can handle
+            negative image values; also, if the c1 ends with .5 then
+            the nearest index is used instead of truncating to the
+            next smaller index
 
-    In order to keep related data together, the coefficients are persisted along with the table.
+    In order to keep related data together, the coefficients are
+    persisted along with the table.
+
+    Parameters
+    ----------
+    table : `numpy.array`
+        Lookup table; a 2-dimensional array of floats:
+            - one row for each row index (value of coef[0] in the amplifier)
+            - one column for each image value
+        To avoid copying the table the last index should vary fastest
+        (numpy default "C" order)
+
+    Raises
+    ------
+    RuntimeError :
+        Raised if the the table is not 2D, if the table has fewer
+        columns than rows (indicating that the indices are swapped),
+        or if any row index (linearity coefficient[0]) is out of
+        range.
     """
     LinearityType = "LookupTable"
 
-    def __init__(self, table, detector):
-        """Construct a LinearizeLookupTable
+    def __call__(self, image, **kwargs):
+        """Correct for non-linearity.
 
-        @param[in] table  lookup table; a 2-dimensional array of floats:
-            - one row for each row index (value of coef[0] in the amp info catalog)
-            - one column for each image value
-            To avoid copying the table the last index should vary fastest (numpy default "C" order)
-        @param[in] detector  detector information (an instance of lsst::afw::cameraGeom::Detector);
-            the name, serial, and amplifier linearization type and coefficients are saved
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+            ``"coeffs"``
+                Columnation vector (`list` or `numpy.array`).
+            ``"table"``
+                Lookup table data (`numpy.array`).
+            ``"log"``
+                Logger to handle messages (`lsst.log.Log`).
 
-        @throw RuntimeError if table is not 2-dimensional,
-        table has fewer columns than rows (indicating that the indices are swapped),
-        or if any row index (linearity coefficient 0) is out of range
+        Returns
+        -------
+        output : `bool`
+            If true, a correction was applied successfully.
+
+        Raises
+        ------
+        RuntimeError:
+            Raised if the requested row index is out of the table
+            bounds.
         """
-        LinearizeBase.__init__(self)
-
-        self._table = np.array(table, order="C")
-        if len(table.shape) != 2:
-            raise RuntimeError("table shape = %s; must have two dimensions" % (table.shape,))
-        if table.shape[1] < table.shape[0]:
-            raise RuntimeError("table shape = %s; indices are switched" % (table.shape,))
-
-        self._detectorName = detector.getName()
-        self._detectorSerial = detector.getSerial()
-        self.checkLinearityType(detector)
-        ampInfoCat = detector.getAmplifiers()
-        rowIndList = []
-        colIndOffsetList = []
-        numTableRows = table.shape[0]
-        for ampInfo in ampInfoCat:
-            rowInd, colIndOffset = ampInfo.getLinearityCoeffs()[0:2]
-            rowInd = int(rowInd)
-            if rowInd < 0 or rowInd >= numTableRows:
-                raise RuntimeError("Amplifier %s has rowInd=%s not in range[0, %s)" %
-                                   (ampInfo.getName(), rowInd, numTableRows))
-            rowIndList.append(int(rowInd))
-            colIndOffsetList.append(colIndOffset)
-        self._rowIndArr = np.array(rowIndList, dtype=int)
-        self._colIndOffsetArr = np.array(colIndOffsetList)
-
-    def __call__(self, image, detector, log=None):
-        """Correct for non-linearity
-
-        @param[in] image  image to be corrected (an lsst.afw.image.Image)
-        @param[in] detector  detector info about image (an lsst.afw.cameraGeom.Detector);
-                    the name, serial and number of amplifiers must match persisted data;
-                    the bbox from each amplifier is read;
-                    the linearization coefficients are ignored in favor of the persisted values
-        @param[in] log  logger (an lsst.log.Log), or None to disable logging;
-                    a warning is logged if any pixels are out of range of their lookup table
-
-        @return an lsst.pipe.base.Struct containing:
-        - numAmps number of amplifiers found
-        - numLinearized  number of amplifiers linearized (always equal to numAmps for this linearizer)
-        - numOutOfRange  number of pixels out of range of their lookup table (summed across all amps)
-
-        @throw RuntimeError if the linearity type is wrong or if the detector name, serial
-            or number of amplifiers does not match the saved data
-        """
-        self.checkDetector(detector)
-        ampInfoCat = detector.getAmplifiers()
         numOutOfRange = 0
-        for ampInfo, rowInd, colIndOffset in zip(ampInfoCat, self._rowIndArr, self._colIndOffsetArr):
-            bbox = ampInfo.getBBox()
-            ampView = image.Factory(image, bbox)
-            tableRow = self._table[rowInd, :]
-            numOutOfRange += applyLookupTable(ampView, tableRow, colIndOffset)
+
+        rowInd, colIndOffset = kwargs['coeffs'][0:2]
+        table = kwargs['table']
+        log = kwargs['log']
+
+        numTableRows = table.shape[0]
+        rowInd = int(rowInd)
+        if rowInd < 0 or rowInd > numTableRows:
+            raise RuntimeError("LinearizeLookupTable rowInd=%s not in range[0, %s)" %
+                               (rowInd, numTableRows))
+
+        tableRow = table[rowInd, :]
+        numOutOfRange += applyLookupTable(image, tableRow, colIndOffset)
 
         if numOutOfRange > 0 and log is not None:
-            log.warn("%s pixels of detector \"%s\" were out of range of the linearization table",
-                     numOutOfRange, detector.getName())
-        numAmps = len(ampInfoCat)
-        return Struct(
-            numAmps=numAmps,
-            numLinearized=numAmps,
-            numOutOfRange=numOutOfRange,
-        )
+            log.warn("%s pixels were out of range of the linearization table",
+                     numOutOfRange)
+        if numOutOfRange < image.getArray().size:
+            return True, numOutOfRange
+        else:
+            return False, numOutOfRange
 
-    def checkDetector(self, detector):
-        """Check detector name and serial number, ampInfo table length and linearity type
 
-        @param[in] detector  detector info about image (an lsst.afw.cameraGeom.Detector);
+class LinearizePolynomial(LinearizeBase):
+    """Correct non-linearity with a polynomial mode.
 
-        @throw RuntimeError if anything doesn't match
+    corrImage = uncorrImage + sum_i c_i uncorrImage^(2 + i)
+
+    where c_i are the linearity coefficients for each amplifier.
+    """
+    LinearityType = "Polynomial"
+
+    def __call__(self, image, **kwargs):
+        """Correct non-linearity.
+
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+            ``"coeffs"``
+                Coefficient vector (`list` or `numpy.array`).
+            ``"log"``
+                Logger to handle messages (`lsst.log.Log`).
+
+        Returns
+        -------
+        output : `bool`
+            If true, a correction was applied successfully.
         """
-        if self._detectorName != detector.getName():
-            raise RuntimeError("Detector names don't match: %s != %s" %
-                               (self._detectorName, detector.getName()))
-        if self._detectorSerial != detector.getSerial():
-            raise RuntimeError("Detector serial numbers don't match: %s != %s" %
-                               (self._detectorSerial, detector.getSerial()))
+        if np.any(np.isfinite(kwargs['coeffs'])):
+            return False, 0
+        if not np.any(kwargs['coeffs']):
+            return False, 0
 
-        numAmps = len(detector.getAmplifiers())
-        if numAmps != len(self._rowIndArr):
-            raise RuntimeError("Detector number of amps = %s does not match saved value %s" %
-                               (numAmps, len(self._rowIndArr)))
-        self.checkLinearityType(detector)
+        ampArray = image.getArray()
+        correction = np.zeroes_like(ampArray)
+        for coeff, order in enumerate(kwargs['coeffs'], start=2):
+            correction += coeff * np.power(ampArray, order)
+        ampArray += correction
+
+        return True, 0
 
 
 class LinearizeSquared(LinearizeBase):
-    """Correct non-linearity with a squared model
+    """Correct non-linearity with a squared model.
 
     corrImage = uncorrImage + c0*uncorrImage^2
 
-    where c0 is linearity coefficient 0 in the AmpInfoCatalog of the detector
+    where c0 is linearity coefficient 0 for each amplifier.
     """
     LinearityType = "Squared"
 
-    def __call__(self, image, detector, log=None):
-        """Correct for non-linearity
+    def __call__(self, image, **kwargs):
+        """Correct for non-linearity.
 
-        @param[in] image  image to be corrected (an lsst.afw.image.Image)
-        @param[in] detector  detector info about image (an lsst.afw.cameraGeom.Detector)
-        @param[in] log  logger (an lsst.log.Log), or None to disable logging;
-                    a warning is logged if any amplifiers are skipped because the square coefficient is 0
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+            ``"coeffs"``
+                Coefficient vector (`list` or `numpy.array`).
+            ``"log"``
+                Logger to handle messages (`lsst.log.Log`).
 
-        @return an lsst.pipe.base.Struct containing at least the following fields:
-        - nAmps number of amplifiers found
-        - nLinearized  number of amplifiers linearized
-
-        @throw RuntimeError if the linearity type is wrong
+        Returns
+        -------
+        output : `bool`
+            If true, a correction was applied successfully.
         """
-        self.checkLinearityType(detector)
-        ampInfoCat = detector.getAmplifiers()
-        numLinearized = 0
-        for ampInfo in ampInfoCat:
-            sqCoeff = ampInfo.getLinearityCoeffs()[0]
-            if sqCoeff != 0:
-                bbox = ampInfo.getBBox()
-                ampArr = image.Factory(image, bbox).getArray()
-                ampArr *= (1 + sqCoeff*ampArr)
-                numLinearized += 1
 
-        numAmps = len(ampInfoCat)
-        if numAmps > numLinearized and log is not None:
-            log.warn("%s of %s amps in detector \"%s\" were not linearized (coefficient = 0)",
-                     numAmps - numLinearized, numAmps, detector.getName())
-        return Struct(
-            numAmps=numAmps,
-            numLinearized=numLinearized,
-        )
+        sqCoeff = kwargs['coeffs'][0]
+        if sqCoeff != 0:
+            ampArr = image.getArray()
+            ampArr *= (1 + sqCoeff*ampArr)
+            return True, 0
+        else:
+            return False, 0
+
+
+class LinearizeProportional(LinearizeBase):
+    """Do not correct non-linearity.
+    """
+    LinearityType = "Proportional"
+
+    def __call__(self, image, **kwargs):
+        """Do not correct for non-linearity.
+
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+            ``"coeffs"``
+                Coefficient vector (`list` or `numpy.array`).
+            ``"log"``
+                Logger to handle messages (`lsst.log.Log`).
+
+        Returns
+        -------
+        output : `bool`
+            If true, a correction was applied successfully.
+        """
+        return True, 0
+
+
+class LinearizeNone(LinearizeBase):
+    """Do not correct non-linearity.
+    """
+    LinearityType = "None"
+
+    def __call__(self, image, **kwargs):
+        """Do not correct for non-linearity.
+
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+            ``"coeffs"``
+                Coefficient vector (`list` or `numpy.array`).
+            ``"log"``
+                Logger to handle messages (`lsst.log.Log`).
+
+        Returns
+        -------
+        output : `bool`
+            If true, a correction was applied successfully.
+        """
+        return True, 0
