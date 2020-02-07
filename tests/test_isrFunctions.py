@@ -265,7 +265,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         ampI = inputExp.maskedImage[amp.getRawDataBBox()]
         overscanI = inputExp.maskedImage[amp.getRawHorizontalOverscanBBox()]
 
-        for fitType in ('MEAN', 'MEDIAN', 'MEANCLIP', 'POLY', 'CHEB',
+        for fitType in ('MEAN', 'MEDIAN', 'MEDIAN_PER_ROW', 'MEANCLIP', 'POLY', 'CHEB',
                         'NATURAL_SPLINE', 'CUBIC_SPLINE', 'UNKNOWN'):
             if fitType in ('NATURAL_SPLINE', 'CUBIC_SPLINE'):
                 order = 3
@@ -301,7 +301,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         ampI = inputExp.maskedImage[amp.getRawDataBBox()]
         overscanI = inputExp.maskedImage[amp.getRawHorizontalOverscanBBox()]
 
-        for fitType in ('MEAN', 'MEDIAN', 'MEANCLIP', 'POLY', 'CHEB',
+        for fitType in ('MEAN', 'MEDIAN', 'MEDIAN_PER_ROW', 'MEANCLIP', 'POLY', 'CHEB',
                         'NATURAL_SPLINE', 'CUBIC_SPLINE', 'UNKNOWN'):
             if fitType in ('NATURAL_SPLINE', 'CUBIC_SPLINE'):
                 order = 3

@@ -56,7 +56,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), fitType="MEDIAN")
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -87,7 +87,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), fitType="MEDIAN")
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -97,6 +97,11 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
                 else:
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
+
+    def testMedianAndMedianPerRowOverscanCorrection(self):
+        for fitType in ("MEDIAN", "MEDIAN_PER_ROW"):
+            self.testOverscanCorrectionX(fitType=fitType)
+            self.testOverscanCorrectionY(fitType=fitType)
 
     def checkPolyOverscanCorrectionX(self, **kwargs):
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
