@@ -529,7 +529,12 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         elif fitType == 'MEDIAN_PER_ROW':
             fitTypeStats = afwMath.stringToStatisticsProperty('MEDIAN')
             collapsed = []
-            for row in overscanImage.image.array:
+            if hasattr(overscanImage, "image"):
+                arr = overscanImage.image.array
+            else:
+                arr = overscanImage.array
+
+            for row in arr:
                 rowMedian = afwMath.makeStatistics(row, fitTypeStats, statControl).getValue()
                 collapsed.append(rowMedian)
             collapsed = numpy.array(collapsed)
@@ -539,8 +544,13 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             offArray = offImage.getArray()
             overscanFit = afwImage.ImageF(overscanImage.getDimensions())
             overscanArray = overscanFit.getArray()
-            offArray[:, :] = fitBiasArr[:, numpy.newaxis]
-            overscanArray[:, :] = fitBiasArr[:, numpy.newaxis]
+
+            if shortInd == 1:
+                offArray[:, :] = fitBiasArr[:, numpy.newaxis]
+                overscanArray[:, :] = fitBiasArr[:, numpy.newaxis]
+            else:
+                offArray[:, :] = fitBiasArr[numpy.newaxis, :]
+                overscanArray[:, :] = fitBiasArr[numpy.newaxis, :]
 
         if overscanIsInt:
             del overscanImageI
