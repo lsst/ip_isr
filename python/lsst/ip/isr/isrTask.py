@@ -345,6 +345,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             "MEAN": "Correct using the mean of the overscan region",
             "MEANCLIP": "Correct using a clipped mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
+            "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
         },
     )
     overscanOrder = pexConfig.Field(

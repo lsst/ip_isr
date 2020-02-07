@@ -456,6 +456,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         - ``MEAN``: use mean of overscan.
         - ``MEANCLIP``: use clipped mean of overscan.
         - ``MEDIAN``: use median of overscan.
+        - ``MEDIAN_PER_ROW``: use median per row of overscan.
         - ``POLY``: fit with ordinary polynomial.
         - ``CHEB``: fit with Chebyshev polynomial.
         - ``LEG``: fit with Legendre polynomial.
@@ -510,7 +511,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         fitType = afwMath.stringToStatisticsProperty(fitType)
         offImage = afwMath.makeStatistics(overscanImage, fitType, statControl).getValue()
         overscanFit = offImage
-    elif fitType in ('MEDIAN',):
+    elif fitType in ('MEDIAN', 'MEDIAN_PER_ROW'):
         if overscanIsInt:
             # we need an image with integer pixels to handle ties properly
             if hasattr(overscanImage, "image"):
@@ -521,9 +522,25 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         else:
             overscanImageI = overscanImage
 
-        fitType = afwMath.stringToStatisticsProperty(fitType)
-        offImage = afwMath.makeStatistics(overscanImageI, fitType, statControl).getValue()
-        overscanFit = offImage
+        if fitType == 'MEDIAN':
+            fitType = afwMath.stringToStatisticsProperty(fitType)
+            offImage = afwMath.makeStatistics(overscanImageI, fitType, statControl).getValue()
+            overscanFit = offImage
+        elif fitType == 'MEDIAN_PER_ROW':
+            fitTypeStats = afwMath.stringToStatisticsProperty('MEDIAN')
+            collapsed = []
+            for row in overscanImage.image.array:
+                rowMedian = afwMath.makeStatistics(row, fitTypeStats, statControl).getValue()
+                collapsed.append(rowMedian)
+            collapsed = numpy.array(collapsed)
+            fitBiasArr = collapsed
+
+            offImage = ampImage.Factory(ampImage.getDimensions())
+            offArray = offImage.getArray()
+            overscanFit = afwImage.ImageF(overscanImage.getDimensions())
+            overscanArray = overscanFit.getArray()
+            offArray[:, :] = fitBiasArr[:, numpy.newaxis]
+            overscanArray[:, :] = fitBiasArr[:, numpy.newaxis]
 
         if overscanIsInt:
             del overscanImageI
