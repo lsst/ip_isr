@@ -21,6 +21,7 @@
 #
 
 import unittest
+import numpy as np
 
 import lsst.utils.tests
 import lsst.geom
@@ -36,7 +37,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
     def tearDown(self):
         del self.overscanKeyword
 
-    def testOverscanCorrectionY(self, **kwargs):
+    def checkOverscanCorrectionY(self, **kwargs):
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
                                lsst.geom.Point2I(9, 12))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -51,12 +52,11 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         biassec = '[1:10,11:13]'
         overscan = afwImage.MaskedImageF(maskedImage, bbox)
         overscan.set(2, 0x0, 1)
-
         exposure = afwImage.ExposureF(maskedImage, None)
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), fitType="MEDIAN")
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -67,7 +67,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 else:
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
-    def testOverscanCorrectionX(self, **kwargs):
+    def checkOverscanCorrectionX(self, **kwargs):
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
                                lsst.geom.Point2I(12, 9))
         maskedImage = afwImage.MaskedImageF(bbox)
@@ -87,7 +87,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), fitType="MEDIAN")
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -98,6 +98,64 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 else:
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
+    def checkOverscanCorrectionSineWave(self, **kwargs):
+        """vertical sine wave along long direction"""
+
+        # Full image: (500,100)
+        longAxis = 500
+        shortAxis = 100
+        overscanWidth = 30
+
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                               lsst.geom.Point2I(shortAxis-1, longAxis-1))
+        maskedImage = afwImage.MaskedImageF(bbox)
+        maskedImage.set(50.0, 0x0, 1)
+
+        # vertical sine wave along long direction
+        x = np.linspace(0, 2*3.14159, longAxis)
+        a, w = 15, 50*3.14159
+        sineWave = 20 + a*np.sin(w*x)
+        sineWave = sineWave.astype(int)
+
+        fullImage = np.repeat(sineWave, shortAxis).reshape((longAxis, shortAxis))
+        maskedImage.image.array += fullImage
+
+        # data part of the full image: (500,70)
+        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(shortAxis-overscanWidth,
+                                  longAxis))
+        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
+        # these should be functionally equivalent
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(shortAxis-overscanWidth, 0),
+                               lsst.geom.Point2I(shortAxis-1, longAxis-1))
+        biassec = '[1:500,71:100]'
+        overscan = afwImage.MaskedImageF(maskedImage, bbox)
+        overscan.image.array -= 50.0  # subtract initial pedestal
+
+        exposure = afwImage.ExposureF(maskedImage, None)
+        metadata = exposure.getMetadata()
+        metadata.setString(self.overscanKeyword, biassec)
+
+        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
+
+        height = maskedImage.getHeight()
+        width = maskedImage.getWidth()
+
+        for j in range(height):
+            for i in range(width):
+                if i >= 70:
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.0)
+                else:
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 50.0)
+
+    def test_MedianPerRowOverscanCorrection(self):
+        self.checkOverscanCorrectionY(fitType="MEDIAN_PER_ROW")
+        self.checkOverscanCorrectionY(fitType="MEDIAN_PER_ROW")
+        self.checkOverscanCorrectionSineWave(fitType="MEDIAN_PER_ROW")
+
+    def test_MedianOverscanCorrection(self):
+        self.checkOverscanCorrectionY(fitType="MEDIAN")
+        self.checkOverscanCorrectionX(fitType="MEDIAN")
+
     def checkPolyOverscanCorrectionX(self, **kwargs):
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
                                lsst.geom.Point2I(12, 9))
@@ -106,7 +164,6 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
         dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
         dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
-
         # these should be functionally equivalent
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(10, 0),
                                lsst.geom.Point2I(12, 9))
@@ -115,7 +172,6 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         for i in range(bbox.getDimensions()[1]):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.image[j, i, afwImage.LOCAL] = 2+i+off
-
         ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
 
         height = maskedImage.getHeight()

@@ -330,11 +330,29 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         The output types may be different when fitType != MEDIAN.
         """
         statBefore = computeImageMedianAndStd(self.inputExp.image[self.amp.getRawDataBBox()])
-
         oscanResults = self.task.overscanCorrection(self.inputExp, self.amp)
         self.assertIsInstance(oscanResults, Struct)
         self.assertIsInstance(oscanResults.imageFit, float)
         self.assertIsInstance(oscanResults.overscanFit, float)
+        self.assertIsInstance(oscanResults.overscanImage, afwImage.MaskedImageF)
+
+        statAfter = computeImageMedianAndStd(self.inputExp.image[self.amp.getRawDataBBox()])
+        self.assertLess(statAfter[0], statBefore[0])
+
+    def test_overscanCorrectionMedianPerRow(self):
+        """Expect that this should reduce the image variance with a full fit.
+        fitType of MEDIAN_PER_ROW will reduce the median value.
+
+        This needs to operate on a RawMock() to have overscan data to use.
+
+        The output types may be different when fitType != MEDIAN_PER_ROW.
+        """
+        self.config.overscanFitType = 'MEDIAN_PER_ROW'
+        statBefore = computeImageMedianAndStd(self.inputExp.image[self.amp.getRawDataBBox()])
+        oscanResults = self.task.overscanCorrection(self.inputExp, self.amp)
+        self.assertIsInstance(oscanResults, Struct)
+        self.assertIsInstance(oscanResults.imageFit, afwImage.ImageF)
+        self.assertIsInstance(oscanResults.overscanFit, afwImage.ImageF)
         self.assertIsInstance(oscanResults.overscanImage, afwImage.MaskedImageF)
 
         statAfter = computeImageMedianAndStd(self.inputExp.image[self.amp.getRawDataBBox()])
