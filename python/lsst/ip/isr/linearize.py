@@ -40,11 +40,21 @@ class Linearizer(abc.ABC):
     Parameters
     ----------
     table : `numpy.array`, optional
-        Optional lookup table to use for correction.
+        Lookup table; a 2-dimensional array of floats:
+            - one row for each row index (value of coef[0] in the amplifier)
+            - one column for each image value
+        To avoid copying the table the last index should vary fastest
+        (numpy default "C" order)
     override : `bool`, optional
         Override the parameters defined in the detector/amplifier.
     log : `lsst.log.Log`, optional
         Logger to handle messages.
+
+    Raises
+    ------
+    RuntimeError :
+        Raised if the supplied table is not 2D, or if the table has fewer
+        columns than rows (indicating that the indices are swapped).
     """
     def __init__(self, table=None, detector=None, override=False, log=None):
         self._detectorName = None
@@ -221,7 +231,10 @@ class Linearizer(abc.ABC):
                                        (ampName, amp.getLinearityCoeffs(), self.linearityCoeffs[ampName]))
 
     def applyLinearity(self, image, detector=None, log=None):
-        """Is this a good idea?
+        """Apply the linearity to an image.
+
+        If the linearity parameters are populated, use those,
+        otherwise use the values from the detector.
 
         Parameters
         ----------
@@ -313,12 +326,14 @@ class LinearizeBase(metaclass=abc.ABCMeta):
 class LinearizeLookupTable(LinearizeBase):
     """Correct non-linearity with a persisted lookup table.
 
+    The lookup table consists of entries such that given
+    "coefficients" c0, c1:
+
     for each i,j of image:
         rowInd = int(c0)
         colInd = int(c1 + uncorrImage[i,j])
         corrImage[i,j] = uncorrImage[i,j] + table[rowInd, colInd]
 
-    where c0, c1 are collimation coefficients from the detector amplifier:
     - c0: row index; used to identify which row of the table to use
             (typically one per amplifier, though one can have multiple
             amplifiers use the same table)
@@ -327,26 +342,6 @@ class LinearizeLookupTable(LinearizeBase):
             negative image values; also, if the c1 ends with .5 then
             the nearest index is used instead of truncating to the
             next smaller index
-
-    In order to keep related data together, the coefficients are
-    persisted along with the table.
-
-    Parameters
-    ----------
-    table : `numpy.array`
-        Lookup table; a 2-dimensional array of floats:
-            - one row for each row index (value of coef[0] in the amplifier)
-            - one column for each image value
-        To avoid copying the table the last index should vary fastest
-        (numpy default "C" order)
-
-    Raises
-    ------
-    RuntimeError :
-        Raised if the the table is not 2D, if the table has fewer
-        columns than rows (indicating that the indices are swapped),
-        or if any row index (linearity coefficient[0]) is out of
-        range.
     """
     LinearityType = "LookupTable"
 
@@ -388,7 +383,6 @@ class LinearizeLookupTable(LinearizeBase):
         if rowInd < 0 or rowInd > numTableRows:
             raise RuntimeError("LinearizeLookupTable rowInd=%s not in range[0, %s)" %
                                (rowInd, numTableRows))
-
         tableRow = table[rowInd, :]
         numOutOfRange += applyLookupTable(image, tableRow, colIndOffset)
 
@@ -407,6 +401,14 @@ class LinearizePolynomial(LinearizeBase):
     corrImage = uncorrImage + sum_i c_i uncorrImage^(2 + i)
 
     where c_i are the linearity coefficients for each amplifier.
+    Lower order coefficients are not included as they duplicate other
+    calibration parameters:
+        ``"k0"``
+            A coefficient multiplied by uncorrImage**0 is equivalent to
+            bias level.  Irrelevant for correcting non-linearity.
+        ``"k1"``
+            A coefficient multiplied by uncorrImage**1 is proportional
+            to the gain.  Not necessary for correcting non-linearity.
     """
     LinearityType = "Polynomial"
 

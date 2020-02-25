@@ -87,13 +87,15 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
     def test_linearize(self):
         """Assert that the linearize task does not error when a linearity is requested.
         """
-        for linearityTypeName in ('LookupTable', 'Squared', 'Unknown'):
+        for linearityTypeName in ('LookupTable', 'Squared', 'Polynomial', 'Unknown'):
             result = linearize.Linearizer().getLinearityTypeByName(linearityTypeName)
             # These return the actual class to use, so use Equal instead of IsInstance.
             if linearityTypeName == 'LookupTable':
                 self.assertEqual(result, linearize.LinearizeLookupTable, msg=f"{linearityTypeName}")
             elif linearityTypeName == 'Squared':
                 self.assertEqual(result, linearize.LinearizeSquared, msg=f"{linearityTypeName}")
+            elif linearityTypeName == 'Polynomial':
+                self.assertEqual(result, linearize.LinearizePolynomial, msg=f"{linearityTypeName}")
             else:
                 # DM-19707: ip_isr functionality not fully tested by unit tests
                 self.assertIsNone(result)
