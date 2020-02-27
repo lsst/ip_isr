@@ -22,10 +22,53 @@
 import numpy as np
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
+import lsst.pipe.base as pipeBase
+import lsst.pex.config as pexConfig
+
+__all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask"]
 
 
-class OverscanCorrector():
-    """Correction class for overscan.
+class OverscanCorrectionTaskConfig(pexConfig.Config):
+    """Overscan correction options.
+    """
+    fitType = pexConfig.ChoiceField(
+        dtype=str,
+        doc="The method for fitting the overscan bias level.",
+        default='MEDIAN',
+        allowed={
+            "POLY": "Fit ordinary polynomial to the longest axis of the overscan region",
+            "CHEB": "Fit Chebyshev polynomial to the longest axis of the overscan region",
+            "LEG": "Fit Legendre polynomial to the longest axis of the overscan region",
+            "NATURAL_SPLINE": "Fit natural spline to the longest axis of the overscan region",
+            "CUBIC_SPLINE": "Fit cubic spline to the longest axis of the overscan region",
+            "AKIMA_SPLINE": "Fit Akima spline to the longest axis of the overscan region",
+            "MEAN": "Correct using the mean of the overscan region",
+            "MEANCLIP": "Correct using a clipped mean of the overscan region",
+            "MEDIAN": "Correct using the median of the overscan region",
+            "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
+        },
+    )
+    order = pexConfig.Field(
+        dtype=int,
+        doc=("Order of polynomial to fit if overscan fit type is a polynomial, " +
+             "or number of spline knots if overscan fit type is a spline."),
+        default=1,
+    )
+    numSigmaClip = pexConfig.Field(
+        dtype=float,
+        doc="Rejection threshold (sigma) for collapsing overscan before fit",
+        default=3.0,
+    )
+    overscanIsInt = pexConfig.Field(
+        dtype=bool,
+        doc="Treat overscan as an integer image for purposes of fitType=MEDIAN" +
+            " and fitType=MEDIAN_PER_ROW.",
+        default=True,
+    )
+
+
+class OverscanCorrectionTask(pipeBase.Task):
+    """Correction task for overscan.
 
     This class contains a number of utilities that are easier to
     understand and use when they are not embedded in nested if/else
@@ -33,49 +76,118 @@ class OverscanCorrector():
 
     Parameters
     ----------
-    fitType : `str`
-        Fit type to apply to the overscan image.  One of:
-        - ``MEAN``: use mean of overscan.
-        - ``MEANCLIP``: use clipped mean of overscan.
-        - ``MEDIAN``: use median of overscan.
-        - ``MEDIAN_PER_ROW``: use median per row of overscan.
-        - ``POLY``: fit with ordinary polynomial.
-        - ``CHEB``: fit with Chebyshev polynomial.
-        - ``LEG``: fit with Legendre polynomial.
-        - ``NATURAL_SPLINE``: fit with natural spline.
-        - ``CUBIC_SPLINE``: fit with cubic spline.
-        - ``AKIMA_SPLINE``: fit with Akima spline.
     statControl : `lsst.afw.math.StatisticsControl`, optional
         Statistics control object.
-    sigma : `float`, optional
-        Number of sigma to use for sigma clipping.
     """
+    ConfigClass = OverscanCorrectionTaskConfig
+    _DefaultName = "overscan"
 
-    def __init__(self, fitType, statControl=None, sigma=None):
-        self.fitType = fitType
+    def __init__(self, statControl=None, **kwargs):
+        super().__init__(**kwargs)
         if statControl:
             self.statControl = statControl
         else:
             self.statControl = afwMath.StatisticsControl()
-        if sigma:
-            self.statControl.setNumSigmaClip(sigma)
+            self.statControl.setNumSigmaClip(self.config.numSigmaClip)
 
-    def integerConvert(self, image):
+    def run(self, ampImage, overscanImage):
+        """Measure and remove an overscan from an amplifier image.
+
+        Parameters
+        ----------
+        ampImage : `lsst.afw.image.Image`
+            Image data that will have the overscan removed.
+        overscanImage : `lsst.afw.image.Image`
+            Overscan data that the overscan is measured from.
+
+        Returns
+        -------
+        overscanResults : `lsst.pipe.base.Struct`
+            Result struct with components:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if an invalid overscan type is set.
+
+        """
+        if self.config.fitType in ('MEAN', 'MEANCLIP', 'MEDIAN'):
+            overscanResult = self.measureConstantOverscan(overscanImage)
+            overscanValue = overscanResult.overscanValue
+            offImage = overscanValue
+            overscanModel = overscanValue
+            maskSuspect = None
+        elif self.config.fitType in ('MEDIAN_PER_ROW', 'POLY', 'CHEB', 'LEG',
+                                     'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
+            overscanResult = self.measureVectorOverscan(overscanImage)
+            overscanValue = overscanResult.overscanValue
+            maskArray = overscanResult.maskArray
+            isTransposed = overscanResult.isTransposed
+
+            offImage = afwImage.ImageF(ampImage.getDimensions())
+            offArray = offImage.getArray()
+            overscanModel = afwImage.ImageF(overscanImage.getDimensions())
+            overscanArray = overscanModel.getArray()
+
+            if hasattr(ampImage, 'getMask'):
+                maskSuspect = afwImage.Mask(ampImage.getDimensions())
+            else:
+                maskSuspect = None
+
+            if isTransposed:
+                offArray[:, :] = overscanValue[np.newaxis, :]
+                overscanArray[:, :] = overscanValue[np.newaxis, :]
+                if maskSuspect:
+                    maskSuspect.getArray()[:, maskArray] |= ampImage.getMask().getPlaneBitMask("SUSPECT")
+            else:
+                offArray[:, :] = overscanValue[:, np.newaxis]
+                overscanArray[:, :] = overscanValue[:, np.newaxis]
+                if maskSuspect:
+                    maskSuspect.getArray()[maskArray, :] |= ampImage.getMask().getPlaneBitMask("SUSPECT")
+        else:
+            raise RuntimeError('%s : %s an invalid overscan type' %
+                               ("overscanCorrection", self.config.fitType))
+
+        self.debugView(overscanImage, overscanValue)
+
+        ampImage -= offImage
+        if maskSuspect:
+            ampImage.getMask().getArray()[:, :] |= maskSuspect.getArray()[:, :]
+        overscanImage -= overscanModel
+        return pipeBase.Struct(imageFit=offImage,
+                               overscanFit=overscanModel,
+                               overscanImage=overscanImage,
+                               edgeMask=maskSuspect)
+
+    @staticmethod
+    def integerConvert(image):
         """Return an integer version of the input image.
 
         Parameters
         ----------
-        image : `numpy.ndarray`, `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage`
+        image : `numpy.ndarray`, `lsst.afw.image.Image` or `MaskedImage`
             Image to convert to integers.
 
         Returns
         -------
-        outI : `numpy.ndarray`, `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage`
+        outI : `numpy.ndarray`, `lsst.afw.image.Image` or `MaskedImage`
             The integer converted image.
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the input image could not be converted.
         """
         if hasattr(image, "image"):
@@ -89,12 +201,12 @@ class OverscanCorrector():
             # Is a numpy array:
             outI = image.astype(int)
         else:
-            raise RuntimeError("Could not convert this to integers: %s %s %s\n",
+            raise RuntimeError("Could not convert this to integers: %s %s %s",
                                image, type(image), dir(image))
         return outI
 
     # Constant methods
-    def overscanConstant(self, image):
+    def measureConstantOverscan(self, image):
         """Measure a constant overscan value.
 
         Parameters
@@ -104,25 +216,27 @@ class OverscanCorrector():
 
         Returns
         -------
-        overscanValue : `float`
-            Overscan value to subtract
-        maskArray : None
-            A placeholder for a mask array
-        isTransposed : False
-            A placeholder for the orientation of the overscan.
+        results : `lsst.pipe.base.Struct`
+            Overscan result with entries:
+            - ``overscanValue``: Overscan value to subtract (`float`)
+            - ``maskArray``: Placeholder for a mask array (`list`)
+            - ``isTransposed``: Orientation of the overscan (`bool`)
         """
-        if self.fitType == 'MEDIAN':
+        if self.config.fitType == 'MEDIAN':
             calcImage = self.integerConvert(image)
         else:
             calcImage = image
 
-        fitType = afwMath.stringToStatisticsProperty(self.fitType)
+        fitType = afwMath.stringToStatisticsProperty(self.config.fitType)
         overscanValue = afwMath.makeStatistics(calcImage, fitType, self.statControl).getValue()
 
-        return overscanValue, None, False
+        return pipeBase.Struct(overscanValue=overscanValue,
+                               maskArray=None,
+                               isTransposed=False)
 
     # Vector correction utilities
-    def getCalcImage(self, image):
+    @staticmethod
+    def getImageArray(image):
         """Extract the numpy array from the input image.
 
         Parameters
@@ -139,33 +253,34 @@ class OverscanCorrector():
             calcImage = image.getArray()
         return calcImage
 
-    def transpose(self, image):
+    @staticmethod
+    def transpose(imageArray):
         """Transpose input numpy array if necessary.
 
         Parameters
         ----------
-        image : `numpy.ndarray`
+        imageArray : `numpy.ndarray`
             Image data to transpose.
 
         Returns
         -------
-        image : `numpy.ndarray`
+        imageArray : `numpy.ndarray`
             Transposed image data.
         isTransposed : `bool`
             Indicates whether the input data was transposed.
         """
-        if np.argmin(image.shape) == 0:
-            return np.transpose(image), True
+        if np.argmin(imageArray.shape) == 0:
+            return np.transpose(imageArray), True
         else:
-            return image, False
+            return imageArray, False
 
-    def maskOutliers(self, image):
+    def maskOutliers(self, imageArray):
         """Mask  outliers in  a  row  of overscan  data  from  a robust  sigma
         clipping procedure.
 
         Parameters
         ----------
-        image : `numpy.ndarray1`
+        imageArray : `numpy.ndarray`
             Image to filter along numpy axis=1.
 
         Returns
@@ -173,15 +288,16 @@ class OverscanCorrector():
         maskedArray : `numpy.ma.masked_array`
             Masked image marking outliers.
         """
-        percentiles = np.percentile(image, [25.0, 50.0, 75.0], axis=1)
-        axisMedians = percentiles[1]
-        axisStdev = 0.74*(percentiles[2] - percentiles[0])  # robust stdev
+        lq, median, uq = np.percentile(imageArray, [25.0, 50.0, 75.0], axis=1)
+        axisMedians = median
+        axisStdev = 0.74*(uq - lq)  # robust stdev
 
-        diff = np.abs(image - axisMedians[:, np.newaxis])
+        diff = np.abs(imageArray - axisMedians[:, np.newaxis])
         return np.ma.masked_where(diff > self.statControl.getNumSigmaClip() *
-                                  axisStdev[:, np.newaxis], image)
+                                  axisStdev[:, np.newaxis], imageArray)
 
-    def collapseArray(self, maskedArray):
+    @staticmethod
+    def collapseArray(maskedArray):
         """Collapse overscan array (and mask) to a 1-D vector of values.
 
         Parameters
@@ -224,7 +340,7 @@ class OverscanCorrector():
         return np.array(collapsed)
 
     def splineFit(self, indices, collapsed, numBins):
-        """Wrapper function to make splines look like polynomials.
+        """Wrapper function to match spline fit API to polynomial fit API.
 
         Parameters
         ----------
@@ -238,14 +354,14 @@ class OverscanCorrector():
 
         Returns
         -------
-        interp : `lsst.afw.math.interpolate`
+        interp : `lsst.afw.math.Interpolate`
             Interpolation object for later evaluation.
         """
         if not np.ma.is_masked(collapsed):
             collapsed.mask = np.array(len(collapsed)*[np.ma.nomask])
 
         numPerBin, binEdges = np.histogram(indices, bins=numBins,
-                                           weights=1-collapsed.mask.astype(int))
+                                           weights=1 - collapsed.mask.astype(int))
         with np.errstate(invalid="ignore"):
             values = np.histogram(indices, bins=numBins,
                                   weights=collapsed.data*~collapsed.mask)[0]/numPerBin
@@ -253,11 +369,12 @@ class OverscanCorrector():
                                       weights=indices*~collapsed.mask)[0]/numPerBin
             interp = afwMath.makeInterpolate(binCenters.astype(float)[numPerBin > 0],
                                              values.astype(float)[numPerBin > 0],
-                                             afwMath.stringToInterpStyle(self.fitType))
+                                             afwMath.stringToInterpStyle(self.config.fitType))
         return interp
 
-    def splineEval(self, indices, interp):
-        """Wrapper function to make spline evaluation look like polynomials.
+    @staticmethod
+    def splineEval(indices, interp):
+        """Wrapper function to match spline evaluation API to polynomial fit API.
 
         Parameters
         ----------
@@ -272,9 +389,10 @@ class OverscanCorrector():
             Evaluated spline values at each index.
         """
 
-        return np.array([interp.interpolate(i) for i in indices])
+        return interp.interpolate(indices.astype(float))
 
-    def extrapolationMask(self, collapsed):
+    @staticmethod
+    def maskExtrapolated(collapsed):
         """Create mask if edges are extrapolated.
 
         Parameters
@@ -284,10 +402,10 @@ class OverscanCorrector():
 
         Returns
         -------
-        maskArray : `list` [`bool`]
-            List of pixels to mask.
+        maskArray : `numpy.ndarray`
+            Boolean numpy array of pixels to mask.
         """
-        maskArray = [False for element in collapsed]
+        maskArray = np.full_like(collapsed, False, dtype=bool)
         if np.ma.is_masked(collapsed):
             num = len(collapsed)
             for low in range(num):
@@ -302,38 +420,36 @@ class OverscanCorrector():
                 maskArray[-high:] = True
         return maskArray
 
-    def overscanVector(self, image, order):
+    def measureVectorOverscan(self, image):
         """Calculate the 1-d vector overscan from the input overscan image.
 
         Parameters
         ----------
-        image : `lsst.afw.image.maskedImage`
+        image : `lsst.afw.image.MaskedImage`
             Image containing the overscan data.
-        order : `int`
-            Fit order to use for polynomials; number of spline points
-            to use for evaluation.
 
         Returns
         -------
-        overscanVector : `numpy.ndarray`
-            Vector containing the overscan solution.
-        maskArray : `list` [`bool`]
-            List of rows that should be masked as SUSPECT when the
-            overscan solution is applied.
-        isTransposed : `bool`
-            Indicates if the overscan data was transposed during
-            calcuation, noting along which axis the overscan should be
-            subtracted.
+        results : `lsst.pipe.base.Struct`
+            Overscan result with entries:
+            - ``overscanValue``: Overscan value to subtract (`float`)
+            - ``maskArray`` : `list` [ `bool` ]
+                List of rows that should be masked as ``SUSPECT`` when the
+                overscan solution is applied.
+            - ``isTransposed`` : `bool`
+               Indicates if the overscan data was transposed during
+               calcuation, noting along which axis the overscan should be
+               subtracted.
         """
-        calcImage = self.getCalcImage(image)
+        calcImage = self.getImageArray(image)
 
         # operate on numpy-arrays from here
         calcImage, isTransposed = self.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
 
-        if self.fitType == 'MEDIAN_PER_ROW':
+        if self.config.fitType == 'MEDIAN_PER_ROW':
             overscanVector = self.collapseArrayMedian(masked)
-            maskArray = self.extrapolationMask(overscanVector)
+            maskArray = self.maskExtrapolated(overscanVector)
         else:
             collapsed = self.collapseArray(masked)
 
@@ -348,12 +464,14 @@ class OverscanCorrector():
                 'NATURAL_SPLINE': (self.splineFit, self.splineEval),
                 'CUBIC_SPLINE': (self.splineFit, self.splineEval),
                 'AKIMA_SPLINE': (self.splineFit, self.splineEval)
-            }[self.fitType]
+            }[self.config.fitType]
 
-            coeffs = fitter(indices, collapsed, order)
+            coeffs = fitter(indices, collapsed, self.config.order)
             overscanVector = evaler(indices, coeffs)
-            maskArray = self.extrapolationMask(collapsed)
-        return overscanVector, maskArray, isTransposed
+            maskArray = self.maskExtrapolated(collapsed)
+        return pipeBase.Struct(overscanValue=np.array(overscanVector),
+                               maskArray=maskArray,
+                               isTransposed=isTransposed)
 
     def debugView(self, image, model):
         """Debug display for the final overscan solution.
@@ -366,39 +484,46 @@ class OverscanCorrector():
             Overscan model determined for the image.
         """
         import lsstDebug
-        if lsstDebug.Info(__name__).display or lsstDebug.Info("lsst.ip.isr.isrFunctions").display:
-            calcImage = self.getCalcImage(image)
-            calcImage, isTransposed = self.transpose(calcImage)
-            masked = self.maskOutliers(calcImage)
-            collapsed = self.collapseArray(masked)
+        if not lsstDebug.Info(__name__).display:
+            return
 
-            num = len(collapsed)
-            indices = 2.0 * np.arange(num)/float(num) - 1.0
+        calcImage = self.getImageArray(image)
+        calcImage, isTransposed = self.transpose(calcImage)
+        masked = self.maskOutliers(calcImage)
+        collapsed = self.collapseArray(masked)
 
-            if np.ma.is_masked(collapsed):
-                collapsedMask = collapsed.mask
-            else:
-                collapsedMask = np.array(num*[np.ma.nomask])
+        num = len(collapsed)
+        indices = 2.0 * np.arange(num)/float(num) - 1.0
 
-            import matplotlib.pyplot as plot
-            figure = plot.figure(1)
-            figure.clear()
-            axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
-            axes.plot(indices[~collapsedMask], collapsed[~collapsedMask], 'k+')
-            if collapsedMask.sum() > 0:
-                axes.plot(indices[collapsedMask], collapsed.data[collapsedMask], 'b+')
-            axes.plot(indices, model, 'r-')
-            plot.xlabel("centered/scaled position along overscan region")
-            plot.ylabel("pixel value/fit value")
-            figure.show()
-            prompt = "Press Enter or c to continue [chp]..."
-            while True:
-                ans = input(prompt).lower()
-                if ans in ("", " ", "c",):
-                    break
-                elif ans in ("p", ):
-                    import pdb
-                    pdb.set_trace()
-                elif ans in ("h", ):
-                    print("[h]elp [c]ontinue [p]db")
-            plot.close()
+        if np.ma.is_masked(collapsed):
+            collapsedMask = collapsed.mask
+        else:
+            collapsedMask = np.array(num*[np.ma.nomask])
+
+        import matplotlib.pyplot as plot
+        figure = plot.figure(1)
+        figure.clear()
+        axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
+        axes.plot(indices[~collapsedMask], collapsed[~collapsedMask], 'k+')
+        if collapsedMask.sum() > 0:
+            axes.plot(indices[collapsedMask], collapsed.data[collapsedMask], 'b+')
+        if isinstance(model, np.ndarray):
+            plotModel = model
+        else:
+            plotModel = np.zeros_like(indices)
+            plotModel += model
+        axes.plot(indices, plotModel, 'r-')
+        plot.xlabel("centered/scaled position along overscan region")
+        plot.ylabel("pixel value/fit value")
+        figure.show()
+        prompt = "Press Enter or c to continue [chp]..."
+        while True:
+            ans = input(prompt).lower()
+            if ans in ("", " ", "c",):
+                break
+            elif ans in ("p", ):
+                import pdb
+                pdb.set_trace()
+            elif ans in ("h", ):
+                print("[h]elp [c]ontinue [p]db")
+        plot.close()

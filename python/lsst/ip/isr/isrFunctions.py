@@ -28,16 +28,14 @@ import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
-import lsst.pex.exceptions as pexExcept
 import lsst.afw.cameraGeom as camGeom
 
 from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
 from lsst.meas.algorithms.detection import SourceDetectionTask
-from lsst.pipe.base import Struct
 
 from contextlib import contextmanager
 
-from .overscan import OverscanCorrector
+from .overscan import OverscanCorrectionTask, OverscanCorrectionTaskConfig
 
 
 def createPsf(fwhm):
@@ -504,55 +502,19 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
     (normalized between +/-1).
     """
     ampImage = ampMaskedImage.getImage()
-    corrector = OverscanCorrector(fitType, statControl=statControl, sigma=collapseRej)
 
-    if fitType in ('MEAN', 'MEANCLIP', 'MEDIAN'):
-        overscanValue, maskArray, isTransposed = corrector.overscanConstant(overscanImage)
-    elif fitType in ('MEDIAN_PER_ROW', 'POLY', 'CHEB', 'LEG',
-                     'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
-        overscanValue, maskArray, isTransposed = corrector.overscanVector(overscanImage, order)
-    else:
-        raise pexExcept.Exception('%s : %s an invalid overscan type' % ("overscanCorrection", fitType))
+    config = OverscanCorrectionTaskConfig()
+    if fitType:
+        config.fitType = fitType
+    if order:
+        config.order = order
+    if collapseRej:
+        config.numSigmaClip = collapseRej
+    if overscanIsInt:
+        config.overscanIsInt = True
 
-    if isinstance(overscanValue, float):
-        offImage = overscanValue
-        overscanModel = overscanValue
-        maskSuspect = None
-    else:
-        offImage = ampImage.Factory(ampImage.getDimensions())
-        offArray = offImage.getArray()
-
-        overscanModel = afwImage.ImageF(overscanImage.getDimensions())
-        overscanArray = overscanModel.getArray()
-
-        if hasattr(ampImage, 'getMask'):
-            maskSuspect = afwImage.Mask(ampImage.getDimensions())
-        else:
-            maskSuspect = None
-
-        if isTransposed:
-            offArray[:, :] = overscanValue[numpy.newaxis, :]
-            overscanArray[:, :] = overscanValue[numpy.newaxis, :]
-            if maskSuspect:
-                maskSuspect.getArray()[:, maskArray] |= ampImage.getMask().getPlaneBitMask("SUSPECT")
-        else:
-            offArray[:, :] = overscanValue[:, numpy.newaxis]
-            overscanArray[:, :] = overscanValue[:, numpy.newaxis]
-            if maskSuspect:
-                maskSuspect.getArray()[maskArray, :] |= ampImage.getMask().getPlaneBitMask("SUSPECT")
-
-        import lsstDebug
-        if lsstDebug.Info(__name__).display:
-            corrector.debugView(overscanImage, overscanValue)
-
-    ampImage -= offImage
-    if maskSuspect:
-        ampImage.getMask().getArray()[:, :] |= maskSuspect.getArray()[:, :]
-    overscanImage -= overscanModel
-    return Struct(imageFit=offImage,
-                  overscanFit=overscanModel,
-                  overscanImage=overscanImage,
-                  edgeMask=maskSuspect)
+    overscanTask = OverscanCorrectionTask(config=config)
+    return overscanTask.run(ampImage, overscanImage)
 
 
 def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, gains=None):

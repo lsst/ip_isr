@@ -26,7 +26,6 @@ import numpy as np
 import lsst.afw.image as afwImage
 import lsst.utils.tests
 import lsst.ip.isr as ipIsr
-import lsst.pex.exceptions as pexExcept
 import lsst.ip.isr.isrMock as isrMock
 import lsst.pipe.base as pipeBase
 
@@ -273,7 +272,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 order = 1
 
             if fitType == 'UNKNOWN':
-                with self.assertRaises(pexExcept.Exception,
+                with self.assertRaises(ValueError,
                                        msg=f"overscanCorrection overscanIsInt fitType: {fitType}"):
                     ipIsr.overscanCorrection(ampI, overscanI, fitType=fitType,
                                              order=order, collapseRej=3.0,
@@ -309,7 +308,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 order = 1
 
             if fitType == 'UNKNOWN':
-                with self.assertRaises(pexExcept.Exception,
+                with self.assertRaises(ValueError,
                                        msg=f"overscanCorrection overscanIsNotInt fitType: {fitType}"):
                     ipIsr.overscanCorrection(ampI, overscanI, fitType=fitType,
                                              order=order, collapseRej=3.0,

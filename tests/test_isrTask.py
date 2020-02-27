@@ -347,7 +347,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
 
         The output types may be different when fitType != MEDIAN_PER_ROW.
         """
-        self.config.overscanFitType = 'MEDIAN_PER_ROW'
+        self.config.overscan.fitType = 'MEDIAN_PER_ROW'
         statBefore = computeImageMedianAndStd(self.inputExp.image[self.amp.getRawDataBBox()])
         oscanResults = self.task.overscanCorrection(self.inputExp, self.amp)
         self.assertIsInstance(oscanResults, Struct)

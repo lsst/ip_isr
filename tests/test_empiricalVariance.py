@@ -125,8 +125,8 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         self.config.doInterpolate = False
 
         # Set the things that match our test setup
-        self.config.overscanFitType = "CHEB"
-        self.config.overscanOrder = 1
+        self.config.overscan.fitType = "CHEB"
+        self.config.overscan.order = 1
         self.config.doEmpiricalReadNoise = True
 
         self.task = IsrTask(config=self.config)
