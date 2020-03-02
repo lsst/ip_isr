@@ -30,7 +30,7 @@ import lsst.afw.image as afwImage
 import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
-from lsst.ip.isr import applyLookupTable, LinearizeLookupTable
+from lsst.ip.isr import applyLookupTable, Linearizer
 from lsst.log import Log
 
 
@@ -82,9 +82,11 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             inImage = makeRampImage(bbox=self.bbox, start=-5, stop=250, imageClass=imageClass)
             table = self.makeTable(inImage)
 
+            log = Log.getLogger("ip.isr.LinearizeLookupTable")
+
             measImage = inImage.Factory(inImage, True)
-            llt = LinearizeLookupTable(table=table, detector=self.detector)
-            linRes = llt(measImage, self.detector)
+            llt = Linearizer(table=table, detector=self.detector)
+            linRes = llt.applyLinearity(measImage, detector=self.detector, log=log)
 
             refImage = inImage.Factory(inImage, True)
             refNumOutOfRange = refLinearize(image=refImage, detector=self.detector, table=table)
@@ -96,45 +98,45 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
 
             # make sure logging is accepted
             log = Log.getLogger("ip.isr.LinearizeLookupTable")
-            linRes = llt(image=measImage, detector=self.detector, log=log)
+            linRes = llt.applyLinearity(image=measImage, detector=self.detector, log=log)
 
     def testErrorHandling(self):
         """!Test error handling in LinearizeLookupTable
         """
         image = makeRampImage(bbox=self.bbox, start=-5, stop=250)
         table = self.makeTable(image)
-        llt = LinearizeLookupTable(table=table, detector=self.detector)
+        llt = Linearizer(table=table, detector=self.detector)
 
         # bad name
         detBadName = self.makeDetector(detName="bad_detector_name")
         with self.assertRaises(RuntimeError):
-            llt(image, detBadName)
+            llt.applyLinearity(image, detBadName)
 
         # bad serial
         detBadSerial = self.makeDetector(detSerial="bad_detector_serial")
         with self.assertRaises(RuntimeError):
-            llt(image, detBadSerial)
+            llt.applyLinearity(image, detBadSerial)
 
         # bad number of amplifiers
         badNumAmps = (self.numAmps[0]-1, self.numAmps[1])
         detBadNumMaps = self.makeDetector(numAmps=badNumAmps)
         with self.assertRaises(RuntimeError):
-            llt(image, detBadNumMaps)
+            llt.applyLinearity(image, detBadNumMaps)
 
         # bad linearity type
         detBadLinType = self.makeDetector(linearityType="bad_linearity_type")
         with self.assertRaises(RuntimeError):
-            llt(image, detBadLinType)
+            llt.applyLinearity(image, detBadLinType)
 
         # wrong dimension
         badTable = table[..., np.newaxis]
         with self.assertRaises(RuntimeError):
-            LinearizeLookupTable(table=badTable, detector=self.detector)
+            Linearizer(table=badTable, detector=self.detector)
 
         # wrong size
-        badTable = np.resize(table, (2, 8))
+        badTable = np.transpose(table)
         with self.assertRaises(RuntimeError):
-            LinearizeLookupTable(table=badTable, detector=self.detector)
+            Linearizer(table=badTable, detector=self.detector)
 
     def testKnown(self):
         """!Test a few known values
@@ -162,9 +164,9 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         # note: table rows are reversed relative to amplifier order because rowInds is a descending ramp
         table = np.array(((7, 6, 5, 4), (1, 1, 1, 1), (5, 4, 3, 2), (0, 0, 0, 0)), dtype=imArr.dtype)
 
-        llt = LinearizeLookupTable(table=table, detector=detector)
+        llt = Linearizer(table=table, detector=detector)
 
-        lltRes = llt(image=im, detector=detector)
+        lltRes = llt.applyLinearity(image=im, detector=detector)
         self.assertEqual(lltRes.numOutOfRange, 2)
 
         # amp 0 is a constant correction of 0; one image value is out of range, but it doesn't matter
@@ -188,16 +190,16 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         """
         inImage = makeRampImage(bbox=self.bbox, start=-5, stop=2500)
         table = self.makeTable(inImage)
-        llt = LinearizeLookupTable(table=table, detector=self.detector)
+        llt = Linearizer(table=table, detector=self.detector)
 
         refImage = inImage.Factory(inImage, True)
-        refNumOutOfRange = llt(refImage, self.detector)
+        refNumOutOfRange = llt.applyLinearity(refImage, self.detector)
 
         pickledStr = pickle.dumps(llt)
         restoredLlt = pickle.loads(pickledStr)
 
         measImage = inImage.Factory(inImage, True)
-        measNumOutOfRange = restoredLlt(measImage, self.detector)
+        measNumOutOfRange = restoredLlt.applyLinearity(measImage, self.detector)
 
         self.assertEqual(refNumOutOfRange, measNumOutOfRange)
         self.assertImagesAlmostEqual(refImage, measImage)

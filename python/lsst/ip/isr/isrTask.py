@@ -828,10 +828,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         inputs['isGen3'] = True
 
         detector = inputs['ccdExposure'].getDetector()
+
         if self.doLinearize(detector) is True:
-            if 'linearizer' not in inputs:
-                linearityName = detector.getAmplifiers()[0].getLinearityType()
-                inputs['linearizer'] = linearize.getLinearityTypeByName(linearityName)()
+            if 'linearizer' in inputs and isinstance(inputs['linearizer'], dict):
+                linearizer = linearize.Linearizer(detector=detector)
+                linearizer.fromYaml(inputs['linearizer'])
+            else:
+                linearizer = linearize.Linearizer(table=inputs.get('linearizer', None), detector=detector)
+            inputs['linearizer'] = linearizer
 
         if self.config.doDefect is True:
             if "defects" in inputs and inputs['defects'] is not None:
@@ -955,6 +959,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # immediate=True required for functors and linearizers are functors; see ticket DM-6515
         linearizer = (dataRef.get("linearizer", immediate=True)
                       if self.doLinearize(ccd) else None)
+        if isinstance(linearizer, numpy.ndarray):
+            linearizer = linearize.Linearizer(table=linearizer, detector=ccd)
         crosstalkSources = (self.crosstalk.prepCrosstalk(dataRef)
                             if self.config.doCrosstalk else None)
         darkExposure = (self.getIsrExposure(dataRef, self.config.darkDataProductName)
@@ -1303,7 +1309,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.doLinearize(ccd):
             self.log.info("Applying linearizer.")
-            linearizer(image=ccdExposure.getMaskedImage().getImage(), detector=ccd, log=self.log)
+            linearizer.applyLinearity(image=ccdExposure.getMaskedImage().getImage(),
+                                      detector=ccd, log=self.log)
 
         if self.config.doCrosstalk and not self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")

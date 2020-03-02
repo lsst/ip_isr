@@ -30,7 +30,7 @@ import lsst.afw.image as afwImage
 import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
-from lsst.ip.isr import LinearizeSquared
+from lsst.ip.isr import Linearizer
 from lsst.log import Log
 
 
@@ -72,8 +72,8 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
             inImage = makeRampImage(bbox=self.bbox, start=-5, stop=2500, imageClass=imageClass)
 
             measImage = inImage.Factory(inImage, True)
-            linSq = LinearizeSquared()
-            linRes = linSq(image=measImage, detector=self.detector)
+            linCorr = Linearizer(detector=self.detector)
+            linRes = linCorr.applyLinearity(image=measImage, detector=self.detector)
             desNumLinearized = np.sum(self.sqCoeffs.flatten() > 0)
             self.assertEqual(linRes.numLinearized, desNumLinearized)
             self.assertEqual(linRes.numAmps, len(self.detector.getAmplifiers()))
@@ -85,7 +85,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
 
             # make sure logging is accepted
             log = Log.getLogger("ip.isr.LinearizeSquared")
-            linRes = linSq(image=measImage, detector=self.detector, log=log)
+            linRes = linCorr.applyLinearity(image=measImage, detector=self.detector, log=log)
 
     def testKnown(self):
         """!Test a few known values
@@ -104,8 +104,8 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         detector = self.makeDetector(bbox=bbox, numAmps=numAmps, sqCoeffs=sqCoeffs)
         ampInfoCat = detector.getAmplifiers()
 
-        linSq = LinearizeSquared()
-        linSq(im, detector=detector)
+        linSq = Linearizer(detector=detector)
+        linSq.applyLinearity(im, detector=detector)
 
         # amp 0 has 0 squared coefficient and so makes no correction
         imArr0 = im.Factory(im, ampInfoCat[0].getBBox()).getArray()
@@ -124,16 +124,16 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         """!Test that a LinearizeSquared can be pickled and unpickled
         """
         inImage = makeRampImage(bbox=self.bbox, start=-5, stop=2500)
-        linSq = LinearizeSquared()
+        linSq = Linearizer(detector=self.detector)
 
         refImage = inImage.Factory(inImage, True)
-        refNumOutOfRange = linSq(refImage, self.detector)
+        refNumOutOfRange = linSq.applyLinearity(refImage, detector=self.detector)
 
         pickledStr = pickle.dumps(linSq)
         restoredLlt = pickle.loads(pickledStr)
 
         measImage = inImage.Factory(inImage, True)
-        measNumOutOfRange = restoredLlt(measImage, self.detector)
+        measNumOutOfRange = restoredLlt.applyLinearity(measImage, detector=self.detector)
 
         self.assertEqual(refNumOutOfRange, measNumOutOfRange)
         self.assertImagesAlmostEqual(refImage, measImage)
