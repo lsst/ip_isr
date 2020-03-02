@@ -117,7 +117,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     defects = cT.PrerequisiteInput(
         name='defects',
         doc="Input defect tables.",
-        storageClass="DefectsList",
+        storageClass="Defects",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     opticsTransmission = cT.PrerequisiteInput(
