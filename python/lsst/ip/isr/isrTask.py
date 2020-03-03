@@ -75,19 +75,19 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     bias = cT.PrerequisiteInput(
         name="bias",
         doc="Input bias calibration.",
-        storageClass="ImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     dark = cT.PrerequisiteInput(
         name='dark',
         doc="Input dark calibration.",
-        storageClass="ImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     flat = cT.PrerequisiteInput(
         name="flat",
         doc="Input flat calibration.",
-        storageClass="MaskedImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
     fringes = cT.PrerequisiteInput(
