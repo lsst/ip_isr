@@ -60,7 +60,7 @@ __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 class IsrTaskConnections(pipeBase.PipelineTaskConnections,
                          dimensions={"instrument", "visit", "detector"},
                          defaultTemplates={}):
-    ccdExposure = cT.PrerequisiteInput(
+    ccdExposure = cT.Input(
         name="raw",
         doc="Input exposure to process.",
         storageClass="Exposure",
