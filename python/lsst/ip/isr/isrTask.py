@@ -1981,7 +1981,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
             raise RuntimeError("Exposure darktime is NAN.")
-        if darkExposure.getInfo().getVisitInfo() is not None:
+        if darkExposure.getInfo().getVisitInfo() is not None \
+                and not math.isnan(darkExposure.getInfo().getVisitInfo().getDarkTime()):
             darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
         else:
             # DM-17444: darkExposure.getInfo.getVisitInfo() is None
@@ -1989,8 +1990,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.warn("darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.")
             darkScale = 1.0
 
-        if math.isnan(darkScale):
-            raise RuntimeError("Dark calib darktime is NAN.")
         isrFunctions.darkCorrection(
             maskedImage=exposure.getMaskedImage(),
             darkMaskedImage=darkExposure.getMaskedImage(),
