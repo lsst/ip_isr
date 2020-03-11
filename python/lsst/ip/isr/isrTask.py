@@ -75,19 +75,19 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     bias = cT.PrerequisiteInput(
         name="bias",
         doc="Input bias calibration.",
-        storageClass="ImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     dark = cT.PrerequisiteInput(
         name='dark',
         doc="Input dark calibration.",
-        storageClass="ImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     flat = cT.PrerequisiteInput(
         name="flat",
         doc="Input flat calibration.",
-        storageClass="MaskedImageF",
+        storageClass="ExposureF",
         dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
     )
     fringes = cT.PrerequisiteInput(
@@ -117,7 +117,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     defects = cT.PrerequisiteInput(
         name='defects',
         doc="Input defect tables.",
-        storageClass="DefectsList",
+        storageClass="Defects",
         dimensions=["instrument", "calibration_label", "detector"],
     )
     opticsTransmission = cT.PrerequisiteInput(
@@ -1981,7 +1981,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
             raise RuntimeError("Exposure darktime is NAN.")
-        if darkExposure.getInfo().getVisitInfo() is not None:
+        if darkExposure.getInfo().getVisitInfo() is not None \
+                and not math.isnan(darkExposure.getInfo().getVisitInfo().getDarkTime()):
             darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
         else:
             # DM-17444: darkExposure.getInfo.getVisitInfo() is None
@@ -1989,8 +1990,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.warn("darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.")
             darkScale = 1.0
 
-        if math.isnan(darkScale):
-            raise RuntimeError("Dark calib darktime is NAN.")
         isrFunctions.darkCorrection(
             maskedImage=exposure.getMaskedImage(),
             darkMaskedImage=darkExposure.getMaskedImage(),
