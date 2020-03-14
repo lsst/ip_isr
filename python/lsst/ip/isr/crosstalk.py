@@ -167,11 +167,36 @@ class CrosstalkTask(Task):
         RuntimeError
             Raised if called for a detector that does not have a
             crosstalk correction
+        RuntimeError
+            Raised if crosstalkSources is not None and not a numpy
+            array or a dictionary.
         """
-        detector = exposure.getDetector()
-        if not self.config.hasCrosstalk(detector=detector):
-            raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
-        coeffs = self.config.getCrosstalk(detector=detector)
+        if crosstalkSources is not None:
+            if isinstance(crosstalkSources, np.ndarray):
+                coeffs = crosstalkSources
+            elif isinstance(crosstalkSources, dict):
+                # Nested dictionary produced by `measureCrosstalk.py`
+                # There are two keys first in the nested dictionary
+                for fKey, fValue in crosstalkSources.items():
+                    for sKey, sValue in fValue.items():
+                        firstKey = fKey
+                        secondKey = sKey
+                tempDict = crosstalkSources[firstKey][secondKey]
+                coeffs = []
+                for thirdKey in tempDict:
+                    tempList = []
+                    for fourthKey in tempDict[thirdKey]:
+                        value = tempDict[thirdKey][fourthKey]
+                        tempList.append(value)
+                    coeffs.append(tempList)
+                coeffs = np.array(coeffs)
+            else:
+                raise RuntimeError("crosstalkSources not of the correct type: `np.array` or `dict`")
+        else:
+            detector = exposure.getDetector()
+            if not self.config.hasCrosstalk(detector=detector):
+                raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
+            coeffs = self.config.getCrosstalk(detector=detector)
 
         self.log.info("Applying crosstalk correction.")
         subtractCrosstalk(exposure, crosstalkCoeffs=coeffs,
