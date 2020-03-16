@@ -64,7 +64,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name="raw",
         doc="Input exposure to process.",
         storageClass="Exposure",
-        dimensions=["instrument", "visit", "detector"],
+        dimensions=["instrument", "visit", "detector", "exposure"],
     )
     camera = cT.PrerequisiteInput(
         name="camera",
