@@ -22,25 +22,14 @@
 import abc
 
 import numpy as np
-import copy
-import datetime
-import os.path
-import lsst.afw.table
-import lsst.afw.image
-import astropy.table
 
 from lsst.pipe.base import Struct
 from .applyLookupTable import applyLookupTable
-from lsst.daf.base import PropertyList
 
 __all__ = ["Linearizer",
            "LinearizeBase", "LinearizeLookupTable", "LinearizeSquared",
            "LinearizeProportional", "LinearizePolynomial", "LinearizeNone"]
 
-SCHEMA_NAME_KEY_LIN_LUT = "LINEARIZER_LUT_SCHEMA"
-SCHEMA_VERSION_KEY_LIN_LUT = "LINEARIZER_LUT_SCHEMA_VERSION"
-_OBSTYPE = 'linearizerLut'
-"""The calibration type used for ingest."""
 
 class Linearizer(abc.ABC):
     """Parameter set for linearization.
@@ -89,6 +78,7 @@ class Linearizer(abc.ABC):
             if table.shape[1] < table.shape[0]:
                 raise RuntimeError("table shape = %s; indices are switched" % (table.shape,))
             self.tableData = np.array(table, order="C")
+
         if detector:
             self.fromDetector(detector)
 
@@ -157,12 +147,13 @@ class Linearizer(abc.ABC):
         """
         outDict = {'detectorName': self._detectorName,
                    'detectorSerial': self._detectorSerial,
-                   'hasTable': self._tableData is not None,
+                   'hasTable': self.tableData is not None,
                    'amplifiers': dict()}
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
                                               'linearityCoeffs': self.linearityCoeffs[ampName],
                                               'linearityBBox': self.linearityBBox[ampName]}
+        return outDict
 
     def getLinearityTypeByName(self, linearityTypeName):
         """Determine the linearity class to use from the type name.
@@ -287,235 +278,6 @@ class Linearizer(abc.ABC):
             numOutOfRange=numOutOfRange
         )
 
-    @classmethod
-    def fromTable(cls, table):
-        """Construct a `LinearizerLookupTable` from the contents of a
-        `~lsst.afw.table.BaseCatalog`.
-
-        Parameters
-        ----------
-        table : `lsst.afw.table.BaseCatalog`
-            Table with one row per defect.
-
-        Returns
-        -------
-        lookupTableLinearizer : `LinearizerLookupTable`
-            A `LinearizerLookupTable` linearizer.
-
-        Notes
-        -----
-        Two table formats are recognized.  The first is the
-        `FITS regions <https://fits.gsfc.nasa.gov/registry/region.html>`_
-        definition tabular format written by `toFitsRegionTable`.
-        The second is the text file written by `toSimpleTable`.
-        """
-
-        tableRowList = []
-
-        schema = table.getSchema()
-
-        # Check schema to see which definitions we have
-        if "C0" in schema and "C1" in schema:
-            # This is a FITS region style table
-            isFitsRegion = True
-
-        elif "c0" in schema and "c1" in schema:
-            isFitsRegion = False
-
-        else:
-            raise ValueError("Unsupported schema for lookup table array extraction")
-
-        for r in table:
-            record = r.extract("*")
-
-            if isFitsRegion:
-                row = np.concatenate(record["C0"], record["C1"])
-            elif "c0" in record and "c1" in record:
-                row = np.concatenate(record["c0"], record["c1"])
-
-            tableRowList.append(row)
-
-        tableArray = np.reshape(tableRowList, (cls.tableData.shape[0], cls.tableData.shape[0]))
-        lookupTableLinearizer = Linearizer(table=tableArray)
-
-        return lookupTableLinearizer
-
-    def toFitsRegionTable(self):
-        """
-        Convert lookup table array to `~lsst.afw.table.BaseCatalog` using the
-        FITS region standard.
-
-        Returns
-        ------
-        table: `lsst.afw.table.BaseCatalog`
-            2D lookup table array in tabular form.
-
-        Notes
-        ----
-        FITS regions <https://fits.gsfc.nasa.gov/registry/region.html>`_
-        definition tabular format.
-        """
-        schema = lsst.afw.table.Schema()
-        c0 = schema.addField("C0", type="I", doc="row index of lookup table")
-        c1 = schema.addField("C1", type="I", doc="column index offset of lookup table")
-        table = lsst.afw.table.BaseCatalog(schema)
-        table.resize(self.tableData.shape[0])
-
-        for i, row in enumerate(self.tableData):
-            table[i][c0] = row[0]
-            table[i][c1] = row[1:]
-
-        metadata = copy.copy(self.getMetadata())
-        metadata["OBSTYPE"] = _OBSTYPE
-        metadata[SCHEMA_NAME_KEY_LIN_LUT] = "FITS Region"
-        metadata[SCHEMA_VERSION_KEY_LIN_LUT] = 1
-        table.setMetadata(metadata)
-
-        return table
-
-    def toSimpleTable(self):
-        """Convert lookup table 2D array to a simple table form that we use to write
-        to text files.
-
-        Returns
-        -------
-        table : `lsst.afw.table.BaseCatalog`
-            2D lookup table array in tabular form.
-        """
-        schema = lsst.afw.table.Schema()
-        c0 = schema.addField("c0", type="I", doc="row index of lookup table")
-        c1 = schema.addField("c1", type="I", doc="column index offset of lookup table")
-        table = lsst.afw.table.BaseCatalog(schema)
-        table.resize(self.tableData.shape[0])
-
-        for i, row in enumerate(self.tableData):
-            table[c0][i] = row[0]
-            table[c1][i] = row[1:]
-
-        # Set some metadata in the table (force OBSTYPE to exist)
-        metadata = copy.copy(self.getMetadata())
-        metadata["OBSTYPE"] = OBSTYPE
-        metadata[SCHEMA_NAME_KEY_LIN_LUT] = "Simple"
-        metadata[SCHEMA_VERSION_KEY_LIN_LUT] = 1
-        table.setMetadata(metadata)
-
-        return table
-
-    def writeFits(self, *args):
-        """Write lookup table array to FITS.
-
-        Parameters
-        ----------
-        *args
-            Arguments to be forwarded to
-            `lsst.afw.table.BaseCatalog.writeFits`.
-        """
-        table = self.toFitsRegionTable()
-
-        # Add some additional headers useful for tracking purposes
-        metadata = table.getMetadata()
-        now = datetime.datetime.utcnow()
-        metadata["DATE"] = now.isoformat()
-        metadata["CALIB_CREATION_DATE"] = now.strftime("%Y-%m-%d")
-        metadata["CALIB_CREATION_TIME"] = now.strftime("%T %Z").strip()
-
-        table.writeFits(*args)
-
-    @classmethod
-    def readFits(cls, *args):
-        """Read lookuptable array from FITS table.
-
-        Parameters:
-        ----------
-            Arguments to be forwarded to
-            `lsst.afw.table.BaseCatalog.writeFits`.
-
-        Returns:
-        -------
-        lookupTableLinearizer : `LinearizerLookupTable`
-            A `LinearizerLookupTable` linearizer.
-        """
-        table = lsst.afw.table.BaseCatalog.readFits(*args)
-        return cls.fromTable(table)
-
-    def writeText(self, filename):
-        """Write linearizer lookup table out to a text file with the specified name.
-
-        Parameters
-        ----------
-        filename : `str`
-            Name of the file to write.  The file extension ".ecsv" will
-            always be used.
-
-        Returns
-        -------
-        used : `str`
-            The name of the file used to write the data (which may be
-            different from the supplied name given the change to file
-            extension).
-
-        Notes
-        -----
-        The file is written to ECSV format and will include any metadata
-        associated with the `LinearizerLookupTable`.
-        """
-
-        # Using astropy table is the easiest way to serialize to ecsv
-        afwTable = self.toSimpleTable()
-        table = afwTable.asAstropy()
-        metadata = afwTable.getMetadata()
-        now = datetime.datetime.utcnow()
-        metadata["DATE"] = now.isoformat()
-        metadata["CALIB_CREATION_DATE"] = now.strftime("%Y-%m-%d")
-        metadata["CALIB_CREATION_TIME"] = now.strftime("%T %Z").strip()
-
-        table.meta = metadata.toDict()
-
-        # Force file extension to .ecsv
-        path, ext = os.path.splitext(filename)
-        filename = path + ".ecsv"
-        table.write(filename, format="ascii.ecsv")
-        return filename
-
-    @classmethod
-    def readText(cls, filename):
-        """Read linearizer lookuptable from standard format text table file.
-
-        Parameters
-        ----------
-        filename : `str`
-            Name of the file containing the defects definitions.
-
-        Returns
-        -------
-        lookuptable : `LinearizerLookupTable`
-            Defects read from a text table.
-        """
-        table = astropy.table.Table.read(filename)
-
-        # Need to convert the Astropy table to afw table
-        schema = lsst.afw.table.Schema()
-        for colName in table.columns:
-            schema.addField(colName, units=str(table[colName].unit),
-                            type=table[colName].dtype.type)
-
-        # Create AFW table that is required by fromTable()
-        afwTable = lsst.afw.table.BaseCatalog(schema)
-
-        afwTable.resize(len(table))
-        for colName in table.columns:
-            # String columns will fail -- currently we do not expect any
-            afwTable[colName] = table[colName]
-
-        # Copy in the metadata from the astropy table
-        metadata = PropertyList()
-        for k, v in table.meta.items():
-            metadata[k] = v
-        afwTable.setMetadata(metadata)
-
-        # Extract defect information from the table itself
-        return cls.fromTable(afwTable)
-
 
 class LinearizeBase(metaclass=abc.ABCMeta):
     """Abstract base class functor for correcting non-linearity.
@@ -562,9 +324,6 @@ class LinearizeBase(metaclass=abc.ABCMeta):
         pass
 
 
-#SCHEMA_NAME_KEY_LIN_LUT = "LINEARIZER_LUT_SCHEMA"
-#SCHEMA_VERSION_KEY_LIN_LUT = "LINEARIZER_LUT_SCHEMA_VERSION"
-
 class LinearizeLookupTable(LinearizeBase):
     """Correct non-linearity with a persisted lookup table.
 
@@ -585,9 +344,7 @@ class LinearizeLookupTable(LinearizeBase):
             the nearest index is used instead of truncating to the
             next smaller index
     """
-    #LinearityType = "LookupTable"
-    #_OBSTYPE = 'linearizerLut'
-    #"""The calibration type used for ingest."""
+    LinearityType = "LookupTable"
 
     def __call__(self, image, **kwargs):
         """Correct for non-linearity.
