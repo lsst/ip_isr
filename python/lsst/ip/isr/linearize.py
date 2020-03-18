@@ -157,7 +157,7 @@ class Linearizer(abc.ABC):
         """
         outDict = {'detectorName': self._detectorName,
                    'detectorSerial': self._detectorSerial,
-                   'hasTable': self._table is not None,
+                   'hasTable': self._tableData is not None,
                    'amplifiers': dict()}
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
