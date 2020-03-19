@@ -20,9 +20,13 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 import abc
+import copy
+import datetime
 
 import numpy as np
+import yaml
 
+from lsst.daf.base import PropertyList
 from lsst.pipe.base import Struct
 from .applyLookupTable import applyLookupTable
 
@@ -56,6 +60,10 @@ class Linearizer(abc.ABC):
         Raised if the supplied table is not 2D, or if the table has fewer
         columns than rows (indicating that the indices are swapped).
     """
+
+    _OBSTYPE = "linearizer"
+    """The calibration type used for ingest."""
+
     def __init__(self, table=None, detector=None, override=False, log=None):
         self._detectorName = None
         self._detectorSerial = None
@@ -127,16 +135,24 @@ class Linearizer(abc.ABC):
         yamlObject : `dict`
             Dictionary containing detector and amplifier information.
         """
+        self.setMetadata(metadata=yamlObject.get('metadata', None))
         self._detectorName = yamlObject['detectorName']
         self._detectorSerial = yamlObject['detectorSerial']
         self.populated = True
         self.override = True
 
-        for amp in yamlObject['amplifiers']:
-            ampName = amp['name']
+        for ampName in yamlObject['amplifiers']:
+            amp = yamlObject['amplifiers'][ampName]
             self.linearityCoeffs[ampName] = amp.get('linearityCoeffs', None)
             self.linearityType[ampName] = amp.get('linearityType', 'None')
             self.linearityBBox[ampName] = amp.get('linearityBBox', None)
+
+        if self.tableData is None:
+            self.tableData = yamlObject.get('tableData', None)
+            if self.tableData:
+                self.tableData = np.array(self.tableData)
+
+        return self
 
     def toDict(self):
         """Return linearity parameters as a dict.
@@ -145,7 +161,12 @@ class Linearizer(abc.ABC):
         -------
         outDict : `dict`:
         """
-        outDict = {'detectorName': self._detectorName,
+        # metadata copied from defects code
+        now = datetime.datetime.utcnow()
+        self.updateMetadata(date=now)
+
+        outDict = {'metadata': self.getMetadata().toDict(),
+                   'detectorName': self._detectorName,
                    'detectorSerial': self._detectorSerial,
                    'hasTable': self.tableData is not None,
                    'amplifiers': dict()}
@@ -153,7 +174,146 @@ class Linearizer(abc.ABC):
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
                                               'linearityCoeffs': self.linearityCoeffs[ampName],
                                               'linearityBBox': self.linearityBBox[ampName]}
+        if self.tableData:
+            outDict['tableData'] = self.tableData.toList()
+
         return outDict
+
+    @classmethod
+    def readText(cls, filename):
+        """Read linearity from text file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file containing the linearity definition.
+        Returns
+        -------
+        linearity : `~lsst.ip.isr.linearize.Linearizer``
+            Linearity parameters.
+        """
+        data = ''
+        with open(filename, 'r') as f:
+            data = yaml.load(f, Loader=yaml.FullLoader)
+        return cls().fromYaml(data)
+
+    @classmethod
+    def readFits(cls, filename):
+        """Read linearity from a file.
+
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file containing the linearity definition.
+        Returns
+        -------
+        linearity : `~lsst.ip.isr.linearize.Linearizer``
+            Linearity parameters.
+        """
+        return cls.readText(filename)
+
+    def writeText(self, filename):
+        """Write the linearity model to a text file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file to write.
+
+        Returns
+        -------
+        used : `str`
+            The name of the file used to write the data.
+
+        Notes
+        -----
+        The file is written to YAML format and will include any metadata
+        associated with the `Linearity`.
+        """
+        outDict = self.toDict()
+
+        with open(filename, 'w') as f:
+            yaml.dump(outDict, f)
+
+        return filename
+
+    def writeFits(self, filename):
+        """Write the linearity model to a text file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file to write.
+
+        Returns
+        -------
+        used : `str`
+            The name of the file used to write the data.
+
+        Notes
+        -----
+        The file is written to YAML format and will include any metadata
+        associated with the `Linearity`.
+        """
+        return self.writeText(filename)
+
+    def getMetadata(self):
+        """Retrieve metadata associated with this `Linearizer`.
+
+        Returns
+        -------
+        meta : `lsst.daf.base.PropertyList`
+            Metadata. The returned `~lsst.daf.base.PropertyList` can be
+            modified by the caller and the changes will be written to
+            external files.
+        """
+        return self._metadata
+
+    def setMetadata(self, metadata=None):
+        """Store a copy of the supplied metadata with the `Linearizer`.
+
+        Parameters
+        ----------
+        metadata : `lsst.daf.base.PropertyList`, optional
+            Metadata to associate with the defects.  Will be copied and
+            overwrite existing metadata.  If not supplied the existing
+            metadata will be reset.
+        """
+        if metadata is None:
+            self._metadata = PropertyList()
+        else:
+            self._metadata = copy.copy(metadata)
+
+        # Ensure that we have the obs type required by calibration ingest
+        self._metadata["OBSTYPE"] = self._OBSTYPE
+
+    def updateMetadata(self, date=None, detectorName=None, instrumentName=None, calibId=None):
+        """Update metadata keywords with new values.
+
+        Parameters
+        ----------
+        date : `datetime.datetime`, optional
+        detectorName : `str`, optional
+        instrumentName : `str`, optional
+        calibId: `str`, optional
+
+        """
+        mdOriginal = self.getMetadata()
+        mdSupplemental = dict()
+
+        if date:
+            mdSupplemental['CALIBDATE'] = date
+            mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat(),
+            mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat(),
+        if detectorName:
+            mdSupplemental['DETECTOR'] = detectorName
+        if instrumentName:
+            mdSupplemental['INSTRUME'] = instrumentName
+        if calibId:
+            mdSupplemental['CALIB_ID'] = calibId
+
+        mdOriginal.update(mdSupplemental)
 
     def getLinearityTypeByName(self, linearityTypeName):
         """Determine the linearity class to use from the type name.
