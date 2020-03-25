@@ -26,8 +26,10 @@ import datetime
 import numpy as np
 import yaml
 
+import lsst.afw.table as afwTable
 from lsst.daf.base import PropertyList
 from lsst.pipe.base import Struct
+from lsst.geom import Box2I, Point2I, Extent2I
 from .applyLookupTable import applyLookupTable
 
 __all__ = ["Linearizer",
@@ -143,7 +145,7 @@ class Linearizer(abc.ABC):
 
         for ampName in yamlObject['amplifiers']:
             amp = yamlObject['amplifiers'][ampName]
-            self.linearityCoeffs[ampName] = amp.get('linearityCoeffs', None)
+            self.linearityCoeffs[ampName] = np.array(amp.get('linearityCoeffs', None), dtype=np.float64)
             self.linearityType[ampName] = amp.get('linearityType', 'None')
             self.linearityBBox[ampName] = amp.get('linearityBBox', None)
 
@@ -197,22 +199,6 @@ class Linearizer(abc.ABC):
             data = yaml.load(f, Loader=yaml.FullLoader)
         return cls().fromYaml(data)
 
-    @classmethod
-    def readFits(cls, filename):
-        """Read linearity from a file.
-
-
-        Parameters
-        ----------
-        filename : `str`
-            Name of the file containing the linearity definition.
-        Returns
-        -------
-        linearity : `~lsst.ip.isr.linearize.Linearizer``
-            Linearity parameters.
-        """
-        return cls.readText(filename)
-
     def writeText(self, filename):
         """Write the linearity model to a text file.
 
@@ -238,8 +224,58 @@ class Linearizer(abc.ABC):
 
         return filename
 
+    @classmethod
+    def readFits(cls, filename):
+        """Read linearity from a FITS file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file containing the linearity definition.
+        Returns
+        -------
+        linearity : `~lsst.ip.isr.linearize.Linearizer``
+            Linearity parameters.
+        """
+        table = afwTable.BaseCatalog.readFits(filename)
+        # Do we need this?
+        # schema = table.getSchema()
+        metadata = table.getMetadata()
+
+        linDict = dict()
+        linDict['metadata'] = metadata
+        linDict['detectorName'] = metadata['DETECTOR']
+        try:
+            linDict['detectorSerial'] = metadata['detectorSerial']
+        except:
+            linDict['detectorSerial'] = 'NOT SET'
+        linDict['amplifiers'] = dict()
+
+        for row in table:
+            record = row.extract("*")
+            ampName = record['AMPLIFIER_NAME']
+            ampDict = dict()
+            ampDict['linearityType'] = record['TYPE']
+            ampDict['linearityCoeffs'] = record['COEFFS']
+            ampDict['linearityBBox'] = Box2I(Point2I(record['BBOX_X0'], record['BBOX_Y0']),
+                                             Extent2I(record['BBOX_DX'], record['BBOX_DY']))
+
+            linDict['amplifiers'][ampName] = ampDict
+
+        try:
+            table = afwTable.BaseCatalog.readFits(filename, 2)
+            tableData = []
+            for row in table:
+                record = row.extract('*')
+                tableData.append(record['LOOKUP_VALUES'])
+            linDict['tableData'] = tableData
+        except:
+            pass
+
+        return cls().fromYaml(linDict)
+
     def writeFits(self, filename):
-        """Write the linearity model to a text file.
+        """Write the linearity model to a FITS file.
 
         Parameters
         ----------
@@ -256,7 +292,54 @@ class Linearizer(abc.ABC):
         The file is written to YAML format and will include any metadata
         associated with the `Linearity`.
         """
-        return self.writeText(filename)
+        now = datetime.datetime.utcnow()
+        self.updateMetadata(date=now)
+
+        metadata = copy.copy(self.getMetadata())
+        metadata["LINEARITY_SCHEMA"] = "Linearity table"
+        metadata["LINEARITY_VERSION"] = 1
+
+        # Now pack it into a fits table.
+        length = max([len(self.linearityCoeffs[x]) for x in self.linearityCoeffs.keys()])
+
+        schema = afwTable.Schema()
+        names = schema.addField("AMPLIFIER_NAME", type="String", size=16, doc="linearity amplifier name")
+        types = schema.addField("TYPE", type="String", size=16, doc="linearity type names")
+        coeffs = schema.addField("COEFFS", type="ArrayD", size=length, doc="linearity coefficients")
+        boxX = schema.addField("BBOX_X0", type="I", doc="linearity bbox minimum x")
+        boxY = schema.addField("BBOX_Y0", type="I", doc="linearity bbox minimum y")
+        boxDx = schema.addField("BBOX_DX", type="I", doc="linearity bbox x dimension")
+        boxDy = schema.addField("BBOX_DY", type="I", doc="linearity bbox y dimension")
+
+        catalog = afwTable.BaseCatalog(schema)
+        catalog.resize(len(self.linearityCoeffs.keys()))
+
+        for ii, ampName in enumerate(self.linearityType):
+            catalog[ii][names] = ampName
+            catalog[ii][types] = self.linearityType[ampName]
+            catalog[ii][coeffs] = self.linearityCoeffs[ampName]
+
+            bbox = self.linearityBBox[ampName]
+            catalog[ii][boxX], catalog[ii][boxY] = bbox.getMin()
+            catalog[ii][boxDx], catalog[ii][boxDy] = bbox.getDimensions()
+
+        catalog.setMetadata(metadata)
+        catalog.writeFits(filename)
+
+        if self.tableData is not None:
+            schema = afwTable.Schema()
+            dimensions = self.tableData.shape
+            lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1], doc="linearity lookup data")
+            catalog = afwTable.BaseCatalog(schema)
+            catalog.resize(dimensions[0])
+
+            for ii in range(dimensions[0]):
+                catalog[ii][lut] = np.array(self.tableData[ii], dtype=np.intc)
+
+            metadata["LINEARITY_LOOKUP"] = True
+            catalog.setMetadata(metadata)
+            catalog.writeFits(filename, "a")
+        return filename
 
     def getMetadata(self):
         """Retrieve metadata associated with this `Linearizer`.
