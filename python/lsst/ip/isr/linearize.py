@@ -248,15 +248,27 @@ class Linearizer(abc.ABC):
             Linearity parameters.
         """
         table = afwTable.BaseCatalog.readFits(filename)
+<<<<<<< HEAD
+=======
+        # Do we need this?
+        # schema = table.getSchema()
+>>>>>>> a9ceb1f... Fix FITS handling methods to work correctly.
         metadata = table.getMetadata()
 
         linDict = dict()
         linDict['metadata'] = metadata
+<<<<<<< HEAD
         linDict['detectorId'] = metadata['DETECTOR_ID']
         linDict['detectorName'] = metadata['DETECTOR_NAME']
         try:
             linDict['detectorSerial'] = metadata['DETECTOR_SERIAL']
         except Exception:
+=======
+        linDict['detectorName'] = metadata['DETECTOR']
+        try:
+            linDict['detectorSerial'] = metadata['detectorSerial']
+        except:
+>>>>>>> a9ceb1f... Fix FITS handling methods to work correctly.
             linDict['detectorSerial'] = 'NOT SET'
         linDict['amplifiers'] = dict()
 
@@ -278,7 +290,11 @@ class Linearizer(abc.ABC):
                 record = row.extract('*')
                 tableData.append(record['LOOKUP_VALUES'])
             linDict['tableData'] = tableData
+<<<<<<< HEAD
         except Exception:
+=======
+        except:
+>>>>>>> a9ceb1f... Fix FITS handling methods to work correctly.
             pass
 
         return cls().fromYaml(linDict)
@@ -331,14 +347,22 @@ class Linearizer(abc.ABC):
             bbox = self.linearityBBox[ampName]
             catalog[ii][boxX], catalog[ii][boxY] = bbox.getMin()
             catalog[ii][boxDx], catalog[ii][boxDy] = bbox.getDimensions()
+<<<<<<< HEAD
+=======
+
+>>>>>>> a9ceb1f... Fix FITS handling methods to work correctly.
         catalog.setMetadata(metadata)
         catalog.writeFits(filename)
 
         if self.tableData is not None:
             schema = afwTable.Schema()
             dimensions = self.tableData.shape
+<<<<<<< HEAD
             lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1],
                                   doc="linearity lookup data")
+=======
+            lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1], doc="linearity lookup data")
+>>>>>>> a9ceb1f... Fix FITS handling methods to work correctly.
             catalog = afwTable.BaseCatalog(schema)
             catalog.resize(dimensions[0])
 
