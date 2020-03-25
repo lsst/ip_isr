@@ -61,7 +61,7 @@ class Linearizer(abc.ABC):
         columns than rows (indicating that the indices are swapped).
     """
 
-    _OBSTYPE = "linearizer"
+    _OBSTYPE = "linearizers"
     """The calibration type used for ingest."""
 
     def __init__(self, table=None, detector=None, override=False, log=None):
@@ -165,7 +165,7 @@ class Linearizer(abc.ABC):
         now = datetime.datetime.utcnow()
         self.updateMetadata(date=now)
 
-        outDict = {'metadata': self.getMetadata().toDict(),
+        outDict = {'metadata': self.getMetadata(),
                    'detectorName': self._detectorName,
                    'detectorSerial': self._detectorSerial,
                    'hasTable': self.tableData is not None,
@@ -174,8 +174,8 @@ class Linearizer(abc.ABC):
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
                                               'linearityCoeffs': self.linearityCoeffs[ampName],
                                               'linearityBBox': self.linearityBBox[ampName]}
-        if self.tableData:
-            outDict['tableData'] = self.tableData.toList()
+        if self.tableData is not None:
+            outDict['tableData'] = self.tableData.tolist()
 
         return outDict
 
@@ -288,13 +288,13 @@ class Linearizer(abc.ABC):
         # Ensure that we have the obs type required by calibration ingest
         self._metadata["OBSTYPE"] = self._OBSTYPE
 
-    def updateMetadata(self, date=None, detectorName=None, instrumentName=None, calibId=None):
+    def updateMetadata(self, date=None, detectorNumber=None, instrumentName=None, calibId=None):
         """Update metadata keywords with new values.
 
         Parameters
         ----------
         date : `datetime.datetime`, optional
-        detectorName : `str`, optional
+        detectorNumber : detector number as a `str`, optional
         instrumentName : `str`, optional
         calibId: `str`, optional
 
@@ -303,11 +303,11 @@ class Linearizer(abc.ABC):
         mdSupplemental = dict()
 
         if date:
-            mdSupplemental['CALIBDATE'] = date
+            mdSupplemental['CALIBDATE'] = date.isoformat()
             mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat(),
             mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat(),
-        if detectorName:
-            mdSupplemental['DETECTOR'] = detectorName
+        if detectorNumber:
+            mdSupplemental['DETECTOR'] = detectorNumber
         if instrumentName:
             mdSupplemental['INSTRUME'] = instrumentName
         if calibId:
