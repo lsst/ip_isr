@@ -63,7 +63,7 @@ class Linearizer(abc.ABC):
         columns than rows (indicating that the indices are swapped).
     """
 
-    _OBSTYPE = "linearizers"
+    _OBSTYPE = "linearizer"
     """The calibration type used for ingest."""
 
     def __init__(self, table=None, detector=None, override=False, log=None):
@@ -195,8 +195,13 @@ class Linearizer(abc.ABC):
             Linearity parameters.
         """
         data = ''
-        with open(filename, 'r') as f:
-            data = yaml.load(f, Loader=yaml.FullLoader)
+        try:
+            with open(filename, 'r') as f:
+                data = yaml.load(f, Loader=yaml.FullLoader)
+        except: 
+            yamlLoad = lambda x: yaml.load(x, Loader=yaml.Loader)
+            with open(filename, 'r') as f:
+                data = yamlLoad(f)
         return cls().fromYaml(data)
 
     def writeText(self, filename):
@@ -322,7 +327,7 @@ class Linearizer(abc.ABC):
             bbox = self.linearityBBox[ampName]
             catalog[ii][boxX], catalog[ii][boxY] = bbox.getMin()
             catalog[ii][boxDx], catalog[ii][boxDy] = bbox.getDimensions()
-
+        print("HOLA", type(metadata), metadata, filename)
         catalog.setMetadata(metadata)
         catalog.writeFits(filename)
 
