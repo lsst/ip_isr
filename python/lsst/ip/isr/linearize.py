@@ -371,7 +371,7 @@ class Linearizer(abc.ABC):
         # Ensure that we have the obs type required by calibration ingest
         self._metadata["OBSTYPE"] = self._OBSTYPE
 
-    def updateMetadata(self, date=None, detectorNumber=None, instrumentName=None, calibId=None):
+    def updateMetadata(self, date=None, detectorNumber=None, instrumentName=None, calibId=None, serial=None):
         """Update metadata keywords with new values.
 
         Parameters
@@ -380,6 +380,7 @@ class Linearizer(abc.ABC):
         detectorNumber : detector number as a `str`, optional
         instrumentName : `str`, optional
         calibId: `str`, optional
+        serial: detector serial, `str`, optional
 
         """
         mdOriginal = self.getMetadata()
@@ -395,6 +396,8 @@ class Linearizer(abc.ABC):
             mdSupplemental['INSTRUME'] = instrumentName
         if calibId:
             mdSupplemental['CALIB_ID'] = calibId
+        if serial:
+            mdSupplemental['DETECTOR_SERIAL'] = serial
 
         mdOriginal.update(mdSupplemental)
 
