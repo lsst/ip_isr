@@ -831,10 +831,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.doLinearize(detector) is True:
             if 'linearizer' in inputs and isinstance(inputs['linearizer'], dict):
-                linearizer = linearize.Linearizer(detector=detector)
+                linearizer = linearize.Linearizer(detector=detector, log=self.log)
                 linearizer.fromYaml(inputs['linearizer'])
             else:
-                linearizer = linearize.Linearizer(table=inputs.get('linearizer', None), detector=detector)
+                linearizer = linearize.Linearizer(table=inputs.get('linearizer', None), detector=detector,
+                                                  log=self.log)
             inputs['linearizer'] = linearizer
 
         if self.config.doDefect is True:
@@ -959,6 +960,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # immediate=True required for functors and linearizers are functors; see ticket DM-6515
         linearizer = (dataRef.get("linearizer", immediate=True)
                       if self.doLinearize(ccd) else None)
+        linearizer.log = self.log
         if isinstance(linearizer, numpy.ndarray):
             linearizer = linearize.Linearizer(table=linearizer, detector=ccd)
         crosstalkSources = (self.crosstalk.prepCrosstalk(dataRef)

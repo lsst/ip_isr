@@ -69,6 +69,7 @@ class Linearizer(abc.ABC):
     def __init__(self, table=None, detector=None, override=False, log=None):
         self._detectorName = None
         self._detectorSerial = None
+        self._detectorId = None
 
         self.linearityCoeffs = dict()
         self.linearityType = dict()
@@ -120,6 +121,7 @@ class Linearizer(abc.ABC):
         """
         self._detectorName = detector.getName()
         self._detectorSerial = detector.getSerial()
+        self._detectorId = detector.getId()
         self.populated = True
 
         # Do not translate Threshold, Maximum, Units.
@@ -140,6 +142,7 @@ class Linearizer(abc.ABC):
         self.setMetadata(metadata=yamlObject.get('metadata', None))
         self._detectorName = yamlObject['detectorName']
         self._detectorSerial = yamlObject['detectorSerial']
+        self._detectorId = yamlObject['detectorId']
         self.populated = True
         self.override = True
 
@@ -170,6 +173,7 @@ class Linearizer(abc.ABC):
         outDict = {'metadata': self.getMetadata(),
                    'detectorName': self._detectorName,
                    'detectorSerial': self._detectorSerial,
+                   'detectorId': self._detectorId,
                    'hasTable': self.tableData is not None,
                    'amplifiers': dict()}
         for ampName in self.linearityType:
@@ -198,8 +202,9 @@ class Linearizer(abc.ABC):
         try:
             with open(filename, 'r') as f:
                 data = yaml.load(f, Loader=yaml.FullLoader)
-        except: 
-            yamlLoad = lambda x: yaml.load(x, Loader=yaml.Loader)
+        except Exception:
+            def yamlLoad(x):
+                return yaml.load(x, Loader=yaml.Loader)
             with open(filename, 'r') as f:
                 data = yamlLoad(f)
         return cls().fromYaml(data)
@@ -243,16 +248,15 @@ class Linearizer(abc.ABC):
             Linearity parameters.
         """
         table = afwTable.BaseCatalog.readFits(filename)
-        # Do we need this?
-        # schema = table.getSchema()
         metadata = table.getMetadata()
 
         linDict = dict()
         linDict['metadata'] = metadata
-        linDict['detectorName'] = metadata['DETECTOR']
+        linDict['detectorId'] = metadata['DETECTOR_ID']
+        linDict['detectorName'] = metadata['DETECTOR_NAME']
         try:
-            linDict['detectorSerial'] = metadata['detectorSerial']
-        except:
+            linDict['detectorSerial'] = metadata['DETECTOR_SERIAL']
+        except Exception:
             linDict['detectorSerial'] = 'NOT SET'
         linDict['amplifiers'] = dict()
 
@@ -274,7 +278,7 @@ class Linearizer(abc.ABC):
                 record = row.extract('*')
                 tableData.append(record['LOOKUP_VALUES'])
             linDict['tableData'] = tableData
-        except:
+        except Exception:
             pass
 
         return cls().fromYaml(linDict)
@@ -327,14 +331,14 @@ class Linearizer(abc.ABC):
             bbox = self.linearityBBox[ampName]
             catalog[ii][boxX], catalog[ii][boxY] = bbox.getMin()
             catalog[ii][boxDx], catalog[ii][boxDy] = bbox.getDimensions()
-        print("HOLA", type(metadata), metadata, filename)
         catalog.setMetadata(metadata)
         catalog.writeFits(filename)
 
         if self.tableData is not None:
             schema = afwTable.Schema()
             dimensions = self.tableData.shape
-            lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1], doc="linearity lookup data")
+            lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1],
+                                  doc="linearity lookup data")
             catalog = afwTable.BaseCatalog(schema)
             catalog.resize(dimensions[0])
 
@@ -376,13 +380,15 @@ class Linearizer(abc.ABC):
         # Ensure that we have the obs type required by calibration ingest
         self._metadata["OBSTYPE"] = self._OBSTYPE
 
-    def updateMetadata(self, date=None, detectorNumber=None, instrumentName=None, calibId=None, serial=None):
+    def updateMetadata(self, date=None, detectorId=None, detectorName=None, instrumentName=None, calibId=None,
+                       serial=None):
         """Update metadata keywords with new values.
 
         Parameters
         ----------
         date : `datetime.datetime`, optional
-        detectorNumber : detector number as a `str`, optional
+        detectorId : `int`, optional
+        detectorName: `str`, optional
         instrumentName : `str`, optional
         calibId: `str`, optional
         serial: detector serial, `str`, optional
@@ -395,8 +401,10 @@ class Linearizer(abc.ABC):
             mdSupplemental['CALIBDATE'] = date.isoformat()
             mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat(),
             mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat(),
-        if detectorNumber:
-            mdSupplemental['DETECTOR'] = detectorNumber
+        if detectorId:
+            mdSupplemental['DETECTOR_ID'] = f"{detectorId}"
+        if detectorName:
+            mdSupplemental['DETECTOR_NAME'] = detectorName
         if instrumentName:
             mdSupplemental['INSTRUME'] = instrumentName
         if calibId:
@@ -450,6 +458,9 @@ class Linearizer(abc.ABC):
             if self._detectorName != detector.getName():
                 raise RuntimeError("Detector names don't match: %s != %s" %
                                    (self._detectorName, detector.getName()))
+            if int(self._detectorId) != int(detector.getId()):
+                raise RuntimeError("Detector IDs don't match: %s != %s" %
+                                   (int(self._detectorId), int(detector.getId())))
             if self._detectorSerial != detector.getSerial():
                 raise RuntimeError("Detector serial numbers don't match: %s != %s" %
                                    (self._detectorSerial, detector.getSerial()))
@@ -474,7 +485,8 @@ class Linearizer(abc.ABC):
                 else:
                     raise RuntimeError("Amplifier %s type %s does not match saved value %s" %
                                        (ampName, amp.getLinearityType(), self.linearityType[ampName]))
-            if not np.allclose(amp.getLinearityCoeffs(), self.linearityCoeffs[ampName], equal_nan=True):
+            if (amp.getLinearityCoeffs().shape != self.linearityCoeffs[ampName].shape or not
+                    np.allclose(amp.getLinearityCoeffs(), self.linearityCoeffs[ampName], equal_nan=True)):
                 if self.override:
                     self.log.warn("Overriding amplifier defined linearityCoeffs (%s) for %s",
                                   self.linearityCoeffs[ampName], ampName)
@@ -500,7 +512,6 @@ class Linearizer(abc.ABC):
         """
         if log is None:
             log = self.log
-
         if detector and not self.populated:
             self.fromDetector(detector)
 
@@ -675,6 +686,9 @@ class LinearizePolynomial(LinearizeBase):
             Dictionary of parameter keywords:
             ``"coeffs"``
                 Coefficient vector (`list` or `numpy.array`).
+                If the order of the polynomial is n, this list
+                should have a length of n-1 ("k0" and "k1" are
+                not needed for the correction).
             ``"log"``
                 Logger to handle messages (`lsst.log.Log`).
 
@@ -683,14 +697,14 @@ class LinearizePolynomial(LinearizeBase):
         output : `bool`
             If true, a correction was applied successfully.
         """
-        if np.any(np.isfinite(kwargs['coeffs'])):
+        if not np.any(np.isfinite(kwargs['coeffs'])):
             return False, 0
         if not np.any(kwargs['coeffs']):
             return False, 0
 
         ampArray = image.getArray()
-        correction = np.zeroes_like(ampArray)
-        for coeff, order in enumerate(kwargs['coeffs'], start=2):
+        correction = np.zeros_like(ampArray)
+        for order, coeff in enumerate(kwargs['coeffs'], start=2):
             correction += coeff * np.power(ampArray, order)
         ampArray += correction
 
