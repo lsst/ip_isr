@@ -960,7 +960,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # immediate=True required for functors and linearizers are functors; see ticket DM-6515
         linearizer = (dataRef.get("linearizer", immediate=True)
                       if self.doLinearize(ccd) else None)
-        linearizer.log = self.log
+        if linearizer is not None:
+            linearizer.log = self.log
         if isinstance(linearizer, numpy.ndarray):
             linearizer = linearize.Linearizer(table=linearizer, detector=ccd)
         crosstalkSources = (self.crosstalk.prepCrosstalk(dataRef)
