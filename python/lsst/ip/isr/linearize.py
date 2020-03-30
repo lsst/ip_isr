@@ -201,10 +201,10 @@ class Linearizer(abc.ABC):
         data = ''
         try:
             with open(filename, 'r') as f:
-                data = yaml.load(f, Loader=yaml.FullLoader)
+                data = yaml.load(f, Loader=yaml.CLoader)
         except Exception:
             def yamlLoad(x):
-                return yaml.load(x, Loader=yaml.Loader)
+                return yaml.load(x, Loader=yaml.CLoader)
             with open(filename, 'r') as f:
                 data = yamlLoad(f)
         return cls().fromYaml(data)
