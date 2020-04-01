@@ -64,7 +64,7 @@ class Linearizer(abc.ABC):
     """
 
     _OBSTYPE = "linearizer"
-    """The calibration type used for ingest."""
+    """The dataset type name used for this class"""
 
     def __init__(self, table=None, detector=None, override=False, log=None):
         self._detectorName = None
