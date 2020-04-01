@@ -70,6 +70,7 @@ class Linearizer(abc.ABC):
         self._detectorName = None
         self._detectorSerial = None
         self._detectorId = None
+        self._metadata = PropertyList()
 
         self.linearityCoeffs = dict()
         self.linearityType = dict()
@@ -252,7 +253,7 @@ class Linearizer(abc.ABC):
 
         linDict = dict()
         linDict['metadata'] = metadata
-        linDict['detectorId'] = metadata['DETECTOR_ID']
+        linDict['detectorId'] = metadata['DETECTOR']
         linDict['detectorName'] = metadata['DETECTOR_NAME']
         try:
             linDict['detectorSerial'] = metadata['DETECTOR_SERIAL']
