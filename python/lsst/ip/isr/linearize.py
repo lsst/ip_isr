@@ -219,15 +219,22 @@ class Linearizer(abc.ABC):
         used : `str`
             The name of the file used to write the data.
 
+        Raises
+        ------
+        RuntimeError :
+            Raised if filename does not end in ".yaml".
+
         Notes
         -----
         The file is written to YAML format and will include any metadata
         associated with the `Linearity`.
         """
         outDict = self.toDict()
-
-        with open(filename, 'w') as f:
-            yaml.dump(outDict, f)
+        if filename.lower().endswith((".yaml"))
+            with open(filename, 'w') as f:
+                yaml.dump(outDict, f)
+        else:
+           raise RuntimeError(f"Attempt to write to a file {filename} that does not end in '.yaml'")
 
         return filename
 
