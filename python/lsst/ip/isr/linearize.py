@@ -51,6 +51,8 @@ class Linearizer(abc.ABC):
             - one column for each image value
         To avoid copying the table the last index should vary fastest
         (numpy default "C" order)
+    detector : `lsst.afw.cameraGeom.Detector`
+        Detector object
     override : `bool`, optional
         Override the parameters defined in the detector/amplifier.
     log : `lsst.log.Log`, optional
@@ -200,14 +202,8 @@ class Linearizer(abc.ABC):
             Linearity parameters.
         """
         data = ''
-        try:
-            with open(filename, 'r') as f:
-                data = yaml.load(f, Loader=yaml.CLoader)
-        except Exception:
-            def yamlLoad(x):
-                return yaml.load(x, Loader=yaml.CLoader)
-            with open(filename, 'r') as f:
-                data = yamlLoad(f)
+        with open(filename, 'r') as f:
+            data = yaml.load(f, Loader=yaml.CLoader)
         return cls().fromYaml(data)
 
     def writeText(self, filename):
@@ -403,7 +399,7 @@ class Linearizer(abc.ABC):
             mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat(),
             mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat(),
         if detectorId:
-            mdSupplemental['DETECTOR_ID'] = f"{detectorId}"
+            mdSupplemental['DETECTOR'] = f"{detectorId}"
         if detectorName:
             mdSupplemental['DETECTOR_NAME'] = detectorName
         if instrumentName:
