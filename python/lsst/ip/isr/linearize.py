@@ -230,13 +230,68 @@ class Linearizer(abc.ABC):
         associated with the `Linearity`.
         """
         outDict = self.toDict()
-        if filename.lower().endswith((".yaml"))
+        if filename.lower().endswith((".yaml")):
             with open(filename, 'w') as f:
                 yaml.dump(outDict, f)
         else:
            raise RuntimeError(f"Attempt to write to a file {filename} that does not end in '.yaml'")
 
         return filename
+
+    @classmethod
+    def fromTable(cls, table):
+        """Read linearity from a FITS file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file containing the linearity definition.
+        Returns
+        -------
+        linearity : `~lsst.ip.isr.linearize.Linearizer``
+            Linearity parameters.
+        """
+        metadata = table.getMetadata()
+        schema = table.getSchema()
+
+        linDict = dict()
+        linDict['metadata'] = metadata
+        linDict['detectorId'] = metadata['DETECTOR']
+        linDict['detectorName'] = metadata['DETECTOR_NAME']
+        try:
+            linDict['detectorSerial'] = metadata['DETECTOR_SERIAL']
+        except Exception:
+            linDict['detectorSerial'] = 'NOT SET'
+        linDict['amplifiers'] = dict()
+        
+        # preselect the keys
+        ampNameKey = schema['AMPLIFIER_NAME'].asKey()
+        typeKey = schema['TYPE'].asKey()
+        coeffsKey = schema['COEFFS'].asKey()
+        x0Key = schema['BBOX_X0'].asKey()
+        y0Key = schema['BBOX_Y0'].asKey()
+        dxKey = schema['BBOX_DX'].asKey()
+        dyKey = schema['BBOX_DY'].asKey()
+
+        for record in table:
+            ampName = record[ampNameKey]
+            ampDict = dict()
+            ampDict['linearityType'] = record[typeKey]
+            ampDict['linearityCoeffs'] = record[coeffsKey]
+            ampDict['linearityBBox'] = Box2I(Point2I(record[x0Key], record[y0Key]),
+                                             Extent2I(record[dxKey], record[dyKey]))
+
+            linDict['amplifiers'][ampName] = ampDict
+
+        try:
+            table = afwTable.BaseCatalog.readFits(filename, 2)
+            tableData = []
+            lookupValuesKey = 'LOOKUP_VALUES'
+            linDict["tableData"] = [record[lookupValuesKey] for record in table]
+        except Exception:
+            pass
+
+        return cls().fromYaml(linDict)
 
     @classmethod
     def readFits(cls, filename):
@@ -252,40 +307,7 @@ class Linearizer(abc.ABC):
             Linearity parameters.
         """
         table = afwTable.BaseCatalog.readFits(filename)
-        metadata = table.getMetadata()
-
-        linDict = dict()
-        linDict['metadata'] = metadata
-        linDict['detectorId'] = metadata['DETECTOR']
-        linDict['detectorName'] = metadata['DETECTOR_NAME']
-        try:
-            linDict['detectorSerial'] = metadata['DETECTOR_SERIAL']
-        except Exception:
-            linDict['detectorSerial'] = 'NOT SET'
-        linDict['amplifiers'] = dict()
-
-        for row in table:
-            record = row.extract("*")
-            ampName = record['AMPLIFIER_NAME']
-            ampDict = dict()
-            ampDict['linearityType'] = record['TYPE']
-            ampDict['linearityCoeffs'] = record['COEFFS']
-            ampDict['linearityBBox'] = Box2I(Point2I(record['BBOX_X0'], record['BBOX_Y0']),
-                                             Extent2I(record['BBOX_DX'], record['BBOX_DY']))
-
-            linDict['amplifiers'][ampName] = ampDict
-
-        try:
-            table = afwTable.BaseCatalog.readFits(filename, 2)
-            tableData = []
-            for row in table:
-                record = row.extract('*')
-                tableData.append(record['LOOKUP_VALUES'])
-            linDict['tableData'] = tableData
-        except Exception:
-            pass
-
-        return cls().fromYaml(linDict)
+        return cls().fromTable(table)
 
     def writeFits(self, filename):
         """Write the linearity model to a FITS file.
