@@ -234,22 +234,34 @@ class Linearizer(abc.ABC):
             with open(filename, 'w') as f:
                 yaml.dump(outDict, f)
         else:
-           raise RuntimeError(f"Attempt to write to a file {filename} that does not end in '.yaml'")
+            raise RuntimeError(f"Attempt to write to a file {filename} that does not end in '.yaml'")
 
         return filename
 
     @classmethod
-    def fromTable(cls, table):
+    def fromTable(cls, table, tableExtTwo=None):
         """Read linearity from a FITS file.
 
         Parameters
         ----------
-        filename : `str`
-            Name of the file containing the linearity definition.
+        table : `lsst.afw.table`
+            afwTable read from input file name.
+        tableExtTwo: `lsst.afw.table`, optional
+            afwTable read from second extension of input file name
+
         Returns
         -------
         linearity : `~lsst.ip.isr.linearize.Linearizer``
             Linearity parameters.
+
+        Notes
+        -----
+        The method reads a FITS file with 1 or 2 extensions. The metadata is read from the header of
+        extension 1, which must exist.  Then the table is loaded, and  the ['AMPLIFIER_NAME', 'TYPE',
+        'COEFFS', 'BBOX_X0', 'BBOX_Y0', 'BBOX_DX', 'BBOX_DY'] columns are read and used to
+        set each dictionary by looping over rows.
+        Eextension 2 is then attempted to read in the try block (which only exists for lookup tables).
+        It has a column named 'LOOKUP_VALUES' that contains a vector of the lookup entries in each row.
         """
         metadata = table.getMetadata()
         schema = table.getSchema()
@@ -263,8 +275,8 @@ class Linearizer(abc.ABC):
         except Exception:
             linDict['detectorSerial'] = 'NOT SET'
         linDict['amplifiers'] = dict()
-        
-        # preselect the keys
+
+        # Preselect the keys
         ampNameKey = schema['AMPLIFIER_NAME'].asKey()
         typeKey = schema['TYPE'].asKey()
         coeffsKey = schema['COEFFS'].asKey()
@@ -283,13 +295,9 @@ class Linearizer(abc.ABC):
 
             linDict['amplifiers'][ampName] = ampDict
 
-        try:
-            table = afwTable.BaseCatalog.readFits(filename, 2)
-            tableData = []
+        if tableExtTwo is not None:
             lookupValuesKey = 'LOOKUP_VALUES'
-            linDict["tableData"] = [record[lookupValuesKey] for record in table]
-        except Exception:
-            pass
+            linDict["tableData"] = [record[lookupValuesKey] for record in tableExtTwo]
 
         return cls().fromYaml(linDict)
 
@@ -305,9 +313,23 @@ class Linearizer(abc.ABC):
         -------
         linearity : `~lsst.ip.isr.linearize.Linearizer``
             Linearity parameters.
+
+        Notes
+        -----
+        This method and `fromTable` read a FITS file with 1 or 2 extensions. The metadata is read from the
+        header of extension 1, which must exist.  Then the table is loaded, and the ['AMPLIFIER_NAME', 'TYPE',
+        'COEFFS', 'BBOX_X0', 'BBOX_Y0', 'BBOX_DX', 'BBOX_DY'] columns are read and used to
+        set each dictionary by looping over rows.
+        Eextension 2 is then attempted to read in the try block (which only exists for lookup tables).
+        It has a column named 'LOOKUP_VALUES' that contains a vector of the lookup entries in each row.
         """
         table = afwTable.BaseCatalog.readFits(filename)
-        return cls().fromTable(table)
+        tableExtTwo = None
+        try:
+            tableExtTwo = afwTable.BaseCatalog.readFits(filename, 2)
+        except Exception:
+            pass
+        return cls().fromTable(table, tableExtTwo=tableExtTwo)
 
     def writeFits(self, filename):
         """Write the linearity model to a FITS file.
