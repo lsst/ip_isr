@@ -317,10 +317,10 @@ class Linearizer(abc.ABC):
         Notes
         -----
         This method and `fromTable` read a FITS file with 1 or 2 extensions. The metadata is read from the
-        header of extension 1, which must exist.  Then the table is loaded, and the ['AMPLIFIER_NAME', 'TYPE',
-        'COEFFS', 'BBOX_X0', 'BBOX_Y0', 'BBOX_DX', 'BBOX_DY'] columns are read and used to
+        header of extension 1, which must exist.  Then the table is loaded, and the ['AMPLIFIER_NAME',
+        'TYPE', 'COEFFS', 'BBOX_X0', 'BBOX_Y0', 'BBOX_DX', 'BBOX_DY'] columns are read and used to
         set each dictionary by looping over rows.
-        Eextension 2 is then attempted to read in the try block (which only exists for lookup tables).
+        Extension 2 is then attempted to read in the try block (which only exists for lookup tables).
         It has a column named 'LOOKUP_VALUES' that contains a vector of the lookup entries in each row.
         """
         table = afwTable.BaseCatalog.readFits(filename)
@@ -331,28 +331,19 @@ class Linearizer(abc.ABC):
             pass
         return cls().fromTable(table, tableExtTwo=tableExtTwo)
 
-    def writeFits(self, filename):
-        """Write the linearity model to a FITS file.
+    def toAmpTable(self, metadata):
+        """Produce linearity catalog
 
         Parameters
         ----------
-        filename : `str`
-            Name of the file to write.
+        metadata : `lsst.daf.base.PropertyList`
+            Linearizer metadata
 
         Returns
         -------
-        used : `str`
-            The name of the file used to write the data.
-
-        Notes
-        -----
-        The file is written to YAML format and will include any metadata
-        associated with the `Linearity`.
+        catalog : `lsst.afw.table.BaseCatalog`
+            Catalog to write
         """
-        now = datetime.datetime.utcnow()
-        self.updateMetadata(date=now)
-
-        metadata = copy.copy(self.getMetadata())
         metadata["LINEARITY_SCHEMA"] = "Linearity table"
         metadata["LINEARITY_VERSION"] = 1
 
@@ -380,23 +371,63 @@ class Linearizer(abc.ABC):
             catalog[ii][boxX], catalog[ii][boxY] = bbox.getMin()
             catalog[ii][boxDx], catalog[ii][boxDy] = bbox.getDimensions()
         catalog.setMetadata(metadata)
+
+        return catalog
+
+    def toTableDataTable(self, metadata):
+        """Produce linearity catalog from table data
+
+        Parameters
+        ----------
+        metadata : `lsst.daf.base.PropertyList`
+            Linearizer metadata
+
+        Returns
+        -------
+        catalog : `lsst.afw.table.BaseCatalog`
+            Catalog to write
+        """
+
+        schema = afwTable.Schema()
+        dimensions = self.tableData.shape
+        lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1],
+                              doc="linearity lookup data")
+        catalog = afwTable.BaseCatalog(schema)
+        catalog.resize(dimensions[0])
+
+        for ii in range(dimensions[0]):
+            catalog[ii][lut] = np.array(self.tableData[ii], dtype=np.intc)
+
+        metadata["LINEARITY_LOOKUP"] = True
+        catalog.setMetadata(metadata)
+
+        return catalog
+
+    def writeFits(self, filename):
+        """Write the linearity model to a FITS file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file to write.
+
+        Notes
+        -----
+        The file is written to YAML format and will include any metadata
+        associated with the `Linearity`.
+        """
+        now = datetime.datetime.utcnow()
+        self.updateMetadata(date=now)
+        metadata = copy.copy(self.getMetadata())
+
+        catalog = self.toAmpTable(metadata)
         catalog.writeFits(filename)
 
         if self.tableData is not None:
-            schema = afwTable.Schema()
-            dimensions = self.tableData.shape
-            lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1],
-                                  doc="linearity lookup data")
-            catalog = afwTable.BaseCatalog(schema)
-            catalog.resize(dimensions[0])
-
-            for ii in range(dimensions[0]):
-                catalog[ii][lut] = np.array(self.tableData[ii], dtype=np.intc)
-
-            metadata["LINEARITY_LOOKUP"] = True
-            catalog.setMetadata(metadata)
+            catalog = self.toTableDataTable(metadata)
             catalog.writeFits(filename, "a")
-        return filename
+
+        return
 
     def getMetadata(self):
         """Retrieve metadata associated with this `Linearizer`.
