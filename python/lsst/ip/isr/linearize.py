@@ -416,7 +416,7 @@ class Linearizer(abc.ABC):
         Parameters
         ----------
         metadata : `lsst.daf.base.PropertyList`, optional
-            Metadata to associate with the defects.  Will be copied and
+            Metadata to associate with the linearizer.  Will be copied and
             overwrite existing metadata.  If not supplied the existing
             metadata will be reset.
         """
