@@ -419,7 +419,6 @@ class Linearizer(abc.ABC):
         now = datetime.datetime.utcnow()
         self.updateMetadata(date=now)
         metadata = copy.copy(self.getMetadata())
-
         catalog = self.toAmpTable(metadata)
         catalog.writeFits(filename)
 
