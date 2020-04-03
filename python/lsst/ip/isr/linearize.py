@@ -365,7 +365,7 @@ class Linearizer(abc.ABC):
         for ii, ampName in enumerate(self.linearityType):
             catalog[ii][names] = ampName
             catalog[ii][types] = self.linearityType[ampName]
-            catalog[ii][coeffs] = self.linearityCoeffs[ampName]
+            catalog[ii][coeffs] = np.array(self.linearityCoeffs[ampName], dtype=float)
 
             bbox = self.linearityBBox[ampName]
             catalog[ii][boxX], catalog[ii][boxY] = bbox.getMin()
