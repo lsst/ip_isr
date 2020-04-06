@@ -166,10 +166,8 @@ class CrosstalkTask(Task):
         ------
         RuntimeError
             Raised if called for a detector that does not have a
-            crosstalk correction
-        RuntimeError
-            Raised if crosstalkSources is not None and not a numpy
-            array or a dictionary.
+            crosstalk correction. Also, if crosstalkSources is not None
+            and not a numpy array or a dictionary.
         """
         if crosstalkSources is not None:
             if isinstance(crosstalkSources, np.ndarray):
