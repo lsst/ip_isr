@@ -166,7 +166,9 @@ class CrosstalkTask(Task):
         ------
         RuntimeError
             Raised if called for a detector that does not have a
-            crosstalk correction. Also, if crosstalkSources is not None
+            crosstalk correction.
+        TypeError
+            Raised if crosstalkSources is not None
             and not a numpy array or a dictionary.
         """
         if crosstalkSources is not None:
@@ -189,7 +191,7 @@ class CrosstalkTask(Task):
                     coeffs.append(tempList)
                 coeffs = np.array(coeffs)
             else:
-                raise RuntimeError("crosstalkSources not of the correct type: `np.array` or `dict`")
+                raise TypeError("crosstalkSources not of the correct type: `np.array` or `dict`")
         else:
             detector = exposure.getDetector()
             if not self.config.hasCrosstalk(detector=detector):
