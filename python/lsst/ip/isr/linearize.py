@@ -390,13 +390,13 @@ class Linearizer(abc.ABC):
 
         schema = afwTable.Schema()
         dimensions = self.tableData.shape
-        lut = schema.addField("LOOKUP_VALUES", type='ArrayI', size=dimensions[1],
+        lut = schema.addField("LOOKUP_VALUES", type='ArrayF', size=dimensions[1],
                               doc="linearity lookup data")
         catalog = afwTable.BaseCatalog(schema)
         catalog.resize(dimensions[0])
 
         for ii in range(dimensions[0]):
-            catalog[ii][lut] = np.array(self.tableData[ii], dtype=np.intc)
+            catalog[ii][lut] = np.array(self.tableData[ii], dtype=np.float32)
 
         metadata["LINEARITY_LOOKUP"] = True
         catalog.setMetadata(metadata)
