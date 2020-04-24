@@ -21,7 +21,6 @@
 #
 import math
 import numpy
-from deprecated.sphinx import deprecated
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -30,7 +29,6 @@ import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
 import lsst.afw.cameraGeom as camGeom
 
-from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
 from contextlib import contextmanager
@@ -742,55 +740,6 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
         combined *= sensorTransmission
     exposure.getInfo().setTransmissionCurve(combined)
     return combined
-
-
-@deprecated(reason="Camera geometry-based SkyWcs are now set when reading raws. To be removed after v19.",
-            category=FutureWarning)
-def addDistortionModel(exposure, camera):
-    """!Update the WCS in exposure with a distortion model based on camera
-    geometry.
-
-    Parameters
-    ----------
-    exposure : `lsst.afw.image.Exposure`
-        Exposure to process.  Must contain a Detector and WCS.  The
-        exposure is modified.
-    camera : `lsst.afw.cameraGeom.Camera`
-        Camera geometry.
-
-    Raises
-    ------
-    RuntimeError
-        Raised if ``exposure`` is lacking a Detector or WCS, or if
-        ``camera`` is None.
-    Notes
-    -----
-    Add a model for optical distortion based on geometry found in ``camera``
-    and the ``exposure``'s detector. The raw input exposure is assumed
-    have a TAN WCS that has no compensation for optical distortion.
-    Two other possibilities are:
-    - The raw input exposure already has a model for optical distortion,
-    as is the case for raw DECam data.
-    In that case you should set config.doAddDistortionModel False.
-    - The raw input exposure has a model for distortion, but it has known
-    deficiencies severe enough to be worth fixing (e.g. because they
-    cause problems for fitting a better WCS). In that case you should
-    override this method with a version suitable for your raw data.
-
-    """
-    wcs = exposure.getWcs()
-    if wcs is None:
-        raise RuntimeError("exposure has no WCS")
-    if camera is None:
-        raise RuntimeError("camera is None")
-    detector = exposure.getDetector()
-    if detector is None:
-        raise RuntimeError("exposure has no Detector")
-    pixelToFocalPlane = detector.getTransform(camGeom.PIXELS, camGeom.FOCAL_PLANE)
-    focalPlaneToFieldAngle = camera.getTransformMap().getTransform(camGeom.FOCAL_PLANE,
-                                                                   camGeom.FIELD_ANGLE)
-    distortedWcs = makeDistortedTanWcs(wcs, pixelToFocalPlane, focalPlaneToFieldAngle)
-    exposure.setWcs(distortedWcs)
 
 
 def applyGains(exposure, normalizeGains=False):

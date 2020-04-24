@@ -347,21 +347,6 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         self.assertIsNotNone(mi)
         self.assertMaskedImagesAlmostEqual(self.inputExp.getMaskedImage(), mi)
 
-    def test_addDistortionModel(self):
-        """Expect RuntimeError if no model supplied, or incomplete exposure information.
-        """
-        camera = isrMock.IsrMock().getCamera()
-        ipIsr.addDistortionModel(self.inputExp, camera)
-
-        with self.assertRaises(RuntimeError):
-            ipIsr.addDistortionModel(self.inputExp, None)
-
-            self.inputExp.setDetector(None)
-            ipIsr.addDistortionModel(self.inputExp, camera)
-
-            self.inputExp.setWcs(None)
-            ipIsr.addDistortionModel(self.inputExp, camera)
-
     def test_widenSaturationTrails(self):
         """Expect more mask pixels with SAT set after.
         """

@@ -277,7 +277,6 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.config.doStrayLight = value
         self.config.doFlat = value
         self.config.doFringe = value
-        self.config.doAddDistortionModel = value
         self.config.doMeasureBackground = value
         self.config.doVignette = value
         self.config.doAttachTransmissionCurve = value
