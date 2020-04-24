@@ -1,9 +1,10 @@
+# This file is part of ip_isr.
 #
-# LSST Data Management System
-# Copyright 2008-2017 AURA/LSST.
-#
-# This product includes software developed by the
-# LSST Project (http://www.lsst.org/).
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,19 +16,19 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and
-# the GNU General Public License along with this program.  If not,
-# see <https://www.lsstcorp.org/LegalNotices/>.
-#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import abc
 import copy
 import datetime
+import os.path
+import warnings
 import yaml
+from astropy.table import Table
 
-import lsst.afw.table as afwTable
 from lsst.log import Log
 from lsst.daf.base import PropertyList
-from astropy.table import Table
+
 
 __all__ = ["IsrCalib", "IsrProvenance"]
 
@@ -65,14 +66,13 @@ class IsrCalib(abc.ABC):
     def __init__(self, detectorName=None, detectorSerial=None, detector=None, log=None, **kwargs):
         self._detectorName = detectorName
         self._detectorSerial = detectorSerial
-        self._metadata = PropertyList()
+        self.setMetadata(PropertyList())
 
-        # Ensure that we have the obs type required by calibration ingest
-        self._metadata["OBSTYPE"] = self._OBSTYPE
-        self._metadata[self._OBSTYPE + "_SCHEMA"] = self._SCHEMA
-        self._metadata[self._OBSTYPE + "_VERSION"] = self._VERSION
+        # Define the required attributes for this calibration.
+        self.requiredAttributes = set(['_OBSTYPE', '_SCHEMA', '_VERSION'])
+        self.requiredAttributes.update(['_detectorName', '_detectorSerial', '_metadata'])
 
-        self.log = log if log else Log.getLogger("lsst.ip.isr.IsrCalib")
+        self.log = log if log else Log.getLogger(__name__.partition(".")[2])
 
         if detector:
             self.fromDetector(detector)
@@ -90,12 +90,19 @@ class IsrCalib(abc.ABC):
         if not isinstance(other, self.__class__):
             return False
 
-        for attr in ('_OBSTYPE', '_SCHEMA', '_VERSION',
-                     '_detectorName', '_detectorSerial', '_metadata'):
+        for attr in self._requiredAttributes:
             if getattr(self, attr) != getattr(other, attr):
                 return False
 
         return True
+
+    @property
+    def requiredAttributes(self):
+        return self._requiredAttributes
+
+    @requiredAttributes.setter
+    def requiredAttributes(self, value):
+        self._requiredAttributes = value
 
     def getMetadata(self):
 
@@ -119,7 +126,7 @@ class IsrCalib(abc.ABC):
             Metadata to associate with the calibration.  Will be copied and
             overwrite existing metadata.
         """
-        if metadata:
+        if metadata is not None:
             self._metadata = copy.copy(metadata)
 
         # Ensure that we have the obs type required by calibration ingest
@@ -127,7 +134,7 @@ class IsrCalib(abc.ABC):
         self._metadata[self._OBSTYPE + "_SCHEMA"] = self._SCHEMA
         self._metadata[self._OBSTYPE + "_VERSION"] = self._VERSION
 
-    def updateMetadata(self, *args, setDate=False, **kwargs):
+    def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
 
         Parameters
@@ -149,9 +156,7 @@ class IsrCalib(abc.ABC):
             mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat()
             mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat()
 
-        for key, value in kwargs.items():
-            mdSupplemental[key] = value
-
+        mdSupplemental.update(kwargs)
         mdOriginal.update(mdSupplemental)
 
     @classmethod
@@ -167,83 +172,69 @@ class IsrCalib(abc.ABC):
         -------
         calib : `~lsst.ip.isr.IsrCalibType`
             Calibration class.
+
+        Raises
+        ------
+        RuntimeError :
+            Raised if the filename does not end in ".ecsv" or ".yaml".
         """
-        data = ''
-        try:
+        if filename.endswith((".ecsv", ".ECSV")):
             data = Table.read(filename, format='ascii.ecsv')
-        except Exception as e1:
-            try:
-                with open(filename, 'r') as f:
-                    data = yaml.load(f, Loader=yaml.CLoader)
-            except Exception as e2:
-                raise e2(f"Failed to read as ecsv as well: {e1}")
+            return cls.fromTable([data])
 
-        if isinstance(data, dict):
-            return cls().fromDict(data)
+        elif filename.endswith((".yaml", ".YAML")):
+            with open(filename, 'r') as f:
+                data = yaml.load(f, Loader=yaml.CLoader)
+            return cls.fromDict(data)
         else:
-            schema = afwTable.Schema()
-            keyDict = dict()
-            for colName in data.columns:
-                try:
-                    keyDict[colName] = schema.addField(colName,
-                                                       type=data[colName].dtype.type)
-                except KeyError:
-                    keyDict[colName] = schema.addField(colName, type="String", size=32)
+            raise RuntimeError(f"Unknown filename extension: {filename}")
 
-            table = afwTable.BaseCatalog(schema)
-            table.resize(len(data))
-
-            for colName in data.columns:
-                key = keyDict[colName]
-                if key.getTypeString() == 'String':
-                    for rowNum, row in enumerate(data[colName]):
-                        table[rowNum][key] = row
-                else:
-                    table[key] = data[colName]
-
-            metadata = PropertyList()
-            for k, v in data.meta.items():
-                metadata[k] = v
-            table.setMetadata(metadata)
-
-            return cls().fromTable([table])
-
-    def writeText(self, filename):
+    def writeText(self, filename, format='auto'):
         """Write the calibration data to a text file.
 
         Parameters
         ----------
         filename : `str`
             Name of the file to write.
-
+        format : `str`
+            Format to write the file as.  Supported values are:
+                ``"auto"`` : Determine filetype from filename.
+                ``"yaml"`` : Write as yaml.
+                ``"ecsv"`` : Write as ecsv.
         Returns
         -------
         used : `str`
-            The name of the file used to write the data.
+            The name of the file used to write the data.  This may
+            differ from the input if the format is explicitly chosen.
 
         Raises
         ------
         RuntimeError :
-            Raised if filename does not end in a known extension
+            Raised if filename does not end in a known extension, or
+            if all information cannot be written.
 
         Notes
         -----
         The file is written to YAML/ECSV format and will include any
         associated metadata.
+
         """
-        outDict = self.toDict()
-        if filename.lower().endswith((".yaml")):
+        if format == 'yaml' or (format == 'auto' and filename.lower().endswith((".yaml", ".YAML"))):
+            outDict = self.toDict()
+            path, ext = os.path.splitext(filename)
+            filename = path + ".yaml"
             with open(filename, 'w') as f:
                 yaml.dump(outDict, f)
-        elif filename.lower().endswith((".ecsv")):
+        elif format == 'ecsv' or (format == 'auto' and filename.lower().endswith((".ecsv", ".ECSV"))):
             tableList = self.toTable()
-            tableX = tableList[0]
+            if len(tableList) > 1:
+                # ECSV doesn't support multiple tables per file, so we
+                # can only write the first table.
+                raise RuntimeError(f"Unable to persist {len(tableList)}tables in ECSV format.")
 
-            table = tableX.asAstropy()
-            table.meta = tableX.getMetadata().toDict()
-
-            # ECSV doesn't support multiple tables per file, so we can only
-            # write the first table.
+            table = tableList[0]
+            path, ext = os.path.splitext(filename)
+            filename = path + ".ecsv"
             table.write(filename, format="ascii.ecsv")
         else:
             raise RuntimeError(f"Attempt to write to a file {filename} "
@@ -266,17 +257,17 @@ class IsrCalib(abc.ABC):
             Calibration contained within the file.
         """
         tableList = []
-        tableList.append(afwTable.BaseCatalog.readFits(filename))
-
+        tableList.append(Table.read(filename, hdu=1))
         extNum = 2  # Fits indices start at 1, we've read one already.
         try:
-            newTable = afwTable.BaseCatalog.readFits(filename, extNum)
+            with warnings.catch_warnings("error"):
+                newTable = Table.read(filename, hdu=extNum)
             tableList.append(newTable)
             extNum += 1
         except Exception:
             pass
 
-        return cls().fromTable(tableList)
+        return cls.fromTable(tableList)
 
     def writeFits(self, filename):
         """Write calibration data to a FITS file.
@@ -285,15 +276,25 @@ class IsrCalib(abc.ABC):
         ----------
         filename : `str`
             Filename to write data to.
+
+        Returns
+        -------
+        used : `str`
+            The name of the file used to write the data.
+
         """
         tableList = self.toTable()
 
-        tableList[0].writeFits(filename)
-        for table in tableList[1:]:
-            table.writeFits(filename, "a")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning, module="astropy.io")
+            tableList[0].write(filename)
+            for table in tableList[1:]:
+                table.write(filename, append=True)
+
+        return filename
 
     def fromDetector(self, detector):
-        """Set calibration parameters from the detector.
+        """Modify the calibration parameters to match the supplied detector.
 
         Parameters
         ----------
@@ -395,7 +396,7 @@ class IsrCalib(abc.ABC):
 
         Parameters
         ----------
-        other : object, optional
+        other : `object`, optional
             Thing to validate against.
 
         Returns
@@ -410,7 +411,7 @@ class IsrCalib(abc.ABC):
 
         Parameters
         ----------
-        target : object
+        target : `object`
             Thing to validate against.
 
         Returns
@@ -429,47 +430,42 @@ class IsrCalib(abc.ABC):
 class IsrProvenance(IsrCalib):
     """Class for the provenance of data used to construct calibration.
 
-    Provenance is not really a calibration, but as we would like to
+    Provenance is not really a calibration, but we would like to
     record this when constructing the calibration, and it provides an
     example of the base calibration class.
 
     Parameters
     ----------
-    registryName : `str`, optional
-        Name of the butler registry the dataIds were obtained from.
+    instrument : `str`, optional
+        Name of the instrument the data was taken with.
     calibType : `str`, optional
         Type of calibration this provenance was generated for.
     detectorName : `str`, optional
         Name of the detector this calibration is for.
     detectorSerial : `str`, optional
         Identifier for the detector.
+
     """
     _OBSTYPE = 'IsrProvenance'
 
-    def __init__(self, registryName="unknown", calibType="unknown",
+    def __init__(self, instrument="unknown", calibType="unknown",
                  **kwargs):
-        self.registryName = registryName
+        self.instrument = instrument
         self.calibType = calibType
         self.dimensions = set()
         self.dataIdList = list()
 
         super().__init__(**kwargs)
 
+        self.requiredAttributes.update(['instrument', 'calibType', 'dimensions', 'dataIdList'])
+
     def __str__(self):
         return f"{self.__class__.__name__}(obstype={self._OBSTYPE}, calibType={self.calibType}, )"
 
     def __eq__(self, other):
-        if self.registryName != other.registryName:
-            return False
-        if self.calibType != other.calibType:
-            return False
-        if self.dimensions != other.dimensions:
-            return False
-        if self.dataIdList != other.dataIdList:
-            return False
         return super().__eq__(other)
 
-    def updateMetadata(self, *args, setDate=False, **kwargs):
+    def updateMetadata(self, setDate=False, **kwargs):
         """Update calibration metadata.
 
         Parameters
@@ -483,11 +479,11 @@ class IsrProvenance(IsrCalib):
         kwargs["DETECTOR"] = self._detectorName
         kwargs["DETECTOR_SERIAL"] = self._detectorSerial
 
-        kwargs['REGISTRY_NAME'] = self.registryName
+        kwargs['INSTRUME'] = self.instrument
         kwargs['calibType'] = self.calibType
-        super().updateMetadata(self, setDate=setDate, **kwargs)
+        super().updateMetadata(setDate=setDate, **kwargs)
 
-    def fromDataIds(self, dataIdList, strict=False):
+    def fromDataIds(self, dataIdList):
         """Update provenance from dataId List.
 
         Parameters
@@ -508,6 +504,7 @@ class IsrProvenance(IsrCalib):
         Parameters
         ----------
         tableList : `list` [`lsst.afw.table.Table`]
+            List of tables to construct the provenance from.
 
         Returns
         -------
@@ -515,28 +512,29 @@ class IsrProvenance(IsrCalib):
             The provenance defined in the tables.
         """
         table = tableList[0]
-        metadata = table.getMetadata()
+        metadata = table.meta
         inDict = dict()
         inDict['metadata'] = metadata
         inDict['detectorName'] = metadata['DETECTOR']
         inDict['detectorSerial'] = metadata['DETECTOR_SERIAL']
-        inDict['registryName'] = metadata['REGISTRY_NAME']
+        inDict['instrument'] = metadata['INSTRUME']
         inDict['calibType'] = metadata['calibType']
         inDict['dimensions'] = set()
         inDict['dataIdList'] = list()
 
-        schema = table.getSchema()
-        for key in schema:
-            inDict['dimensions'].add(key.getField().getName().lower())
+        schema = dict()
+        for colName in table.columns:
+            schema[colName.lower()] = colName
+            inDict['dimensions'].add(colName.lower())
+        inDict['dimensions'] = sorted(inDict['dimensions'])
 
         for row in table:
             entry = dict()
-            for dim in inDict['dimensions']:
-                key = schema[dim.upper()].asKey()
-                entry[dim] = row[key]
+            for dim in sorted(inDict['dimensions']):
+                entry[dim] = row[schema[dim]]
             inDict['dataIdList'].append(entry)
 
-        return cls().fromDict(inDict)
+        return cls.fromDict(inDict)
 
     @classmethod
     def fromDict(cls, dictionary):
@@ -553,10 +551,10 @@ class IsrProvenance(IsrCalib):
             The provenance defined in the tables.
         """
         calib = cls()
-        calib.setMetadata(dictionary['metadata'])
+        calib.updateMetadata(setDate=False, **dictionary['metadata'])
         calib._detectorName = dictionary['detectorName']
         calib._detectorSerial = dictionary['detectorSerial']
-        calib.registryName = dictionary['metadata']['REGISTRY_NAME']
+        calib.instrument = dictionary['instrument']
         calib.calibType = dictionary['calibType']
         calib.dimensions = set(dictionary['dimensions'])
         calib.dataIdList = dictionary['dataIdList']
@@ -580,7 +578,7 @@ class IsrProvenance(IsrCalib):
         outDict['metadata'] = metadata
         outDict['detectorName'] = self._detectorName
         outDict['detectorSerial'] = self._detectorSerial
-        outDict['registryName'] = self.registryName
+        outDict['instrument'] = self.instrument
         outDict['calibType'] = self.calibType
         outDict['dimensions'] = list(self.dimensions)
         outDict['dataIdList'] = self.dataIdList
@@ -601,30 +599,8 @@ class IsrProvenance(IsrCalib):
         """
         tableList = []
         self.updateMetadata(setDate=True)
-
-        schema = afwTable.Schema()
-        keyDict = dict()
-        prototype = self.dataIdList[0]
-        for dim in self.dimensions:
-            if isinstance(prototype[dim], float):
-                keyDict[dim] = schema.addField(str(dim).upper(), type="D",
-                                               doc="Dimension")
-            elif isinstance(prototype[dim], int):
-                keyDict[dim] = schema.addField(str(dim).upper(), type="I",
-                                               doc="Dimension")
-            else:
-                colLength = max([len(x[dim]) for x in self.dataIdList])
-
-                keyDict[dim] = schema.addField(str(dim).upper(), type="String",
-                                               size=colLength, doc="Dimension")
-
-        catalog = afwTable.BaseCatalog(schema)
-        catalog.resize(len(self.dataIdList))
-        for dim in self.dimensions:
-            key = keyDict[dim]
-            for row, value in enumerate(self.dataIdList):
-                catalog[row][key] = value[dim]
-        catalog.setMetadata(self.getMetadata())
-
+        catalog = Table(rows=self.dataIdList,
+                        names=self.dimensions)
+        catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
         return tableList
