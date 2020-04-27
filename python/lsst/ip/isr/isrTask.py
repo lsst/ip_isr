@@ -50,6 +50,7 @@ from .crosstalk import CrosstalkTask
 from .fringe import FringeTask
 from .isr import maskNans
 from .masking import MaskingTask
+from .overscan import OverscanCorrectionTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
 
@@ -331,6 +332,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Do overscan subtraction?",
         default=True,
     )
+    overscan = pexConfig.ConfigurableField(
+        target=OverscanCorrectionTask,
+        doc="Overscan subtraction task for image segments.",
+    )
+
     overscanFitType = pexConfig.ChoiceField(
         dtype=str,
         doc="The method for fitting the overscan bias level.",
@@ -347,24 +353,33 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             "MEDIAN": "Correct using the median of the overscan region",
             "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
         },
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+                    " This option will no longer be used, and will be removed after v20.")
     )
     overscanOrder = pexConfig.Field(
         dtype=int,
         doc=("Order of polynomial or to fit if overscan fit type is a polynomial, " +
              "or number of spline knots if overscan fit type is a spline."),
         default=1,
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+                    " This option will no longer be used, and will be removed after v20.")
     )
     overscanNumSigmaClip = pexConfig.Field(
         dtype=float,
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
         default=3.0,
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+                    " This option will no longer be used, and will be removed after v20.")
     )
     overscanIsInt = pexConfig.Field(
         dtype=bool,
         doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN" +
             " and overscan.FitType=MEDIAN_PER_ROW.",
         default=True,
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+                    " This option will no longer be used, and will be removed after v20.")
     )
+    # These options do not get deprecated, as they define how we slice up the image data.
     overscanNumLeadingColumnsToSkip = pexConfig.Field(
         dtype=int,
         doc="Number of columns to skip in overscan, i.e. those closest to amplifier",
@@ -814,6 +829,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("strayLight")
         self.makeSubtask("fringe")
         self.makeSubtask("masking")
+        self.makeSubtask("overscan")
         self.makeSubtask("vignette")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
@@ -1882,14 +1898,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             statControl = afwMath.StatisticsControl()
             statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
 
-            overscanResults = isrFunctions.overscanCorrection(ampMaskedImage=ampImage,
-                                                              overscanImage=overscanImage,
-                                                              fitType=self.config.overscanFitType,
-                                                              order=self.config.overscanOrder,
-                                                              collapseRej=self.config.overscanNumSigmaClip,
-                                                              statControl=statControl,
-                                                              overscanIsInt=self.config.overscanIsInt
-                                                              )
+            overscanResults = self.overscan.run(ampImage.getImage(), overscanImage)
 
             # Measure average overscan levels and record them in the metadata.
             levelStat = afwMath.MEDIAN
@@ -1899,7 +1908,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                               self.config.qa.flatness.nIter)
             metadata = ccdExposure.getMetadata()
             ampNum = amp.getName()
-            if self.config.overscanFitType in ("MEDIAN", "MEAN", "MEANCLIP"):
+            # if self.config.overscanFitType in ("MEDIAN", "MEAN", "MEANCLIP"):
+            if isinstance(overscanResults.overscanFit, float):
                 metadata.set("ISR_OSCAN_LEVEL%s" % ampNum, overscanResults.overscanFit)
                 metadata.set("ISR_OSCAN_SIGMA%s" % ampNum, 0.0)
             else:

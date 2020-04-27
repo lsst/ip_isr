@@ -37,6 +37,17 @@ class IsrTestCases(lsst.utils.tests.TestCase):
     def tearDown(self):
         del self.overscanKeyword
 
+    def updateConfigFromKwargs(self, config, **kwargs):
+        """Common config from keywords.
+        """
+        fitType = kwargs.get('fitType', None)
+        if fitType:
+            config.overscan.fitType = fitType
+
+        order = kwargs.get('order', None)
+        if order:
+            config.overscan.order = order
+
     def checkOverscanCorrectionY(self, **kwargs):
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
                                lsst.geom.Point2I(9, 12))
@@ -56,7 +67,11 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
+        config = ipIsr.IsrTask.ConfigClass()
+        self.updateConfigFromKwargs(config, **kwargs)
+
+        isrTask = ipIsr.IsrTask(config=config)
+        isrTask.overscan.run(dataImage.getImage(), overscan.getImage())
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -87,7 +102,11 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         metadata = exposure.getMetadata()
         metadata.setString(self.overscanKeyword, biassec)
 
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
+        config = ipIsr.IsrTask.ConfigClass()
+        self.updateConfigFromKwargs(config, **kwargs)
+
+        isrTask = ipIsr.IsrTask(config=config)
+        isrTask.overscan.run(dataImage, overscan.getImage())
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -172,7 +191,12 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         for i in range(bbox.getDimensions()[1]):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.image[j, i, afwImage.LOCAL] = 2+i+off
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
+
+        config = ipIsr.IsrTask.ConfigClass()
+        self.updateConfigFromKwargs(config, **kwargs)
+
+        isrTask = ipIsr.IsrTask(config=config)
+        isrTask.overscan.run(dataImage, overscan.getImage())
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -205,7 +229,11 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.image[i, j, afwImage.LOCAL] = 2+i+off
 
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
+        config = ipIsr.IsrTask.ConfigClass()
+        self.updateConfigFromKwargs(config, **kwargs)
+
+        isrTask = ipIsr.IsrTask(config=config)
+        isrTask.overscan.run(dataImage, overscan.getImage())
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()

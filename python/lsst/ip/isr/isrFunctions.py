@@ -28,14 +28,14 @@ import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
-import lsst.pex.exceptions as pexExcept
 import lsst.afw.cameraGeom as camGeom
 
 from lsst.afw.geom.wcsUtils import makeDistortedTanWcs
 from lsst.meas.algorithms.detection import SourceDetectionTask
-from lsst.pipe.base import Struct
 
 from contextlib import contextmanager
+
+from .overscan import OverscanCorrectionTask, OverscanCorrectionTaskConfig
 
 
 def createPsf(fwhm):
@@ -502,197 +502,19 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
     (normalized between +/-1).
     """
     ampImage = ampMaskedImage.getImage()
-    if statControl is None:
-        statControl = afwMath.StatisticsControl()
 
-    numSigmaClip = statControl.getNumSigmaClip()
-    if fitType in ('MEAN', 'MEANCLIP'):
-        fitType = afwMath.stringToStatisticsProperty(fitType)
-        offImage = afwMath.makeStatistics(overscanImage, fitType, statControl).getValue()
-        overscanFit = offImage
-    elif fitType in ('MEDIAN', 'MEDIAN_PER_ROW',):
-        if overscanIsInt:
-            # we need an image with integer pixels to handle ties properly
-            if hasattr(overscanImage, "image"):
-                imageI = overscanImage.image.convertI()
-                overscanImageI = afwImage.MaskedImageI(imageI, overscanImage.mask, overscanImage.variance)
-            else:
-                overscanImageI = overscanImage.convertI()
-        else:
-            overscanImageI = overscanImage
-        if fitType in ('MEDIAN',):
-            fitTypeStats = afwMath.stringToStatisticsProperty(fitType)
-            offImage = afwMath.makeStatistics(overscanImageI, fitTypeStats, statControl).getValue()
-            overscanFit = offImage
-        elif fitType in ('MEDIAN_PER_ROW',):
-            if hasattr(overscanImageI, "getImage"):
-                biasArray = overscanImageI.getImage().getArray()
-            else:
-                biasArray = overscanImageI.getArray()
-            shortInd = numpy.argmin(biasArray.shape)
-            if shortInd == 0:
-                # Convert to some 'standard' representation to make things easier
-                biasArray = numpy.transpose(biasArray)
+    config = OverscanCorrectionTaskConfig()
+    if fitType:
+        config.fitType = fitType
+    if order:
+        config.order = order
+    if collapseRej:
+        config.numSigmaClip = collapseRej
+    if overscanIsInt:
+        config.overscanIsInt = True
 
-            fitTypeStats = afwMath.stringToStatisticsProperty('MEDIAN')
-            collapsed = []
-            for row in biasArray:
-                rowMedian = afwMath.makeStatistics(row, fitTypeStats, statControl).getValue()
-                collapsed.append(rowMedian)
-            collapsed = numpy.array(collapsed)
-            offImage = ampImage.Factory(ampImage.getDimensions())
-            offArray = offImage.getArray()
-            overscanFit = afwImage.ImageF(overscanImage.getDimensions())
-            overscanArray = overscanFit.getArray()
-
-            if shortInd == 1:
-                offArray[:, :] = collapsed[:, numpy.newaxis]
-                overscanArray[:, :] = collapsed[:, numpy.newaxis]
-            else:
-                offArray[:, :] = collapsed[numpy.newaxis, :]
-                overscanArray[:, :] = collapsed[numpy.newaxis, :]
-
-            del collapsed, biasArray
-
-        if overscanIsInt:
-            del overscanImageI
-    elif fitType in ('POLY', 'CHEB', 'LEG', 'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
-        if hasattr(overscanImage, "getImage"):
-            biasArray = overscanImage.getImage().getArray()
-            biasArray = numpy.ma.masked_where(overscanImage.getMask().getArray() & statControl.getAndMask(),
-                                              biasArray)
-        else:
-            biasArray = overscanImage.getArray()
-        # Fit along the long axis, so collapse along each short row and fit the resulting array
-        shortInd = numpy.argmin(biasArray.shape)
-        if shortInd == 0:
-            # Convert to some 'standard' representation to make things easier
-            biasArray = numpy.transpose(biasArray)
-
-        # Do a single round of clipping to weed out CR hits and signal leaking into the overscan
-        percentiles = numpy.percentile(biasArray, [25.0, 50.0, 75.0], axis=1)
-        medianBiasArr = percentiles[1]
-        stdevBiasArr = 0.74*(percentiles[2] - percentiles[0])  # robust stdev
-        diff = numpy.abs(biasArray - medianBiasArr[:, numpy.newaxis])
-        biasMaskedArr = numpy.ma.masked_where(diff > numSigmaClip*stdevBiasArr[:, numpy.newaxis], biasArray)
-        collapsed = numpy.mean(biasMaskedArr, axis=1)
-        if collapsed.mask.sum() > 0:
-            collapsed.data[collapsed.mask] = numpy.mean(biasArray.data[collapsed.mask], axis=1)
-
-        del biasArray, percentiles, stdevBiasArr, diff, biasMaskedArr
-
-        if shortInd == 0:
-            collapsed = numpy.transpose(collapsed)
-
-        num = len(collapsed)
-        indices = 2.0*numpy.arange(num)/float(num) - 1.0
-
-        if fitType in ('POLY', 'CHEB', 'LEG'):
-            # A numpy polynomial
-            poly = numpy.polynomial
-            fitter, evaler = {"POLY": (poly.polynomial.polyfit, poly.polynomial.polyval),
-                              "CHEB": (poly.chebyshev.chebfit, poly.chebyshev.chebval),
-                              "LEG": (poly.legendre.legfit, poly.legendre.legval),
-                              }[fitType]
-
-            coeffs = fitter(indices, collapsed, order)
-            fitBiasArr = evaler(indices, coeffs)
-        elif 'SPLINE' in fitType:
-            # An afw interpolation
-            numBins = order
-            #
-            # numpy.histogram needs a real array for the mask, but numpy.ma "optimises" the case
-            # no-values-are-masked by replacing the mask array by a scalar, numpy.ma.nomask
-            #
-            # Issue DM-415
-            #
-            collapsedMask = collapsed.mask
-            try:
-                if collapsedMask == numpy.ma.nomask:
-                    collapsedMask = numpy.array(len(collapsed)*[numpy.ma.nomask])
-            except ValueError:      # If collapsedMask is an array the test fails [needs .all()]
-                pass
-
-            numPerBin, binEdges = numpy.histogram(indices, bins=numBins,
-                                                  weights=1-collapsedMask.astype(int))
-            # Binning is just a histogram, with weights equal to the values.
-            # Use a similar trick to get the bin centers (this deals with different numbers per bin).
-            with numpy.errstate(invalid="ignore"):  # suppress NAN warnings
-                values = numpy.histogram(indices, bins=numBins,
-                                         weights=collapsed.data*~collapsedMask)[0]/numPerBin
-                binCenters = numpy.histogram(indices, bins=numBins,
-                                             weights=indices*~collapsedMask)[0]/numPerBin
-                interp = afwMath.makeInterpolate(binCenters.astype(float)[numPerBin > 0],
-                                                 values.astype(float)[numPerBin > 0],
-                                                 afwMath.stringToInterpStyle(fitType))
-            fitBiasArr = numpy.array([interp.interpolate(i) for i in indices])
-
-        import lsstDebug
-        if lsstDebug.Info(__name__).display:
-            import matplotlib.pyplot as plot
-            figure = plot.figure(1)
-            figure.clear()
-            axes = figure.add_axes((0.1, 0.1, 0.8, 0.8))
-            axes.plot(indices[~collapsedMask], collapsed[~collapsedMask], 'k+')
-            if collapsedMask.sum() > 0:
-                axes.plot(indices[collapsedMask], collapsed.data[collapsedMask], 'b+')
-            axes.plot(indices, fitBiasArr, 'r-')
-            plot.xlabel("centered/scaled position along overscan region")
-            plot.ylabel("pixel value/fit value")
-            figure.show()
-            prompt = "Press Enter or c to continue [chp]... "
-            while True:
-                ans = input(prompt).lower()
-                if ans in ("", "c",):
-                    break
-                if ans in ("p",):
-                    import pdb
-                    pdb.set_trace()
-                elif ans in ("h", ):
-                    print("h[elp] c[ontinue] p[db]")
-            plot.close()
-
-        offImage = ampImage.Factory(ampImage.getDimensions())
-        offArray = offImage.getArray()
-        overscanFit = afwImage.ImageF(overscanImage.getDimensions())
-        overscanArray = overscanFit.getArray()
-        if shortInd == 1:
-            offArray[:, :] = fitBiasArr[:, numpy.newaxis]
-            overscanArray[:, :] = fitBiasArr[:, numpy.newaxis]
-        else:
-            offArray[:, :] = fitBiasArr[numpy.newaxis, :]
-            overscanArray[:, :] = fitBiasArr[numpy.newaxis, :]
-
-        # We don't trust any extrapolation: mask those pixels as SUSPECT
-        # This will occur when the top and or bottom edges of the overscan
-        # contain saturated values. The values will be extrapolated from
-        # the surrounding pixels, but we cannot entirely trust the value of
-        # the extrapolation, and will mark the image mask plane to flag the
-        # image as such.
-        mask = ampMaskedImage.getMask()
-        maskArray = mask.getArray() if shortInd == 1 else mask.getArray().transpose()
-        suspect = mask.getPlaneBitMask("SUSPECT")
-        try:
-            if collapsed.mask == numpy.ma.nomask:
-                # There is no mask, so the whole array is fine
-                pass
-        except ValueError:      # If collapsed.mask is an array the test fails [needs .all()]
-            for low in range(num):
-                if not collapsed.mask[low]:
-                    break
-            if low > 0:
-                maskArray[:low, :] |= suspect
-            for high in range(1, num):
-                if not collapsed.mask[-high]:
-                    break
-            if high > 1:
-                maskArray[-high:, :] |= suspect
-
-    else:
-        raise pexExcept.Exception('%s : %s an invalid overscan type' % ("overscanCorrection", fitType))
-    ampImage -= offImage
-    overscanImage -= overscanFit
-    return Struct(imageFit=offImage, overscanFit=overscanFit, overscanImage=overscanImage)
+    overscanTask = OverscanCorrectionTask(config=config)
+    return overscanTask.run(ampImage, overscanImage)
 
 
 def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, gains=None):
