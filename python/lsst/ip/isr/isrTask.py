@@ -635,15 +635,6 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
-    # Distortion model application.
-    doAddDistortionModel = pexConfig.Field(
-        dtype=bool,
-        doc="Apply a distortion model based on camera geometry to the WCS?",
-        default=True,
-        deprecated=("Camera geometry is incorporated when reading the raw files."
-                    " This option no longer is used, and will be removed after v19.")
-    )
-
     # Initial CCD-level background statistics options.
     doMeasureBackground = pexConfig.Field(
         dtype=bool,
@@ -1102,8 +1093,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             The raw exposure that is to be run through ISR.  The
             exposure is modified by this method.
         camera : `lsst.afw.cameraGeom.Camera`, optional
-            The camera geometry for this exposure.  Used to select the
-            distortion model appropriate for this data.
+            The camera geometry for this exposure. Required if ``isGen3`` is
+            `True` and one or more of ``ccdExposure``, ``bias``, ``dark``, or
+            ``flat`` does not have an associated detector.
         bias : `lsst.afw.image.Exposure`, optional
             Bias calibration frame.
         linearizer : `lsst.ip.isr.linearize.LinearizeBase`, optional

@@ -113,7 +113,6 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         self.config.doFlat = False
         self.config.doFringe = False
         self.config.doDefect = False
-        self.config.doAddDistortionModel = False
         self.config.doWrite = False
         self.config.expectWcs = False
         self.config.doLinearize = False
