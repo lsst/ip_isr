@@ -1818,9 +1818,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         --------
         lsst.ip.isr.isrFunctions.overscanCorrection
         """
-        if not amp.getHasRawInfo():
-            raise RuntimeError("This method must be executed on an amp with raw information.")
-
         if amp.getRawHorizontalOverscanBBox().isEmpty():
             self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
             return None
@@ -2440,9 +2437,6 @@ class FakeAmp(object):
 
     def getRawBBox(self):
         return self._bbox
-
-    def getHasRawInfo(self):
-        return True                     # but see getRawHorizontalOverscanBBox()
 
     def getRawHorizontalOverscanBBox(self):
         return self._RawHorizontalOverscanBBox
