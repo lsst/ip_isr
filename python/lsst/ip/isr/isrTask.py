@@ -46,16 +46,33 @@ from . import isrQa
 from . import linearize
 
 from .assembleCcdTask import AssembleCcdTask
-from .crosstalk import CrosstalkTask
+from .crosstalk import CrosstalkTask, CrosstalkCalib
 from .fringe import FringeTask
 from .isr import maskNans
 from .masking import MaskingTask
 from .overscan import OverscanCorrectionTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
+from lsst.daf.butler import DataCoordinate, DimensionGraph, DimensionUniverse
 
 
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
+
+
+def ctSourceLUF(datasetType, registry, quantumDataId, collections):
+
+    newDataId = DataCoordinate(DimensionGraph(DimensionUniverse(),
+                                              names=('instrument', 'visit')),
+                               (quantumDataId['instrument'], quantumDataId['visit']))
+    results = list(registry.queryDatasets(datasetType,
+                                          collections=collections,
+                                          dataId=newDataId,
+                                          deduplicate=True,
+                                          expand=True))
+    print(quantumDataId, "->", newDataId)
+    if len(results) == 0:
+        print("No results is fine!")
+    return(results)
 
 
 class IsrTaskConnections(pipeBase.PipelineTaskConnections,
@@ -171,7 +188,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     outputExposure = cT.Output(
         name='postISRCCD',
         doc="Output ISR processed exposure.",
-        storageClass="ExposureF",
+        storageClass="Exposure",
         dimensions=["instrument", "exposure", "detector"],
     )
     preInterpExposure = cT.Output(
