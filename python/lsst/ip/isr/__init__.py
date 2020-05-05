@@ -26,6 +26,7 @@ from .isr import *
 from .version import *
 from .isrFunctions import *
 from .assembleCcdTask import *
+from .calibType import *
 from .isrTask import *
 from .linearize import *
 from .crosstalk import *
@@ -36,4 +37,3 @@ from .straylight import *
 from .measureCrosstalk import *
 from .isrQa import *
 from .isrMock import *
-from .calibType import *

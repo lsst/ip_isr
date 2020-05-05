@@ -73,6 +73,22 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         doc="Input camera to construct complete exposures.",
         dimensions=["instrument", "calibration_label"],
     )
+
+    crosstalk = cT.PrerequisiteInput(
+        name="crosstalk",
+        doc="Input crosstalk object",
+        storageClass="CrosstalkCalib",
+        dimensions=["instrument", "calibration_label", "detector"],
+    )
+    crosstalkSources = cT.PrerequisiteInput(
+        name="CTisrOscanCorr",
+        doc="Overscan corrected input images.",
+        storageClass="Exposure",
+        dimensions=["instrument", "visit", "exposure", "detector"],
+        deferLoad=True,
+        multiple=True,
+        lookupFunction=ctSourceLUF,
+    )
     bias = cT.PrerequisiteInput(
         name="bias",
         doc="Input bias calibration.",
@@ -185,7 +201,8 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         if config.doLinearize is not True:
             self.prerequisiteInputs.discard("linearizer")
         if config.doCrosstalk is not True:
-            self.prerequisiteInputs.discard("crosstalkSources")
+            self.inputs.discard("crosstalkSources")
+            self.prerequisiteInputs.discard("crosstalk")
         if config.doBrighterFatter is not True:
             self.prerequisiteInputs.discard("bfKernel")
             self.prerequisiteInputs.discard("newBFKernel")
@@ -836,6 +853,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         detector = inputs['ccdExposure'].getDetector()
 
+        if self.config.doCrosstalk is True:
+            # Crosstalk sources need to be defined by the pipeline
+            # yaml if they exist.
+            if 'crosstalk' in inputs and inputs['crosstalk'] is not None:
+                if not isinstance(inputs['crosstalk'], CrosstalkCalib):
+                    inputs['crosstalk'] = CrosstalkCalib.fromTable(inputs['crosstalk'])
+            else:
+                inputs['crosstalk'] = CrosstalkCalib().fromDetector(detector)
+
         if self.doLinearize(detector) is True:
             if 'linearizer' in inputs and isinstance(inputs['linearizer'], dict):
                 linearizer = linearize.Linearizer(detector=detector, log=self.log)
@@ -874,12 +900,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 else:
                     # TODO DM-15631 for implementing this
                     raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
-
-        # Broken: DM-17169
-        # ci_hsc does not use crosstalkSources, as it's intra-CCD CT only.  This needs to be
-        # fixed for non-HSC cameras in the future.
-        # inputs['crosstalkSources'] = (self.crosstalk.prepCrosstalk(inputsIds['ccdExposure'])
-        #                        if self.config.doCrosstalk else None)
 
         if self.config.doFringe is True and self.fringe.checkFilter(inputs['ccdExposure']):
             expId = inputs['ccdExposure'].getInfo().getVisitInfo().getExposureId()
@@ -971,8 +991,18 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             linearizer.log = self.log
         if isinstance(linearizer, numpy.ndarray):
             linearizer = linearize.Linearizer(table=linearizer, detector=ccd)
-        crosstalkSources = (self.crosstalk.prepCrosstalk(dataRef)
+
+        crosstalkCalib = None
+        if self.config.doCrosstalk:
+            try:
+                crosstalkCalib = dataRef.get("crosstalk", immediate=True)
+            except NoResults:
+                coeffVector = (self.config.crosstalk.crosstalkValues
+                               if self.config.crosstalk.useConfigCoefficients else None)
+                crosstalkCalib = CrosstalkCalib().fromDetector(ccd, coeffVector=coeffVector)
+        crosstalkSources = (self.crosstalk.prepCrosstalk(dataRef, crosstalkCalib)
                             if self.config.doCrosstalk else None)
+
         darkExposure = (self.getIsrExposure(dataRef, self.config.darkDataProductName)
                         if self.config.doDark else None)
         flatExposure = (self.getIsrExposure(dataRef, self.config.flatDataProductName,
@@ -1045,6 +1075,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
                                linearizer=linearizer,
+                               crosstalk=crosstalkCalib,
                                crosstalkSources=crosstalkSources,
                                dark=darkExposure,
                                flat=flatExposure,
@@ -1061,7 +1092,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                )
 
     @pipeBase.timeMethod
-    def run(self, ccdExposure, camera=None, bias=None, linearizer=None, crosstalkSources=None,
+    def run(self, ccdExposure, camera=None, bias=None, linearizer=None,
+            crosstalk=None, crosstalkSources=None,
             dark=None, flat=None, bfKernel=None, bfGains=None, defects=None,
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
@@ -1100,6 +1132,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Bias calibration frame.
         linearizer : `lsst.ip.isr.linearize.LinearizeBase`, optional
             Functor for linearization.
+        crosstalk : `lsst.ip.isr.crosstalk.CrosstalkCalib`, optional
+            Calibration for crosstalk.
         crosstalkSources : `list`, optional
             List of possible crosstalk sources.
         dark : `lsst.afw.image.Exposure`, optional
@@ -1275,7 +1309,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
-            self.crosstalk.run(ccdExposure, crosstalkSources=crosstalkSources)
+            self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
+                               crosstalkSources=crosstalkSources)
             self.debugView(ccdExposure, "doCrosstalk")
 
         if self.config.doAssembleCcd:
@@ -1325,7 +1360,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.config.doCrosstalk and not self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
-            self.crosstalk.run(ccdExposure, crosstalkSources=crosstalkSources, isTrimmed=True)
+            self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
+                               crosstalkSources=crosstalkSources, isTrimmed=True)
             self.debugView(ccdExposure, "doCrosstalk")
 
         # Masking block. Optionally mask known defects, NAN pixels, widen trails, and do
