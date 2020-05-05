@@ -36,7 +36,8 @@ from lsst.daf.persistence.butlerExceptions import NoResults
 from lsst.pex.config import Config, Field, ListField, ConfigurableField
 from lsst.pipe.base import CmdLineTask, Struct
 
-from .crosstalk import calculateBackground, extractAmp, writeCrosstalkCoeffs
+from .crosstalk import CrosstalkCalib
+from .calibType import IsrProvenance
 from .isrTask import IsrTask
 
 
@@ -131,6 +132,7 @@ class MeasureCrosstalkTask(CmdLineTask):
     def __init__(self, *args, **kwargs):
         CmdLineTask.__init__(self, *args, **kwargs)
         self.makeSubtask("isr")
+        self.calib = CrosstalkCalib()
 
     @classmethod
     def _makeArgumentParser(cls):
@@ -165,20 +167,36 @@ class MeasureCrosstalkTask(CmdLineTask):
             pickle.dump(resultList, open(results.parsedCmd.dumpRatios, "wb"))
         coeff, coeffErr, coeffNum = task.reduce(resultList)
 
+        calib = CrosstalkCalib()
+        provenance = IsrProvenance()
+
+        calib.coeffs = coeff
+        calib.coeffErr = coeffErr
+        calib.coeffNum = coeffNum
+
         outputFileName = results.parsedCmd.outputFileName
         if outputFileName is not None:
             butler = results.parsedCmd.butler
             dataId = results.parsedCmd.id.idList[0]
-            dataId["detector"] = butler.queryMetadata("raw", ["detector"], dataId)[0]
 
+            # Rework to use new crosstalk calib.
             det = butler.get('raw', dataId).getDetector()
-            writeCrosstalkCoeffs(outputFileName, coeff, det=det,
-                                 crosstalkName=results.parsedCmd.crosstalkName, indent=2)
+            calib._detectorName = det.getName()
+            calib._detectorSerial = det.getSerial()
+            calib.nAmp = len(det)
+            calib.hasCrosstalk = True
+            calib.writeText(outputFileName + ".yaml")
+
+            provenance.calibType = 'CROSSTALK'
+            provenance._detectorName = det.getName()
+            provenance.fromDataIds(results.parsedCmd.id.idList)
+            provenance.writeText(outputFileName + '_prov.yaml')
 
         return Struct(
             coeff=coeff,
             coeffErr=coeffErr,
-            coeffNum=coeffNum
+            coeffNum=coeffNum,
+            calib=calib,
         )
 
     def _getConfigName(self):
@@ -284,7 +302,7 @@ class MeasureCrosstalkTask(CmdLineTask):
         FootprintSet(mi, Threshold(threshold), "DETECTED")
         detected = mi.getMask().getPlaneBitMask("DETECTED")
         bad = mi.getMask().getPlaneBitMask(badPixels)
-        bg = calculateBackground(mi, badPixels + ["DETECTED"])
+        bg = self.calib.calculateBackground(mi, badPixels + ["DETECTED"])
 
         self.debugView('extract', exposure)
 
@@ -298,7 +316,7 @@ class MeasureCrosstalkTask(CmdLineTask):
             for jj, jAmp in enumerate(ccd):
                 if ii == jj:
                     continue
-                jImage = extractAmp(mi.image, jAmp, iAmp.getReadoutCorner(), isTrimmed=self.config.isTrimmed)
+                jImage = self.calib.extractAmp(mi.image, jAmp, iAmp, isTrimmed=self.config.isTrimmed)
                 ratios[jj][ii] = (jImage.array[select] - bg)/iImage.image.array[select]
                 self.debugPixels('pixels', iImage.image.array[select], jImage.array[select] - bg, ii, jj)
         return ratios

@@ -32,8 +32,8 @@ import lsst.afw.table
 import lsst.afw.cameraGeom as cameraGeom
 
 from lsst.pipe.base import Struct
-from lsst.ip.isr import (IsrTask, subtractCrosstalk,
-                         MeasureCrosstalkTask, writeCrosstalkCoeffs, CrosstalkTask, NullCrosstalkTask)
+from lsst.ip.isr import (IsrTask, CrosstalkCalib,
+                         MeasureCrosstalkTask, CrosstalkTask, NullCrosstalkTask)
 
 try:
     display
@@ -188,12 +188,18 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         ratios = measure.extractCrosstalkRatios(self.exposure, threshold=self.value - 1)
         coeff, coeffErr, coeffNum = measure.measureCrosstalkCoefficients(ratios)
         self.checkCoefficients(coeff, coeffErr, coeffNum)
-        subtractCrosstalk(self.exposure, minPixelToMask=self.value - 1,
-                          crosstalkStr=self.crosstalkStr)
+        calib = CrosstalkCalib()
+        calib.coeffs = coeff.transpose()
+        calib.coeffErr = coeffErr.transpose()
+        calib.coeffNum = coeffNum.transpose()
+        calib.subtractCrosstalk(self.exposure, crosstalkCoeffs=coeff.transpose(),
+                                minPixelToMask=self.value - 1,
+                                crosstalkStr=self.crosstalkStr)
         self.checkSubtracted(self.exposure)
 
         outPath = tempfile.mktemp() if outputName is None else "{}-isrCrosstalk".format(outputName)
-        writeCrosstalkCoeffs(outPath, coeff, det=None, crosstalkName="testDirectAPI", indent=2)
+        outPath += '.yaml'
+        calib.writeText(outPath)
 
     def testTaskAPI(self):
         """Test that the Tasks work
@@ -220,7 +226,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         config.crosstalk.minPixelToMask = self.value - 1
         config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
         isr = IsrTask(config=config)
-        isr.crosstalk.run(self.exposure)
+        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(), coeffVector=coeff.transpose())
+        isr.crosstalk.run(self.exposure, crosstalk=calib)
         self.checkSubtracted(self.exposure)
 
     def test_prepCrosstalk(self):

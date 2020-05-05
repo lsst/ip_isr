@@ -26,13 +26,13 @@ import tempfile
 import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
-import lsst.afw.math as afwMath
+
 import lsst.afw.cameraGeom.utils as afwUtils
 import lsst.afw.cameraGeom.testUtils as afwTestUtils
 from lsst.meas.algorithms import Defects
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
-from .crosstalk import X_FLIP, Y_FLIP
+from .crosstalk import CrosstalkCalib
 
 __all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock",
            "CalibratedRawMock", "MasterMock",
@@ -454,19 +454,14 @@ class IsrMock(pipeBase.Task):
                                                self.config.darkTime / self.config.gain))
 
         if self.config.doAddCrosstalk is True:
-
+            ctCalib = CrosstalkCalib()
             for idxS, ampS in enumerate(exposure.getDetector()):
                 for idxT, ampT in enumerate(exposure.getDetector()):
-                    ampDataS = exposure.image[ampS.getBBox() if self.config.isTrimmed
-                                              else ampS.getRawDataBBox()]
-                    ampDataT = exposure.image[ampT.getBBox() if self.config.isTrimmed
-                                              else ampT.getRawDataBBox()]
-                    ampDataS = afwMath.flipImage(ampDataS,
-                                                 (X_FLIP[ampS.getReadoutCorner()] ^
-                                                  X_FLIP[ampT.getReadoutCorner()]),
-                                                 (Y_FLIP[ampS.getReadoutCorner()] ^
-                                                  Y_FLIP[ampT.getReadoutCorner()]))
-                    self.amplifierAddCT(ampDataS, ampDataT, self.crosstalkCoeffs[idxT][idxS])
+                    ampDataT = exposure.image[ampT.getBBox()
+                                              if self.config.isTrimmed else ampT.getRawDataBBox()]
+                    outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
+                                                isTrimmed=self.config.isTrimmed)
+                    self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxT][idxS])
 
         for amp in exposure.getDetector():
             bbox = None
