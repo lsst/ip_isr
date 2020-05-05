@@ -25,6 +25,7 @@ import os.path
 import warnings
 import yaml
 from astropy.table import Table
+from astropy.io import fits
 
 from lsst.log import Log
 from lsst.daf.base import PropertyList
@@ -260,8 +261,7 @@ class IsrCalib(abc.ABC):
         tableList.append(Table.read(filename, hdu=1))
         extNum = 2  # Fits indices start at 1, we've read one already.
         try:
-            with warnings.catch_warnings("error"):
-                newTable = Table.read(filename, hdu=extNum)
+            newTable = Table.read(filename, hdu=extNum)
             tableList.append(newTable)
             extNum += 1
         except Exception:
@@ -284,13 +284,13 @@ class IsrCalib(abc.ABC):
 
         """
         tableList = self.toTable()
-
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning, module="astropy.io")
-            tableList[0].write(filename)
-            for table in tableList[1:]:
-                table.write(filename, append=True)
+            astropyList = [fits.table_to_hdu(table) for table in tableList]
+            astropyList.insert(0, fits.PrimaryHDU())
 
+            writer = fits.HDUList(astropyList)
+            writer.writeto(filename, overwrite=True)
         return filename
 
     def fromDetector(self, detector):
