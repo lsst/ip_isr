@@ -62,8 +62,8 @@ __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 def ctSourceLUF(datasetType, registry, quantumDataId, collections):
 
     newDataId = DataCoordinate(DimensionGraph(DimensionUniverse(),
-                                              names=('instrument', 'visit')),
-                               (quantumDataId['instrument'], quantumDataId['visit']))
+                                              names=('instrument', 'exposure')),
+                               (quantumDataId['instrument'], quantumDataId['exposure']))
     results = list(registry.queryDatasets(datasetType,
                                           collections=collections,
                                           dataId=newDataId,
@@ -82,7 +82,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name="raw",
         doc="Input exposure to process.",
         storageClass="Exposure",
-        dimensions=["instrument", "detector", "exposure"],
+        dimensions=["instrument", "exposure", "detector"],
     )
     camera = cT.PrerequisiteInput(
         name="camera",
@@ -101,7 +101,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name="CTisrOscanCorr",
         doc="Overscan corrected input images.",
         storageClass="Exposure",
-        dimensions=["instrument", "visit", "exposure", "detector"],
+        dimensions=["instrument", "exposure", "detector"],
         deferLoad=True,
         multiple=True,
         lookupFunction=ctSourceLUF,
