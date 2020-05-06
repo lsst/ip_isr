@@ -191,7 +191,7 @@ class CrosstalkCalib(IsrCalib):
         dictionary : `dict`
             Dictionary of properties.
         """
-        self.updateMetadata(setDate=True)
+        self.updateMetadata()
 
         outDict = {}
         metadata = self.getMetadata()
@@ -267,7 +267,7 @@ class CrosstalkCalib(IsrCalib):
 
         """
         tableList = []
-        self.updateMetadata(setDate=True)
+        self.updateMetadata()
         catalog = Table([{'CT_COEFFS': self.coeffs.reshape(self.nAmp*self.nAmp)}])
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
