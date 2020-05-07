@@ -59,8 +59,31 @@ from lsst.daf.butler import DataCoordinate, DimensionGraph, DimensionUniverse
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
 
-def ctSourceLUF(datasetType, registry, quantumDataId, collections):
+def crosstalkSourceLUF(datasetType, registry, quantumDataId, collections):
+    """Lookup function to identify crosstalkSource entries.
 
+    This should return an empty list under most circumstances.  Only
+    when inter-chip crosstalk has been identified should this be
+    populated.
+
+    Parameters
+    ----------
+    datasetType : `str`
+        Dataset to lookup.
+    registry : `lsst.daf.butler.Registry`
+        Butler registry to query.
+    quantumDataId : `lsst.daf.butler.ExpandedDataCoordinate`
+        Data id to transform to identify crosstalkSources.  The
+        ``detector`` entry will be stripped.
+    collections : `lsst.daf.butler.CollectionSearch`
+        Collections to search through.
+
+    Returns
+    -------
+    results : `list` [`lsst.afw.image.Exposure`]
+        List of datasets that match the query that will be used as
+        crosstalkSources.
+    """
     newDataId = DataCoordinate(DimensionGraph(DimensionUniverse(),
                                               names=('instrument', 'exposure')),
                                (quantumDataId['instrument'], quantumDataId['exposure']))
@@ -69,9 +92,6 @@ def ctSourceLUF(datasetType, registry, quantumDataId, collections):
                                           dataId=newDataId,
                                           deduplicate=True,
                                           expand=True))
-    print(quantumDataId, "->", newDataId)
-    if len(results) == 0:
-        print("No results is fine!")
     return(results)
 
 
@@ -104,7 +124,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "exposure", "detector"],
         deferLoad=True,
         multiple=True,
-        lookupFunction=ctSourceLUF,
+        lookupFunction=crosstalkSourceLUF,
     )
     bias = cT.PrerequisiteInput(
         name="bias",
@@ -877,7 +897,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 if not isinstance(inputs['crosstalk'], CrosstalkCalib):
                     inputs['crosstalk'] = CrosstalkCalib.fromTable(inputs['crosstalk'])
             else:
-                inputs['crosstalk'] = CrosstalkCalib().fromDetector(detector)
+                coeffVector = (self.config.crosstalk.crosstalkValues
+                               if self.config.crosstalk.useConfigCoefficients else None)
+                crosstalkCalib = CrosstalkCalib().fromDetector(detector, coeffVector=coeffVector)
+                inputs['crosstalk'] = crosstalkCalib
 
         if self.doLinearize(detector) is True:
             if 'linearizer' in inputs and isinstance(inputs['linearizer'], dict):
