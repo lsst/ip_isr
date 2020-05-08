@@ -261,9 +261,10 @@ class IsrCalib(abc.ABC):
         tableList.append(Table.read(filename, hdu=1))
         extNum = 2  # Fits indices start at 1, we've read one already.
         try:
-            newTable = Table.read(filename, hdu=extNum)
-            tableList.append(newTable)
-            extNum += 1
+            with warnings.catch_warnings("error"):
+                newTable = Table.read(filename, hdu=extNum)
+                tableList.append(newTable)
+                extNum += 1
         except Exception:
             pass
 
