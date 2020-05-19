@@ -46,8 +46,8 @@ class IsrMockCases(lsst.utils.tests.TestCase):
         initialStd = np.std(self.mi.getImage().getArray()[:])
 
         bias = isrMock.BiasMock().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:] -
-                                            bias.getMaskedImage().getImage().getArray()[:])
+        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
+                                            - bias.getMaskedImage().getImage().getArray()[:])
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
@@ -57,8 +57,8 @@ class IsrMockCases(lsst.utils.tests.TestCase):
         initialStd = newStd
 
         dark = isrMock.DarkMock().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:] -
-                                            dark.getMaskedImage().getImage().getArray()[:])
+        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
+                                            - dark.getMaskedImage().getImage().getArray()[:])
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
@@ -68,8 +68,8 @@ class IsrMockCases(lsst.utils.tests.TestCase):
         initialStd = newStd
 
         flat = isrMock.FlatMock().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:] -
-                                            flat.getMaskedImage().getImage().getArray()[:])
+        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
+                                            - flat.getMaskedImage().getImage().getArray()[:])
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
@@ -80,8 +80,8 @@ class IsrMockCases(lsst.utils.tests.TestCase):
         initialStd = newStd
 
         fringe = isrMock.FringeMock().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:] -
-                                            fringe.getMaskedImage().getImage().getArray()[:])
+        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
+                                            - fringe.getMaskedImage().getImage().getArray()[:])
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
@@ -95,8 +95,8 @@ class IsrMockCases(lsst.utils.tests.TestCase):
 
         initialStd = np.std(exposure.getMaskedImage().getImage().getArray()[:])
 
-        diff = (exposure.getMaskedImage().getImage().getArray()[:] -
-                fringe.getMaskedImage().getImage().getArray()[:])
+        diff = (exposure.getMaskedImage().getImage().getArray()[:]
+                - fringe.getMaskedImage().getImage().getArray()[:])
 
         newStd = np.std(diff[:])
 
