@@ -59,6 +59,11 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
         default=3.0,
     )
+    maskPlanes = pexConfig.ListField(
+        dtype=str,
+        doc="Mask planes to reject when measuring overscan",
+        default=['SAT'],
+    )
     overscanIsInt = pexConfig.Field(
         dtype=bool,
         doc="Treat overscan as an integer image for purposes of fitType=MEDIAN" +
@@ -89,6 +94,7 @@ class OverscanCorrectionTask(pipeBase.Task):
         else:
             self.statControl = afwMath.StatisticsControl()
             self.statControl.setNumSigmaClip(self.config.numSigmaClip)
+            self.statControl.setAndMask(afwImage.Mask.getPlaneBitMask(self.config.maskPlanes))
 
     def run(self, ampImage, overscanImage):
         """Measure and remove an overscan from an amplifier image.
@@ -235,8 +241,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                                isTransposed=False)
 
     # Vector correction utilities
-    @staticmethod
-    def getImageArray(image):
+    def getImageArray(self, image):
         """Extract the numpy array from the input image.
 
         Parameters
@@ -249,8 +254,7 @@ class OverscanCorrectionTask(pipeBase.Task):
         """
         if hasattr(image, "getImage"):
             calcImage = image.getImage().getArray()
-            mask = image.getMask()
-            calcImage = np.ma.masked_where(mask.getArray() & mask.getPlaneBitMask("SAT"),
+            calcImage = np.ma.masked_where(image.getMask().getArray() & self.statControl.getAndMask(),
                                            calcImage)
         else:
             calcImage = image.getArray()
