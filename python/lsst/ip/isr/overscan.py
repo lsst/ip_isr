@@ -249,6 +249,9 @@ class OverscanCorrectionTask(pipeBase.Task):
         """
         if hasattr(image, "getImage"):
             calcImage = image.getImage().getArray()
+            mask = image.getMask()
+            calcImage = np.ma.masked_where(mask.getArray() & mask.getPlaneBitMask("SAT"),
+                                           calcImage)
         else:
             calcImage = image.getArray()
         return calcImage
