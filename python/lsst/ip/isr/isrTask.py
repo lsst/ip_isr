@@ -59,7 +59,7 @@ from lsst.daf.butler import DataCoordinate, DimensionGraph, DimensionUniverse
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
 
-def crosstalkSourceLUF(datasetType, registry, quantumDataId, collections):
+def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
     """Lookup function to identify crosstalkSource entries.
 
     This should return an empty list under most circumstances.  Only
@@ -124,7 +124,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "exposure", "detector"],
         deferLoad=True,
         multiple=True,
-        lookupFunction=crosstalkSourceLUF,
+        lookupFunction=crosstalkSourceLookup,
     )
     bias = cT.PrerequisiteInput(
         name="bias",
@@ -901,6 +901,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                if self.config.crosstalk.useConfigCoefficients else None)
                 crosstalkCalib = CrosstalkCalib().fromDetector(detector, coeffVector=coeffVector)
                 inputs['crosstalk'] = crosstalkCalib
+            if inputs['crosstalk'].interChip and len(inputs['crosstalk'].interChip) > 0:
+                if 'crosstalkSources' not in inputs:
+                    self.log.warn("No crosstalkSources found for chip with interChip terms!")
 
         if self.doLinearize(detector) is True:
             if 'linearizer' in inputs and isinstance(inputs['linearizer'], dict):

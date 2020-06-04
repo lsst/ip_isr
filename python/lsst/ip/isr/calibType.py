@@ -142,7 +142,7 @@ class IsrCalib(abc.ABC):
         ----------
         setDate : `bool`, optional
             Ensure the metadata CALIBDATE fields are set to the current datetime.
-        kwargs :
+        kwargs : `dict` or `collections.abc.Mapping`, optional
             Set of key=value pairs to assign to the metadata.
         """
         mdOriginal = self.getMetadata()
@@ -474,7 +474,7 @@ class IsrProvenance(IsrCalib):
         setDate : `bool, optional
             Update the CALIBDATE fields in the metadata to the current
             time. Defaults to False.
-        kwargs :
+        kwargs : `dict` or `collections.abc.Mapping`, optional
             Other keyword parameters to set in the metadata.
         """
         kwargs["DETECTOR"] = self._detectorName

@@ -100,13 +100,15 @@ class CrosstalkCalib(IsrCalib):
         detector : `lsst.afw.cameraGeom.Detector`
             Detector to use to set parameters from.
         coeffVector : `numpy.array`, optional
-            Use the geometry in the detector, but supply the
-            coefficients from elsewhere.
+            Use the detector geometry (bounding boxes and flip
+            information), but use ``coeffVector`` instead of the
+            output of ``detector.getCrosstalk()``.
 
         Returns
         -------
         calib : `lsst.ip.isr.CrosstalkCalib`
             The calibration constructed from the detector.
+
         """
         if detector.hasCrosstalk() or coeffVector:
             self._detectorName = detector.getName()
@@ -281,7 +283,6 @@ class CrosstalkCalib(IsrCalib):
 
     # Implementation methods.
     def extractAmp(self, image, amp, ampTarget, isTrimmed=False):
-
         """Extract the image data from an amp, flipped to match ampTarget.
 
         Parameters
@@ -295,7 +296,7 @@ class CrosstalkCalib(IsrCalib):
             to match.
         isTrimmed : `bool`
             The image is already trimmed.
-            This should no longer be needed once DM-15409 is resolved.
+            TODO : DM-15409 will resolve this.
 
         Returns
         -------
@@ -323,7 +324,7 @@ class CrosstalkCalib(IsrCalib):
         return lsst.afw.math.flipImage(output, xFlip, yFlip)
 
     def calculateBackground(self, mi, badPixels=["BAD"]):
-        """Calculate median background in image
+        """Estimate median background in image.
 
         Getting a great background model isn't important for crosstalk correction,
         since the crosstalk is at a low level. The median should be sufficient.
@@ -351,17 +352,13 @@ class CrosstalkCalib(IsrCalib):
         """Subtract the crosstalk from thisExposure, optionally using a different source.
 
         We set the mask plane indicated by ``crosstalkStr`` in a target amplifier
-        for pixels in a source amplifier that exceed `minPixelToMask`. Note that
+        for pixels in a source amplifier that exceed ``minPixelToMask``. Note that
         the correction is applied to all pixels in the amplifier, but only those
         that have a substantial crosstalk are masked with ``crosstalkStr``.
 
         The uncorrected image is used as a template for correction. This is good
         enough if the crosstalk is small (e.g., coefficients < ~ 1e-3), but if it's
         larger you may want to iterate.
-
-        This method needs unittests (DM-18876), but such testing requires
-        DM-18610 to allow the test detector to have the crosstalk
-        parameters set.
 
         Parameters
         ----------
@@ -605,15 +602,11 @@ class CrosstalkTask(Task):
             crosstalk = CrosstalkCalib(log=self.log)
             crosstalk = crosstalk.fromDetector(exposure.getDetector(),
                                                coeffVector=self.config.crosstalkValues)
-            # detector = exposure.getDetector()
-            # if not self.config.hasCrosstalk(detector=detector):
-            # raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients")
-            # coeffs = self.config.getCrosstalk(detector=detector)
         if not crosstalk.log:
             crosstalk.log = self.log
         if not crosstalk.hasCrosstalk:
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients.")
-            self.log.warn("Attempted to correct crosstalk without crosstalk coefficients.")
+
         else:
             self.log.info("Applying crosstalk correction.")
             crosstalk.subtractCrosstalk(exposure, crosstalkCoeffs=crosstalk.coeffs,
@@ -625,10 +618,10 @@ class CrosstalkTask(Task):
                 if crosstalkSources:
                     for detName in crosstalk.interChip:
                         if isinstance(crosstalkSources[0], 'lsst.afw.image.Exposure'):
-                            # Received a proper exposure
+                            # Received afwImage.Exposure
                             sourceNames = [exp.getDetector().getName() for exp in crosstalkSources]
                         else:
-                            # Received deferred dataset
+                            # Received dafButler.DeferredDatasetHandle
                             sourceNames = [expRef.get(datasetType='isrOscanCorr').getDetector().getName()
                                            for expRef in crosstalkSources]
                         if detName not in sourceNames:

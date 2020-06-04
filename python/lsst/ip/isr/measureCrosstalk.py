@@ -147,7 +147,13 @@ class MeasureCrosstalkTask(CmdLineTask):
 
     @classmethod
     def parseAndRun(cls, *args, **kwargs):
-        """Implement scatter/gather
+        """Collate crosstalk results from multiple exposures.
+
+        Process all input exposures through runDataRef, construct
+        final measurements from the final list of results from each
+        input, and persist the output calibration.
+
+        This method will be deprecated as part of DM-24760.
 
         Returns
         -------
@@ -157,6 +163,9 @@ class MeasureCrosstalkTask(CmdLineTask):
             Crosstalk coefficient errors.
         coeffNum : `numpy.ndarray`
             Number of pixels used for crosstalk measurement.
+        calib : `lsst.ip.isr.CrosstalkCalib`
+            Crosstalk object created from the measurements.
+
         """
         kwargs["doReturnResults"] = True
         results = super(MeasureCrosstalkTask, cls).parseAndRun(*args, **kwargs)
@@ -179,7 +188,7 @@ class MeasureCrosstalkTask(CmdLineTask):
             butler = results.parsedCmd.butler
             dataId = results.parsedCmd.id.idList[0]
 
-            # Rework to use new crosstalk calib.
+            # Rework to use lsst.ip.isr.CrosstalkCalib.
             det = butler.get('raw', dataId).getDetector()
             calib._detectorName = det.getName()
             calib._detectorSerial = det.getSerial()
