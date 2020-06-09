@@ -66,6 +66,9 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
     when inter-chip crosstalk has been identified should this be
     populated.
 
+    This will be unused until DM-25348 resolves the quantum graph
+    generation issue.
+
     Parameters
     ----------
     datasetType : `str`
@@ -117,8 +120,10 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="CrosstalkCalib",
         dimensions=["instrument", "calibration_label", "detector"],
     )
+    # TODO: DM-25348.  This does not work yet to correctly load
+    # possible crosstalk sources.
     crosstalkSources = cT.PrerequisiteInput(
-        name="CTisrOscanCorr",
+        name="isrOverscanCorrected",
         doc="Overscan corrected input images.",
         storageClass="Exposure",
         dimensions=["instrument", "exposure", "detector"],
