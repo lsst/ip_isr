@@ -50,7 +50,7 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
     )
     order = pexConfig.Field(
         dtype=int,
-        doc=("Order of polynomial to fit if overscan fit type is a polynomial, " +
+        doc=("Order of polynomial to fit if overscan fit type is a polynomial, "
              "or number of spline knots if overscan fit type is a spline."),
         default=1,
     )
@@ -66,7 +66,7 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
     )
     overscanIsInt = pexConfig.Field(
         dtype=bool,
-        doc="Treat overscan as an integer image for purposes of fitType=MEDIAN" +
+        doc="Treat overscan as an integer image for purposes of fitType=MEDIAN"
             " and fitType=MEDIAN_PER_ROW.",
         default=True,
     )
@@ -300,8 +300,8 @@ class OverscanCorrectionTask(pipeBase.Task):
         axisStdev = 0.74*(uq - lq)  # robust stdev
 
         diff = np.abs(imageArray - axisMedians[:, np.newaxis])
-        return np.ma.masked_where(diff > self.statControl.getNumSigmaClip() *
-                                  axisStdev[:, np.newaxis], imageArray)
+        return np.ma.masked_where(diff > self.statControl.getNumSigmaClip()
+                                  * axisStdev[:, np.newaxis], imageArray)
 
     @staticmethod
     def collapseArray(maskedArray):

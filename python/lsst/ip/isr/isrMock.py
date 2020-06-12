@@ -450,8 +450,8 @@ class IsrMock(pipeBase.Task):
             if self.config.doAddDark is True:
                 self.amplifierAddNoise(ampData,
                                        self.config.darkRate * self.config.darkTime / self.config.gain,
-                                       np.sqrt(self.config.darkRate *
-                                               self.config.darkTime / self.config.gain))
+                                       np.sqrt(self.config.darkRate
+                                               * self.config.darkTime / self.config.gain))
 
         if self.config.doAddCrosstalk is True:
             ctCalib = CrosstalkCalib()
@@ -652,8 +652,8 @@ class IsrMock(pipeBase.Task):
         """
         nPixY = ampData.getDimensions().getY()
         ampArr = ampData.array
-        ampArr[:] = ampArr[:] + (np.interp(range(nPixY), (0, nPixY - 1), (start, end)).reshape(nPixY, 1) +
-                                 np.zeros(ampData.getDimensions()).transpose())
+        ampArr[:] = ampArr[:] + (np.interp(range(nPixY), (0, nPixY - 1), (start, end)).reshape(nPixY, 1)
+                                 + np.zeros(ampData.getDimensions()).transpose())
 
     def amplifierAddSource(self, ampData, scale, x0, y0):
         """Add a single Gaussian source to an amplifier.
@@ -673,8 +673,8 @@ class IsrMock(pipeBase.Task):
         """
         for x in range(0, ampData.getDimensions().getX()):
             for y in range(0, ampData.getDimensions().getY()):
-                ampData.array[y][x] = (ampData.array[y][x] +
-                                       scale * np.exp(-0.5 * ((x - x0)**2 + (y - y0)**2) / 3.0**2))
+                ampData.array[y][x] = (ampData.array[y][x]
+                                       + scale * np.exp(-0.5 * ((x - x0)**2 + (y - y0)**2) / 3.0**2))
 
     def amplifierAddCT(self, ampDataSource, ampDataTarget, scale):
         """Add a scaled copy of an amplifier to another, simulating crosstalk.
@@ -694,8 +694,8 @@ class IsrMock(pipeBase.Task):
         -----
         This simulates simple crosstalk between amplifiers.
         """
-        ampDataTarget.array[:] = (ampDataTarget.array[:] +
-                                  scale * ampDataSource.array[:])
+        ampDataTarget.array[:] = (ampDataTarget.array[:]
+                                  + scale * ampDataSource.array[:])
 
     # Functional form data values.
     def amplifierAddFringe(self, amp, ampData, scale, x0=100, y0=0):
@@ -725,10 +725,9 @@ class IsrMock(pipeBase.Task):
         for x in range(0, ampData.getDimensions().getX()):
             for y in range(0, ampData.getDimensions().getY()):
                 (u, v) = self.localCoordToExpCoord(amp, x, y)
-                ampData.getArray()[y][x] = np.sum((ampData.getArray()[y][x] +
-                                                   scale *
-                                                   np.sinc(((u - x0) / 50)**2 +
-                                                           ((v - y0) / 50)**2)))
+                ampData.getArray()[y][x] = np.sum((ampData.getArray()[y][x]
+                                                   + scale * np.sinc(((u - x0) / 50)**2
+                                                                     + ((v - y0) / 50)**2)))
 
     def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
         """Multiply an amplifier's image data by a flat-like pattern.

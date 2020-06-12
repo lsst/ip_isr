@@ -429,8 +429,8 @@ class CrosstalkCalib(IsrCalib):
         # significant crosstalk correction)
         crosstalkPlane = mask.addMaskPlane(crosstalkStr)
         footprints = lsst.afw.detection.FootprintSet(source,
-                                                     lsst.afw.detection.Threshold(minPixelToMask +
-                                                                                  thresholdBackground))
+                                                     lsst.afw.detection.Threshold(minPixelToMask
+                                                                                  + thresholdBackground))
         footprints.setMask(mask, crosstalkStr)
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
@@ -519,7 +519,7 @@ class CrosstalkConfig(Config):
             if detector is not None:
                 nAmp = len(detector)
                 if coeffs.shape != (nAmp, nAmp):
-                    raise RuntimeError("Constructed crosstalk coeffients do not match detector shape. " +
+                    raise RuntimeError("Constructed crosstalk coeffients do not match detector shape. "
                                        f"{coeffs.shape} {nAmp}")
             return coeffs
         elif detector is not None and detector.hasCrosstalk() is True:
@@ -637,7 +637,7 @@ class CrosstalkTask(Task):
                                                     isTrimmed=isTrimmed,
                                                     backgroundMethod=self.config.crosstalkBackgroundMethod)
                 else:
-                    self.log.warn(f"Crosstalk contains interChip coefficients, but no sources found!")
+                    self.log.warn("Crosstalk contains interChip coefficients, but no sources found!")
 
 
 class NullCrosstalkTask(CrosstalkTask):

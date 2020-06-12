@@ -122,8 +122,8 @@ class FringeTestCase(lsst.utils.tests.TestCase):
             else:
                 fringe = fringes
             for i, f in enumerate(fringe):
-                afwDisplay.Display(frame=frame).mtv(f, title=self._testMethodName +
-                                                    ": Fringe frame %d" % (i + 1))
+                afwDisplay.Display(frame=frame).mtv(f, title=self._testMethodName
+                                                    + ": Fringe frame %d" % (i + 1))
                 frame += 1
 
         task.run(exp, fringes)

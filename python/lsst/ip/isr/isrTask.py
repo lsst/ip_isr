@@ -412,30 +412,30 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             "MEDIAN": "Correct using the median of the overscan region",
             "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
         },
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
                     " This option will no longer be used, and will be removed after v20.")
     )
     overscanOrder = pexConfig.Field(
         dtype=int,
-        doc=("Order of polynomial or to fit if overscan fit type is a polynomial, " +
+        doc=("Order of polynomial or to fit if overscan fit type is a polynomial, "
              "or number of spline knots if overscan fit type is a spline."),
         default=1,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
                     " This option will no longer be used, and will be removed after v20.")
     )
     overscanNumSigmaClip = pexConfig.Field(
         dtype=float,
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
         default=3.0,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
                     " This option will no longer be used, and will be removed after v20.")
     )
     overscanIsInt = pexConfig.Field(
         dtype=bool,
-        doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN" +
+        doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN"
             " and overscan.FitType=MEDIAN_PER_ROW.",
         default=True,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface." +
+        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
                     " This option will no longer be used, and will be removed after v20.")
     )
     # These options do not get deprecated, as they define how we slice up the image data.
@@ -1116,8 +1116,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         illumMaskedImage = (self.getIsrExposure(dataRef,
                             self.config.illuminationCorrectionDataProductName).getMaskedImage()
-                            if (self.config.doIlluminationCorrection and
-                            filterName in self.config.illumFilters)
+                            if (self.config.doIlluminationCorrection
+                            and filterName in self.config.illumFilters)
                             else None)
 
         # Struct should include only kwargs to run()
@@ -1302,15 +1302,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a flat exposure if config.doFlat=True.")
         if self.config.doDefect and defects is None:
             raise RuntimeError("Must supply defects if config.doDefect=True.")
-        if (self.config.doFringe and filterName in self.fringe.config.filters and
-                fringes.fringes is None):
+        if (self.config.doFringe and filterName in self.fringe.config.filters
+                and fringes.fringes is None):
             # The `fringes` object needs to be a pipeBase.Struct, as
             # we use it as a `dict` for the parameters of
             # `FringeTask.run()`.  The `fringes.fringes` `list` may
             # not be `None` if `doFringe=True`.  Otherwise, raise.
             raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct.")
-        if (self.config.doIlluminationCorrection and filterName in self.config.illumFilters and
-                illumMaskedImage is None):
+        if (self.config.doIlluminationCorrection and filterName in self.config.illumFilters
+                and illumMaskedImage is None):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
 
         # Begin ISR processing.
@@ -1927,11 +1927,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         imageBBoxes = []
         overscanBBoxes = []
 
-        if ((self.config.overscanBiasJump and
-             self.config.overscanBiasJumpLocation) and
-            (ccdExposure.getMetadata().exists(self.config.overscanBiasJumpKeyword) and
-             ccdExposure.getMetadata().getScalar(self.config.overscanBiasJumpKeyword) in
-             self.config.overscanBiasJumpDevices)):
+        if ((self.config.overscanBiasJump
+             and self.config.overscanBiasJumpLocation)
+            and (ccdExposure.getMetadata().exists(self.config.overscanBiasJumpKeyword)
+                 and ccdExposure.getMetadata().getScalar(self.config.overscanBiasJumpKeyword) in
+                 self.config.overscanBiasJumpDevices)):
             if amp.getReadoutCorner() in (ReadoutCorner.LL, ReadoutCorner.LR):
                 yLower = self.config.overscanBiasJumpLocation
                 yUpper = dataBBox.getHeight() - yLower
@@ -1941,8 +1941,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
             imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
                                                lsst.geom.Extent2I(dataBBox.getWidth(), yLower)))
-            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() +
-                                                  lsst.geom.Extent2I(dx0, 0),
+            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, 0),
                                                   lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
                                                                      yLower)))
 
