@@ -34,6 +34,5 @@ from .fringe import *
 from .masking import *
 from .overscan import *
 from .straylight import *
-from .measureCrosstalk import *
 from .isrQa import *
 from .isrMock import *
