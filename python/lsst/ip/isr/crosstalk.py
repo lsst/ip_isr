@@ -44,6 +44,8 @@ class CrosstalkCalib(IsrCalib):
     ----------
     detector : `lsst.afw.cameraGeom.Detector`, optional
         Detector to use to pull coefficients from.
+    nAmp : `int`, optional
+        Number of amplifiers to initialize.
     log : `lsst.log.Log`, optional
         Log to write messages to.
     **kwargs :
@@ -53,19 +55,23 @@ class CrosstalkCalib(IsrCalib):
     _SCHEMA = 'Gen3 Crosstalk'
     _VERSION = 1.0
 
-    def __init__(self, detector=None, **kwargs):
+    def __init__(self, detector=None, nAmp=0, **kwargs):
         self.hasCrosstalk = False
-        self.nAmp = 0
+        self.nAmp = nAmp if nAmp else 0
         self.crosstalkShape = (self.nAmp, self.nAmp)
 
-        self.coeffs = None
-        self.coeffErr = None
-        self.coeffNum = None
-        self.interChip = None
+        self.coeffs = np.zeros(self.crosstalkShape) if self.nAmp else None
+        self.coeffErr = np.zeros(self.crosstalkShape) if self.nAmp else None
+        self.coeffNum = np.zeros(self.crosstalkShape,
+                                 dtype=int) if self.nAmp else None
+        self.coeffValid = np.zeros(self.crosstalkShape,
+                                   dtype=bool) if self.nAmp else None
+        self.interChip = {}
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['hasCrosstalk', 'nAmp', 'coeffs',
-                                        'coeffErr', 'coeffNum', 'interChip'])
+                                        'coeffErr', 'coeffNum', 'coeffValid',
+                                        'interChip'])
         if detector:
             self.fromDetector(detector)
 
@@ -172,6 +178,18 @@ class CrosstalkCalib(IsrCalib):
             calib.nAmp = dictionary.get('nAmp', dictionary['metadata'].get('NAMP', 0))
             calib.crosstalkShape = (calib.nAmp, calib.nAmp)
             calib.coeffs = np.array(dictionary['coeffs']).reshape(calib.crosstalkShape)
+            if 'coeffErr' in dictionary:
+                calib.coeffErr = np.array(dictionary['coeffErr']).reshape(calib.crosstalkShape)
+            else:
+                calib.coeffErr = np.zeros_like(calib.coeffs)
+            if 'coeffNum' in dictionary:
+                calib.coeffNum = np.array(dictionary['coeffNum']).reshape(calib.crosstalkShape)
+            else:
+                calib.coeffNum = np.zeros_like(calib.coeffs, dtype=int)
+            if 'coeffValid' in dictionary:
+                calib.coeffValid = np.array(dictionary['coeffValid']).reshape(calib.crosstalkShape)
+            else:
+                calib.coeffValid = np.zeros_like(calib.coeffs, dtype=bool)
 
             calib.interChip = dictionary.get('interChip', None)
             if calib.interChip:
@@ -210,6 +228,8 @@ class CrosstalkCalib(IsrCalib):
             outDict['coeffErr'] = self.coeffErr.reshape(ctLength).tolist()
         if self.coeffNum is not None:
             outDict['coeffNum'] = self.coeffNum.reshape(ctLength).tolist()
+        if self.coeffValid is not None:
+            outDict['coeffValid'] = self.coeffValid.reshape(ctLength).tolist()
 
         if self.interChip:
             outDict['interChip'] = dict()
@@ -247,6 +267,13 @@ class CrosstalkCalib(IsrCalib):
         inDict['nAmp'] = metadata['NAMP']
 
         inDict['coeffs'] = coeffTable['CT_COEFFS']
+        if 'CT_ERRORS' in coeffTable:
+            inDict['coeffErr'] = coeffTable['CT_ERRORS']
+        if 'CT_COUNTS' in coeffTable:
+            inDict['coeffNum'] = coeffTable['CT_COUNTS']
+        if 'CT_VALID' in coeffTable:
+            inDict['coeffValid'] = coeffTable['CT_VALID']
+
         if len(tableList) > 1:
             inDict['interChip'] = dict()
             interChipTable = tableList[1]
@@ -270,7 +297,12 @@ class CrosstalkCalib(IsrCalib):
         """
         tableList = []
         self.updateMetadata()
-        catalog = Table([{'CT_COEFFS': self.coeffs.reshape(self.nAmp*self.nAmp)}])
+        catalog = Table([{'CT_COEFFS': self.coeffs.reshape(self.nAmp*self.nAmp),
+                          'CT_ERRORS': self.coeffErr.reshape(self.nAmp*self.nAmp),
+                          'CT_COUNTS': self.coeffNum.reshape(self.nAmp*self.nAmp),
+                          'CT_VALID': self.coeffValid.reshape(self.nAmp*self.nAmp),
+                          }])
+
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
 
