@@ -81,6 +81,11 @@ class Linearizer(abc.ABC):
         self.linearityUnits = dict()
         self.linearityBBox = dict()
 
+        self.fitParams = dict()
+        self.fitParamsErr = dict()
+        self.reducedChiSquared = dict()
+        self.fractionalResiduals = dict()
+
         self.override = override
         self.populated = False
         self.log = log
@@ -154,6 +159,11 @@ class Linearizer(abc.ABC):
             self.linearityCoeffs[ampName] = np.array(amp.get('linearityCoeffs', None), dtype=np.float64)
             self.linearityType[ampName] = amp.get('linearityType', 'None')
             self.linearityBBox[ampName] = amp.get('linearityBBox', None)
+            self.fitParams[ampName] = np.array(amp.get('linearityFitParams', None), dtype=np.float64)
+            self.fitParamsErr[ampName] = np.array(amp.get('linearityFitParamsErr', None), dtype=np.float64)
+            self.linearityFitReducedChiSquared[ampName] = amp.get('linearityFitReducedChiSquared', None)
+            self.fractionalResiduals[ampName] = np.array(amp.get('linearityFractionalResiduals', None),
+                                                         dtype=np.float64)
 
         if self.tableData is None:
             self.tableData = yamlObject.get('tableData', None)
@@ -182,7 +192,13 @@ class Linearizer(abc.ABC):
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
                                               'linearityCoeffs': self.linearityCoeffs[ampName],
-                                              'linearityBBox': self.linearityBBox[ampName]}
+                                              'linearityBBox': self.linearityBBox[ampName],
+                                              'linearityFitParams': self.fitParams[ampName],
+                                              'linearityFitParamsErr': self.fitParamsErr[ampName],
+                                              'linearityFitReducedChiSquared': (
+                                                  self.reducedChiSquared[ampName]),
+                                              'linearityFractionalResiduals': (
+                                                  self.fractionalResiduals[ampName])}
         if self.tableData is not None:
             outDict['tableData'] = self.tableData.tolist()
 
@@ -284,6 +300,10 @@ class Linearizer(abc.ABC):
         y0Key = schema['BBOX_Y0'].asKey()
         dxKey = schema['BBOX_DX'].asKey()
         dyKey = schema['BBOX_DY'].asKey()
+        fitParamsKey = schema["FIT_PARAMS"].asKey()
+        fitParamsErrKey = schema["FIT_PARAMS_ERR"].asKey()
+        reducedChiSquaredKey = schema["RED_CHI_SQ"].asKey()
+        fractionalResidualsKey = schema["FRAC_RES"].asKey()
 
         for record in table:
             ampName = record[ampNameKey]
@@ -292,6 +312,10 @@ class Linearizer(abc.ABC):
             ampDict['linearityCoeffs'] = record[coeffsKey]
             ampDict['linearityBBox'] = Box2I(Point2I(record[x0Key], record[y0Key]),
                                              Extent2I(record[dxKey], record[dyKey]))
+            ampDict['linearityFitParams'] = record[fitParamsKey]
+            ampDict['linearityFitParamsErr'] = record[fitParamsErrKey]
+            ampDict['linearityFitReducedChiSquared'] = record[reducedChiSquaredKey]
+            ampDict['linearityFractionalResiduals'] = record[fractionalResidualsKey]
 
             linDict['amplifiers'][ampName] = ampDict
 
@@ -349,6 +373,8 @@ class Linearizer(abc.ABC):
 
         # Now pack it into a fits table.
         length = max([len(self.linearityCoeffs[x]) for x in self.linearityCoeffs.keys()])
+        lengthFitParams = max([len(self.fitParams[x]) for x in self.fitParams.keys()])
+        lengthFracResiduals = max([len(self.fractionalResiduals[x]) for x in self.fractionalResiduals.keys()])
 
         schema = afwTable.Schema()
         names = schema.addField("AMPLIFIER_NAME", type="String", size=16, doc="linearity amplifier name")
@@ -358,6 +384,14 @@ class Linearizer(abc.ABC):
         boxY = schema.addField("BBOX_Y0", type="I", doc="linearity bbox minimum y")
         boxDx = schema.addField("BBOX_DX", type="I", doc="linearity bbox x dimension")
         boxDy = schema.addField("BBOX_DY", type="I", doc="linearity bbox y dimension")
+        fitParams = schema.addField("FIT_PARAMS", type="ArrayD", size=lengthFitParams,
+                                    doc="parameters of linearity polynomial fit")
+        fitParamsErr = schema.addField("FIT_PARAMS_ERR", type="ArrayD", size=lengthFitParams,
+                                       doc="errors of parameters of linearity polynomial fit")
+        reducedChiSquared = schema.addField("RED_CHI_SQ", type="D",
+                                            doc="unweighted reduced chi sq. from linearity polynomial fit")
+        fractionalResiduals = schema.addField("FRAC_RES", type="ArrayD", size=lengthFracResiduals,
+                                              doc="fractional residuals of linearity fit")
 
         catalog = afwTable.BaseCatalog(schema)
         catalog.resize(len(self.linearityCoeffs.keys()))
@@ -366,6 +400,10 @@ class Linearizer(abc.ABC):
             catalog[ii][names] = ampName
             catalog[ii][types] = self.linearityType[ampName]
             catalog[ii][coeffs] = np.array(self.linearityCoeffs[ampName], dtype=float)
+            catalog[ii][fitParams] = np.array(self.fitParams[ampName], dtype=float)
+            catalog[ii][fitParamsErr] = np.array(self.fitParamsErr[ampName], dtype=float)
+            catalog[ii][reducedChiSquared] = self.reducedChiSquared[ampName]
+            catalog[ii][fractionalResiduals] = np.array(self.fractionalResiduals[ampName], dtype=float)
 
             bbox = self.linearityBBox[ampName]
             catalog[ii][boxX], catalog[ii][boxY] = bbox.getMin()
