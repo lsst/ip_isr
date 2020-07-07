@@ -988,15 +988,13 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 brighterFatterKernel = inputs.get('bfKernel', None)
 
             if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
-                detId = detector.getId()
-                inputs['bfGains'] = brighterFatterKernel.gain
+                detName = detector.getName()
+                inputs['bfGains'] = brighterFatterKernel.gains
                 # If the kernel is not an ndarray, it's the cp_pipe version
                 # so extract the kernel for this detector, or raise an error
                 if self.config.brighterFatterLevel == 'DETECTOR':
-                    if brighterFatterKernel.detectorKernel:
-                        inputs['bfKernel'] = brighterFatterKernel.detectorKernel[detId]
-                    elif brighterFatterKernel.detectorKernelFromAmpKernels:
-                        inputs['bfKernel'] = brighterFatterKernel.detectorKernelFromAmpKernels[detId]
+                    if brighterFatterKernel.detKernel:
+                        inputs['bfKernel'] = brighterFatterKernel.detKernel[detName]
                     else:
                         raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
                 else:
@@ -1133,8 +1131,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 if self.config.brighterFatterLevel == 'DETECTOR':
                     if brighterFatterKernel.detectorKernel:
                         brighterFatterKernel = brighterFatterKernel.detectorKernel[ccd.getId()]
-                    elif brighterFatterKernel.detectorKernelFromAmpKernels:
-                        brighterFatterKernel = brighterFatterKernel.detectorKernelFromAmpKernels[ccd.getId()]
                     else:
                         raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
                 else:
