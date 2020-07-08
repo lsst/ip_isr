@@ -484,7 +484,7 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
             (`lsst.afw.image.Image`)
     Raises
     ------
-    pexExcept.Exception
+    RuntimeError
         Raised if ``fitType`` is not an allowed value.
 
     Notes
