@@ -169,8 +169,12 @@ class CrosstalkCalib(IsrCalib):
                                f"found {dictionary['metadata']['OBSTYPE']}")
 
         calib.setMetadata(dictionary['metadata'])
-        calib._detectorName = dictionary['metadata']['DETECTOR']
-        calib._detectorSerial = dictionary['metadata']['DETECTOR_SERIAL']
+        calib._detectorName = dictionary.get('detectorName',
+                                             dictionary['metadata'].get('DETECTOR', None))
+        calib._detectorSerial = dictionary.get('detectorSerial',
+                                               dictionary['metadata'].get('DET_SER', None))
+        calib._instrument = dictionary.get('instrument',
+                                           dictionary['metadata'].get('INSTRUME', None))
 
         calib.hasCrosstalk = dictionary.get('hasCrosstalk',
                                             dictionary['metadata'].get('HAS_CROSSTALK', False))
