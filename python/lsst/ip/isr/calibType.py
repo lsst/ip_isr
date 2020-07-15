@@ -181,19 +181,11 @@ class IsrCalib(abc.ABC):
 
         if setCalibId:
             values = []
-<<<<<<< HEAD
             values.append(f"instrument={self._instrument}") if self._instrument else None
             values.append(f"raftName={self._raftName}") if self._raftName else None
             values.append(f"detectorName={self._detectorName}") if self._detectorName else None
             values.append(f"detector={self.detector}") if self._detector else None
             values.append(f"filter={self._filter}") if self._filter else None
-=======
-            values.append(f"instrument={self._instrument}") if self._instrument
-            values.append(f"raftName={self._raftName}") if self._raftName
-            values.append(f"detectorName={self._detectorName}") if self._detectorName
-            values.append(f"detector={self.detector}") if self._detector
-            values.append(f"filter={self._filter}") if self._filter
->>>>>>> 52261ee... Handle metadata fields consistently.
             self._calibId = " ".join(values)
 
         if setDate:
@@ -202,7 +194,6 @@ class IsrCalib(abc.ABC):
             mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat()
             mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat()
 
-<<<<<<< HEAD
         self._metadata["INSTRUME"] = self._instrument if self._instrument else None
         self._metadata["RAFTNAME"] = self._raftName if self._raftName else None
         self._metadata["SLOTNAME"] = self._slotName if self._slotName else None
@@ -211,16 +202,6 @@ class IsrCalib(abc.ABC):
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
         self._metadata["CALIB_ID"] = self._calibId if self._calibId else None
-=======
-        self._metadata["INSTRUME"] = self._instrument
-        self._metadata["RAFTNAME"] = self._raftName
-        self._metadata["SLOTNAME"] = self._slotName
-        self._metadata["DETECTOR"] = self._detectorId
-        self._metadata["DET_NAME"] = self._detectorName
-        self._metadata["DET_SER"] = self._detectorSerial
-        self._metadata["FILTER"] = self._filter
-        self._metadata["CALIB_ID"] = self._calibId
->>>>>>> 52261ee... Handle metadata fields consistently.
 
         mdSupplemental.update(kwargs)
         mdOriginal.update(mdSupplemental)

@@ -63,7 +63,7 @@ class Linearizer(IsrCalib):
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.0
+    _VERSION = 1.1
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -76,9 +76,7 @@ class Linearizer(IsrCalib):
 
         self.fitParams = dict()
         self.fitParamsErr = dict()
-        self.linearityFitReducedChiSquared = dict()
-
-        self.populated = False
+        self.fitChiSq = dict()
 
         self.tableData = None
         if table is not None:
@@ -89,10 +87,11 @@ class Linearizer(IsrCalib):
             self.tableData = np.array(table, order="C")
 
         super().__init__(**kwargs)
-        self.requiredAttributes.update(['hasLinearity',
+        self.requiredAttributes.update(['hasLinearity', 'override',
                                         'ampNames',
                                         'linearityCoeffs', 'linearityType', 'linearityBBox',
-                                        'tableData', '_detectorId'])
+                                        'fitParams', 'fitParamsErr', 'fitChiSq',
+                                        'tableData'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -108,10 +107,8 @@ class Linearizer(IsrCalib):
         kwargs :
             Other keyword parameters to set in the metadata.
         """
-        kwargs['DETECTOR'] = self._detectorName
-        kwargs['DETECTOR_SERIAL'] = self._detectorSerial
-        kwargs['DETECTOR_ID'] = self._detectorId
         kwargs['HAS_LINEARITY'] = self.hasLinearity
+        kwargs['OVERRIDE'] = self.override
         kwargs['HAS_TABLE'] = self.tableData is not None
 
         super().updateMetadata(setDate=setDate, **kwargs)
@@ -173,11 +170,9 @@ class Linearizer(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
-        calib._detectorName = dictionary['metadata']['detectorName']
-        calib._detectorSerial = dictionary['metadata']['detectorSerial']
         calib.hasLinearity = dictionary.get('hasLinearity',
                                             dictionary['metadata'].get('HAS_LINEARITY', False))
-        calib.override = True
+        calib.override = dictionary.get('override', True)
 
         if calib.hasLinearity:
             for ampName in dictionary['amplifiers']:
@@ -215,12 +210,11 @@ class Linearizer(IsrCalib):
                    }
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
-                                              'linearityCoeffs': self.linearityCoeffs[ampName],
+                                              'linearityCoeffs': self.linearityCoeffs[ampName].toList(),
                                               'linearityBBox': self.linearityBBox[ampName],
-                                              'linearityFitParams': self.fitParams[ampName],
-                                              'linearityFitParamsErr': self.fitParamsErr[ampName],
-                                              'linearityFitReducedChiSquared': (
-                                                  self.linearityFitReducedChiSquared[ampName])}
+                                              'fitParams': self.fitParams[ampName].toList(),
+                                              'fitParamsErr': self.fitParamsErr[ampName].toList(),
+                                              'fitChiSq': self.fitChiSq[ampName]}
         if self.tableData is not None:
             outDict['tableData'] = self.tableData.tolist()
 
