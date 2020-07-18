@@ -53,7 +53,7 @@ from .masking import MaskingTask
 from .overscan import OverscanCorrectionTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
-from lsst.daf.butler import DataCoordinate, DimensionGraph, DimensionUniverse
+from lsst.daf.butler import DimensionGraph
 
 
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
@@ -83,19 +83,17 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
 
     Returns
     -------
-    results : `list` [`lsst.afw.image.Exposure`]
+    results : `list` [`lsst.daf.butler.DatasetRef`]
         List of datasets that match the query that will be used as
         crosstalkSources.
     """
-    newDataId = DataCoordinate(DimensionGraph(DimensionUniverse(),
-                                              names=('instrument', 'exposure')),
-                               (quantumDataId['instrument'], quantumDataId['exposure']))
+    newDataId = quantumDataId.subset(DimensionGraph(registry.dimensions, names=["instrument", "exposure"]))
     results = list(registry.queryDatasets(datasetType,
                                           collections=collections,
                                           dataId=newDataId,
                                           deduplicate=True,
                                           expand=True))
-    return(results)
+    return results
 
 
 class IsrTaskConnections(pipeBase.PipelineTaskConnections,
