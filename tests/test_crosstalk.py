@@ -32,8 +32,7 @@ import lsst.afw.table
 import lsst.afw.cameraGeom as cameraGeom
 
 from lsst.pipe.base import Struct
-from lsst.ip.isr import (IsrTask, CrosstalkCalib,
-                         CrosstalkTask, NullCrosstalkTask)
+from lsst.ip.isr import IsrTask, CrosstalkCalib, CrosstalkTask, NullCrosstalkTask
 
 try:
     display

@@ -61,8 +61,7 @@ class IsrCalib(abc.ABC):
     _SCHEMA = 'NO SCHEMA'
     _VERSION = 0
 
-    def __init__(self, camera=None, detector=None,
-                 detectorName=None, detectorId=None, log=None, **kwargs):
+    def __init__(self, camera=None, detector=None, detectorName=None, detectorId=None, log=None, **kwargs):
         self._instrument = None
         self._raftName = None
         self._slotName = None
@@ -595,6 +594,10 @@ class IsrProvenance(IsrCalib):
         """
         calib = cls()
         calib.updateMetadata(setDate=False, **dictionary['metadata'])
+
+        # These properties should be in the metadata, but occasionally
+        # are found in the dictionary itself.  Check both places,
+        # ending with `None` if neither contains the information.
         calib._detectorName = dictionary.get('detectorName',
                                              dictionary['metadata'].get('DET_NAME', None))
         calib._detectorSerial = dictionary.get('detectorSerial',

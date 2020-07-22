@@ -50,6 +50,37 @@ class CrosstalkCalib(IsrCalib):
         Log to write messages to.
     **kwargs :
         Parameters to pass to parent constructor.
+
+    Notes
+    -----
+    The crosstalk attributes stored are:
+
+    hasCrosstalk : `bool`
+        Whether there is crosstalk defined for this detector.
+    nAmp : `int`
+        Number of amplifiers in this detector.
+    crosstalkShape : `tuple` [`int`, `int`]
+        A tuple containing the shape of the ``coeffs`` matrix.  This
+        should be equivalent to (``nAmp``, ``nAmp``).
+    coeffs : `np.ndarray`
+        A matrix containing the crosstalk coefficients.  coeff[i][j]
+        contains the coefficients to calculate the contribution
+        amplifier_j has on amplifier_i (each row[i] contains the
+        corrections for detector_i).
+    coeffErr : `np.ndarray`, optional
+        A matrix (as defined by ``coeffs``) containing the standard
+        distribution of the crosstalk measurements.
+    coeffNum : `np.ndarray`, optional
+        A matrix containing the number of pixel pairs used to measure
+        the ``coeffs`` and ``coeffErr``.
+    coeffValid : `np.ndarray`, optional
+        A matrix of Boolean values indicating if the coefficient is
+        valid, defined as abs(coeff) > coeffErr / sqrt(coeffNum).
+    interChip : `dict` [`np.ndarray`]
+        A dictionary keyed by detectorName containing ``coeffs``
+        matrices used to correct for inter-chip crosstalk with a
+        source on the detector indicated.
+
     """
     _OBSTYPE = 'CROSSTALK'
     _SCHEMA = 'Gen3 Crosstalk'
@@ -170,7 +201,8 @@ class CrosstalkCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
         calib._detectorName = dictionary.get('detectorName',
-                                             dictionary['metadata'].get('DETECTOR', None))
+                                             dictionary['metadata'].get('DET_NAME', None))
+        calib._detectorId = dictionary['metadata'].get('DETECTOR', None)
         calib._detectorSerial = dictionary.get('detectorSerial',
                                                dictionary['metadata'].get('DET_SER', None))
         calib._instrument = dictionary.get('instrument',
@@ -193,7 +225,7 @@ class CrosstalkCalib(IsrCalib):
             if 'coeffValid' in dictionary:
                 calib.coeffValid = np.array(dictionary['coeffValid']).reshape(calib.crosstalkShape)
             else:
-                calib.coeffValid = np.zeros_like(calib.coeffs, dtype=bool)
+                calib.coeffValid = np.ones_like(calib.coeffs, dtype=bool)
 
             calib.interChip = dictionary.get('interChip', None)
             if calib.interChip:
@@ -318,7 +350,8 @@ class CrosstalkCalib(IsrCalib):
         return tableList
 
     # Implementation methods.
-    def extractAmp(self, image, amp, ampTarget, isTrimmed=False):
+    @staticmethod
+    def extractAmp(image, amp, ampTarget, isTrimmed=False):
         """Extract the image data from an amp, flipped to match ampTarget.
 
         Parameters
@@ -355,11 +388,10 @@ class CrosstalkCalib(IsrCalib):
         # Flipping is necessary only if the desired configuration doesn't match what we currently have
         xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[thisAmpCorner]
         yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[thisAmpCorner]
-        self.log.debug("Extract amp: %s %s %s %s",
-                       amp.getName(), ampTarget.getName(), thisAmpCorner, targetAmpCorner)
         return lsst.afw.math.flipImage(output, xFlip, yFlip)
 
-    def calculateBackground(self, mi, badPixels=["BAD"]):
+    @staticmethod
+    def calculateBackground(mi, badPixels=["BAD"]):
         """Estimate median background in image.
 
         Getting a great background model isn't important for crosstalk correction,
