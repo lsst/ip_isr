@@ -120,7 +120,8 @@ class CrosstalkCalib(IsrCalib):
         kwargs :
             Other keyword parameters to set in the metadata.
         """
-        kwargs['DETECTOR'] = self._detectorName
+        kwargs['DETECTOR'] = self._detectorId
+        kwargs['DETECTOR_NAME'] = self._detectorName
         kwargs['DETECTOR_SERIAL'] = self._detectorSerial
         kwargs['HAS_CROSSTALK'] = self.hasCrosstalk
         kwargs['NAMP'] = self.nAmp
@@ -200,13 +201,42 @@ class CrosstalkCalib(IsrCalib):
                                f"found {dictionary['metadata']['OBSTYPE']}")
 
         calib.setMetadata(dictionary['metadata'])
-        calib._detectorName = dictionary.get('detectorName',
-                                             dictionary['metadata'].get('DET_NAME', None))
-        calib._detectorId = dictionary['metadata'].get('DETECTOR', None)
-        calib._detectorSerial = dictionary.get('detectorSerial',
-                                               dictionary['metadata'].get('DET_SER', None))
-        calib._instrument = dictionary.get('instrument',
-                                           dictionary['metadata'].get('INSTRUME', None))
+
+        if 'detectorName' in dictionary:
+            calib._detectorName = dictionary.get('detectorName')
+        elif 'DETECTOR_NAME' in dictionary:
+            calib._detectorName = dictionary.get('DETECTOR_NAME')
+        elif 'DET_NAME' in dictionary['metadata']:
+            calib._detectorName = dictionary['metadata']['DET_NAME']
+        else:
+            calib._detectorName = None
+
+        if 'detectorSerial' in dictionary:
+            calib._detectorSerial = dictionary.get('detectorSerial')
+        elif 'DETECTOR_SERIAL' in dictionary:
+            calib._detectorSerial = dictionary.get('DETECTOR_SERIAL')
+        elif 'DET_SER' in dictionary['metadata']:
+            calib._detectorSerial = dictionary['metadata']['DET_SER']
+        else:
+            calib._detectorSerial = None
+
+        if 'detectorId' in dictionary:
+            calib._detectorId = dictionary.get('detectorId')
+        elif 'DETECTOR' in dictionary:
+            calib._detectorId = dictionary.get('DETECTOR')
+        elif 'DETECTOR' in dictionary['metadata']:
+            calib._detectorId = dictionary['metadata']['DETECTOR']
+        elif calib._detectorSerial:
+            calib._detectorId = calib._detectorSerial
+        else:
+            calib._detectorId = None
+
+        if 'instrument' in dictionary:
+            calib._instrument = dictionary.get('instrument')
+        elif 'INSTRUME' in dictionary['metadata']:
+            calib._instrument = dictionary['metadata']['INSTRUME']
+        else:
+            calib._instrument = None
 
         calib.hasCrosstalk = dictionary.get('hasCrosstalk',
                                             dictionary['metadata'].get('HAS_CROSSTALK', False))
