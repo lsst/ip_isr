@@ -32,8 +32,7 @@ import lsst.afw.table
 import lsst.afw.cameraGeom as cameraGeom
 
 from lsst.pipe.base import Struct
-from lsst.ip.isr import (IsrTask, CrosstalkCalib,
-                         MeasureCrosstalkTask, CrosstalkTask, NullCrosstalkTask)
+from lsst.ip.isr import IsrTask, CrosstalkCalib, CrosstalkTask, NullCrosstalkTask
 
 try:
     display
@@ -183,16 +182,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
 
     def testDirectAPI(self):
         """Test that individual function calls work"""
-        config = MeasureCrosstalkTask.ConfigClass()
-        measure = MeasureCrosstalkTask(config=config)
-        ratios = measure.extractCrosstalkRatios(self.exposure, threshold=self.value - 1)
-        coeff, coeffErr, coeffNum = measure.measureCrosstalkCoefficients(ratios)
-        self.checkCoefficients(coeff, coeffErr, coeffNum)
         calib = CrosstalkCalib()
-        calib.coeffs = coeff.transpose()
-        calib.coeffErr = coeffErr.transpose()
-        calib.coeffNum = coeffNum.transpose()
-        calib.subtractCrosstalk(self.exposure, crosstalkCoeffs=coeff.transpose(),
+        calib.coeffs = np.array(self.crosstalk).transpose()
+        calib.subtractCrosstalk(self.exposure, crosstalkCoeffs=calib.coeffs,
                                 minPixelToMask=self.value - 1,
                                 crosstalkStr=self.crosstalkStr)
         self.checkSubtracted(self.exposure)
@@ -214,19 +206,12 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
             def runDataRef(self, dataRef):
                 return Struct(exposure=exposure)
 
-        config = MeasureCrosstalkTask.ConfigClass()
-        config.isr.retarget(NullIsrTask)
-        config.threshold = self.value - 1
-        measure = MeasureCrosstalkTask(config=config)
-        fakeDataRef = Struct(dataId={'fake': 1})
-        coeff, coeffErr, coeffNum = measure.reduce([measure.runDataRef(fakeDataRef)])
-        self.checkCoefficients(coeff, coeffErr, coeffNum)
-
+        coeff = np.array(self.crosstalk).transpose()
         config = IsrTask.ConfigClass()
         config.crosstalk.minPixelToMask = self.value - 1
         config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
         isr = IsrTask(config=config)
-        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(), coeffVector=coeff.transpose())
+        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(), coeffVector=coeff)
         isr.crosstalk.run(self.exposure, crosstalk=calib)
         self.checkSubtracted(self.exposure)
 

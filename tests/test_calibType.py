@@ -30,8 +30,9 @@ class IsrCalibCases(lsst.utils.tests.TestCase):
     """Test unified calibration type.
     """
     def setUp(self):
-        self.calib = IsrProvenance(detectorName='test_calibType Det00',
+        self.calib = IsrProvenance(detectorName='testCalibType Det00',
                                    detectorSerial='Det00',
+                                   instrument="TestInst",
                                    calibType="Test Calib")
         self.calib.updateMetadata()
         self.calib.fromDataIds([{'exposure': 1234, 'detector': 0, 'filter': 'G'},
