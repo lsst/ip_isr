@@ -19,7 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import abc
-import copy
 import datetime
 import os.path
 import warnings
@@ -70,7 +69,7 @@ class IsrCalib(abc.ABC):
         self._detectorId = detectorId
         self._filter = None
         self._calibId = None
-
+        self._metadata = PropertyList()
         self.setMetadata(PropertyList())
 
         # Define the required attributes for this calibration.
@@ -133,7 +132,7 @@ class IsrCalib(abc.ABC):
             overwrite existing metadata.
         """
         if metadata is not None:
-            self._metadata = copy.copy(metadata)
+            self._metadata.update(metadata)
 
         # Ensure that we have the obs type required by calibration ingest
         self._metadata["OBSTYPE"] = self._OBSTYPE
