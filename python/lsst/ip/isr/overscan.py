@@ -89,6 +89,8 @@ class OverscanCorrectionTask(pipeBase.Task):
 
     def __init__(self, statControl=None, **kwargs):
         super().__init__(**kwargs)
+        self.allowDebug = True
+
         if statControl:
             self.statControl = statControl
         else:
@@ -96,7 +98,7 @@ class OverscanCorrectionTask(pipeBase.Task):
             self.statControl.setNumSigmaClip(self.config.numSigmaClip)
             self.statControl.setAndMask(afwImage.Mask.getPlaneBitMask(self.config.maskPlanes))
 
-    def run(self, ampImage, overscanImage):
+    def run(self, ampImage, overscanImage, amp=None):
         """Measure and remove an overscan from an amplifier image.
 
         Parameters
@@ -105,6 +107,8 @@ class OverscanCorrectionTask(pipeBase.Task):
             Image data that will have the overscan removed.
         overscanImage : `lsst.afw.image.Image`
             Overscan data that the overscan is measured from.
+        amp : `lsst.afw.cameraGeom.Amplifier`, optional
+            Amplifier to use for debugging purposes.
 
         Returns
         -------
@@ -166,7 +170,7 @@ class OverscanCorrectionTask(pipeBase.Task):
             raise RuntimeError('%s : %s an invalid overscan type' %
                                ("overscanCorrection", self.config.fitType))
 
-        self.debugView(overscanImage, overscanValue)
+        self.debugView(overscanImage, overscanValue, amp)
 
         ampImage -= offImage
         if maskSuspect:
@@ -481,7 +485,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                                maskArray=maskArray,
                                isTransposed=isTransposed)
 
-    def debugView(self, image, model):
+    def debugView(self, image, model, amp=None):
         """Debug display for the final overscan solution.
 
         Parameters
@@ -490,9 +494,13 @@ class OverscanCorrectionTask(pipeBase.Task):
             Input image the overscan solution was determined from.
         model : `numpy.ndarray` or `float`
             Overscan model determined for the image.
+        amp : `lsst.afw.cameraGeom.Amplifier`, optional
+            Amplifier to extract diagnostic information.
         """
         import lsstDebug
         if not lsstDebug.Info(__name__).display:
+            return
+        if not self.allowDebug:
             return
 
         calcImage = self.getImageArray(image)
@@ -523,6 +531,12 @@ class OverscanCorrectionTask(pipeBase.Task):
         axes.plot(indices, plotModel, 'r-')
         plot.xlabel("centered/scaled position along overscan region")
         plot.ylabel("pixel value/fit value")
+        if amp:
+            plot.title(f"{amp.getName()} DataX: [{amp.getRawDataBBox().getBeginX()}:{amp.getRawBBox().getEndX()}]"
+                       f"OscanX: [{amp.getRawHorizontalOverscanBBox().getBeginX()}:"
+                       f"{amp.getRawHorizontalOverscanBBox().getEndX()}] {self.config.fitType}")
+        else:
+            plot.title("No amp supplied.")
         figure.show()
         prompt = "Press Enter or c to continue [chp]..."
         while True:
@@ -532,6 +546,9 @@ class OverscanCorrectionTask(pipeBase.Task):
             elif ans in ("p", ):
                 import pdb
                 pdb.set_trace()
+            elif ans in ('x', ):
+                self.allowDebug = False
+                break
             elif ans in ("h", ):
-                print("[h]elp [c]ontinue [p]db")
+                print("[h]elp [c]ontinue [p]db e[x]itDebug")
         plot.close()

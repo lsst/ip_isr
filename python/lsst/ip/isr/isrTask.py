@@ -1990,7 +1990,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             statControl = afwMath.StatisticsControl()
             statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
 
-            overscanResults = self.overscan.run(ampImage.getImage(), overscanImage)
+            overscanResults = self.overscan.run(ampImage.getImage(), overscanImage, amp)
 
             # Measure average overscan levels and record them in the metadata.
             levelStat = afwMath.MEDIAN
