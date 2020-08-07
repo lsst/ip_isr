@@ -92,7 +92,7 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
                                           collections=collections,
                                           dataId=newDataId,
                                           deduplicate=True,
-                                          expand=True))
+                                          ).expanded())
     return results
 
 
