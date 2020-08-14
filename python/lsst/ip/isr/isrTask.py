@@ -516,6 +516,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Name of the bias data product",
         default="bias",
     )
+    doBiasBeforeOverscan = pexConfig.Field(
+        dtype=bool,
+        doc="Reverse order of overscan and bias correction.",
+        default=False
+    )
 
     # Variance construction
     doVariance = pexConfig.Field(
@@ -1325,6 +1330,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Converting exposure to floating point values.")
             ccdExposure = self.convertIntToFloat(ccdExposure)
 
+        if self.config.doBias and self.config.doBiasBeforeOverscan:
+            self.log.info("Applying bias correction.")
+            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
+                                        trimToFit=self.config.doTrimToMatchCalib)
+            self.debugView(ccdExposure, "doBias")
+
         # Amplifier level processing.
         overscans = []
         for amp in ccd:
@@ -1380,7 +1391,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.qa.doThumbnailOss:
             ossThumb = isrQa.makeThumbnail(ccdExposure, isrQaConfig=self.config.qa)
 
-        if self.config.doBias:
+        if self.config.doBias and not self.config.doBiasBeforeOverscan:
             self.log.info("Applying bias correction.")
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
