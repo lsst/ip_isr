@@ -516,6 +516,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Name of the bias data product",
         default="bias",
     )
+    doBiasBeforeOverscan = pexConfig.Field(
+        dtype=bool,
+        doc="Reverse order of overscan and bias correction.",
+        default=False
+    )
 
     # Variance construction
     doVariance = pexConfig.Field(
@@ -842,6 +847,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         super().validate()
         if self.doFlat and self.doApplyGains:
             raise ValueError("You may not specify both doFlat and doApplyGains")
+        if self.doBiasBeforeOverscan and self.doTrimToMatchCalib:
+            raise ValueError("You may not specify both doBiasBeforeOverscan and doTrimToMatchCalib")
         if self.doSaturationInterpolation and "SAT" not in self.maskListToInterpolate:
             self.config.maskListToInterpolate.append("SAT")
         if self.doNanInterpolation and "UNMASKEDNAN" not in self.maskListToInterpolate:
@@ -1325,6 +1332,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Converting exposure to floating point values.")
             ccdExposure = self.convertIntToFloat(ccdExposure)
 
+        if self.config.doBias and self.config.doBiasBeforeOverscan:
+            self.log.info("Applying bias correction.")
+            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
+                                        trimToFit=self.config.doTrimToMatchCalib)
+            self.debugView(ccdExposure, "doBias")
+
         # Amplifier level processing.
         overscans = []
         for amp in ccd:
@@ -1380,7 +1393,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.qa.doThumbnailOss:
             ossThumb = isrQa.makeThumbnail(ccdExposure, isrQaConfig=self.config.qa)
 
-        if self.config.doBias:
+        if self.config.doBias and not self.config.doBiasBeforeOverscan:
             self.log.info("Applying bias correction.")
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
