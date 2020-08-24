@@ -54,6 +54,7 @@ class FringeStatisticsConfig(Config):
 class FringeConfig(Config):
     """Fringe subtraction options"""
     filters = ListField(dtype=str, default=[], doc="Only fringe-subtract these filters")
+    useFilterAliases = Field(dtype=bool, default=False, doc="Search filter aliases during check.")
     num = Field(dtype=int, default=30000, doc="Number of fringe measurements")
     small = Field(dtype=int, default=3, doc="Half-size of small (fringe) measurements (pixels)")
     large = Field(dtype=int, default=30, doc="Half-size of large (background) measurements (pixels)")
@@ -248,9 +249,12 @@ class FringeTask(Task):
             If True, then the exposure has a filter listed in the
             configuration, and should have the fringe applied.
         """
-        # Canonical name for filter
-        filterName = afwImage.Filter(exposure.getFilter().getId()).getName()
-        return filterName in self.config.filters
+        filterObj = afwImage.Filter(exposure.getFilter().getId())
+        if self.config.useFilterAliases:
+            filterNameSet = set(filterObj.getAliases() + [filterObj.getName()])
+        else:
+            filterNameSet = set([filterObj.getName(), ])
+        return bool(len(filterNameSet.intersection(self.config.filters)))
 
     def removePedestal(self, fringe):
         """Remove pedestal from fringe exposure.
