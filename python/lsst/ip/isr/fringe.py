@@ -248,7 +248,9 @@ class FringeTask(Task):
             If True, then the exposure has a filter listed in the
             configuration, and should have the fringe applied.
         """
-        return exposure.getFilter().getName() in self.config.filters
+        # Canonical name for filter
+        filterName = afwImage.Filter(exposure.getFilter().getId()).getName()
+        return filterName in self.config.filters
 
     def removePedestal(self, fringe):
         """Remove pedestal from fringe exposure.
