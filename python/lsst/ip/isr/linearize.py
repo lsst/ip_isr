@@ -60,6 +60,36 @@ class Linearizer(IsrCalib):
     RuntimeError :
         Raised if the supplied table is not 2D, or if the table has fewer
         columns than rows (indicating that the indices are swapped).
+
+    Notes
+    -----
+    The linearizer attributes stored are:
+
+    hasLinearity : `bool`
+        Whether a linearity correction is defined for this detector.
+    override : `bool`
+        Whether the detector parameters should be overridden.
+    ampNames : `list` [`str`]
+        List of amplifier names to correct.
+    linearityCoeffs : `dict` [`str`, `numpy.array`]
+        Coefficients to use in correction.  Indexed by amplifier
+        names.  The format of the array depends on the type of
+        correction to apply.
+    linearityType : `dict` [`str`, `str`]
+        Type of correction to use, indexed by amplifier names.
+    linearityBBox : `dict` [`str`, `lsst.geom.Box2I`]
+        Bounding box the correction is valid over, indexed by
+        amplifier names.
+    fitParams : `dict` [`str`, `numpy.array`], optional
+        Linearity fit parameters used to construct the correction
+        coefficients, indexed as above.
+    fitParamsErr : `dict` [`str`, `numpy.array`], optional
+        Uncertainty values of the linearity fit parameters used to
+        construct the correction coefficients, indexed as above.
+    fitChiSq : `dict` [`str`, `float`], optional
+        Chi-squared value of the linearity fit, indexed as above.
+    tableData : `numpy.array`, optional
+        Lookup table data for the linearity correction.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
