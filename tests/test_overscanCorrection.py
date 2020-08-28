@@ -70,6 +70,14 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         config = ipIsr.IsrTask.ConfigClass()
         self.updateConfigFromKwargs(config, **kwargs)
 
+        if kwargs['fitType'] == "MEDIAN_PER_ROW":
+            # Add a bad point to test outlier rejection.
+            overscan.getImage().getArray()[0, 0] = 12345
+
+            # Shrink the sigma clipping limit to handle the fact that the
+            # bad point is not be rejected at higher thresholds (2/0.74).
+            config.overscan.numSigmaClip = 2.7
+
         isrTask = ipIsr.IsrTask(config=config)
         isrTask.overscan.run(dataImage.getImage(), overscan.getImage())
 
@@ -77,7 +85,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         width = maskedImage.getWidth()
         for j in range(height):
             for i in range(width):
-                if j >= 10:
+                if j == 10 and i == 0 and kwargs['fitType'] == "MEDIAN_PER_ROW":
+                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 12343)
+                elif j >= 10:
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
                 else:
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
