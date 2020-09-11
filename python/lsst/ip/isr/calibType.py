@@ -317,6 +317,11 @@ class IsrCalib(abc.ABC):
                 except Exception:
                     keepTrying = False
 
+        for table in tableList:
+            for k, v in table.meta.items():
+                if isinstance(v, fits.card.Undefined):
+                    table.meta[k] = None
+
         return cls.fromTable(tableList)
 
     def writeFits(self, filename):

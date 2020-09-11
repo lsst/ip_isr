@@ -24,6 +24,7 @@ import numpy as np
 
 from astropy.table import Table
 
+import lsst.afw.math as afwMath
 from lsst.pipe.base import Struct
 from lsst.geom import Box2I, Point2I, Extent2I
 from .applyLookupTable import applyLookupTable
@@ -31,7 +32,7 @@ from .calibType import IsrCalib
 
 __all__ = ["Linearizer",
            "LinearizeBase", "LinearizeLookupTable", "LinearizeSquared",
-           "LinearizeProportional", "LinearizePolynomial", "LinearizeNone"]
+           "LinearizeProportional", "LinearizePolynomial", "LinearizeSpline", "LinearizeNone"]
 
 
 class Linearizer(IsrCalib):
@@ -208,13 +209,13 @@ class Linearizer(IsrCalib):
             for ampName in dictionary['amplifiers']:
                 amp = dictionary['amplifiers'][ampName]
                 calib.ampNames.append(ampName)
-                calib.linearityCoeffs[ampName] = np.array(amp.get('linearityCoeffs', None), dtype=np.float64)
+                calib.linearityCoeffs[ampName] = np.array(amp.get('linearityCoeffs', [0.0]))
                 calib.linearityType[ampName] = amp.get('linearityType', 'None')
                 calib.linearityBBox[ampName] = amp.get('linearityBBox', None)
 
-                calib.fitParams[ampName] = np.array(amp.get('fitParams', None), dtype=np.float64)
-                calib.fitParamsErr[ampName] = np.array(amp.get('fitParamsErr', None), dtype=np.float64)
-                calib.fitChiSq[ampName] = amp.get('fitChiSq', None)
+                calib.fitParams[ampName] = np.array(amp.get('fitParams', [0.0]))
+                calib.fitParamsErr[ampName] = np.array(amp.get('fitParamsErr', [0.0]))
+                calib.fitChiSq[ampName] = amp.get('fitChiSq', np.nan)
 
             calib.tableData = dictionary.get('tableData', None)
             if calib.tableData:
@@ -240,10 +241,10 @@ class Linearizer(IsrCalib):
                    }
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
-                                              'linearityCoeffs': self.linearityCoeffs[ampName].toList(),
+                                              'linearityCoeffs': self.linearityCoeffs[ampName].tolist(),
                                               'linearityBBox': self.linearityBBox[ampName],
-                                              'fitParams': self.fitParams[ampName].toList(),
-                                              'fitParamsErr': self.fitParamsErr[ampName].toList(),
+                                              'fitParams': self.fitParams[ampName].tolist(),
+                                              'fitParamsErr': self.fitParamsErr[ampName].tolist(),
                                               'fitChiSq': self.fitChiSq[ampName]}
         if self.tableData is not None:
             outDict['tableData'] = self.tableData.tolist()
@@ -283,15 +284,15 @@ class Linearizer(IsrCalib):
         metadata = coeffTable.meta
         inDict = dict()
         inDict['metadata'] = metadata
-        inDict['hasLinearity'] = metadata['HAS_LINEARITY']
+        inDict['hasLinearity'] = metadata.get('HAS_LINEARITY', False)
         inDict['amplifiers'] = dict()
 
         for record in coeffTable:
             ampName = record['AMPLIFIER_NAME']
 
-            fitParams = record['FIT_PARAMS'] if 'FIT_PARAMS' in record else None
-            fitParamsErr = record['FIT_PARAMS_ERR'] if 'FIT_PARAMS_ERR' in record else None
-            fitChiSq = record['RED_CHI_SQ'] if 'RED_CHI_SQ' in record else None
+            fitParams = record['FIT_PARAMS'] if 'FIT_PARAMS' in record.columns else np.array([0.0])
+            fitParamsErr = record['FIT_PARAMS_ERR'] if 'FIT_PARAMS_ERR' in record.columns else np.array([0.0])
+            fitChiSq = record['RED_CHI_SQ'] if 'RED_CHI_SQ' in record.columns else np.nan
 
             inDict['amplifiers'][ampName] = {
                 'linearityType': record['TYPE'],
@@ -335,14 +336,13 @@ class Linearizer(IsrCalib):
                           'FIT_PARAMS_ERR': self.fitParamsErr[ampName],
                           'RED_CHI_SQ': self.fitChiSq[ampName],
                           } for ampName in self.ampNames])
-
+        catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
 
         if self.tableData:
             catalog = Table([{'LOOKUP_VALUES': value} for value in self.tableData])
             tableList.append(catalog)
-
-        return(catalog)
+        return(tableList)
 
     def getLinearityTypeByName(self, linearityTypeName):
         """Determine the linearity class to use from the type name.
@@ -362,6 +362,7 @@ class Linearizer(IsrCalib):
                   LinearizeSquared,
                   LinearizePolynomial,
                   LinearizeProportional,
+                  LinearizeSpline,
                   LinearizeNone]:
             if t.LinearityType == linearityTypeName:
                 return t
@@ -677,6 +678,52 @@ class LinearizeSquared(LinearizeBase):
             return True, 0
         else:
             return False, 0
+
+
+class LinearizeSpline(LinearizeBase):
+    """Correct non-linearity with a spline model.
+
+    corrImage = uncorrImage - Spline(coeffs, uncorrImage)
+
+    Notes
+    -----
+
+    The spline fit calculates a correction as a function of the
+    expected linear flux term.  Because of this, the correction needs
+    to be subtracted from the observed flux.
+
+    """
+    LinearityType = "Spline"
+
+    def __call__(self, image, **kwargs):
+        """Correct for non-linearity.
+
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+            ``"coeffs"``
+                Coefficient vector (`list` or `numpy.array`).
+            ``"log"``
+                Logger to handle messages (`lsst.log.Log`).
+
+        Returns
+        -------
+        output : `bool`
+            If true, a correction was applied successfully.
+        """
+        splineCoeff = kwargs['coeffs']
+        centers, values = np.split(splineCoeff, 2)
+        interp = afwMath.makeInterpolate(centers.tolist(), values.tolist(),
+                                         afwMath.stringToInterpStyle("AKIMA_SPLINE"))
+
+        ampArr = image.getArray()
+        delta = interp.interpolate(ampArr.flatten())
+        ampArr -= np.array(delta).reshape(ampArr.shape)
+
+        return True, 0
 
 
 class LinearizeProportional(LinearizeBase):
