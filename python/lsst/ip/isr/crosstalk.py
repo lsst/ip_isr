@@ -368,8 +368,11 @@ class CrosstalkCalib(IsrCalib):
                           'CT_COUNTS': self.coeffNum.reshape(self.nAmp*self.nAmp),
                           'CT_VALID': self.coeffValid.reshape(self.nAmp*self.nAmp),
                           }])
-
-        catalog.meta = self.getMetadata().toDict()
+        # filter None, because astropy can't deal.
+        inMeta = self.getMetadata().toDict()
+        outMeta = {k: v for k, v in inMeta.items() if v is not None}
+        outMeta.update({k: "" for k, v in inMeta.items() if v is None})
+        catalog.meta = outMeta
         tableList.append(catalog)
 
         if self.interChip:
