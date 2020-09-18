@@ -26,7 +26,6 @@ import numpy as np
 import lsst.utils.tests
 import lsst.geom
 import lsst.afw.image as afwImage
-import lsst.meas.algorithms as measAlg
 import lsst.ip.isr as ipIsr
 
 display = False  # set to True to display images
@@ -46,7 +45,7 @@ class DefectTestCases(lsst.utils.tests.TestCase):
     def testDefectBase(self):
         """Test DefectBases"""
 
-        defectList = measAlg.Defects()
+        defectList = ipIsr.Defects()
         ccdImage = afwImage.MaskedImageF(250, 225)
         ccdImage.set(self.setVal, 0, self.setVal)
         #
@@ -96,25 +95,25 @@ class DefectTestCases(lsst.utils.tests.TestCase):
         mim = afwImage.MaskedImageF(10, 10)
 
         # Nothing masked -> no defects.
-        defectList = measAlg.Defects.fromMask(mim, "BAD")
+        defectList = ipIsr.Defects.fromMask(mim, "BAD")
         self.assertEqual(len(defectList), 0)
 
         # Mask a single pixel.
         mask = mim.getMask()
         mask[5, 5, afwImage.LOCAL] = mask.getPlaneBitMask("BAD")
-        defectList = measAlg.Defects.fromMask(mim, "BAD")
+        defectList = ipIsr.Defects.fromMask(mim, "BAD")
         self.assertEqual(len(defectList), 1)
         self.assertEqual(defectList[0].getX0(), 5)
         self.assertEqual(defectList[0].getY0(), 5)
 
         # Setting a different plane does not register as a defect.
         mask[1, 1, afwImage.LOCAL] = mask.getPlaneBitMask("SUSPECT")
-        defectList = measAlg.Defects.fromMask(mim, "SUSPECT")
+        defectList = ipIsr.Defects.fromMask(mim, "SUSPECT")
         self.assertEqual(len(defectList), 1)
 
         # But adding another BAD pixel does.
         mask[9, 9, afwImage.LOCAL] = mask.getPlaneBitMask("BAD")
-        defectList = measAlg.Defects.fromMask(mim, "BAD")
+        defectList = ipIsr.Defects.fromMask(mim, "BAD")
         self.assertEqual(len(defectList), 2)
 
 

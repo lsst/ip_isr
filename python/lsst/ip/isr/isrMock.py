@@ -29,10 +29,10 @@ import lsst.afw.image as afwImage
 
 import lsst.afw.cameraGeom.utils as afwUtils
 import lsst.afw.cameraGeom.testUtils as afwTestUtils
-from lsst.meas.algorithms import Defects
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from .crosstalk import CrosstalkCalib
+from .defects import Defects
 
 __all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock",
            "CalibratedRawMock", "MasterMock",
