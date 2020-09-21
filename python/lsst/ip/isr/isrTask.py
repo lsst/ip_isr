@@ -2301,7 +2301,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         See Also
         --------
-        lsst.ip.isr.isrTask.maskDefect()
+        lsst.ip.isr.isrTask.maskDefect
         """
         self.maskDefect(exposure, defectBaseList)
         self.maskEdges(exposure, numEdgePixels=self.config.numEdgeSuspect,
@@ -2349,7 +2349,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         See Also
         --------
-        lsst.ip.isr.isrTask.maskNan()
+        lsst.ip.isr.isrTask.maskNan
         """
         self.maskNan(exposure)
         isrFunctions.interpolateFromMask(
