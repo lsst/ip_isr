@@ -980,7 +980,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         butlerQC.put(outputs, outputRefs)
 
     def readIsrData(self, dataRef, rawExposure):
-        """!Retrieve necessary frames for instrument signature removal.
+        """Retrieve necessary frames for instrument signature removal.
 
         Pre-fetching all required ISR data products limits the IO
         required by the ISR. Any conflict between the calibration data
@@ -1162,7 +1162,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
             isGen3=False,
             ):
-        """!Perform instrument signature removal on an exposure.
+        """Perform instrument signature removal on an exposure.
 
         Steps included in the ISR processing, in order performed, are:
         - saturation and suspect pixel masking
@@ -1680,7 +1680,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         return result
 
     def getIsrExposure(self, dataRef, datasetType, dateObs=None, immediate=True):
-        """!Retrieve a calibration dataset for removing instrument signature.
+        """Retrieve a calibration dataset for removing instrument signature.
 
         Parameters
         ----------
@@ -2062,7 +2062,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def darkCorrection(self, exposure, darkExposure, invert=False):
-        """!Apply dark correction in place.
+        """Apply dark correction in place.
 
         Parameters
         ----------
@@ -2105,7 +2105,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def doLinearize(self, detector):
-        """!Check if linearization is needed for the detector cameraGeom.
+        """Check if linearization is needed for the detector cameraGeom.
 
         Checks config.doLinearize and the linearity type of the first
         amplifier.
@@ -2124,7 +2124,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             detector.getAmplifiers()[0].getLinearityType() != NullLinearityType
 
     def flatCorrection(self, exposure, flatExposure, invert=False):
-        """!Apply flat correction in place.
+        """Apply flat correction in place.
 
         Parameters
         ----------
@@ -2149,7 +2149,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def saturationDetection(self, exposure, amp):
-        """!Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place.
+        """Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place.
 
         Parameters
         ----------
@@ -2173,7 +2173,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             )
 
     def saturationInterpolation(self, exposure):
-        """!Interpolate over saturated pixels, in place.
+        """Interpolate over saturated pixels, in place.
 
         This method should be called after `saturationDetection`, to
         ensure that the saturated pixels have been identified in the
@@ -2198,7 +2198,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def suspectDetection(self, exposure, amp):
-        """!Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place.
+        """Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place.
 
         Parameters
         ----------
@@ -2233,7 +2233,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def maskDefect(self, exposure, defectBaseList):
-        """!Mask defects using mask plane "BAD", in place.
+        """Mask defects using mask plane "BAD", in place.
 
         Parameters
         ----------
@@ -2256,7 +2256,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         defectList.maskPixels(maskedImage, maskName="BAD")
 
     def maskEdges(self, exposure, numEdgePixels=0, maskPlane="SUSPECT", level='DETECTOR'):
-        """!Mask edge pixels with applicable mask plane.
+        """Mask edge pixels with applicable mask plane.
 
         Parameters
         ----------
@@ -2301,7 +2301,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         See Also
         --------
-        lsst.ip.isr.isrTask.maskDefect()
+        lsst.ip.isr.isrTask.maskDefect
         """
         self.maskDefect(exposure, defectBaseList)
         self.maskEdges(exposure, numEdgePixels=self.config.numEdgeSuspect,
@@ -2349,7 +2349,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         See Also
         --------
-        lsst.ip.isr.isrTask.maskNan()
+        lsst.ip.isr.isrTask.maskNan
         """
         self.maskNan(exposure)
         isrFunctions.interpolateFromMask(
@@ -2447,7 +2447,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         exposure.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0*expTime, 0.0))
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
-        """!Set the valid polygon as the intersection of fpPolygon and the ccd corners.
+        """Set the valid polygon as the intersection of fpPolygon and the ccd corners.
 
         Parameters
         ----------
