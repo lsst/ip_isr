@@ -100,7 +100,9 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         defects.setMetadata(meta)
 
         table = defects.toFitsRegionTable()
-        defects2 = Defects.fromTable(table)
+
+        defects2 = Defects.fromTable([table])
+
         self.assertEqual(defects2, defects)
 
         # via FITS

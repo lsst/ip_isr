@@ -26,15 +26,10 @@ __all__ = ("Defects",)
 
 import logging
 import itertools
-import collections.abc
 import contextlib
 import numpy as np
-import copy
-import datetime
 import math
 import numbers
-import os.path
-import warnings
 import astropy.table
 
 import lsst.geom
@@ -42,9 +37,8 @@ import lsst.afw.table
 import lsst.afw.detection
 import lsst.afw.image
 import lsst.afw.geom
-from lsst.daf.base import PropertyList
 from lsst.meas.algorithms import Defect
-
+from .calibType import IsrCalib
 
 log = logging.getLogger(__name__)
 
@@ -52,8 +46,8 @@ SCHEMA_NAME_KEY = "DEFECTS_SCHEMA"
 SCHEMA_VERSION_KEY = "DEFECTS_SCHEMA_VERSION"
 
 
-class Defects(collections.abc.MutableSequence):
-    """Collection of `lsst.meas.algorithms.Defect`.
+class Defects(IsrCalib):
+    """Calibration handler for collections of `lsst.meas.algorithms.Defect`.
 
     Parameters
     ----------
@@ -76,12 +70,19 @@ class Defects(collections.abc.MutableSequence):
     procedure may introduce overhead when adding many new defects; it may be
     temporarily disabled using the `Defects.bulk_update` context manager if
     necessary.
+
+    The attributes stored in this calibration are:
+
+    _defects : `list` [`lsst.meas.algorithms.Defect`]
+        The collection of Defect objects.
     """
 
-    _OBSTYPE = "defects"
     """The calibration type used for ingest."""
+    _OBSTYPE = "defects"
+    _SCHEMA = ''
+    _VERSION = 2.0
 
-    def __init__(self, defectList=None, metadata=None, *, normalize_on_init=True):
+    def __init__(self, defectList=None, metadata=None, *, normalize_on_init=True, **kwargs):
         self._defects = []
 
         if defectList is not None:
@@ -93,10 +94,8 @@ class Defects(collections.abc.MutableSequence):
         if normalize_on_init:
             self._normalize()
 
-        if metadata is not None:
-            self._metadata = metadata
-        else:
-            self.setMetadata()
+        super().__init__(**kwargs)
+        self.requiredAttributes.update(['_defects'])
 
     def _check_value(self, value):
         """Check that the supplied value is a `~lsst.meas.algorithms.Defect`
@@ -154,6 +153,8 @@ class Defects(collections.abc.MutableSequence):
         Two `Defects` are equal if their bounding boxes are equal and in
         the same order.  Metadata content is ignored.
         """
+        super().__eq__(other)
+
         if not isinstance(other, self.__class__):
             return False
 
@@ -169,7 +170,8 @@ class Defects(collections.abc.MutableSequence):
         return True
 
     def __str__(self):
-        return "Defects(" + ",".join(str(d.getBBox()) for d in self) + ")"
+        baseStr = super().__str__(self)
+        return baseStr + ",".join(str(d.getBBox()) for d in self) + ")"
 
     def _normalize(self):
         """Recalculate defect bounding boxes for efficiency.
@@ -212,39 +214,13 @@ class Defects(collections.abc.MutableSequence):
             self._bulk_update = False
             self._normalize()
 
+    def append(self, value):
+        self._defects.append(self._check_value(value))
+        self._normalize()
+
     def insert(self, index, value):
         self._defects.insert(index, self._check_value(value))
         self._normalize()
-
-    def getMetadata(self):
-        """Retrieve metadata associated with these `Defects`.
-
-        Returns
-        -------
-        meta : `lsst.daf.base.PropertyList`
-            Metadata. The returned `~lsst.daf.base.PropertyList` can be
-            modified by the caller and the changes will be written to
-            external files.
-        """
-        return self._metadata
-
-    def setMetadata(self, metadata=None):
-        """Store a copy of the supplied metadata with the defects.
-
-        Parameters
-        ----------
-        metadata : `lsst.daf.base.PropertyList`, optional
-            Metadata to associate with the defects.  Will be copied and
-            overwrite existing metadata.  If not supplied the existing
-            metadata will be reset.
-        """
-        if metadata is None:
-            self._metadata = PropertyList()
-        else:
-            self._metadata = copy.copy(metadata)
-
-        # Ensure that we have the obs type required by calibration ingest
-        self._metadata["OBSTYPE"] = self._OBSTYPE
 
     def copy(self):
         """Copy the defects to a new list, creating new defects from the
@@ -314,18 +290,8 @@ class Defects(collections.abc.MutableSequence):
         converted to FITS Physical coordinates that have origin pixel (1, 1)
         rather than the (0, 0) used in LSST software.
         """
-
+        self.updateMetadata()
         nrows = len(self._defects)
-
-        schema = lsst.afw.table.Schema()
-        x = schema.addField("X", type="D", units="pix", doc="X coordinate of center of shape")
-        y = schema.addField("Y", type="D", units="pix", doc="Y coordinate of center of shape")
-        shape = schema.addField("SHAPE", type="String", size=16, doc="Shape defined by these values")
-        r = schema.addField("R", type="ArrayD", size=2, units="pix", doc="Extents")
-        rotang = schema.addField("ROTANG", type="D", units="deg", doc="Rotation angle")
-        component = schema.addField("COMPONENT", type="I", doc="Index of this region")
-        table = lsst.afw.table.BaseCatalog(schema)
-        table.resize(nrows)
 
         if nrows:
             # Adding entire columns is more efficient than adding
@@ -333,7 +299,7 @@ class Defects(collections.abc.MutableSequence):
             xCol = []
             yCol = []
             rCol = []
-
+            shapes = []
             for i, defect in enumerate(self._defects):
                 box = defect.getBBox()
                 center = box.getCenter()
@@ -351,48 +317,98 @@ class Defects(collections.abc.MutableSequence):
                     shapeType = "BOX"
 
                 # Strings have to be added per row
-                table[i][shape] = shapeType
+                shapes.append(shapeType)
 
                 rCol.append(np.array([width, height], dtype=np.float64))
 
-            # Assign the columns
-            table[x] = np.array(xCol, dtype=np.float64)
-            table[y] = np.array(yCol, dtype=np.float64)
-
-            table[r] = np.array(rCol)
-            table[rotang] = np.zeros(nrows, dtype=np.float64)
-            table[component] = np.arange(nrows)
-
-        # Set some metadata in the table (force OBSTYPE to exist)
-        metadata = copy.copy(self.getMetadata())
-        metadata["OBSTYPE"] = self._OBSTYPE
-        metadata[SCHEMA_NAME_KEY] = "FITS Region"
-        metadata[SCHEMA_VERSION_KEY] = 1
-        table.setMetadata(metadata)
-
+        table = astropy.table.Table({'X': xCol, 'Y': yCol, 'SHAPE': shapes,
+                                     'R': rCol, 'ROTANG': np.zeros(nrows),
+                                     'COMPONENT': np.arange(nrows)})
+        table.meta = self.getMetadata().toDict()
         return table
 
-    def writeFits(self, *args):
-        """Write defect list to FITS.
+    @classmethod
+    def fromDict(cls, dictionary):
+        """Construct a calibration from a dictionary of properties.
+
+        Must be implemented by the specific calibration subclasses.
 
         Parameters
         ----------
-        *args
-            Arguments to be forwarded to
-            `lsst.afw.table.BaseCatalog.writeFits`.
+        dictionary : `dict`
+            Dictionary of properties.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.CalibType`
+            Constructed calibration.
+
+        Raises
+        ------
+        RuntimeError :
+            Raised if the supplied dictionary is for a different
+            calibration.
         """
-        table = self.toFitsRegionTable()
+        calib = cls()
 
-        # Add some additional headers useful for tracking purposes
-        metadata = table.getMetadata()
-        now = datetime.datetime.utcnow()
-        metadata["DATE"] = now.isoformat()
-        metadata["CALIB_CREATION_DATE"] = now.strftime("%Y-%m-%d")
-        metadata["CALIB_CREATION_TIME"] = now.strftime("%T %Z").strip()
+        if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
+            raise RuntimeError(f"Incorrect crosstalk supplied.  Expected {calib._OBSTYPE}, "
+                               f"found {dictionary['metadata']['OBSTYPE']}")
 
-        table.writeFits(*args)
+        calib.setMetadata(dictionary['metadata'])
+        calib.calibInfoFromDict(dictionary)
 
-    def toSimpleTable(self):
+        xCol = dictionary['x0']
+        yCol = dictionary['y0']
+        widthCol = dictionary['width']
+        heightCol = dictionary['height']
+
+        with calib.bulk_update:
+            for x0, y0, width, height in zip(xCol, yCol, widthCol, heightCol):
+                calib.append(lsst.geom.Box2I(lsst.geom.Point2I(x0, y0),
+                                             lsst.geom.Extent2I(width, height)))
+        return calib
+
+    def toDict(self):
+        """Return a dictionary containing the calibration properties.
+
+        The dictionary should be able to be round-tripped through
+        `fromDict`.
+
+        Returns
+        -------
+        dictionary : `dict`
+            Dictionary of properties.
+        """
+        self.updateMetadata()
+
+        outDict = {}
+        metadata = self.getMetadata()
+        outDict['metadata'] = metadata
+
+        xCol = []
+        yCol = []
+        widthCol = []
+        heightCol = []
+
+        nrows = len(self._defects)
+        if nrows:
+            for defect in self._defects:
+                box = defect.getBBox()
+                xCol.append(box.getBeginX())
+                yCol.append(box.getBeginY())
+                widthCol.append(box.getWidth())
+                heightCol.append(box.getHeight())
+
+        outDict['x0'] = xCol
+        outDict['y0'] = yCol
+        outDict['width'] = widthCol
+        outDict['height'] = heightCol
+
+        return outDict
+        # CZW STOPPED HERE.
+
+    def toTable(self):
         """Convert defects to a simple table form that we use to write
         to text files.
 
@@ -416,27 +432,16 @@ class Defects(collections.abc.MutableSequence):
         height : `int`
             Y extent of the box.
         """
-        schema = lsst.afw.table.Schema()
-        x = schema.addField("x0", type="I", units="pix",
-                            doc="X coordinate of bottom left corner of box")
-        y = schema.addField("y0", type="I", units="pix",
-                            doc="Y coordinate of bottom left corner of box")
-        width = schema.addField("width", type="I", units="pix",
-                                doc="X extent of box")
-        height = schema.addField("height", type="I", units="pix",
-                                 doc="Y extent of box")
-        table = lsst.afw.table.BaseCatalog(schema)
+        tableList = []
+        self.updateMetadata()
+
+        xCol = []
+        yCol = []
+        widthCol = []
+        heightCol = []
 
         nrows = len(self._defects)
-        table.resize(nrows)
-
         if nrows:
-
-            xCol = []
-            yCol = []
-            widthCol = []
-            heightCol = []
-
             for defect in self._defects:
                 box = defect.getBBox()
                 xCol.append(box.getBeginX())
@@ -444,59 +449,14 @@ class Defects(collections.abc.MutableSequence):
                 widthCol.append(box.getWidth())
                 heightCol.append(box.getHeight())
 
-            table[x] = np.array(xCol, dtype=np.int64)
-            table[y] = np.array(yCol, dtype=np.int64)
-            table[width] = np.array(widthCol, dtype=np.int64)
-            table[height] = np.array(heightCol, dtype=np.int64)
+        catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol})
+        inMeta = self.getMetadata().toDict()
+        outMeta = {k: v for k, v in inMeta.items() if v is not None}
+        outMeta.update({k: "" for k, v in inMeta.items() if v is None})
+        catalog.meta = outMeta
+        tableList.append(catalog)
 
-        # Set some metadata in the table (force OBSTYPE to exist)
-        metadata = copy.copy(self.getMetadata())
-        metadata["OBSTYPE"] = self._OBSTYPE
-        metadata[SCHEMA_NAME_KEY] = "Simple"
-        metadata[SCHEMA_VERSION_KEY] = 1
-        table.setMetadata(metadata)
-
-        return table
-
-    def writeText(self, filename):
-        """Write the defects out to a text file with the specified name.
-
-        Parameters
-        ----------
-        filename : `str`
-            Name of the file to write.  The file extension ".ecsv" will
-            always be used.
-
-        Returns
-        -------
-        used : `str`
-            The name of the file used to write the data (which may be
-            different from the supplied name given the change to file
-            extension).
-
-        Notes
-        -----
-        The file is written to ECSV format and will include any metadata
-        associated with the `Defects`.
-        """
-
-        # Using astropy table is the easiest way to serialize to ecsv
-        afwTable = self.toSimpleTable()
-        table = afwTable.asAstropy()
-
-        metadata = afwTable.getMetadata()
-        now = datetime.datetime.utcnow()
-        metadata["DATE"] = now.isoformat()
-        metadata["CALIB_CREATION_DATE"] = now.strftime("%Y-%m-%d")
-        metadata["CALIB_CREATION_TIME"] = now.strftime("%T %Z").strip()
-
-        table.meta = metadata.toDict()
-
-        # Force file extension to .ecsv
-        path, ext = os.path.splitext(filename)
-        filename = path + ".ecsv"
-        table.write(filename, format="ascii.ecsv")
-        return filename
+        return tableList
 
     @staticmethod
     def _get_values(values, n=1):
@@ -530,7 +490,7 @@ class Defects(collections.abc.MutableSequence):
         return values[:n]
 
     @classmethod
-    def fromTable(cls, table):
+    def fromTable(cls, tableList):
         """Construct a `Defects` from the contents of a
         `~lsst.afw.table.BaseCatalog`.
 
@@ -557,48 +517,31 @@ class Defects(collections.abc.MutableSequence):
         The FITS standard regions can only read BOX, POINT, or ROTBOX with
         a zero degree rotation.
         """
-
+        table = tableList[0]
         defectList = []
 
-        schema = table.getSchema()
-
+        schema = table.columns
         # Check schema to see which definitions we have
         if "X" in schema and "Y" in schema and "R" in schema and "SHAPE" in schema:
             # This is a FITS region style table
             isFitsRegion = True
-
-            # Preselect the keys
-            xKey = schema["X"].asKey()
-            yKey = schema["Y"].asKey()
-            shapeKey = schema["SHAPE"].asKey()
-            rKey = schema["R"].asKey()
-            rotangKey = schema["ROTANG"].asKey()
-
         elif "x0" in schema and "y0" in schema and "width" in schema and "height" in schema:
             # This is a classic LSST-style defect table
             isFitsRegion = False
-
-            # Preselect the keys
-            xKey = schema["x0"].asKey()
-            yKey = schema["y0"].asKey()
-            widthKey = schema["width"].asKey()
-            heightKey = schema["height"].asKey()
-
         else:
             raise ValueError("Unsupported schema for defects extraction")
 
         for record in table:
-
             if isFitsRegion:
                 # Coordinates can be arrays (some shapes in the standard
                 # require this)
                 # Correct for FITS 1-based origin
-                xcen = cls._get_values(record[xKey]) - 1.0
-                ycen = cls._get_values(record[yKey]) - 1.0
-                shape = record[shapeKey].upper()
+                xcen = cls._get_values(record['X']) - 1.0
+                ycen = cls._get_values(record['Y']) - 1.0
+                shape = record['SHAPE'].upper()
                 if shape == "BOX":
                     box = lsst.geom.Box2I.makeCenteredBox(lsst.geom.Point2D(xcen, ycen),
-                                                          lsst.geom.Extent2I(cls._get_values(record[rKey],
+                                                          lsst.geom.Extent2I(cls._get_values(record['R'],
                                                                                              n=2)))
                 elif shape == "POINT":
                     # Handle the case where we have an externally created
@@ -606,11 +549,11 @@ class Defects(collections.abc.MutableSequence):
                     box = lsst.geom.Point2I(xcen, ycen)
                 elif shape == "ROTBOX":
                     # Astropy regions always writes ROTBOX
-                    rotang = cls._get_values(record[rotangKey])
+                    rotang = cls._get_values(record['ROTANG'])
                     # We can support 0 or 90 deg
                     if math.isclose(rotang % 90.0, 0.0):
                         # Two values required
-                        r = cls._get_values(record[rKey], n=2)
+                        r = cls._get_values(record['R'], n=2)
                         if math.isclose(rotang % 180.0, 0.0):
                             width = r[0]
                             height = r[1]
@@ -628,83 +571,17 @@ class Defects(collections.abc.MutableSequence):
 
             else:
                 # This is a classic LSST-style defect table
-                box = lsst.geom.Box2I(lsst.geom.Point2I(record[xKey], record[yKey]),
-                                      lsst.geom.Extent2I(record[widthKey], record[heightKey]))
+                # import pdb ; pdb.set_trace()
+                box = lsst.geom.Box2I(lsst.geom.Point2I(record['x0'], record['y0']),
+                                      lsst.geom.Extent2I(record['width'], record['height']))
 
             defectList.append(box)
 
         defects = cls(defectList)
-        defects.setMetadata(table.getMetadata())
-
-        # Once read, the schema headers are irrelevant
-        metadata = defects.getMetadata()
-        for k in (SCHEMA_NAME_KEY, SCHEMA_VERSION_KEY):
-            if k in metadata:
-                del metadata[k]
+        defects.setMetadata(table.meta)
+        defects.updateMetadata()
 
         return defects
-
-    @classmethod
-    def readFits(cls, *args):
-        """Read defect list from FITS table.
-
-        Parameters
-        ----------
-        *args
-            Arguments to be forwarded to
-            `lsst.afw.table.BaseCatalog.writeFits`.
-
-        Returns
-        -------
-        defects : `Defects`
-            Defects read from a FITS table.
-        """
-        table = lsst.afw.table.BaseCatalog.readFits(*args)
-        return cls.fromTable(table)
-
-    @classmethod
-    def readText(cls, filename):
-        """Read defect list from standard format text table file.
-
-        Parameters
-        ----------
-        filename : `str`
-            Name of the file containing the defects definitions.
-
-        Returns
-        -------
-        defects : `Defects`
-            Defects read from a FITS table.
-        """
-        with warnings.catch_warnings():
-            # Squash warnings due to astropy failure to close files; we think
-            # this is a real problem, but the warnings are even worse.
-            # https://github.com/astropy/astropy/issues/8673
-            warnings.filterwarnings("ignore", category=ResourceWarning, module="astropy.io.ascii")
-            table = astropy.table.Table.read(filename)
-
-        # Need to convert the Astropy table to afw table
-        schema = lsst.afw.table.Schema()
-        for colName in table.columns:
-            schema.addField(colName, units=str(table[colName].unit),
-                            type=table[colName].dtype.type)
-
-        # Create AFW table that is required by fromTable()
-        afwTable = lsst.afw.table.BaseCatalog(schema)
-
-        afwTable.resize(len(table))
-        for colName in table.columns:
-            # String columns will fail -- currently we do not expect any
-            afwTable[colName] = table[colName]
-
-        # Copy in the metadata from the astropy table
-        metadata = PropertyList()
-        for k, v in table.meta.items():
-            metadata[k] = v
-        afwTable.setMetadata(metadata)
-
-        # Extract defect information from the table itself
-        return cls.fromTable(afwTable)
 
     @classmethod
     def readLsstDefectsFile(cls, filename):
