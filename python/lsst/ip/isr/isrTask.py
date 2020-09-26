@@ -109,14 +109,16 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name="camera",
         storageClass="Camera",
         doc="Input camera to construct complete exposures.",
-        dimensions=["instrument", "calibration_label"],
+        dimensions=["instrument"],
+        isCalibration=True,
     )
 
     crosstalk = cT.PrerequisiteInput(
         name="crosstalk",
         doc="Input crosstalk object",
         storageClass="CrosstalkCalib",
-        dimensions=["instrument", "calibration_label", "detector"],
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
     )
     # TODO: DM-25348.  This does not work yet to correctly load
     # possible crosstalk sources.
@@ -133,79 +135,92 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name="bias",
         doc="Input bias calibration.",
         storageClass="ExposureF",
-        dimensions=["instrument", "calibration_label", "detector"],
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
     )
     dark = cT.PrerequisiteInput(
         name='dark',
         doc="Input dark calibration.",
         storageClass="ExposureF",
-        dimensions=["instrument", "calibration_label", "detector"],
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
     )
     flat = cT.PrerequisiteInput(
         name="flat",
         doc="Input flat calibration.",
         storageClass="ExposureF",
-        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+        dimensions=["instrument", "physical_filter", "detector"],
+        isCalibration=True,
     )
     fringes = cT.PrerequisiteInput(
         name="fringe",
         doc="Input fringe calibration.",
         storageClass="ExposureF",
-        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+        dimensions=["instrument", "physical_filter", "detector"],
+        isCalibration=True,
     )
     strayLightData = cT.PrerequisiteInput(
         name='yBackground',
         doc="Input stray light calibration.",
         storageClass="StrayLightData",
-        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+        dimensions=["instrument", "physical_filter", "detector"],
+        isCalibration=True,
     )
     bfKernel = cT.PrerequisiteInput(
         name='bfKernel',
         doc="Input brighter-fatter kernel.",
         storageClass="NumpyArray",
-        dimensions=["instrument", "calibration_label"],
+        dimensions=["instrument"],
+        isCalibration=True,
     )
     newBFKernel = cT.PrerequisiteInput(
         name='brighterFatterKernel',
         doc="Newer complete kernel + gain solutions.",
         storageClass="BrighterFatterKernel",
-        dimensions=["instrument", "calibration_label", "detector"],
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
     )
     defects = cT.PrerequisiteInput(
         name='defects',
         doc="Input defect tables.",
         storageClass="Defects",
-        dimensions=["instrument", "calibration_label", "detector"],
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
     )
     opticsTransmission = cT.PrerequisiteInput(
         name="transmission_optics",
         storageClass="TransmissionCurve",
         doc="Transmission curve due to the optics.",
-        dimensions=["instrument", "calibration_label"],
+        dimensions=["instrument"],
+        isCalibration=True,
     )
     filterTransmission = cT.PrerequisiteInput(
         name="transmission_filter",
         storageClass="TransmissionCurve",
         doc="Transmission curve due to the filter.",
-        dimensions=["instrument", "physical_filter", "calibration_label"],
+        dimensions=["instrument", "physical_filter"],
+        isCalibration=True,
     )
     sensorTransmission = cT.PrerequisiteInput(
         name="transmission_sensor",
         storageClass="TransmissionCurve",
         doc="Transmission curve due to the sensor.",
-        dimensions=["instrument", "calibration_label", "detector"],
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
     )
     atmosphereTransmission = cT.PrerequisiteInput(
         name="transmission_atmosphere",
         storageClass="TransmissionCurve",
         doc="Transmission curve due to the atmosphere.",
         dimensions=["instrument"],
+        isCalibration=True,
     )
     illumMaskedImage = cT.PrerequisiteInput(
         name="illum",
         doc="Input illumination correction.",
         storageClass="MaskedImageF",
-        dimensions=["instrument", "physical_filter", "calibration_label", "detector"],
+        dimensions=["instrument", "physical_filter", "detector"],
+        isCalibration=True,
     )
 
     outputExposure = cT.Output(
