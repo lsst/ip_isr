@@ -139,6 +139,11 @@ class IsrCalib(abc.ABC):
         self._metadata[self._OBSTYPE + "_SCHEMA"] = self._SCHEMA
         self._metadata[self._OBSTYPE + "_VERSION"] = self._VERSION
 
+        if isinstance(metadata, dict):
+            self.calibInfoFromDict(metadata)
+        elif isinstance(metadata, PropertyList):
+            self.calibInfoFromDict(metadata.toDict())
+
     def updateMetadata(self, camera=None, detector=None, filterName=None,
                        setCalibId=False, setDate=False,
                        **kwargs):
@@ -178,20 +183,24 @@ class IsrCalib(abc.ABC):
             # then this will hold the abstract filter.
             self._filter = filterName
 
-        if setCalibId:
-            values = []
-            values.append(f"instrument={self._instrument}") if self._instrument else None
-            values.append(f"raftName={self._raftName}") if self._raftName else None
-            values.append(f"detectorName={self._detectorName}") if self._detectorName else None
-            values.append(f"detector={self.detector}") if self._detector else None
-            values.append(f"filter={self._filter}") if self._filter else None
-            self._calibId = " ".join(values)
-
         if setDate:
             date = datetime.datetime.now()
             mdSupplemental['CALIBDATE'] = date.isoformat()
             mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat()
             mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat()
+
+        if setCalibId:
+            values = []
+            values.append(f"instrument={self._instrument}") if self._instrument else None
+            values.append(f"raftName={self._raftName}") if self._raftName else None
+            values.append(f"detectorName={self._detectorName}") if self._detectorName else None
+            values.append(f"detector={self._detectorId}") if self._detectorId else None
+            values.append(f"filter={self._filter}") if self._filter else None
+
+            calibDate = mdOriginal.get('CALIBDATE', mdSupplemental.get('CALIBDATE', None))
+            values.append(f"calibDate={calibDate}") if calibDate else None
+
+            self._calibId = " ".join(values)
 
         self._metadata["INSTRUME"] = self._instrument if self._instrument else None
         self._metadata["RAFTNAME"] = self._raftName if self._raftName else None
@@ -204,6 +213,59 @@ class IsrCalib(abc.ABC):
 
         mdSupplemental.update(kwargs)
         mdOriginal.update(mdSupplemental)
+
+    def calibInfoFromDict(self, dictionary):
+        """Handle common keywords.
+
+        This isn't an ideal solution, but until all calibrations
+        expect to find everything in the metadata, they still need to
+        search through dictionaries.
+
+        Parameters
+        ----------
+        dictionary : `dict` or `lsst.daf.base.PropertyList`
+            Source for the common keywords.
+
+        Raises
+        ------
+        RuntimeError :
+            Raised if the dictionary does not match the expected OBSTYPE.
+
+        """
+
+        def search(haystack, needles):
+            """Search dictionary 'haystack' for an entry in 'needles'
+            """
+            test = [haystack.get(x) for x in needles]
+            test = set([x for x in test if x is not None])
+            if len(test) == 0:
+                if 'metadata' in haystack:
+                    return search(haystack['metadata'], needles)
+                else:
+                    return None
+            elif len(test) == 1:
+                return list(test)[0]
+            else:
+                raise ValueError(f"Too many values found: {len(test)} {test} {needles}")
+
+        if 'metadata' in dictionary:
+            metadata = dictionary['metadata']
+
+            if self._OBSTYPE != metadata['OBSTYPE']:
+                raise RuntimeError(f"Incorrect calibration supplied.  Expected {self._OBSTYPE}, "
+                                   f"found {metadata['OBSTYPE']}")
+
+        self._instrument = search(dictionary, ['INSTRUME', 'instrument'])
+        self._raftName = search(dictionary, ['RAFTNAME'])
+        self._slotName = search(dictionary, ['SLOTNAME'])
+        self._detectorId = search(dictionary, ['DETECTOR', 'detectorId'])
+        self._detectorName = search(dictionary, ['DET_NAME', 'DETECTOR_NAME', 'detectorName'])
+        self._detectorSerial = search(dictionary, ['DET_SER', 'DETECTOR_SERIAL', 'detectorSerial'])
+        self._filter = search(dictionary, ['FILTER'])
+        self._calibId = search(dictionary, ['CALIB_ID'])
+
+        if not self._detectorId and self._detectorSerial:
+            self._detectorId = self._detectorSerial
 
     @classmethod
     def readText(cls, filename):
