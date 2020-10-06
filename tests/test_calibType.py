@@ -31,7 +31,7 @@ class IsrCalibCases(lsst.utils.tests.TestCase):
     """
     def setUp(self):
         self.calib = IsrProvenance(detectorName='testCalibType Det00',
-                                   detectorSerial='Det00',
+                                   detectorId='0',
                                    instrument="TestInst",
                                    calibType="Test Calib")
         self.calib.updateMetadata()

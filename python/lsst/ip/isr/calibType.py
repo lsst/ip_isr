@@ -60,17 +60,18 @@ class IsrCalib(abc.ABC):
     _SCHEMA = 'NO SCHEMA'
     _VERSION = 0
 
-    def __init__(self, camera=None, detector=None, detectorName=None, detectorId=None, log=None, **kwargs):
+    def __init__(self, camera=None, detector=None, log=None, **kwargs):
         self._instrument = None
         self._raftName = None
         self._slotName = None
-        self._detectorName = detectorName
+        self._detectorName = None
         self._detectorSerial = None
-        self._detectorId = detectorId
+        self._detectorId = None
         self._filter = None
         self._calibId = None
         self._metadata = PropertyList()
         self.setMetadata(PropertyList())
+        self.calibInfoFromDict(kwargs)
 
         # Define the required attributes for this calibration.
         self.requiredAttributes = set(['_OBSTYPE', '_SCHEMA', '_VERSION'])
@@ -82,7 +83,7 @@ class IsrCalib(abc.ABC):
 
         if detector:
             self.fromDetector(detector)
-        self.updateMetadata(camera=camera, detector=detector, setDate=False)
+        self.updateMetadata(camera=camera, detector=detector)
 
     def __str__(self):
         return f"{self.__class__.__name__}(obstype={self._OBSTYPE}, detector={self._detectorName}, )"
@@ -145,7 +146,7 @@ class IsrCalib(abc.ABC):
             self.calibInfoFromDict(metadata.toDict())
 
     def updateMetadata(self, camera=None, detector=None, filterName=None,
-                       setCalibId=False, setDate=False,
+                       setCalibId=False, setCalibInfo=False, setDate=False,
                        **kwargs):
         """Update metadata keywords with new values.
 
@@ -166,6 +167,9 @@ class IsrCalib(abc.ABC):
         """
         mdOriginal = self.getMetadata()
         mdSupplemental = dict()
+
+        if setCalibInfo:
+            self.calibInfoFromDict(kwargs)
 
         if camera:
             self._instrument = camera.getName()
@@ -261,7 +265,7 @@ class IsrCalib(abc.ABC):
         self._detectorId = search(dictionary, ['DETECTOR', 'detectorId'])
         self._detectorName = search(dictionary, ['DET_NAME', 'DETECTOR_NAME', 'detectorName'])
         self._detectorSerial = search(dictionary, ['DET_SER', 'DETECTOR_SERIAL', 'detectorSerial'])
-        self._filter = search(dictionary, ['FILTER'])
+        self._filter = search(dictionary, ['FILTER', 'filterName'])
         self._calibId = search(dictionary, ['CALIB_ID'])
 
         if not self._detectorId and self._detectorSerial:
@@ -626,10 +630,8 @@ class IsrProvenance(IsrCalib):
         table = tableList[0]
         metadata = table.meta
         inDict = dict()
+
         inDict['metadata'] = metadata
-        inDict['detectorName'] = metadata.get('DET_NAME', None)
-        inDict['detectorSerial'] = metadata.get('DET_SER', None)
-        inDict['instrument'] = metadata.get('INSTRUME', None)
         inDict['calibType'] = metadata['calibType']
         inDict['dimensions'] = set()
         inDict['dataIdList'] = list()
@@ -663,17 +665,15 @@ class IsrProvenance(IsrCalib):
             The provenance defined in the tables.
         """
         calib = cls()
-        calib.updateMetadata(setDate=False, **dictionary['metadata'])
+        if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
+            raise RuntimeError(f"Incorrect calibration supplied.  Expected {calib._OBSTYPE}, "
+                               f"found {dictionary['metadata']['OBSTYPE']}")
+
+        calib.setMetadata(dictionary['metadata'])
 
         # These properties should be in the metadata, but occasionally
         # are found in the dictionary itself.  Check both places,
         # ending with `None` if neither contains the information.
-        calib._detectorName = dictionary.get('detectorName',
-                                             dictionary['metadata'].get('DET_NAME', None))
-        calib._detectorSerial = dictionary.get('detectorSerial',
-                                               dictionary['metadata'].get('DET_SER', None))
-        calib._instrument = dictionary.get('instrument',
-                                           dictionary['metadata'].get('INSTRUME', None))
         calib.calibType = dictionary['calibType']
         calib.dimensions = set(dictionary['dimensions'])
         calib.dataIdList = dictionary['dataIdList']
@@ -689,7 +689,7 @@ class IsrProvenance(IsrCalib):
         dictionary : `dict`
             Dictionary of provenance.
         """
-        self.updateMetadata(setDate=True)
+        self.updateMetadata()
 
         outDict = {}
 
@@ -697,6 +697,7 @@ class IsrProvenance(IsrCalib):
         outDict['metadata'] = metadata
         outDict['detectorName'] = self._detectorName
         outDict['detectorSerial'] = self._detectorSerial
+        outDict['detectorId'] = self._detectorId
         outDict['instrument'] = self._instrument
         outDict['calibType'] = self.calibType
         outDict['dimensions'] = list(self.dimensions)
@@ -717,7 +718,7 @@ class IsrProvenance(IsrCalib):
 
         """
         tableList = []
-        self.updateMetadata(setDate=True)
+        self.updateMetadata()
         catalog = Table(rows=self.dataIdList,
                         names=self.dimensions)
         filteredMetadata = {k: v for k, v in self.getMetadata().toDict().items() if v is not None}
