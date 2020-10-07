@@ -257,67 +257,51 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.setMetadata(dictionary['metadata'])
         calib.ptcFitType = dictionary['ptcFitType']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
-        if calib.ptcFitType in ['FULLCOVARIANCE', ]:
-            # Number of final signal levels
-            nSignalPoints = len(list(dictionary['rawMeans'].values())[0])
-            # The cov matrices are square
-            covMatrixSide = int(np.sqrt(len(
-                                np.array(list(dictionary['aMatrix'].values())[0]).ravel())))
+        # Number of final signal levels
+        nSignalPoints = len(list(dictionary['rawMeans'].values())[0])
+        # The cov matrices are square
+        covMatrixSide = int(np.sqrt(len(np.array(list(dictionary['aMatrix'].values())[0]).ravel())))
         for ampName in dictionary['ampNames']:
             calib.ampNames.append(ampName)
-            calib.inputExpIdPairs.setdefault(
-                ampName, np.array(dictionary['inputExpIdPairs'][ampName]).tolist())
-            calib.expIdMask.setdefault(ampName, np.array(dictionary['expIdMask'][ampName]).tolist())
-            calib.rawExpTimes.setdefault(ampName, np.array(dictionary['rawExpTimes'][ampName]).tolist())
-            calib.rawMeans.setdefault(ampName, np.array(dictionary['rawMeans'][ampName]).tolist())
-            calib.rawVars.setdefault(ampName, np.array(dictionary['rawVars'][ampName]).tolist())
-            calib.gain.setdefault(ampName, np.array(dictionary['gain'][ampName]).tolist())
-            calib.gainErr.setdefault(ampName, np.array(dictionary['gainErr'][ampName]).tolist())
-            calib.noise.setdefault(ampName, np.array(dictionary['noise'][ampName]).tolist())
-            calib.noiseErr.setdefault(ampName, np.array(dictionary['noiseErr'][ampName]).tolist())
-            calib.ptcFitPars.setdefault(ampName, np.array(dictionary['ptcFitPars'][ampName]).tolist())
-            calib.ptcFitParsError.setdefault(
-                ampName, np.array(dictionary['ptcFitParsError'][ampName]).tolist())
-            calib.ptcFitChiSq.setdefault(ampName, np.array(dictionary['ptcFitChiSq'][ampName]).tolist())
-            if calib.ptcFitType in ['FULLCOVARIANCE', ]:
-                calib.covariances.setdefault(ampName, np.array(dictionary['covariances'][ampName]).reshape(
-                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist())
-                calib.covariancesModel.setdefault(ampName, np.array(
-                    dictionary['covariancesModel'][ampName]).reshape(
-                        (nSignalPoints, covMatrixSide, covMatrixSide)).tolist())
-                calib.covariancesSqrtWeights.setdefault(
-                    ampName, np.array(dictionary['covariancesSqrtWeights'][ampName]).reshape(
-                        (nSignalPoints, covMatrixSide, covMatrixSide)).tolist())
-                calib.aMatrix.setdefault(ampName, np.array(dictionary['aMatrix'][ampName]).reshape(
-                    (covMatrixSide, covMatrixSide)).tolist())
-                calib.bMatrix.setdefault(ampName, np.array(dictionary['bMatrix'][ampName]).reshape(
-                    (covMatrixSide, covMatrixSide)).tolist())
-                calib.covariancesNoB.setdefault(ampName, np.array(
-                    dictionary['covariancesNoB'][ampName]).reshape(
-                        (nSignalPoints, covMatrixSide, covMatrixSide)).tolist())
-                calib.covariancesModelNoB.setdefault(ampName, np.array(
-                    dictionary['covariancesModelNoB'][ampName]).reshape(
-                        (nSignalPoints, covMatrixSide, covMatrixSide)).tolist())
-                calib.covariancesSqrtWeightsNoB.setdefault(
-                    ampName, np.array(dictionary['covariancesSqrtWeightsNoB'][ampName]).reshape(
-                        (nSignalPoints, covMatrixSide, covMatrixSide)).tolist())
-                calib.aMatrixNoB.setdefault(ampName,
-                                            np.array(dictionary['aMatrixNoB'][ampName]).reshape(
-                                                (covMatrixSide, covMatrixSide)).tolist())
-            else:
-                calib.covariances.setdefault(ampName, [])
-                calib.covariancesModel.setdefault(ampName, [])
-                calib.covariancesSqrtWeights.setdefault(ampName, [])
-                calib.aMatrix.setdefault(ampName, [])
-                calib.bMatrix.setdefault(ampName, [])
-                calib.covariancesNoB.setdefault(ampName, [])
-                calib.covariancesModelNoB.setdefault(ampName, [])
-                calib.covariancesSqrtWeightsNoB.setdefault(ampName, [])
-                calib.aMatrixNoB.setdefault(ampName, [])
-            calib.finalVars.setdefault(ampName, np.array(dictionary['finalVars'][ampName]).tolist())
-            calib.finalModelVars.setdefault(ampName, np.array(dictionary['finalModelVars'][ampName]).tolist())
-            calib.finalMeans.setdefault(ampName, np.array(dictionary['finalMeans'][ampName]).tolist())
-            calib.photoCharge.setdefault(ampName, np.array(dictionary['photoCharge'][ampName]).tolist())
+            calib.inputExpIdPairs[ampName] = np.array(dictionary['inputExpIdPairs'][ampName]).tolist()
+            calib.expIdMask[ampName] = np.array(dictionary['expIdMask'][ampName]).tolist()
+            calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName]).tolist()
+            calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName]).tolist()
+            calib.rawVars[ampName] = np.array(dictionary['rawVars'][ampName]).tolist()
+            calib.gain[ampName] = np.array(dictionary['gain'][ampName]).tolist()
+            calib.gainErr[ampName] = np.array(dictionary['gainErr'][ampName]).tolist()
+            calib.noise[ampName] = np.array(dictionary['noise'][ampName]).tolist()
+            calib.noiseErr[ampName] = np.array(dictionary['noiseErr'][ampName]).tolist()
+            calib.ptcFitPars[ampName] = np.array(dictionary['ptcFitPars'][ampName]).tolist()
+            calib.ptcFitParsError[ampName] = np.array(dictionary['ptcFitParsError'][ampName]).tolist()
+            calib.ptcFitChiSq[ampName] = np.array(dictionary['ptcFitChiSq'][ampName]).tolist()
+            calib.covariances[ampName] = np.array(dictionary['covariances'][ampName]).reshape(
+                (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
+            calib.covariancesModel[ampName] = np.array(
+                dictionary['covariancesModel'][ampName]).reshape(
+                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
+            calib.covariancesSqrtWeights[ampName] = np.array(
+                dictionary['covariancesSqrtWeights'][ampName]).reshape(
+                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
+            calib.aMatrix[ampName] = np.array(dictionary['aMatrix'][ampName]).reshape(
+                (covMatrixSide, covMatrixSide)).tolist()
+            calib.bMatrix[ampName] = np.array(dictionary['bMatrix'][ampName]).reshape(
+                (covMatrixSide, covMatrixSide)).tolist()
+            calib.covariancesNoB[ampName] = np.array(
+                dictionary['covariancesNoB'][ampName]).reshape(
+                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
+            calib.covariancesModelNoB[ampName] = np.array(
+                dictionary['covariancesModelNoB'][ampName]).reshape(
+                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
+            calib.covariancesSqrtWeightsNoB[ampName] = np.array(
+                dictionary['covariancesSqrtWeightsNoB'][ampName]).reshape(
+                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
+            calib.aMatrixNoB[ampName] = np.array(
+                dictionary['aMatrixNoB'][ampName]).reshape((covMatrixSide, covMatrixSide)).tolist()
+            calib.finalVars[ampName] = np.array(dictionary['finalVars'][ampName]).tolist()
+            calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName]).tolist()
+            calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName]).tolist()
+            calib.photoCharge[ampName] = np.array(dictionary['photoCharge'][ampName]).tolist()
         calib.updateMetadata()
         return calib
 

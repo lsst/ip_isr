@@ -63,17 +63,15 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         self.c1 = 1./self.gain
 
         self.ampNames = [amp.getName() for amp in self.flatExp1.getDetector().getAmplifiers()]
-        self.dataset = PhotonTransferCurveDataset(self.ampNames, " ")
 
-    def test_ptcDatset1(self):
-        localDataset = PhotonTransferCurveDataset(self.ampNames, " ")
+    def test_ptcDatset(self):
         # Fill the set up with made up data.
         nSignalPoints = 5
         nSideCovMatrix = 2
-        localDataset.badAmps = [localDataset.ampNames[0], localDataset.ampNames[1]]
         for fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', 'FULLCOVARIANCE']:
+            localDataset = PhotonTransferCurveDataset(self.ampNames, " ")
             localDataset.ptcFitType = fitType
-
+            localDataset.badAmps = [localDataset.ampNames[0], localDataset.ampNames[1]]
             for ampName in localDataset.ampNames:
 
                 localDataset.inputExpIdPairs[ampName] = np.repeat(1, nSignalPoints).tolist()
@@ -137,10 +135,15 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.aMatrixNoB[ampName] = np.full(
                         (nSideCovMatrix, nSideCovMatrix), 2e-6).tolist()
 
-        filename = tempfile.mktemp()
-        usedFilename = localDataset.writeFits(filename + ".fits")
-        fromFits = localDataset.readFits(usedFilename)
-        self.assertEqual(localDataset, fromFits)
+            filename = tempfile.mktemp()
+            usedFilename = localDataset.writeText(filename + ".yaml")
+            fromText = PhotonTransferCurveDataset.readText(usedFilename)
+            self.assertEqual(localDataset, fromText)
+
+            filename = tempfile.mktemp()
+            usedFilename = localDataset.writeFits(filename + ".fits")
+            fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
+            self.assertEqual(localDataset, fromFits)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
