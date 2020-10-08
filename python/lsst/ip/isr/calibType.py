@@ -248,7 +248,11 @@ class IsrCalib(abc.ABC):
                 else:
                     return None
             elif len(test) == 1:
-                return list(test)[0]
+                value = list(test)[0]
+                if value == '':
+                    return None
+                else:
+                    return value
             else:
                 raise ValueError(f"Too many values found: {len(test)} {test} {needles}")
 
