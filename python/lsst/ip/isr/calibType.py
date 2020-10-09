@@ -273,7 +273,7 @@ class IsrCalib(abc.ABC):
         self._calibId = search(dictionary, ['CALIB_ID'])
 
     @classmethod
-    def readText(cls, filename):
+    def readText(cls, filename, **kwargs):
         """Read calibration representation from a yaml/ecsv file.
 
         Parameters
@@ -293,12 +293,12 @@ class IsrCalib(abc.ABC):
         """
         if filename.endswith((".ecsv", ".ECSV")):
             data = Table.read(filename, format='ascii.ecsv')
-            return cls.fromTable([data])
+            return cls.fromTable([data], **kwargs)
 
         elif filename.endswith((".yaml", ".YAML")):
             with open(filename, 'r') as f:
                 data = yaml.load(f, Loader=yaml.CLoader)
-            return cls.fromDict(data)
+            return cls.fromDict(data, **kwargs)
         else:
             raise RuntimeError(f"Unknown filename extension: {filename}")
 
@@ -356,7 +356,7 @@ class IsrCalib(abc.ABC):
         return filename
 
     @classmethod
-    def readFits(cls, filename):
+    def readFits(cls, filename, **kwargs):
         """Read calibration data from a FITS file.
 
         Parameters
@@ -432,7 +432,7 @@ class IsrCalib(abc.ABC):
         raise NotImplementedError("Must be implemented by subclass.")
 
     @classmethod
-    def fromDict(cls, dictionary):
+    def fromDict(cls, dictionary, **kwargs):
         """Construct a calibration from a dictionary of properties.
 
         Must be implemented by the specific calibration subclasses.
@@ -473,7 +473,7 @@ class IsrCalib(abc.ABC):
         raise NotImplementedError("Must be implemented by subclass.")
 
     @classmethod
-    def fromTable(cls, tableList):
+    def fromTable(cls, tableList, **kwargs):
         """Construct a calibration from a dictionary of properties.
 
         Must be implemented by the specific calibration subclasses.

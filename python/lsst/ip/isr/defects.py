@@ -490,7 +490,7 @@ class Defects(IsrCalib):
         return values[:n]
 
     @classmethod
-    def fromTable(cls, tableList):
+    def fromTable(cls, tableList, normalize_on_init=True):
         """Construct a `Defects` from the contents of a
         `~lsst.afw.table.BaseCatalog`.
 
@@ -498,6 +498,11 @@ class Defects(IsrCalib):
         ----------
         table : `lsst.afw.table.BaseCatalog`
             Table with one row per defect.
+        normalize_on_init : `bool`, optional
+            If `True`, normalization is applied to the defects listed in the
+            table to remove duplicates, eliminate overlaps, etc. Otherwise
+            the defects in the returned object exactly match those in the
+            table.
 
         Returns
         -------
@@ -577,20 +582,26 @@ class Defects(IsrCalib):
 
             defectList.append(box)
 
-        defects = cls(defectList)
+        defects = cls(defectList, normalize_on_init=normalize_on_init)
         defects.setMetadata(table.meta)
         defects.updateMetadata()
 
         return defects
 
     @classmethod
-    def readLsstDefectsFile(cls, filename):
+    def readLsstDefectsFile(cls, filename, normalize_on_init=False):
         """Read defects information from a legacy LSST format text file.
 
         Parameters
         ----------
         filename : `str`
             Name of text file containing the defect information.
+
+        normalize_on_init : `bool`, optional
+            If `True`, normalization is applied to the defects listed in the
+            table to remove duplicates, eliminate overlaps, etc. Otherwise
+            the defects in the returned object exactly match those in the
+            table.
 
         Returns
         -------
@@ -622,9 +633,11 @@ class Defects(IsrCalib):
                                   dtype=[("x0", "int"), ("y0", "int"),
                                          ("x_extent", "int"), ("y_extent", "int")])
 
-        return cls(lsst.geom.Box2I(lsst.geom.Point2I(row["x0"], row["y0"]),
+        defects = (lsst.geom.Box2I(lsst.geom.Point2I(row["x0"], row["y0"]),
                                    lsst.geom.Extent2I(row["x_extent"], row["y_extent"]))
                    for row in defect_array)
+
+        return cls(defects, normalize_on_init=normalize_on_init)
 
     @classmethod
     def fromFootprintList(cls, fpList):

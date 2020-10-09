@@ -141,7 +141,8 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         # The two coincident points are combined on read, so we end up with two defects.
 
         with self.assertLogs():
-            defects = Defects.readFits(os.path.join(TESTDIR, "data", "fits_region.fits"))
+            defects = Defects.readFits(os.path.join(TESTDIR, "data", "fits_region.fits"),
+                                       normalize_on_init=True)
 
         self.assertEqual(len(defects), 2)
 
@@ -162,7 +163,7 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
 10 10 10 10
 """, file=fh)
 
-            defects = Defects.readLsstDefectsFile(tmpFile)
+            defects = Defects.readLsstDefectsFile(tmpFile, normalize_on_init=True)
 
         # Although there are 9 defects listed above, we record 11 after
         # normalization. This is due to non-optimal behaviour in
