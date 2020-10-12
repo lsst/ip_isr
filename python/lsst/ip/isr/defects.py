@@ -406,7 +406,6 @@ class Defects(IsrCalib):
         outDict['height'] = heightCol
 
         return outDict
-        # CZW STOPPED HERE.
 
     def toTable(self):
         """Convert defects to a simple table form that we use to write
@@ -452,7 +451,6 @@ class Defects(IsrCalib):
         catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol})
         inMeta = self.getMetadata().toDict()
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
-        outMeta.update({k: "" for k, v in inMeta.items() if v is None})
         catalog.meta = outMeta
         tableList.append(catalog)
 
@@ -543,7 +541,7 @@ class Defects(IsrCalib):
                 # Correct for FITS 1-based origin
                 xcen = cls._get_values(record['X']) - 1.0
                 ycen = cls._get_values(record['Y']) - 1.0
-                shape = record['SHAPE'].upper()
+                shape = record['SHAPE'].upper().rstrip()
                 if shape == "BOX":
                     box = lsst.geom.Box2I.makeCenteredBox(lsst.geom.Point2D(xcen, ycen),
                                                           lsst.geom.Extent2I(cls._get_values(record['R'],
@@ -583,8 +581,8 @@ class Defects(IsrCalib):
             defectList.append(box)
 
         defects = cls(defectList, normalize_on_init=normalize_on_init)
-        defects.setMetadata(table.meta)
-        defects.updateMetadata()
+        newMeta = dict(table.meta)
+        defects.updateMetadata(setCalibInfo=True, **newMeta)
 
         return defects
 

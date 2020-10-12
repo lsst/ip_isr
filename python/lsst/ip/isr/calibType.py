@@ -158,8 +158,10 @@ class IsrCalib(abc.ABC):
             Reference detector to use to set _detector* fields.
         filterName : `str`, optional
             Filter name to assign to this calibration.
-        setCalibId : `bool` optional
+        setCalibId : `bool`, optional
             Construct the _calibId field from other fields.
+        setCalibInfo : `bool`, optional
+            Set calibration parameters from metadata.
         setDate : `bool`, optional
             Ensure the metadata CALIBDATE fields are set to the current datetime.
         kwargs : `dict` or `collections.abc.Mapping`, optional
@@ -167,6 +169,10 @@ class IsrCalib(abc.ABC):
         """
         mdOriginal = self.getMetadata()
         mdSupplemental = dict()
+
+        for k, v in kwargs.items():
+            if isinstance(v, fits.card.Undefined):
+                kwargs[k] = None
 
         if setCalibInfo:
             self.calibInfoFromDict(kwargs)
@@ -209,7 +215,7 @@ class IsrCalib(abc.ABC):
         self._metadata["INSTRUME"] = self._instrument if self._instrument else None
         self._metadata["RAFTNAME"] = self._raftName if self._raftName else None
         self._metadata["SLOTNAME"] = self._slotName if self._slotName else None
-        self._metadata["DETECTOR"] = self._detectorId if self._detectorId else None
+        self._metadata["DETECTOR"] = self._detectorId if self._detectorId is not None else None
         self._metadata["DET_NAME"] = self._detectorName if self._detectorName else None
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
@@ -668,8 +674,7 @@ class IsrProvenance(IsrCalib):
         if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
             raise RuntimeError(f"Incorrect calibration supplied.  Expected {calib._OBSTYPE}, "
                                f"found {dictionary['metadata']['OBSTYPE']}")
-
-        calib.setMetadata(dictionary['metadata'])
+        calib.updateMetadata(setDate=False, setCalibInfo=True, **dictionary['metadata'])
 
         # These properties should be in the metadata, but occasionally
         # are found in the dictionary itself.  Check both places,
@@ -718,7 +723,8 @@ class IsrProvenance(IsrCalib):
 
         """
         tableList = []
-        self.updateMetadata()
+        self.updateMetadata(setDate=True, setCalibInfo=True)
+
         catalog = Table(rows=self.dataIdList,
                         names=self.dimensions)
         filteredMetadata = {k: v for k, v in self.getMetadata().toDict().items() if v is not None}
