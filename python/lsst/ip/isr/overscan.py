@@ -346,7 +346,10 @@ class OverscanCorrectionTask(pipeBase.Task):
         fitType = afwMath.stringToStatisticsProperty('MEDIAN')
         for row in integerMI:
             newRow = row.compressed()
-            rowMedian = afwMath.makeStatistics(newRow, fitType, self.statControl).getValue()
+            if len(newRow) > 0:
+                rowMedian = afwMath.makeStatistics(newRow, fitType, self.statControl).getValue()
+            else:
+                rowMedian = np.nan
             collapsed.append(rowMedian)
 
         return np.array(collapsed)
