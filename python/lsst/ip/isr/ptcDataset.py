@@ -257,10 +257,12 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.setMetadata(dictionary['metadata'])
         calib.ptcFitType = dictionary['ptcFitType']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
-        # Number of final signal levels
-        nSignalPoints = len(list(dictionary['rawMeans'].values())[0])
         # The cov matrices are square
         covMatrixSide = int(np.sqrt(len(np.array(list(dictionary['aMatrix'].values())[0]).ravel())))
+        # Number of final signal levels
+        covDimensionsProduct = len(list(dictionary['covariances'].values())[0])
+        nSignalPoints = int(covDimensionsProduct/(covMatrixSide*covMatrixSide))
+
         for ampName in dictionary['ampNames']:
             calib.ampNames.append(ampName)
             calib.inputExpIdPairs[ampName] = np.array(dictionary['inputExpIdPairs'][ampName]).tolist()
@@ -447,7 +449,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         """
         tableList = []
         self.updateMetadata()
-        nSignalPoints = len(list(self.rawExpTimes.values())[0])
+        nSignalPoints = len(list(self.covariances.values())[0])
         covMatrixSide = np.array(list(self.aMatrix.values())[0]).shape[0]
         catalog = Table([{'AMPLIFIER_NAME': ampName,
                           'PTC_FIT_TYPE': self.ptcFitType,
