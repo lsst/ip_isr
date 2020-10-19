@@ -272,9 +272,6 @@ class IsrCalib(abc.ABC):
         self._filter = search(dictionary, ['FILTER', 'filterName'])
         self._calibId = search(dictionary, ['CALIB_ID'])
 
-        if not self._detectorId and self._detectorSerial:
-            self._detectorId = self._detectorSerial
-
     @classmethod
     def readText(cls, filename):
         """Read calibration representation from a yaml/ecsv file.
@@ -634,7 +631,6 @@ class IsrProvenance(IsrCalib):
         table = tableList[0]
         metadata = table.meta
         inDict = dict()
-
         inDict['metadata'] = metadata
         inDict['calibType'] = metadata['calibType']
         inDict['dimensions'] = set()
