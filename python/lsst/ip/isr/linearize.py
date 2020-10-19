@@ -557,8 +557,10 @@ class LinearizeLookupTable(LinearizeBase):
 
         Returns
         -------
-        output : `bool`
-            If true, a correction was applied successfully.
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
 
         Raises
         ------
@@ -625,8 +627,10 @@ class LinearizePolynomial(LinearizeBase):
 
         Returns
         -------
-        output : `bool`
-            If true, a correction was applied successfully.
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
         """
         if not np.any(np.isfinite(kwargs['coeffs'])):
             return False, 0
@@ -667,8 +671,10 @@ class LinearizeSquared(LinearizeBase):
 
         Returns
         -------
-        output : `bool`
-            If true, a correction was applied successfully.
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
         """
 
         sqCoeff = kwargs['coeffs'][0]
@@ -711,8 +717,10 @@ class LinearizeSpline(LinearizeBase):
 
         Returns
         -------
-        output : `bool`
-            If true, a correction was applied successfully.
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
         """
         splineCoeff = kwargs['coeffs']
         centers, values = np.split(splineCoeff, 2)
@@ -747,8 +755,10 @@ class LinearizeProportional(LinearizeBase):
 
         Returns
         -------
-        output : `bool`
-            If true, a correction was applied successfully.
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
         """
         return True, 0
 
@@ -774,7 +784,9 @@ class LinearizeNone(LinearizeBase):
 
         Returns
         -------
-        output : `bool`
-            If true, a correction was applied successfully.
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
         """
         return True, 0
