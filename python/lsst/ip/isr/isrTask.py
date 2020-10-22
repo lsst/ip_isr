@@ -91,7 +91,7 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
     results = list(registry.queryDatasets(datasetType,
                                           collections=collections,
                                           dataId=newDataId,
-                                          deduplicate=True,
+                                          findFirst=True,
                                           ).expanded())
     return results
 
