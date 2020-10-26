@@ -864,10 +864,12 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             raise ValueError("You may not specify both doFlat and doApplyGains")
         if self.doBiasBeforeOverscan and self.doTrimToMatchCalib:
             raise ValueError("You may not specify both doBiasBeforeOverscan and doTrimToMatchCalib")
-        if self.doSaturationInterpolation and "SAT" not in self.maskListToInterpolate:
-            self.config.maskListToInterpolate.append("SAT")
+        if self.doSaturationInterpolation and self.saturatedMaskName not in self.maskListToInterpolate:
+            self.maskListToInterpolate.append(self.saturatedMaskName)
+        if not self.doSaturationInterpolation and self.saturatedMaskName in self.maskListToInterpolate:
+            self.maskListToInterpolate.remove(self.saturatedMaskName)
         if self.doNanInterpolation and "UNMASKEDNAN" not in self.maskListToInterpolate:
-            self.config.maskListToInterpolate.append("UNMASKEDNAN")
+            self.maskListToInterpolate.append("UNMASKEDNAN")
 
 
 class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
