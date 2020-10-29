@@ -53,6 +53,7 @@ from .masking import MaskingTask
 from .overscan import OverscanCorrectionTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
+from .ampOffset import AmpOffsetTask
 from lsst.daf.butler import DimensionGraph
 
 
@@ -417,7 +418,6 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         target=OverscanCorrectionTask,
         doc="Overscan subtraction task for image segments.",
     )
-
     overscanFitType = pexConfig.ChoiceField(
         dtype=str,
         doc="The method for fitting the overscan bias level.",
@@ -721,6 +721,17 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
+    # Amp offset correction.
+    doAmpOffset = pexConfig.Field(
+        dtype=bool,
+        doc="Apply pattern continuity corrections to correct for amp-to-amp offsets?",
+        default=True,
+    )
+    ampOffset = pexConfig.ConfigurableField(
+        target=AmpOffsetTask,
+        doc="Amp-to-amp offset correction task."
+    )
+
     # Initial CCD-level background statistics options.
     doMeasureBackground = pexConfig.Field(
         dtype=bool,
@@ -740,7 +751,6 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
 
     # Interpolation options.
-
     doInterpolate = pexConfig.Field(
         dtype=bool,
         doc="Interpolate masked pixels?",
@@ -912,6 +922,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("masking")
         self.makeSubtask("overscan")
         self.makeSubtask("vignette")
+        self.makeSubtask("ampOffset")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
         inputs = butlerQC.get(inputRefs)
@@ -1625,6 +1636,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             )
 
         self.roughZeroPoint(ccdExposure)
+
+        # correct for amp offsets within the CCD
+        if self.config.doAmpOffset:
+            self.log.info("Correcting amp offsets.")
+            self.ampOffset.run(ccdExposure)
 
         if self.config.doMeasureBackground:
             self.log.info("Measuring background level.")
