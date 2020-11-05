@@ -286,6 +286,9 @@ class IsrCalib(abc.ABC):
         ----------
         filename : `str`
             Name of the file containing the calibration definition.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value pairs to pass to the ``fromDict`` or
+            ``fromTable`` methods.
 
         Returns
         -------
@@ -369,6 +372,9 @@ class IsrCalib(abc.ABC):
         ----------
         filename : `str`
             Filename to read data from.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value pairs to pass to the ``fromTable``
+            method.
 
         Returns
         -------
@@ -395,7 +401,7 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        return cls.fromTable(tableList)
+        return cls.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
         """Write calibration data to a FITS file.
@@ -447,6 +453,8 @@ class IsrCalib(abc.ABC):
         ----------
         dictionary : `dict`
             Dictionary of properties.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value options.
 
         Returns
         ------
@@ -488,6 +496,8 @@ class IsrCalib(abc.ABC):
         ----------
         tableList : `list` [`lsst.afw.table.Table`]
             List of tables of properties.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value options.
 
         Returns
         ------
