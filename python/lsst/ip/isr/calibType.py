@@ -215,7 +215,7 @@ class IsrCalib(abc.ABC):
         self._metadata["INSTRUME"] = self._instrument if self._instrument else None
         self._metadata["RAFTNAME"] = self._raftName if self._raftName else None
         self._metadata["SLOTNAME"] = self._slotName if self._slotName else None
-        self._metadata["DETECTOR"] = self._detectorId if self._detectorId is not None else None
+        self._metadata["DETECTOR"] = self._detectorId
         self._metadata["DET_NAME"] = self._detectorName if self._detectorName else None
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
