@@ -37,3 +37,4 @@ from .straylight import *
 from .isrQa import *
 from .isrMock import *
 from .ptcDataset import *
+from .defects import *

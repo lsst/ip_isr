@@ -39,11 +39,11 @@ from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
 from lsst.daf.persistence.butler import NoResults
 from lsst.meas.algorithms.detection import SourceDetectionTask
-from lsst.meas.algorithms import Defects
 
 from . import isrFunctions
 from . import isrQa
 from . import linearize
+from .defects import Defects
 
 from .assembleCcdTask import AssembleCcdTask
 from .crosstalk import CrosstalkTask, CrosstalkCalib
@@ -1023,7 +1023,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             - ``dark``: dark calibration frame (`afw.image.Exposure`)
             - ``flat``: flat calibration frame (`afw.image.Exposure`)
             - ``bfKernel``: Brighter-Fatter kernel (`numpy.ndarray`)
-            - ``defects``: list of defects (`lsst.meas.algorithms.Defects`)
+            - ``defects``: list of defects (`lsst.ip.isr.Defects`)
             - ``fringes``: `lsst.pipe.base.Struct` with components:
               - ``fringes``: fringe calibration frame (`afw.image.Exposure`)
               - ``seed``: random seed derived from the ccdExposureId for random
@@ -1225,7 +1225,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Gains used to override the detector's nominal gains for the
             brighter-fatter correction. A dict keyed by amplifier name for
             the detector in question.
-        defects : `lsst.meas.algorithms.Defects`, optional
+        defects : `lsst.ip.isr.Defects`, optional
             List of defects.
         fringes : `lsst.pipe.base.Struct`, optional
             Struct containing the fringe correction data, with
@@ -1839,7 +1839,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         amp : `lsst.afw.table.AmpInfoCatalog`
             Catalog of parameters defining the amplifier on this
             exposure to mask.
-        defects : `lsst.meas.algorithms.Defects`
+        defects : `lsst.ip.isr.Defects`
             List of defects.  Used to determine if the entire
             amplifier is bad.
 
@@ -2256,7 +2256,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
+        defectBaseList : `lsst.ip.isr.Defects` or `list` of
                          `lsst.afw.image.DefectBase`.
             List of defects to mask.
 
@@ -2312,7 +2312,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `lsst.meas.algorithms.Defects` or `list` of
+        defectBaseList : `lsst.ip.isr.Defects` or `list` of
                          `lsst.afw.image.DefectBase`.
             List of defects to mask and interpolate.
 

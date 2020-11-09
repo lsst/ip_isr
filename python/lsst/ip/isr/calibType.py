@@ -158,8 +158,10 @@ class IsrCalib(abc.ABC):
             Reference detector to use to set _detector* fields.
         filterName : `str`, optional
             Filter name to assign to this calibration.
-        setCalibId : `bool` optional
+        setCalibId : `bool`, optional
             Construct the _calibId field from other fields.
+        setCalibInfo : `bool`, optional
+            Set calibration parameters from metadata.
         setDate : `bool`, optional
             Ensure the metadata CALIBDATE fields are set to the current datetime.
         kwargs : `dict` or `collections.abc.Mapping`, optional
@@ -167,6 +169,10 @@ class IsrCalib(abc.ABC):
         """
         mdOriginal = self.getMetadata()
         mdSupplemental = dict()
+
+        for k, v in kwargs.items():
+            if isinstance(v, fits.card.Undefined):
+                kwargs[k] = None
 
         if setCalibInfo:
             self.calibInfoFromDict(kwargs)
@@ -209,7 +215,7 @@ class IsrCalib(abc.ABC):
         self._metadata["INSTRUME"] = self._instrument if self._instrument else None
         self._metadata["RAFTNAME"] = self._raftName if self._raftName else None
         self._metadata["SLOTNAME"] = self._slotName if self._slotName else None
-        self._metadata["DETECTOR"] = self._detectorId if self._detectorId else None
+        self._metadata["DETECTOR"] = self._detectorId
         self._metadata["DET_NAME"] = self._detectorName if self._detectorName else None
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
@@ -273,13 +279,16 @@ class IsrCalib(abc.ABC):
         self._calibId = search(dictionary, ['CALIB_ID'])
 
     @classmethod
-    def readText(cls, filename):
+    def readText(cls, filename, **kwargs):
         """Read calibration representation from a yaml/ecsv file.
 
         Parameters
         ----------
         filename : `str`
             Name of the file containing the calibration definition.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value pairs to pass to the ``fromDict`` or
+            ``fromTable`` methods.
 
         Returns
         -------
@@ -293,12 +302,12 @@ class IsrCalib(abc.ABC):
         """
         if filename.endswith((".ecsv", ".ECSV")):
             data = Table.read(filename, format='ascii.ecsv')
-            return cls.fromTable([data])
+            return cls.fromTable([data], **kwargs)
 
         elif filename.endswith((".yaml", ".YAML")):
             with open(filename, 'r') as f:
                 data = yaml.load(f, Loader=yaml.CLoader)
-            return cls.fromDict(data)
+            return cls.fromDict(data, **kwargs)
         else:
             raise RuntimeError(f"Unknown filename extension: {filename}")
 
@@ -356,13 +365,16 @@ class IsrCalib(abc.ABC):
         return filename
 
     @classmethod
-    def readFits(cls, filename):
+    def readFits(cls, filename, **kwargs):
         """Read calibration data from a FITS file.
 
         Parameters
         ----------
         filename : `str`
             Filename to read data from.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value pairs to pass to the ``fromTable``
+            method.
 
         Returns
         -------
@@ -389,7 +401,7 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        return cls.fromTable(tableList)
+        return cls.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
         """Write calibration data to a FITS file.
@@ -432,7 +444,7 @@ class IsrCalib(abc.ABC):
         raise NotImplementedError("Must be implemented by subclass.")
 
     @classmethod
-    def fromDict(cls, dictionary):
+    def fromDict(cls, dictionary, **kwargs):
         """Construct a calibration from a dictionary of properties.
 
         Must be implemented by the specific calibration subclasses.
@@ -441,6 +453,8 @@ class IsrCalib(abc.ABC):
         ----------
         dictionary : `dict`
             Dictionary of properties.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value options.
 
         Returns
         ------
@@ -473,7 +487,7 @@ class IsrCalib(abc.ABC):
         raise NotImplementedError("Must be implemented by subclass.")
 
     @classmethod
-    def fromTable(cls, tableList):
+    def fromTable(cls, tableList, **kwargs):
         """Construct a calibration from a dictionary of properties.
 
         Must be implemented by the specific calibration subclasses.
@@ -482,6 +496,8 @@ class IsrCalib(abc.ABC):
         ----------
         tableList : `list` [`lsst.afw.table.Table`]
             List of tables of properties.
+        kwargs : `dict` or collections.abc.Mapping`, optional
+            Set of key=value options.
 
         Returns
         ------
@@ -668,8 +684,7 @@ class IsrProvenance(IsrCalib):
         if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
             raise RuntimeError(f"Incorrect calibration supplied.  Expected {calib._OBSTYPE}, "
                                f"found {dictionary['metadata']['OBSTYPE']}")
-
-        calib.setMetadata(dictionary['metadata'])
+        calib.updateMetadata(setDate=False, setCalibInfo=True, **dictionary['metadata'])
 
         # These properties should be in the metadata, but occasionally
         # are found in the dictionary itself.  Check both places,
@@ -718,7 +733,8 @@ class IsrProvenance(IsrCalib):
 
         """
         tableList = []
-        self.updateMetadata()
+        self.updateMetadata(setDate=True, setCalibInfo=True)
+
         catalog = Table(rows=self.dataIdList,
                         names=self.dimensions)
         filteredMetadata = {k: v for k, v in self.getMetadata().toDict().items() if v is not None}

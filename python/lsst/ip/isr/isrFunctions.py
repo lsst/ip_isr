@@ -34,6 +34,7 @@ from lsst.meas.algorithms.detection import SourceDetectionTask
 from contextlib import contextmanager
 
 from .overscan import OverscanCorrectionTask, OverscanCorrectionTaskConfig
+from .defects import Defects
 
 
 def createPsf(fwhm):
@@ -129,7 +130,7 @@ def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     bitmask = mask.getPlaneBitMask(maskName)
     afwDetection.setMaskFromFootprintList(mask, fpList, bitmask)
 
-    return measAlg.Defects.fromFootprintList(fpList)
+    return Defects.fromFootprintList(fpList)
 
 
 def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
@@ -179,7 +180,7 @@ def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
 
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskNameList), afwDetection.Threshold.BITMASK)
     fpSet = afwDetection.FootprintSet(mask, thresh)
-    defectList = measAlg.Defects.fromFootprintList(fpSet.getFootprints())
+    defectList = Defects.fromFootprintList(fpSet.getFootprints())
 
     interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
 
