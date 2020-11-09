@@ -572,7 +572,6 @@ class Defects(IsrCalib):
 
             else:
                 # This is a classic LSST-style defect table
-                # import pdb ; pdb.set_trace()
                 box = lsst.geom.Box2I(lsst.geom.Point2I(record['x0'], record['y0']),
                                       lsst.geom.Extent2I(record['width'], record['height']))
 
