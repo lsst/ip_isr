@@ -257,10 +257,12 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.setMetadata(dictionary['metadata'])
         calib.ptcFitType = dictionary['ptcFitType']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
-        # Number of final signal levels
-        nSignalPoints = len(list(dictionary['rawMeans'].values())[0])
         # The cov matrices are square
         covMatrixSide = int(np.sqrt(len(np.array(list(dictionary['aMatrix'].values())[0]).ravel())))
+        # Number of final signal levels
+        covDimensionsProduct = len(np.array(list(dictionary['covariances'].values())[0]).ravel())
+        nSignalPoints = int(covDimensionsProduct/(covMatrixSide*covMatrixSide))
+
         for ampName in dictionary['ampNames']:
             calib.ampNames.append(ampName)
             calib.inputExpIdPairs[ampName] = np.array(dictionary['inputExpIdPairs'][ampName]).tolist()
@@ -447,15 +449,29 @@ class PhotonTransferCurveDataset(IsrCalib):
         """
         tableList = []
         self.updateMetadata()
-        nSignalPoints = len(list(self.rawExpTimes.values())[0])
+        nPoints = []
+        for i, ampName in enumerate(self.ampNames):
+            nPoints.append(len(list(self.covariances.values())[i]))
+        nSignalPoints = max(nPoints)
+        nPadPoints = {}
+        for i, ampName in enumerate(self.ampNames):
+            nPadPoints[ampName] = nSignalPoints - len(list(self.covariances.values())[i])
         covMatrixSide = np.array(list(self.aMatrix.values())[0]).shape[0]
         catalog = Table([{'AMPLIFIER_NAME': ampName,
                           'PTC_FIT_TYPE': self.ptcFitType,
                           'INPUT_EXP_ID_PAIRS': self.inputExpIdPairs[ampName],
-                          'EXP_ID_MASK': self.expIdMask[ampName],
-                          'RAW_EXP_TIMES': self.rawExpTimes[ampName],
-                          'RAW_MEANS': self.rawMeans[ampName],
-                          'RAW_VARS': self.rawVars[ampName],
+                          'EXP_ID_MASK': np.pad(np.array(self.expIdMask[ampName], dtype=bool),
+                                                (0, nPadPoints[ampName]), 'constant',
+                                                constant_values=False).tolist(),
+                          'RAW_EXP_TIMES': np.pad(np.array(self.rawExpTimes[ampName]),
+                                                  (0, nPadPoints[ampName]), 'constant',
+                                                  constant_values=np.nan).tolist(),
+                          'RAW_MEANS': np.pad(np.array(self.rawMeans[ampName]),
+                                              (0, nPadPoints[ampName]),
+                                              'constant', constant_values=np.nan).tolist(),
+                          'RAW_VARS': np.pad(np.array(self.rawVars[ampName]),
+                                             (0, nPadPoints[ampName]),
+                                             'constant', constant_values=np.nan).tolist(),
                           'GAIN': self.gain[ampName],
                           'GAIN_ERR': self.gainErr[ampName],
                           'NOISE': self.noise[ampName],
@@ -463,34 +479,47 @@ class PhotonTransferCurveDataset(IsrCalib):
                           'PTC_FIT_PARS': np.array(self.ptcFitPars[ampName]).tolist(),
                           'PTC_FIT_PARS_ERROR': np.array(self.ptcFitParsError[ampName]).tolist(),
                           'PTC_FIT_CHI_SQ': self.ptcFitChiSq[ampName],
-                          'COVARIANCES': np.array(self.covariances[ampName]).reshape(
+                          'COVARIANCES': np.pad(np.array(self.covariances[ampName]),
+                                                ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
+                                                 'constant', constant_values=np.nan).reshape(
+                                                 nSignalPoints*covMatrixSide**2).tolist(),
+                          'COVARIANCES_MODEL': np.pad(np.array(self.covariancesModel[ampName]),
+                                                      ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
+                                                      'constant', constant_values=np.nan).reshape(
+                                                      nSignalPoints*covMatrixSide**2).tolist(),
+                          'COVARIANCES_SQRT_WEIGHTS': np.pad(np.array(self.covariancesSqrtWeights[ampName]),
+                                                             ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
+                                                             'constant', constant_values=0.0).reshape(
                               nSignalPoints*covMatrixSide**2).tolist(),
-                          'COVARIANCES_MODEL':
-                              np.array(self.covariancesModel[ampName]).reshape(
-                                  nSignalPoints*covMatrixSide**2).tolist(),
-                          'COVARIANCES_SQRT_WEIGHTS':
-                              np.array(self.covariancesSqrtWeights[ampName]).reshape(
-                                  nSignalPoints*covMatrixSide**2).tolist(),
                           'A_MATRIX': np.array(self.aMatrix[ampName]).reshape(covMatrixSide**2).tolist(),
                           'B_MATRIX': np.array(self.bMatrix[ampName]).reshape(covMatrixSide**2).tolist(),
-                          'COVARIANCES_NO_B':
-                              np.array(self.covariancesNoB[ampName]).reshape(
-                                  nSignalPoints*covMatrixSide**2).tolist(),
+                          'COVARIANCES_NO_B': np.pad(np.array(self.covariancesNoB[ampName]),
+                                                     ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
+                                                     'constant', constant_values=np.nan).reshape(
+                                                     nSignalPoints*covMatrixSide**2).tolist(),
                           'COVARIANCES_MODEL_NO_B':
-                              np.array(self.covariancesModelNoB[ampName]).reshape(
-                                  nSignalPoints*covMatrixSide**2).tolist(),
+                              np.pad(np.array(self.covariancesModelNoB[ampName]),
+                                     ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
+                                     'constant', constant_values=np.nan).reshape(
+                              nSignalPoints*covMatrixSide**2).tolist(),
                           'COVARIANCES_SQRT_WEIGHTS_NO_B':
-                              np.array(self.covariancesSqrtWeightsNoB[ampName]).reshape(
-                                  nSignalPoints*covMatrixSide**2).tolist(),
-                          'A_MATRIX_NO_B':
-                          np.array(self.aMatrixNoB[ampName]).reshape(covMatrixSide**2).tolist(),
-                          'FINAL_VARS': self.finalVars[ampName],
-                          'FINAL_MODEL_VARS': self.finalModelVars[ampName],
-                          'FINAL_MEANS': self.finalMeans[ampName],
+                              np.pad(np.array(self.covariancesSqrtWeightsNoB[ampName]),
+                                     ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
+                                     'constant', constant_values=0.0).reshape(
+                              nSignalPoints*covMatrixSide**2).tolist(),
+                          'A_MATRIX_NO_B': np.array(self.aMatrixNoB[ampName]).reshape(
+                              covMatrixSide**2).tolist(),
+                          'FINAL_VARS': np.pad(np.array(self.finalVars[ampName]), (0, nPadPoints[ampName]),
+                                               'constant', constant_values=np.nan).tolist(),
+                          'FINAL_MODEL_VARS': np.pad(np.array(self.finalModelVars[ampName]),
+                                                     (0, nPadPoints[ampName]),
+                                                     'constant', constant_values=np.nan).tolist(),
+                          'FINAL_MEANS': np.pad(np.array(self.finalMeans[ampName]),
+                                                (0, nPadPoints[ampName]),
+                                                'constant', constant_values=np.nan).tolist(),
                           'BAD_AMPS': np.array(self.badAmps).tolist() if len(self.badAmps) else np.nan,
-                          'PHOTO_CHARGE': np.array(self.photoCharge[ampName]).tolist()
+                          'PHOTO_CHARGE': np.array(self.photoCharge[ampName]).tolist(),
                           } for ampName in self.ampNames])
-
         inMeta = self.getMetadata().toDict()
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
         outMeta.update({k: "" for k, v in inMeta.items() if v is None})
