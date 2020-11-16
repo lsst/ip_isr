@@ -261,7 +261,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         covMatrixSide = int(np.sqrt(len(np.array(list(dictionary['aMatrix'].values())[0]).ravel())))
         # Number of final signal levels
         covDimensionsProduct = len(np.array(list(dictionary['covariances'].values())[0]).ravel())
-        nSignalPoints = int(covDimensionsProduct/(covMatrixSide*covMatrixSide))
+        if covDimensionsProduct != 0:
+            nSignalPoints = int(covDimensionsProduct/(covMatrixSide*covMatrixSide))
+        else:
+            nSignalPoints = 0
 
         for ampName in dictionary['ampNames']:
             calib.ampNames.append(ampName)
