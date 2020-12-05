@@ -214,10 +214,11 @@ class AssembleCcdTask(pipeBase.Task):
 
         @param[in,out]  outExposure assembled exposure:
                                     - removes unwanted keywords
-                                    - sets photoCalib, filter, and detector
+                                    - sets wcs, filter, and detector
         @param[in]      inExposure  input exposure
         """
-        self.setWcs(outExposure=outExposure, inExposure=inExposure)
+        if inExposure.hasWcs():
+            outExposure.setWcs(inExposure.getWcs())
 
         exposureMetadata = inExposure.getMetadata()
         for key in self.allKeysToRemove:
@@ -232,18 +233,3 @@ class AssembleCcdTask(pipeBase.Task):
         frame = getDebugFrame(self._display, "assembledExposure")
         if frame:
             afwDisplay.Display(frame=frame).mtv(outExposure, title="postprocessExposure")
-
-    def setWcs(self, outExposure, inExposure):
-        """Set output WCS = input WCS, adjusted as required for datasecs not starting at lower left corner
-
-        @param[in,out]  outExposure     assembled exposure; wcs is set
-        @param[in]      inExposure      input exposure
-        """
-        if inExposure.hasWcs():
-            wcs = inExposure.getWcs()
-            ccd = outExposure.getDetector()
-            amp0 = ccd[0]
-            if amp0 is None:
-                raise RuntimeError("No amplifier detector information found")
-            adjustedWcs = cameraGeomUtils.prepareWcsData(wcs, amp0, isTrimmed=self.config.doTrim)
-            outExposure.setWcs(adjustedWcs)
