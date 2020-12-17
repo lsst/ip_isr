@@ -32,6 +32,7 @@ class StrayLightConfig(Config):
         doc="",
         default=False,
     )
+    # TODO DM-28093: change the doc to specify that these are physical labels
     filters = ListField(
         dtype=str,
         doc="Filters that need straylight correction.",

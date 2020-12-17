@@ -188,6 +188,8 @@ class IsrCalib(abc.ABC):
                 (self._raftName, self._slotName) = self._detectorName.split("_")
 
         if filterName:
+            # TOD0 DM-28093: I think this whole comment can go away, if we
+            # always use physicalLabel everywhere in ip_isr.
             # If set via:
             # exposure.getInfo().getFilter().getName()
             # then this will hold the abstract filter.
