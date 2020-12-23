@@ -442,19 +442,14 @@ class PhotonTransferCurveDataset(IsrCalib):
                           'PTC_FIT_TYPE': self.ptcFitType,
                           'INPUT_EXP_ID_PAIRS': self.inputExpIdPairs[ampName]
                          if len(self.expIdMask[ampName]) else np.nan,
-                          'EXP_ID_MASK': np.pad(np.array(self.expIdMask[ampName], dtype=bool),
-                                                (0, nPadPoints[ampName]), 'constant',
-                                                constant_values=False).tolist()
+                          'EXP_ID_MASK': self.expIdMask[ampName]
                          if len(self.expIdMask[ampName]) else np.nan,
-                          'RAW_EXP_TIMES': np.pad(np.array(self.rawExpTimes[ampName]),
-                                                  (0, nPadPoints[ampName]), 'constant',
-                                                  constant_values=np.nan).tolist(),
-                          'RAW_MEANS': np.pad(np.array(self.rawMeans[ampName]),
-                                              (0, nPadPoints[ampName]),
-                                              'constant', constant_values=np.nan).tolist(),
-                          'RAW_VARS': np.pad(np.array(self.rawVars[ampName]),
-                                             (0, nPadPoints[ampName]),
-                                             'constant', constant_values=np.nan).tolist(),
+                          'RAW_EXP_TIMES': np.array(self.rawExpTimes[ampName]).tolist()
+                         if len(self.rawExpTimes[ampName]) else np.nan,
+                          'RAW_MEANS': np.array(self.rawMeans[ampName]).tolist()
+                         if len(self.rawMeans[ampName]) else np.nan,
+                          'RAW_VARS': np.array(self.rawVars[ampName]).tolist()
+                         if len(self.rawVars[ampName]) else np.nan,
                           'GAIN': self.gain[ampName],
                           'GAIN_ERR': self.gainErr[ampName],
                           'NOISE': self.noise[ampName],
@@ -466,12 +461,12 @@ class PhotonTransferCurveDataset(IsrCalib):
                           'PTC_FIT_CHI_SQ': self.ptcFitChiSq[ampName],
                           'COVARIANCES': np.pad(np.array(self.covariances[ampName]),
                                                 ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
-                                                 'constant', constant_values=np.nan).reshape(
-                                                 nSignalPoints*covMatrixSide**2).tolist(),
+                                                'constant', constant_values=np.nan).reshape(
+                              nSignalPoints*covMatrixSide**2).tolist(),
                           'COVARIANCES_MODEL': np.pad(np.array(self.covariancesModel[ampName]),
                                                       ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
                                                       'constant', constant_values=np.nan).reshape(
-                                                      nSignalPoints*covMatrixSide**2).tolist(),
+                              nSignalPoints*covMatrixSide**2).tolist(),
                           'COVARIANCES_SQRT_WEIGHTS': np.pad(np.array(self.covariancesSqrtWeights[ampName]),
                                                              ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
                                                              'constant', constant_values=0.0).reshape(
@@ -486,16 +481,13 @@ class PhotonTransferCurveDataset(IsrCalib):
                           'A_MATRIX_NO_B': np.array(self.aMatrixNoB[ampName]).reshape(
                               covMatrixSide**2).tolist(),
                           'FINAL_VARS': np.pad(np.array(self.finalVars[ampName]), (0, nPadPoints[ampName]),
-                                               'constant', constant_values=np.nan).tolist()
-                          if len(self.finalVars[ampName]) else [np.nan],
+                                               'constant', constant_values=np.nan).tolist(),
                           'FINAL_MODEL_VARS': np.pad(np.array(self.finalModelVars[ampName]),
                                                      (0, nPadPoints[ampName]),
-                                                     'constant', constant_values=np.nan).tolist()
-                          if len(self.finalVars[ampName]) else [np.nan],
+                                                     'constant', constant_values=np.nan).tolist(),
                           'FINAL_MEANS': np.pad(np.array(self.finalMeans[ampName]),
                                                 (0, nPadPoints[ampName]),
-                                                'constant', constant_values=np.nan).tolist()
-                          if len(self.finalVars[ampName]) else [np.nan],
+                                                'constant', constant_values=np.nan).tolist(),
                           'BAD_AMPS': np.array(self.badAmps).tolist() if len(self.badAmps) else [np.nan],
                           'PHOTO_CHARGE': np.array(self.photoCharge[ampName]).tolist()
                           if len(self.photoCharge[ampName]) else [np.nan]
