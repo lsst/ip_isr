@@ -488,9 +488,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                           'FINAL_MEANS': np.pad(np.array(self.finalMeans[ampName]),
                                                 (0, nPadPoints[ampName]),
                                                 'constant', constant_values=np.nan).tolist(),
-                          'BAD_AMPS': np.array(self.badAmps).tolist() if len(self.badAmps) else [np.nan],
+                          'BAD_AMPS': np.array(self.badAmps).tolist()
+                         if len(self.badAmps) else [np.nan],
                           'PHOTO_CHARGE': np.array(self.photoCharge[ampName]).tolist()
-                          if len(self.photoCharge[ampName]) else [np.nan]
+                         if len(self.photoCharge[ampName]) else [np.nan]
                           } for ampName in self.ampNames])
         inMeta = self.getMetadata().toDict()
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
