@@ -204,8 +204,8 @@ class IsrCalib(abc.ABC):
             values.append(f"instrument={self._instrument}") if self._instrument else None
             values.append(f"raftName={self._raftName}") if self._raftName else None
             values.append(f"detectorName={self._detectorName}") if self._detectorName else None
-            values.append(f"detector={self._detectorId}") if self._detectorId else None
-            values.append(f"filter={self._filter}") if self._filter else None
+            values.append(f"detector={self._detectorId}")
+            values.append(f"filter={self._filter}")
 
             calibDate = mdOriginal.get('CALIBDATE', mdSupplemental.get('CALIBDATE', None))
             values.append(f"calibDate={calibDate}") if calibDate else None

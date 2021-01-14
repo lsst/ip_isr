@@ -355,6 +355,7 @@ class Defects(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
         calib.calibInfoFromDict(dictionary)
+        calib.updateMetadata(setCalibId=True)
 
         xCol = dictionary['x0']
         yCol = dictionary['y0']
