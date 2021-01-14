@@ -362,7 +362,7 @@ class Defects(IsrCalib):
         widthCol = dictionary['width']
         heightCol = dictionary['height']
 
-        with calib.bulk_update:
+        with calib.bulk_update():
             for x0, y0, width, height in zip(xCol, yCol, widthCol, heightCol):
                 calib.append(lsst.geom.Box2I(lsst.geom.Point2I(x0, y0),
                                              lsst.geom.Extent2I(width, height)))
