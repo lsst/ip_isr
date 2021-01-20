@@ -103,13 +103,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                                                                            nSideCovMatrix), np.nan).tolist()
                     localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
                     localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
-                    localDataset.covariancesNoB[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
                     localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
                                                                         nSideCovMatrix), np.nan).tolist()
-                    localDataset.covariancesSqrtWeightsNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                              nSideCovMatrix),
-                                                                              np.nan).tolist()
                     localDataset.aMatrixNoB[ampName] = np.full(
                         (nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
 
@@ -126,12 +121,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                                                                            nSideCovMatrix), 10.0).tolist()
                     localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-6).tolist()
                     localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-7).tolist()
-                    localDataset.covariancesNoB[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 20.0).tolist()
                     localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
                                                                         nSideCovMatrix), 15.0).tolist()
-                    localDataset.covariancesSqrtWeightsNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                              nSideCovMatrix), 5.0).tolist()
                     localDataset.aMatrixNoB[ampName] = np.full(
                         (nSideCovMatrix, nSideCovMatrix), 2e-6).tolist()
 

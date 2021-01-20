@@ -115,18 +115,10 @@ class PhotonTransferCurveDataset(IsrCalib):
     bMatrix : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing the "b" parameters from
         the model in Eq. 20 of Astier+19.
-    covariancesNoB : `dict`, [`str`, `list`]
-        Dictionary keyed by amp names containing a list of measured
-        covariances per mean flux ('b'=0 in
-        Astier+19).
     covariancesModelNoB : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing covariances model
         (with 'b'=0 in Eq. 20 of Astier+19)
         per mean flux.
-    covariancesSqrtWeightsNoB : `dict`, [`str`, `list`]
-        Dictionary keyed by amp names containing sqrt. of covariances weights
-        ('b' = 0 in Eq. 20 of
-        Astier+19).
     aMatrixNoB : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing the "a" parameters from the
         model in Eq. 20 of Astier+19
@@ -202,7 +194,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'rawMeans', 'rawVars', 'gain', 'gainErr', 'noise', 'noiseErr',
                                         'ptcFitPars', 'ptcFitParsError', 'ptcFitChiSq', 'aMatrixNoB',
                                         'covariances', 'covariancesModel', 'covariancesSqrtWeights',
-                                        'covariancesNoB', 'covariancesModelNoB', 'covariancesSqrtWeightsNoB',
+                                        'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
                                         'photoCharge'])
 
@@ -298,14 +290,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                 (covMatrixSide, covMatrixSide)).tolist()
             calib.bMatrix[ampName] = np.array(dictionary['bMatrix'][ampName]).reshape(
                 (covMatrixSide, covMatrixSide)).tolist()
-            calib.covariancesNoB[ampName] = np.array(
-                dictionary['covariancesNoB'][ampName]).reshape(
-                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
             calib.covariancesModelNoB[ampName] = np.array(
                 dictionary['covariancesModelNoB'][ampName]).reshape(
-                    (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
-            calib.covariancesSqrtWeightsNoB[ampName] = np.array(
-                dictionary['covariancesSqrtWeightsNoB'][ampName]).reshape(
                     (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
             calib.aMatrixNoB[ampName] = np.array(
                 dictionary['aMatrixNoB'][ampName]).reshape((covMatrixSide, covMatrixSide)).tolist()
@@ -352,9 +338,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['covariancesSqrtWeights'] = self.covariancesSqrtWeights
         outDict['aMatrix'] = self.aMatrix
         outDict['bMatrix'] = self.bMatrix
-        outDict['covariancesNoB'] = self.covariancesNoB
         outDict['covariancesModelNoB'] = self.covariancesModelNoB
-        outDict['covariancesSqrtWeightsNoB'] = self.covariancesSqrtWeightsNoB
         outDict['aMatrixNoB'] = self.aMatrixNoB
         outDict['finalVars'] = self.finalVars
         outDict['finalModelVars'] = self.finalModelVars
@@ -403,9 +387,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['covariancesSqrtWeights'] = dict()
         inDict['aMatrix'] = dict()
         inDict['bMatrix'] = dict()
-        inDict['covariancesNoB'] = dict()
         inDict['covariancesModelNoB'] = dict()
-        inDict['covariancesSqrtWeightsNoB'] = dict()
         inDict['aMatrixNoB'] = dict()
         inDict['finalVars'] = dict()
         inDict['finalModelVars'] = dict()
@@ -436,9 +418,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['covariancesSqrtWeights'][ampName] = record['COVARIANCES_SQRT_WEIGHTS']
             inDict['aMatrix'][ampName] = record['A_MATRIX']
             inDict['bMatrix'][ampName] = record['B_MATRIX']
-            inDict['covariancesNoB'][ampName] = record['COVARIANCES_NO_B']
             inDict['covariancesModelNoB'][ampName] = record['COVARIANCES_MODEL_NO_B']
-            inDict['covariancesSqrtWeightsNoB'][ampName] = record['COVARIANCES_SQRT_WEIGHTS_NO_B']
             inDict['aMatrixNoB'][ampName] = record['A_MATRIX_NO_B']
             inDict['finalVars'][ampName] = record['FINAL_VARS']
             inDict['finalModelVars'][ampName] = record['FINAL_MODEL_VARS']
@@ -492,31 +472,22 @@ class PhotonTransferCurveDataset(IsrCalib):
                           'PTC_FIT_CHI_SQ': self.ptcFitChiSq[ampName],
                           'COVARIANCES': np.pad(np.array(self.covariances[ampName]),
                                                 ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
-                                                 'constant', constant_values=np.nan).reshape(
-                                                 nSignalPoints*covMatrixSide**2).tolist(),
+                                                'constant', constant_values=np.nan).reshape(
+                              nSignalPoints*covMatrixSide**2).tolist(),
                           'COVARIANCES_MODEL': np.pad(np.array(self.covariancesModel[ampName]),
                                                       ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
                                                       'constant', constant_values=np.nan).reshape(
-                                                      nSignalPoints*covMatrixSide**2).tolist(),
+                              nSignalPoints*covMatrixSide**2).tolist(),
                           'COVARIANCES_SQRT_WEIGHTS': np.pad(np.array(self.covariancesSqrtWeights[ampName]),
                                                              ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
                                                              'constant', constant_values=0.0).reshape(
                               nSignalPoints*covMatrixSide**2).tolist(),
                           'A_MATRIX': np.array(self.aMatrix[ampName]).reshape(covMatrixSide**2).tolist(),
                           'B_MATRIX': np.array(self.bMatrix[ampName]).reshape(covMatrixSide**2).tolist(),
-                          'COVARIANCES_NO_B': np.pad(np.array(self.covariancesNoB[ampName]),
-                                                     ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
-                                                     'constant', constant_values=np.nan).reshape(
-                                                     nSignalPoints*covMatrixSide**2).tolist(),
                           'COVARIANCES_MODEL_NO_B':
                               np.pad(np.array(self.covariancesModelNoB[ampName]),
                                      ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
                                      'constant', constant_values=np.nan).reshape(
-                              nSignalPoints*covMatrixSide**2).tolist(),
-                          'COVARIANCES_SQRT_WEIGHTS_NO_B':
-                              np.pad(np.array(self.covariancesSqrtWeightsNoB[ampName]),
-                                     ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
-                                     'constant', constant_values=0.0).reshape(
                               nSignalPoints*covMatrixSide**2).tolist(),
                           'A_MATRIX_NO_B': np.array(self.aMatrixNoB[ampName]).reshape(
                               covMatrixSide**2).tolist(),
