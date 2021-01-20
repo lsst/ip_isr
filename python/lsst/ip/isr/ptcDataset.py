@@ -45,15 +45,22 @@ class PhotonTransferCurveDataset(IsrCalib):
     of polynomial term, i.e. par[0]*x^0 + par[1]*x + par[2]*x^2 etc
     with the length of the list corresponding to the order of the polynomial
     plus one.
+
     Parameters
     ----------
     ampNames : `list`
         List with the names of the amplifiers of the detector at hand.
+
     ptcFitType : `str`
         Type of model fitted to the PTC: "POLYNOMIAL", "EXPAPPROXIMATION",
         or "FULLCOVARIANCE".
+
+    covMatrixSide : `int`
+        Maximum lag of covariances (size of square covariance matrices).
+
     kwargs : `dict`, optional
         Other keyword arguments to pass to the parent init.
+
     Notes
     -----
     The stored attributes are:
@@ -153,41 +160,42 @@ class PhotonTransferCurveDataset(IsrCalib):
     _SCHEMA = 'Gen3 Photon Transfer Curve'
     _VERSION = 1.0
 
-    def __init__(self, ampNames=[], ptcFitType=None, **kwargs):
+    def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
 
         self.ptcFitType = ptcFitType
         self.ampNames = ampNames
-        self.badAmps = []
+        self.covMatrixSide = covMatrixSide
+        covArray = np.full((1, self.covMatrixSide, self.covMatrixSide), np.nan)
 
-        self.inputExpIdPairs = {ampName: [] for ampName in ampNames}
-        self.expIdMask = {ampName: [] for ampName in ampNames}
-        self.rawExpTimes = {ampName: [] for ampName in ampNames}
-        self.rawMeans = {ampName: [] for ampName in ampNames}
-        self.rawVars = {ampName: [] for ampName in ampNames}
-        self.photoCharge = {ampName: [] for ampName in ampNames}
+        self.badAmps = [np.nan]
+
+        self.inputExpIdPairs = {ampName: [np.nan] for ampName in ampNames}
+        self.expIdMask = {ampName: [np.nan] for ampName in ampNames}
+        self.rawExpTimes = {ampName: [np.nan] for ampName in ampNames}
+        self.rawMeans = {ampName: [np.nan] for ampName in ampNames}
+        self.rawVars = {ampName: [np.nan] for ampName in ampNames}
+        self.photoCharge = {ampName: [np.nan] for ampName in ampNames}
 
         self.gain = {ampName: -1. for ampName in ampNames}
         self.gainErr = {ampName: -1. for ampName in ampNames}
         self.noise = {ampName: -1. for ampName in ampNames}
         self.noiseErr = {ampName: -1. for ampName in ampNames}
 
-        self.ptcFitPars = {ampName: [] for ampName in ampNames}
-        self.ptcFitParsError = {ampName: [] for ampName in ampNames}
-        self.ptcFitChiSq = {ampName: [] for ampName in ampNames}
+        self.ptcFitPars = {ampName: [np.nan] for ampName in ampNames}
+        self.ptcFitParsError = {ampName: [np.nan] for ampName in ampNames}
+        self.ptcFitChiSq = {ampName: -1 for ampName in ampNames}
 
-        self.covariances = {ampName: [] for ampName in ampNames}
-        self.covariancesModel = {ampName: [] for ampName in ampNames}
-        self.covariancesSqrtWeights = {ampName: [] for ampName in ampNames}
-        self.aMatrix = {ampName: [] for ampName in ampNames}
-        self.bMatrix = {ampName: [] for ampName in ampNames}
-        self.covariancesNoB = {ampName: [] for ampName in ampNames}
-        self.covariancesModelNoB = {ampName: [] for ampName in ampNames}
-        self.covariancesSqrtWeightsNoB = {ampName: [] for ampName in ampNames}
-        self.aMatrixNoB = {ampName: [] for ampName in ampNames}
+        self.covariances = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
+        self.covariancesModel = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
+        self.covariancesSqrtWeights = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
+        self.aMatrix = {ampName: np.full_like(covArray[0], np.nan) for ampName in ampNames}
+        self.bMatrix = {ampName: np.full_like(covArray[0], np.nan) for ampName in ampNames}
+        self.covariancesModelNoB = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
+        self.aMatrixNoB = {ampName: np.full_like(covArray[0], np.nan) for ampName in ampNames}
 
-        self.finalVars = {ampName: [] for ampName in ampNames}
-        self.finalModelVars = {ampName: [] for ampName in ampNames}
-        self.finalMeans = {ampName: [] for ampName in ampNames}
+        self.finalVars = {ampName: [np.nan] for ampName in ampNames}
+        self.finalModelVars = {ampName: [np.nan] for ampName in ampNames}
+        self.finalMeans = {ampName: [np.nan] for ampName in ampNames}
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'expIdMask', 'rawExpTimes',
@@ -256,9 +264,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                                f"Expected {calib._OBSTYPE}, found {dictionary['metadata']['OBSTYPE']}")
         calib.setMetadata(dictionary['metadata'])
         calib.ptcFitType = dictionary['ptcFitType']
+        calib.covMatrixSide = dictionary['covMatrixSide']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
         # The cov matrices are square
-        covMatrixSide = int(np.sqrt(len(np.array(list(dictionary['aMatrix'].values())[0]).ravel())))
+        covMatrixSide = calib.covMatrixSide
         # Number of final signal levels
         covDimensionsProduct = len(np.array(list(dictionary['covariances'].values())[0]).ravel())
         nSignalPoints = int(covDimensionsProduct/(covMatrixSide*covMatrixSide))
@@ -323,6 +332,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['metadata'] = metadata
 
         outDict['ptcFitType'] = self.ptcFitType
+        outDict['covMatrixSide'] = self.covMatrixSide
         outDict['ampNames'] = self.ampNames
         outDict['badAmps'] = self.badAmps
         outDict['inputExpIdPairs'] = self.inputExpIdPairs
@@ -375,6 +385,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['metadata'] = metadata
         inDict['ampNames'] = []
         inDict['ptcFitType'] = []
+        inDict['covMatrixSide'] = []
         inDict['inputExpIdPairs'] = dict()
         inDict['expIdMask'] = dict()
         inDict['rawExpTimes'] = dict()
@@ -406,6 +417,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             ampName = record['AMPLIFIER_NAME']
 
             inDict['ptcFitType'] = record['PTC_FIT_TYPE']
+            inDict['covMatrixSide'] = record['COV_MATRIX_SIDE']
             inDict['ampNames'].append(ampName)
             inDict['inputExpIdPairs'][ampName] = record['INPUT_EXP_ID_PAIRS']
             inDict['expIdMask'][ampName] = record['EXP_ID_MASK']
@@ -456,22 +468,21 @@ class PhotonTransferCurveDataset(IsrCalib):
         nPadPoints = {}
         for i, ampName in enumerate(self.ampNames):
             nPadPoints[ampName] = nSignalPoints - len(list(self.covariances.values())[i])
-        covMatrixSide = np.array(list(self.aMatrix.values())[0]).shape[0]
+        covMatrixSide = self.covMatrixSide
+
         catalog = Table([{'AMPLIFIER_NAME': ampName,
                           'PTC_FIT_TYPE': self.ptcFitType,
-                          'INPUT_EXP_ID_PAIRS': self.inputExpIdPairs[ampName],
-                          'EXP_ID_MASK': np.pad(np.array(self.expIdMask[ampName], dtype=bool),
-                                                (0, nPadPoints[ampName]), 'constant',
-                                                constant_values=False).tolist(),
-                          'RAW_EXP_TIMES': np.pad(np.array(self.rawExpTimes[ampName]),
-                                                  (0, nPadPoints[ampName]), 'constant',
-                                                  constant_values=np.nan).tolist(),
-                          'RAW_MEANS': np.pad(np.array(self.rawMeans[ampName]),
-                                              (0, nPadPoints[ampName]),
-                                              'constant', constant_values=np.nan).tolist(),
-                          'RAW_VARS': np.pad(np.array(self.rawVars[ampName]),
-                                             (0, nPadPoints[ampName]),
-                                             'constant', constant_values=np.nan).tolist(),
+                          'COV_MATRIX_SIDE': self.covMatrixSide,
+                          'INPUT_EXP_ID_PAIRS': self.inputExpIdPairs[ampName]
+                         if len(self.expIdMask[ampName]) else np.nan,
+                          'EXP_ID_MASK': self.expIdMask[ampName]
+                         if len(self.expIdMask[ampName]) else np.nan,
+                          'RAW_EXP_TIMES': np.array(self.rawExpTimes[ampName]).tolist()
+                         if len(self.rawExpTimes[ampName]) else np.nan,
+                          'RAW_MEANS': np.array(self.rawMeans[ampName]).tolist()
+                         if len(self.rawMeans[ampName]) else np.nan,
+                          'RAW_VARS': np.array(self.rawVars[ampName]).tolist()
+                         if len(self.rawVars[ampName]) else np.nan,
                           'GAIN': self.gain[ampName],
                           'GAIN_ERR': self.gainErr[ampName],
                           'NOISE': self.noise[ampName],

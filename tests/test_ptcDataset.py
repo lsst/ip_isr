@@ -69,7 +69,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         nSignalPoints = 5
         nSideCovMatrix = 2
         for fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', 'FULLCOVARIANCE']:
-            localDataset = PhotonTransferCurveDataset(self.ampNames, " ")
+            localDataset = PhotonTransferCurveDataset(self.ampNames, " ", nSideCovMatrix)
             localDataset.ptcFitType = fitType
             localDataset.badAmps = [localDataset.ampNames[0], localDataset.ampNames[1]]
             for ampName in localDataset.ampNames:
