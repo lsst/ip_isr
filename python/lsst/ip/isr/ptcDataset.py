@@ -157,37 +157,36 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ptcFitType = ptcFitType
         self.ampNames = ampNames
         self.covMatrixSide = covMatrixSide
-        covArray = np.full((1, self.covMatrixSide, self.covMatrixSide), np.nan)
 
         self.badAmps = [np.nan]
 
-        self.inputExpIdPairs = {ampName: [np.nan] for ampName in ampNames}
-        self.expIdMask = {ampName: [np.nan] for ampName in ampNames}
-        self.rawExpTimes = {ampName: [np.nan] for ampName in ampNames}
-        self.rawMeans = {ampName: [np.nan] for ampName in ampNames}
-        self.rawVars = {ampName: [np.nan] for ampName in ampNames}
-        self.photoCharge = {ampName: [np.nan] for ampName in ampNames}
+        self.inputExpIdPairs = {ampName: [] for ampName in ampNames}
+        self.expIdMask = {ampName: [] for ampName in ampNames}
+        self.rawExpTimes = {ampName: [] for ampName in ampNames}
+        self.rawMeans = {ampName: [] for ampName in ampNames}
+        self.rawVars = {ampName: [] for ampName in ampNames}
+        self.photoCharge = {ampName: [] for ampName in ampNames}
 
-        self.gain = {ampName: -1. for ampName in ampNames}
-        self.gainErr = {ampName: -1. for ampName in ampNames}
-        self.noise = {ampName: -1. for ampName in ampNames}
-        self.noiseErr = {ampName: -1. for ampName in ampNames}
+        self.gain = {ampName: np.nan for ampName in ampNames}
+        self.gainErr = {ampName: np.nan for ampName in ampNames}
+        self.noise = {ampName: np.nan for ampName in ampNames}
+        self.noiseErr = {ampName: np.nan for ampName in ampNames}
 
-        self.ptcFitPars = {ampName: [np.nan] for ampName in ampNames}
-        self.ptcFitParsError = {ampName: [np.nan] for ampName in ampNames}
-        self.ptcFitChiSq = {ampName: -1 for ampName in ampNames}
+        self.ptcFitPars = {ampName: [] for ampName in ampNames}
+        self.ptcFitParsError = {ampName: [] for ampName in ampNames}
+        self.ptcFitChiSq = {ampName: np.nan for ampName in ampNames}
 
-        self.covariances = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
-        self.covariancesModel = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
-        self.covariancesSqrtWeights = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
-        self.aMatrix = {ampName: np.full_like(covArray[0], np.nan) for ampName in ampNames}
-        self.bMatrix = {ampName: np.full_like(covArray[0], np.nan) for ampName in ampNames}
-        self.covariancesModelNoB = {ampName: np.full_like(covArray, np.nan) for ampName in ampNames}
-        self.aMatrixNoB = {ampName: np.full_like(covArray[0], np.nan) for ampName in ampNames}
+        self.covariances = {ampName: [] for ampName in ampNames}
+        self.covariancesModel = {ampName: [] for ampName in ampNames}
+        self.covariancesSqrtWeights = {ampName: [] for ampName in ampNames}
+        self.aMatrix = {ampName: np.nan for ampName in ampNames}
+        self.bMatrix = {ampName: np.nan for ampName in ampNames}
+        self.covariancesModelNoB = {ampName: [] for ampName in ampNames}
+        self.aMatrixNoB = {ampName: np.nan for ampName in ampNames}
 
-        self.finalVars = {ampName: [np.nan] for ampName in ampNames}
-        self.finalModelVars = {ampName: [np.nan] for ampName in ampNames}
-        self.finalMeans = {ampName: [np.nan] for ampName in ampNames}
+        self.finalVars = {ampName: [] for ampName in ampNames}
+        self.finalModelVars = {ampName: [] for ampName in ampNames}
+        self.finalMeans = {ampName: [] for ampName in ampNames}
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'expIdMask', 'rawExpTimes',
