@@ -1382,6 +1382,18 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         self.metadata.set(f"ISR OSCAN {amp.getName()} STDEV", qaStdev)
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",
                                        amp.getName(), qaMedian, qaStdev)
+
+                        # Residuals after overscan correction
+                        qaStatsAfter = afwMath.makeStatistics(overscanResults.overscanImage,
+                                                              afwMath.MEDIAN | afwMath.STDEVCLIP)
+                        qaMedianAfter = qaStatsAfter.getValue(afwMath.MEDIAN)
+                        qaStdevAfter = qaStatsAfter.getValue(afwMath.STDEVCLIP)
+
+                        self.metadata.set(f"ISR OSCAN {amp.getName()} MEDIAN AFTER CORRECTION", qaMedianAfter)
+                        self.metadata.set(f"ISR OSCAN {amp.getName()} STDEV AFTTER CORRECTION", qaStdevAfter)
+                        self.log.debug("  Overscan stats for amplifer %s after correction: %f +/- %f",
+                                       amp.getName(), qaMedianAfter, qaStdevAfter)
+
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
                     if badAmp:
