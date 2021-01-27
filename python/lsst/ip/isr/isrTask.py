@@ -187,6 +187,13 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector"],
         isCalibration=True,
     )
+    linearizer = cT.PrerequisiteInput(
+        name='linearizer',
+        storageClass="Linearizer",
+        doc="Linearity correction calibration.",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
     opticsTransmission = cT.PrerequisiteInput(
         name="transmission_optics",
         storageClass="TransmissionCurve",
@@ -942,13 +949,18 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     self.log.warn("No crosstalkSources found for chip with interChip terms!")
 
         if self.doLinearize(detector) is True:
-            if 'linearizer' in inputs and isinstance(inputs['linearizer'], dict):
-                linearizer = linearize.Linearizer(detector=detector, log=self.log)
-                linearizer.fromYaml(inputs['linearizer'])
-            else:
-                linearizer = linearize.Linearizer(table=inputs.get('linearizer', None), detector=detector,
-                                                  log=self.log)
-            inputs['linearizer'] = linearizer
+            if 'linearizer' in inputs:
+                if isinstance(inputs['linearizer'], dict):
+                    linearizer = linearize.Linearizer(detector=detector, log=self.log)
+                    linearizer.fromYaml(inputs['linearizer'])
+                elif isinstance(inputs['linearizer'], numpy.ndarray):
+                    linearizer = linearize.Linearizer(table=inputs.get('linearizer', None),
+                                                      detector=detector,
+                                                      log=self.log)
+                else:
+                    linearizer = inputs['linearizer']
+                    linearizer.log = self.log
+                inputs['linearizer'] = linearizer
 
         if self.config.doDefect is True:
             if "defects" in inputs and inputs['defects'] is not None:
