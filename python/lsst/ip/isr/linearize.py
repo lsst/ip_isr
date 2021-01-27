@@ -339,7 +339,7 @@ class Linearizer(IsrCalib):
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
 
-        if self.tableData:
+        if self.tableData is not None:
             catalog = Table([{'LOOKUP_VALUES': value} for value in self.tableData])
             tableList.append(catalog)
         return(tableList)
