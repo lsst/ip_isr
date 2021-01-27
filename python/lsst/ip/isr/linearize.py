@@ -579,7 +579,8 @@ class LinearizeLookupTable(LinearizeBase):
         if rowInd < 0 or rowInd > numTableRows:
             raise RuntimeError("LinearizeLookupTable rowInd=%s not in range[0, %s)" %
                                (rowInd, numTableRows))
-        tableRow = table[rowInd, :]
+        tableRow = np.array(table[rowInd, :], dtype=image.getArray().dtype)
+
         numOutOfRange += applyLookupTable(image, tableRow, colIndOffset)
 
         if numOutOfRange > 0 and log is not None:
