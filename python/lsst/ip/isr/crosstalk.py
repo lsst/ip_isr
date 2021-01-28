@@ -672,7 +672,7 @@ class CrosstalkTask(Task):
         return
 
     def run(self, exposure, crosstalk=None,
-            crosstalkSources=None, isTrimmed=False):
+            crosstalkSources=None, isTrimmed=False, camera=None):
         """Apply intra-detector crosstalk correction
 
         Parameters
@@ -689,9 +689,12 @@ class CrosstalkTask(Task):
             `lsst.afw.image.Exposure` at the same level of processing
             as ``exposure``.
             The default for intra-detector crosstalk here is None.
-        isTrimmed : `bool`
+        isTrimmed : `bool`, optional
             The image is already trimmed.
             This should no longer be needed once DM-15409 is resolved.
+        camera : `lsst.afw.cameraGeom.Camera`, optional
+            Camera associated with this exposure.  Only used for
+            inter-chip matching.
 
         Raises
         ------
@@ -717,20 +720,31 @@ class CrosstalkTask(Task):
 
             if crosstalk.interChip:
                 if crosstalkSources:
+                    # Parse crosstalkSources: Identify which detectors we have available
+                    if isinstance(crosstalkSources[0], lsst.afw.image.Exposure):
+                        # Received afwImage.Exposure
+                        sourceNames = [exp.getDetector().getName() for exp in crosstalkSources]
+                    else:
+                        # Received dafButler.DeferredDatasetHandle
+                        detectorList = [source.dataId['detector'] for source in crosstalkSources]
+                        sourceNames = [camera[detector].getName() for detector in detectorList]
+
                     for detName in crosstalk.interChip:
-                        if isinstance(crosstalkSources[0], 'lsst.afw.image.Exposure'):
-                            # Received afwImage.Exposure
-                            sourceNames = [exp.getDetector().getName() for exp in crosstalkSources]
-                        else:
-                            # Received dafButler.DeferredDatasetHandle
-                            sourceNames = [expRef.get(datasetType='isrOscanCorr').getDetector().getName()
-                                           for expRef in crosstalkSources]
                         if detName not in sourceNames:
                             self.log.warn("Crosstalk lists %s, not found in sources: %s",
                                           detName, sourceNames)
                             continue
+                        # Get the coefficients.
                         interChipCoeffs = crosstalk.interChip[detName]
+
                         sourceExposure = crosstalkSources[sourceNames.index(detName)]
+                        if not isinstance(sourceExposure, lsst.afw.image.Exposure):
+                            # Dereference the dafButler.DeferredDatasetHandle.
+                            sourceExposure = sourceExposure.get()
+
+                        self.log.warn("Correcting detector %s with ctSource %s",
+                                      exposure.getDetector().getName(),
+                                      sourceExposure.getDetector().getName())
                         crosstalk.subtractCrosstalk(exposure, sourceExposure=sourceExposure,
                                                     crosstalkCoeffs=interChipCoeffs,
                                                     minPixelToMask=self.config.minPixelToMask,
