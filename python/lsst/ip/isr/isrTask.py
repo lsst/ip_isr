@@ -961,6 +961,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     linearizer = inputs['linearizer']
                     linearizer.log = self.log
                 inputs['linearizer'] = linearizer
+            else:
+                inputs['linearizer'] = linearize.Linearizer(detector=detector, log=self.log)
 
         if self.config.doDefect is True:
             if "defects" in inputs and inputs['defects'] is not None:
