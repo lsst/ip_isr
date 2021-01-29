@@ -1059,6 +1059,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             dateObs = None
 
         ccd = rawExposure.getDetector()
+        # TODO DM-28093: change this to: rawExposure.getFilterLabel().physicalLabel
         filterName = afwImage.Filter(rawExposure.getFilter().getId()).getName()  # Canonical name for filter
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
         biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
@@ -1314,6 +1315,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 return self.runDataRef(ccdExposure)
 
         ccd = ccdExposure.getDetector()
+        # TODO DM-28093: change this to: ccdExposure.getFilterLabel().physicalLabel
         filterName = afwImage.Filter(ccdExposure.getFilter().getId()).getName()  # Canonical name for filter
 
         if not ccd:
@@ -2460,6 +2462,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
         """
+        # TODO DM-28093: change this to: exposure.getFilterLabel().physicalLabel
         filterName = afwImage.Filter(exposure.getFilter().getId()).getName()  # Canonical name for filter
         if filterName in self.config.fluxMag0T1:
             fluxMag0 = self.config.fluxMag0T1[filterName]

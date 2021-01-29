@@ -53,8 +53,12 @@ class FringeStatisticsConfig(Config):
 
 class FringeConfig(Config):
     """Fringe subtraction options"""
+    # TODO DM-28093: change the doc to specify that these are physical labels
     filters = ListField(dtype=str, default=[], doc="Only fringe-subtract these filters")
-    useFilterAliases = Field(dtype=bool, default=False, doc="Search filter aliases during check.")
+    # TODO: remove in DM-27177
+    useFilterAliases = Field(dtype=bool, default=False, doc="Search filter aliases during check.",
+                             deprecated=("Removed with no replacement (FilterLabel has no aliases)."
+                                         "Will be removed after v22."))
     num = Field(dtype=int, default=30000, doc="Number of fringe measurements")
     small = Field(dtype=int, default=3, doc="Half-size of small (fringe) measurements (pixels)")
     large = Field(dtype=int, default=30, doc="Half-size of large (background) measurements (pixels)")
@@ -250,6 +254,7 @@ class FringeTask(Task):
             configuration, and should have the fringe applied.
         """
         filterObj = afwImage.Filter(exposure.getFilter().getId())
+        # TODO: remove this check along with the config option in DM-27177
         if self.config.useFilterAliases:
             filterNameSet = set(filterObj.getAliases() + [filterObj.getName()])
         else:
