@@ -27,6 +27,7 @@ __all__ = ['BrighterFatterKernel']
 
 import numpy as np
 from astropy.table import Table
+import lsst.afw.math as afwMath
 from . import IsrCalib
 
 
@@ -42,9 +43,6 @@ class BrighterFatterKernel(IsrCalib):
     makeDetectorKernelFromAmpwiseKernels is a method to generate the
     kernel for a detector, constructed by averaging together the
     ampwise kernels in the detector.
-
-    The sourceLevel is the level for which the kernel(s) were
-    generated, i.e. the level at which the task was originally run.
 
     Parameters
     ----------
@@ -62,34 +60,18 @@ class BrighterFatterKernel(IsrCalib):
 
     def __init__(self, camera=None, level=None, **kwargs):
         self.level = level
-        self.sourceLevel = level
 
-        # CZW: These two blocks are unnecessary, correct?
-        # Internal archival information?
-        self.originalLevel = self.sourceLevel
+        # Things inherited from the PTC
         self.means = None
         self.rawMeans = dict()
+        self.variances = None
         self.rawXCorrs = dict()
-        self.xCorrs = dict()
+        self.gain = dict()
+
+        # Things calculated from the PTC
         self.meanXCorrs = dict()
 
-        # Things directly from PTCdata
-        self.gain = dict()
-        self.gainErr = None
-        self.noise = None
-        self.noseErr = None
-        self.ptcResults = None
-
-        # PTC Contents:
-        # rawMeans / rawVars
-        # gain / gainErr / noise /noiseErr
-        # p tcFitPars / ptcFitsParsError / ptcFitChiSq
-        # covariances / covariancesModel / covariancesSqrtWeights
-        # aMatrix / bMatrix / covariancesNoB / covarModelNoB / covarSqrtWgtNoB / aMatrixNoB
-        # finalVars / finalModelVars / finalMeans
-
         # Things that are used downstream
-
         self.ampKernels = dict()
         self.detKernels = dict()
         self.shape = (8, 8)
@@ -98,7 +80,7 @@ class BrighterFatterKernel(IsrCalib):
             self.initFromCamera(camera, detectorId=kwargs.get('detectorId', None))
 
         super().__init__(**kwargs)
-        self.requiredAttributes.update(['level', 'sourceLevel', 'gain',
+        self.requiredAttributes.update(['level', 'gain',
                                         'ampKernels', 'detKernels'])
 
     def updateMetadata(self, setDate=False, **kwargs):
@@ -116,7 +98,6 @@ class BrighterFatterKernel(IsrCalib):
             Other keyword parameters to set in the metadata.
         """
         kwargs['LEVEL'] = self.level
-        kwargs['SOURCE_LEVEL'] = self.sourceLevel
         kwargs['KERNEL_DX'] = self.shape[0]
         kwargs['KERNEL_DY'] = self.shape[1]
 
@@ -186,7 +167,6 @@ class BrighterFatterKernel(IsrCalib):
         calib.calibInfoFromDict(dictionary)
 
         calib.level = dictionary['metadata'].get('LEVEL', 'AMP')
-        calib.sourceLevel = dictionary['metadata'].get('SOURCE_LEVEL', 'AMP')
         calib.shape = (dictionary['metadata'].get('KERNEL_DX', 0),
                        dictionary['metadata'].get('KERNEL_DY', 0))
 
@@ -200,7 +180,6 @@ class BrighterFatterKernel(IsrCalib):
                             for amp in dictionary['ampKernels']}
         calib.detKernels = {det: np.array(dictionary['detKernels'][det]).reshape(calib.shape)
                             for det in dictionary['detKernels']}
-
 
         calib.updateMetadata()
         return calib
@@ -324,8 +303,8 @@ class BrighterFatterKernel(IsrCalib):
                           'RAW_MEANS': rawMeanList,
                           'RAW_XCORRS': rawXcorrList,
                           'XCORRS': xCorrList,
-                          'MEAN_XCORRS': meanXcorrsList,
-                      })
+                          'MEAN_XCORRS': meanXcorrsList, })
+
         ampTable.meta = self.getMetadata().toDict()
         tableList.append(ampTable)
 
@@ -347,12 +326,16 @@ class BrighterFatterKernel(IsrCalib):
     def makeDetectorKernelFromAmpwiseKernels(self, detectorName, ampsToExclude=[]):
         """Average the amplifier level kernels to create a detector level kernel.
         """
-        inKernels = [self.ampKernels[amp] for amp in
-                     self.ampKernels if amp not in ampsToExclude]
+        inKernels = np.array([self.ampKernels[amp] for amp in
+                              self.ampKernels if amp not in ampsToExclude])
+        averagingList = np.transpose(inKernels)
         avgKernel = np.zeros_like(inKernels[0])
-        for kernel in inKernels:
-            avgKernel += kernel
-        avgKernel /= len(inKernels)
+        sctrl = afwMath.StatisticsControl()
+        sctrl.setNumSigmaClip(5.0)
+        for i in range(np.shape(avgKernel)[0]):
+            for j in range(np.shape(avgKernel)[1]):
+                avgKernel[i, j] = afwMath.makeStatistics(averagingList[i, j],
+                                                         afwMath.MEANCLIP, sctrl).getValue()
 
         self.detKernels[detectorName] = avgKernel
 
