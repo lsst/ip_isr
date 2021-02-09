@@ -953,16 +953,19 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 if isinstance(inputs['linearizer'], dict):
                     linearizer = linearize.Linearizer(detector=detector, log=self.log)
                     linearizer.fromYaml(inputs['linearizer'])
+                    self.log.warn("Dictionary linearizers will be deprecated in DM-28741.")
                 elif isinstance(inputs['linearizer'], numpy.ndarray):
                     linearizer = linearize.Linearizer(table=inputs.get('linearizer', None),
                                                       detector=detector,
                                                       log=self.log)
+                    self.log.warn("Bare lookup table linearizers will be deprecated in DM-28741.")
                 else:
                     linearizer = inputs['linearizer']
                     linearizer.log = self.log
                 inputs['linearizer'] = linearizer
             else:
                 inputs['linearizer'] = linearize.Linearizer(detector=detector, log=self.log)
+                self.log.warn("Constructing linearizer from cameraGeom information.")
 
         if self.config.doDefect is True:
             if "defects" in inputs and inputs['defects'] is not None:
