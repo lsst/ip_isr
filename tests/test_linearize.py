@@ -134,6 +134,34 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         self.bbox = None
         self.detector = None
 
+    def compareResults(self, linearizedImage, linearizedOutOfRange, linearizedCount, linearizedAmps,
+                       referenceImage, referenceOutOfRange, referenceCount, referenceAmps):
+        """Run assert tests on results.
+
+        Parameters
+        ----------
+        linearizedImage : `lsst.afw.image.Image`
+            Corrected image.
+        linearizedOutOfRange : `int`
+            Number of measured out-of-range pixels.
+        linearizedCount : `int`
+            Number of amplifiers that should be linearized.
+        linearizedAmps : `int`
+            Total number of amplifiers checked.
+        referenceImage : `lsst.afw.image.Image`
+            Truth image to compare against.
+        referenceOutOfRange : `int`
+            Number of expected out-of-range-pixels.
+        referenceCount : `int`
+            Number of amplifiers that are expected to be linearized.
+        referenceAmps : `int`
+            Expected number of amplifiers checked.
+        """
+        self.assertImagesAlmostEqual(linearizedImage, referenceImage)
+        self.assertEqual(linearizedOutOfRange, referenceOutOfRange)
+        self.assertEqual(linearizedCount, referenceCount)
+        self.assertEqual(linearizedAmps, referenceAmps)
+
     def testBasics(self):
         """Test basic linearization functionality.
         """
@@ -164,20 +192,17 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 # numLinearized == numAmps.
                 zeroLinearity = 1 if linearityType == 'Squared' else 0
 
-                self.assertImagesAlmostEqual(refImage, measImage)
-                self.assertEqual(result.numOutOfRange, refNumOutOfRange)
-                self.assertEqual(result.numLinearized, self.numAmps - zeroLinearity)
-                self.assertEqual(result.numAmps, self.numAmps)
+                self.compareResults(measImage, result.numOutOfRange, result.numLinearized, result.numAmps,
+                                    refImage, refNumOutOfRange, self.numAmps - zeroLinearity, self.numAmps)
 
                 # Test a stand alone linearizer.  This ignores validate checks.
                 measImage = inImage.Factory(inImage, True)
                 storedLinearizer = self.makeLinearizer(linearityType)
                 storedResult = storedLinearizer.applyLinearity(measImage, log=self.log)
 
-                self.assertImagesAlmostEqual(refImage, measImage)
-                self.assertEqual(storedResult.numOutOfRange, refNumOutOfRange)
-                self.assertEqual(storedResult.numLinearized, self.numAmps - zeroLinearity)
-                self.assertEqual(storedResult.numAmps, self.numAmps)
+                self.compareResults(measImage, storedResult.numOutOfRange, storedResult.numLinearized,
+                                    storedResult.numAmps,
+                                    refImage, refNumOutOfRange, self.numAmps - zeroLinearity, self.numAmps)
 
                 # "Save to yaml" and test again
                 storedDict = storedLinearizer.toDict()
@@ -187,10 +212,9 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 storedLinearizer = self.makeLinearizer(linearityType)
                 storedResult = storedLinearizer.applyLinearity(measImage, log=self.log)
 
-                self.assertImagesAlmostEqual(refImage, measImage)
-                self.assertEqual(storedResult.numOutOfRange, refNumOutOfRange)
-                self.assertEqual(storedResult.numLinearized, self.numAmps - zeroLinearity)
-                self.assertEqual(storedResult.numAmps, self.numAmps)
+                self.compareResults(measImage, storedResult.numOutOfRange, storedResult.numLinearized,
+                                    storedResult.numAmps,
+                                    refImage, refNumOutOfRange, self.numAmps - zeroLinearity, self.numAmps)
 
                 # "Save to fits" and test again
                 storedTable = storedLinearizer.toTable()
@@ -200,13 +224,24 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 storedLinearizer = self.makeLinearizer(linearityType)
                 storedResult = storedLinearizer.applyLinearity(measImage, log=self.log)
 
-                self.assertImagesAlmostEqual(refImage, measImage)
-                self.assertEqual(storedResult.numOutOfRange, refNumOutOfRange)
-                self.assertEqual(storedResult.numLinearized, self.numAmps - zeroLinearity)
-                self.assertEqual(storedResult.numAmps, self.numAmps)
+                self.compareResults(measImage, storedResult.numOutOfRange, storedResult.numLinearized,
+                                    storedResult.numAmps,
+                                    refImage, refNumOutOfRange, self.numAmps - zeroLinearity, self.numAmps)
 
     def makeDetector(self, linearityType, bbox=None):
-        """
+        """Generate a fake detector for the test.
+
+        Parameters
+        ----------
+        linearityType : `str`
+            Which linearity to assign to the detector's cameraGeom.
+        bbox : `lsst.geom.Box2I`, optional
+            Bounding box to use for the detector.
+
+        Returns
+        -------
+        detBuilder : `lsst.afw.cameraGeom.Detector`
+            The fake detector.
         """
         bbox = bbox if bbox is not None else self.bbox
         numAmps = self.ampArrangement
@@ -246,7 +281,21 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         return detBuilder
 
     def makeLinearizer(self, linearityType, bbox=None):
-        """
+        """Construct a linearizer with the test coefficients.
+
+        Parameters
+        ----------
+        linearityType : `str`
+            Type of linearity to use.  The coefficients are set by the
+            setUp method.
+        bbox : `lsst.geom.Box2I`
+            Bounding box for the full detector.  Used to assign
+            amp-based bounding boxes.
+
+        Returns
+        -------
+        linearizer : `lsst.ip.isr.Linearizer`
+            A fully constructed, persistable linearizer.
         """
         bbox = bbox if bbox is not None else self.bbox
         numAmps = self.ampArrangement
