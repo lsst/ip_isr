@@ -28,6 +28,7 @@ import lsst.afw.display as afwDisplay
 
 from lsst.pipe.base import Task, Struct, timeMethod
 from lsst.pex.config import Config, Field, ListField, ConfigField
+from .isrFunctions import checkFilter
 
 afwDisplay.setDefaultMaskTransparency(75)
 
@@ -253,13 +254,7 @@ class FringeTask(Task):
             If True, then the exposure has a filter listed in the
             configuration, and should have the fringe applied.
         """
-        filterObj = afwImage.Filter(exposure.getFilter().getId())
-        # TODO: remove this check along with the config option in DM-27177
-        if self.config.useFilterAliases:
-            filterNameSet = set(filterObj.getAliases() + [filterObj.getName()])
-        else:
-            filterNameSet = set([filterObj.getName(), ])
-        return bool(len(filterNameSet.intersection(self.config.filters)))
+        return checkFilter(exposure, self.config.filters, log=self.log)
 
     def removePedestal(self, fringe):
         """Remove pedestal from fringe exposure.

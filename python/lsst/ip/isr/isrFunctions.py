@@ -865,3 +865,35 @@ def setBadRegions(exposure, badStatistic="MEDIAN"):
     imageArray[:] = numpy.where(badPixels, value, imageArray)
 
     return badPixels.sum(), value
+
+
+def checkFilter(exposure, filterList, log=None):
+    """Check to see if an exposure is in a filter specified by a list.
+
+    The goal of this is to provide a unified filter checking interface
+    for all filter dependent stages.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to examine.
+    filterList : `list` [`str`]
+        List of physical_filter names to check.
+    log : `lsst.log.Log`, optional
+        Logger to handle messages.
+
+    Returns
+    -------
+    result : `bool`
+        True if the exposure's filter is contained in the list.
+    """
+    thisFilter = exposure.getFilterLabel()
+    if thisFilter.physical_filter in filterList:
+        return True
+    elif thisFilter.band in filterList:
+        if log:
+            log.warn("Physical filter (%s) should be used instead of band %s (%s)",
+                     thisFilter.physical_filter, thisFilter.band, filterList)
+        return True
+    else:
+        return False
