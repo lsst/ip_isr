@@ -26,7 +26,6 @@ import numpy as np
 import lsst.utils.tests
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
-import lsst.afw.image.utils as afwImageUtils
 import lsst.pipe.base as pipeBase
 from lsst.ip.isr.fringe import FringeTask
 
@@ -78,7 +77,7 @@ def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
     array[x, y] = np.sin(xFreq*x + xOffset) + np.sin(yFreq*y + yOffset)
     mi = afwImage.makeMaskedImage(image)
     exp = afwImage.makeExposure(mi)
-    exp.setFilter(afwImage.Filter('FILTER'))
+    exp.setFilterLabel(afwImage.FilterLabel(band='y', physical='FILTER'))
     return exp
 
 
@@ -88,16 +87,12 @@ class FringeTestCase(lsst.utils.tests.TestCase):
     def setUp(self):
         self.size = 512
         self.config = FringeTask.ConfigClass()
-        self.config.filters = ['FILTER']
+        self.config.filters = ['FILTER', 'y']
         self.config.num = 5000
         self.config.small = 1
         self.config.large = 128
         self.config.pedestal = False
         self.config.iterations = 10
-        afwImageUtils.defineFilter('FILTER', lambdaEff=0)
-
-    def tearDown(self):
-        afwImageUtils.resetFilters()
 
     def checkFringe(self, task, exp, fringes, stddevMax):
         """Run fringe subtraction and verify.
@@ -221,7 +216,7 @@ class FringeTestCase(lsst.utils.tests.TestCase):
             image.scaledPlus(s, f.getMaskedImage().getImage())
         mi = afwImage.makeMaskedImage(image)
         exp = afwImage.makeExposure(mi)
-        exp.setFilter(afwImage.Filter('FILTER'))
+        exp.setFilterLabel(afwImage.FilterLabel(physical='FILTER'))
 
         task = FringeTask(name="multiFringe", config=self.config)
         self.checkFringe(task, exp, fringeList, stddevMax=1.0e-2)
@@ -268,7 +263,6 @@ class FringeTestCase(lsst.utils.tests.TestCase):
     def test_multiFringes(self):
         """Test that multi-fringe results are handled correctly by the task.
         """
-        self.config.filters.append("_unknown_")
         self.config.large = 16
         task = FringeTask(name="multiFringeMock", config=self.config)
 
@@ -279,6 +273,7 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         dataRef = isrMock.FringeDataRefMock(config=config)
 
         exp = dataRef.get("raw")
+        exp.setFilterLabel(afwImage.FilterLabel(physical='FILTER'))
         medianBefore = np.nanmedian(exp.getImage().getArray())
         fringes = task.readFringes(dataRef, assembler=None)
 

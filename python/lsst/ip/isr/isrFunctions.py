@@ -888,12 +888,16 @@ def checkFilter(exposure, filterList, log=None):
         True if the exposure's filter is contained in the list.
     """
     thisFilter = exposure.getFilterLabel()
-    if thisFilter.physical_filter in filterList:
+    if thisFilter is None:
+        log.warn("No FilterLabel attached to this exposure!")
+        return False
+
+    if thisFilter.physicalLabel in filterList:
         return True
-    elif thisFilter.band in filterList:
+    elif thisFilter.bandLabel in filterList:
         if log:
             log.warn("Physical filter (%s) should be used instead of band %s (%s)",
-                     thisFilter.physical_filter, thisFilter.band, filterList)
+                     thisFilter.physicalLabel, thisFilter.bandLabel, filterList)
         return True
     else:
         return False

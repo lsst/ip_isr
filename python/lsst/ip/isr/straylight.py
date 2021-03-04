@@ -26,6 +26,7 @@ from lsst.pipe.base import Task
 from lsst.geom import Angle
 from .isrFunctions import checkFilter
 
+
 class StrayLightConfig(Config):
     doRotatorAngleCorrection = Field(
         dtype=bool,
