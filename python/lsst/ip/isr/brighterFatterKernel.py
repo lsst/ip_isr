@@ -62,25 +62,28 @@ class BrighterFatterKernel(IsrCalib):
         self.level = level
 
         # Things inherited from the PTC
-        self.means = None
-        self.rawMeans = dict()
-        self.variances = None
-        self.rawXCorrs = dict()
+        self.means = dict()
+        self.variances = dict()
+        self.rawXcorrs = dict()
+        self.badAmps = list()
+        self.shape = (8, 8)
         self.gain = dict()
+        self.noise = dict()
 
         # Things calculated from the PTC
-        self.meanXCorrs = dict()
+        self.meanXcorrs = dict()
+        self.valid = dict()
 
         # Things that are used downstream
         self.ampKernels = dict()
         self.detKernels = dict()
-        self.shape = (8, 8)
 
         if camera:
             self.initFromCamera(camera, detectorId=kwargs.get('detectorId', None))
 
         super().__init__(**kwargs)
-        self.requiredAttributes.update(['level', 'gain',
+        self.requiredAttributes.update(['level', 'means', 'variances', 'rawXcorrs',
+                                        'badAmps', 'gain', 'noise', 'meanXcorrs', 'valid',
                                         'ampKernels', 'detKernels'])
 
     def updateMetadata(self, setDate=False, **kwargs):
@@ -125,11 +128,18 @@ class BrighterFatterKernel(IsrCalib):
             self._detectorId = detectorId
             self._detectorName = detector.getName()
             self._detectorSerial = detector.getSerial()
+            self.badAmps = []
 
             for amp in detector:
                 ampName = amp.getName()
-                self.gain[ampName] = []
+                self.means[ampName] = []
+                self.variances[ampName] = []
+                self.rawXcorrs[ampName] = []
+                self.gain[ampName] = amp.getGain()
+                self.noise[ampName] = amp.getReadNoise()
+                self.meanXcorrs[ampName] = []
                 self.ampKernels[ampName] = []
+                self.valid[ampName] = []
         elif self.level == 'DETECTOR':
             for det in camera:
                 detName = det.getName()
@@ -169,15 +179,31 @@ class BrighterFatterKernel(IsrCalib):
         calib.level = dictionary['metadata'].get('LEVEL', 'AMP')
         calib.shape = (dictionary['metadata'].get('KERNEL_DX', 0),
                        dictionary['metadata'].get('KERNEL_DY', 0))
+        calib.badAmps = dictionary['badAmps']
 
+        calib.means = {amp: np.array(dictionary['means'][amp]) for amp in dictionary['means']}
+        calib.variances = {amp: np.array(dictionary['variances'][amp]) for amp in dictionary['variances']}
+
+        # Lengths for reshape:
+        smallShape = (int((calib.shape[0] - 1) / 2), int((calib.shape[1] - 1)/2))
+        nObservations = set([len(calib.means[amp]) for amp in calib.means])
+        if len(nObservations) != 1:
+            raise RuntimeError("Inconsistent number of observations found.")
+        nObs = nObservations.pop()
+
+        calib.rawXcorrs = {amp: np.array(dictionary['rawXcorrs'][amp]).reshape((nObs,
+                                                                                smallShape[0],
+                                                                                smallShape[1]))
+                           for amp in dictionary['rawXcorrs']}
         calib.gain = dictionary['gain']
-        calib.rawMeans = {amp: dictionary['rawMeans'][amp] for amp in dictionary['rawMeans']}
-        calib.rawXcorrs = {amp: dictionary['rawXcorrs'][amp] for amp in dictionary['rawXcorrs']}
-        calib.xCorrs = {amp: dictionary['xCorrs'][amp] for amp in dictionary['xCorrs']}
-        calib.meanXCorrs = {amp: dictionary['meanXcorrs'][amp] for amp in dictionary['rawXcorrs']}
+        calib.noise = dictionary['noise']
 
+        calib.meanXcorrs = {amp: np.array(dictionary['meanXcorrs'][amp]).reshape(calib.shape)
+                            for amp in dictionary['rawXcorrs']}
         calib.ampKernels = {amp: np.array(dictionary['ampKernels'][amp]).reshape(calib.shape)
                             for amp in dictionary['ampKernels']}
+        calib.valid = {amp: bool(value) for amp, value in dictionary['valid'].items()}
+
         calib.detKernels = {det: np.array(dictionary['detKernels'][det]).reshape(calib.shape)
                             for det in dictionary['detKernels']}
 
@@ -201,18 +227,29 @@ class BrighterFatterKernel(IsrCalib):
         metadata = self.getMetadata()
         outDict['metadata'] = metadata
 
+        # Lengths for ravel:
         kernelLength = self.shape[0] * self.shape[1]
+        smallLength = int((self.shape[0] - 1)*(self.shape[1] - 1)/4)
+        nObservations = set([len(self.means[amp]) for amp in self.means])
+        if len(nObservations) != 1:
+            raise RuntimeError("Inconsistent number of observations found.")
+        nObs = nObservations.pop()
 
+        outDict['means'] = {amp: np.array(self.means[amp]).tolist() for amp in self.means}
+        outDict['variances'] = {amp: np.array(self.variances[amp]).tolist() for amp in self.variances}
+        outDict['rawXcorrs'] = {amp: np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist()
+                                for amp in self.rawXcorrs}
+        outDict['badAmps'] = self.badAmps
         outDict['gain'] = self.gain
+        outDict['noise'] = self.noise
+
+        outDict['meanXcorrs'] = {amp: self.meanXcorrs[amp].reshape(kernelLength).tolist()
+                                 for amp in self.meanXcorrs}
         outDict['ampKernels'] = {amp: self.ampKernels[amp].reshape(kernelLength).tolist()
                                  for amp in self.ampKernels}
+        outDict['valid'] = self.valid
         outDict['detKernels'] = {det: self.detKernels[det].reshape(kernelLength).tolist()
                                  for det in self.detKernels}
-        outDict['rawMeans'] = {amp: self.rawMeans[amp] for amp in self.rawMeans}
-        outDict['rawXcorrs'] = {amp: self.rawXcorrs[amp] for amp in self.rawXcorrs}
-        outDict['xCorrs'] = {amp: self.xCorrs[amp].tolist() for amp in self.xCorrs}
-        outDict['meanXcorrs'] = {amp: self.meanXCorrs[amp].tolist() for amp in self.meanXCorrs}
-
         return outDict
 
     @classmethod
@@ -241,21 +278,28 @@ class BrighterFatterKernel(IsrCalib):
         inDict['metadata'] = metadata
 
         amps = ampTable['AMPLIFIER']
-        gainList = ampTable['GAIN']
-        ampKernels = ampTable['KERNEL']
 
-        rawMeans = ampTable['RAW_MEANS']
+        meanList = ampTable['MEANS']
+        varianceList = ampTable['VARIANCES']
+
         rawXcorrs = ampTable['RAW_XCORRS']
-        xCorrs = ampTable['XCORRS']
+        gainList = ampTable['GAIN']
+        noiseList = ampTable['NOISE']
+
         meanXcorrs = ampTable['MEAN_XCORRS']
+        ampKernels = ampTable['KERNEL']
+        validList = ampTable['VALID']
 
-        inDict['gain'] = {amp: gain for amp, gain in zip(amps, gainList)}
-        inDict['ampKernels'] = {amp: kernel for amp, kernel in zip(amps, ampKernels)}
-
-        inDict['rawMeans'] = {amp: kernel for amp, kernel in zip(amps, rawMeans)}
+        inDict['means'] = {amp: mean for amp, mean in zip(amps, meanList)}
+        inDict['variances'] = {amp: var for amp, var in zip(amps, varianceList)}
         inDict['rawXcorrs'] = {amp: kernel for amp, kernel in zip(amps, rawXcorrs)}
-        inDict['xCorrs'] = {amp: kernel for amp, kernel in zip(amps, xCorrs)}
+        inDict['gain'] = {amp: gain for amp, gain in zip(amps, gainList)}
+        inDict['noise'] = {amp: noise for amp, noise in zip(amps, noiseList)}
         inDict['meanXcorrs'] = {amp: kernel for amp, kernel in zip(amps, meanXcorrs)}
+        inDict['ampKernels'] = {amp: kernel for amp, kernel in zip(amps, ampKernels)}
+        inDict['valid'] = {amp: bool(valid) for amp, valid in zip(amps, validList)}
+
+        inDict['badAmps'] = [amp for amp, valid in inDict['valid'].items() if valid is True]
 
         if len(tableList) > 1:
             detTable = tableList[1]
@@ -281,34 +325,53 @@ class BrighterFatterKernel(IsrCalib):
         """
         tableList = []
         self.updateMetadata()
+
+        # Lengths
         kernelLength = self.shape[0] * self.shape[1]
+        smallLength = int((self.shape[0] - 1)*(self.shape[1] - 1)/4)
+        nObservations = set([len(self.means[amp]) for amp in self.means])
+        if len(nObservations) != 1:
+            raise RuntimeError("Inconsistent number of observations found.")
+        nObs = nObservations.pop()
 
         ampList = []
+        meanList = []
+        varianceList = []
+        rawXcorrs = []
         gainList = []
-        kernelList = []
+        noiseList = []
 
-        rawMeanList = []
-        rawXcorrList = []
-        xCorrList = []
         meanXcorrsList = []
+        kernelList = []
+        validList = []
 
-        for amp in self.gain.keys():
+        for amp in self.means.keys():
             ampList.append(amp)
+            meanList.append(self.means[amp])
+            varianceList.append(self.variances[amp])
+            rawXcorrs.append(np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist())
             gainList.append(self.gain[amp])
+            noiseList.append(self.noise[amp])
+
+            meanXcorrsList.append(self.meanXcorrs[amp].reshape(kernelLength).tolist())
             kernelList.append(self.ampKernels[amp].reshape(kernelLength).tolist())
+            validList.append(int(self.valid[amp] and not (amp in self.badAmps)))
 
         ampTable = Table({'AMPLIFIER': ampList,
+                          'MEANS': meanList,
+                          'VARIANCES': varianceList,
+                          'RAW_XCORRS': rawXcorrs,
                           'GAIN': gainList,
+                          'NOISE': noiseList,
+                          'MEAN_XCORRS': meanXcorrsList,
                           'KERNEL': kernelList,
-                          'RAW_MEANS': rawMeanList,
-                          'RAW_XCORRS': rawXcorrList,
-                          'XCORRS': xCorrList,
-                          'MEAN_XCORRS': meanXcorrsList, })
+                          'VALID': validList,
+                          })
 
         ampTable.meta = self.getMetadata().toDict()
         tableList.append(ampTable)
 
-        if False:
+        if len(self.detKernels):
             detList = []
             kernelList = []
             for det in self.detKernels.keys():
