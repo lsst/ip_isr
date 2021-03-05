@@ -867,7 +867,7 @@ def setBadRegions(exposure, badStatistic="MEDIAN"):
     return badPixels.sum(), value
 
 
-def checkFilter(exposure, filterList, log=None):
+def checkFilter(exposure, filterList, log):
     """Check to see if an exposure is in a filter specified by a list.
 
     The goal of this is to provide a unified filter checking interface
@@ -879,7 +879,7 @@ def checkFilter(exposure, filterList, log=None):
         Exposure to examine.
     filterList : `list` [`str`]
         List of physical_filter names to check.
-    log : `lsst.log.Log`, optional
+    log : `lsst.log.Log`
         Logger to handle messages.
 
     Returns

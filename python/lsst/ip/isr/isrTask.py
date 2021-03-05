@@ -1076,7 +1076,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             dateObs = None
 
         ccd = rawExposure.getDetector()
-        filterName = rawExposure.getFilterLabel()
+        filterLabel = rawExposure.getFilterLabel()
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
         biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
                         if self.config.doBias else None)
@@ -1165,7 +1165,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         illumMaskedImage = (self.getIsrExposure(dataRef,
                             self.config.illuminationCorrectionDataProductName).getMaskedImage()
                             if (self.config.doIlluminationCorrection
-                            and filterName in self.config.illumFilters)
+                            and filterLabel in self.config.illumFilters)
                             else None)
 
         # Struct should include only kwargs to run()
@@ -1331,7 +1331,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 return self.runDataRef(ccdExposure)
 
         ccd = ccdExposure.getDetector()
-        filterName = ccdExposure.getFilterLabel()
+        filterLabel = ccdExposure.getFilterLabel()
 
         if not ccd:
             assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd."
@@ -1350,14 +1350,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a flat exposure if config.doFlat=True.")
         if self.config.doDefect and defects is None:
             raise RuntimeError("Must supply defects if config.doDefect=True.")
-        if (self.config.doFringe and filterName in self.fringe.config.filters
+        if (self.config.doFringe and filterLabel in self.fringe.config.filters
                 and fringes.fringes is None):
             # The `fringes` object needs to be a pipeBase.Struct, as
             # we use it as a `dict` for the parameters of
             # `FringeTask.run()`.  The `fringes.fringes` `list` may
             # not be `None` if `doFringe=True`.  Otherwise, raise.
             raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct.")
-        if (self.config.doIlluminationCorrection and filterName in self.config.illumFilters
+        if (self.config.doIlluminationCorrection and filterLabel in self.config.illumFilters
                 and illumMaskedImage is None):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
 
@@ -1604,7 +1604,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.qa.doThumbnailFlattened:
             flattenedThumb = isrQa.makeThumbnail(ccdExposure, isrQaConfig=self.config.qa)
 
-        if self.config.doIlluminationCorrection and filterName in self.config.illumFilters:
+        if self.config.doIlluminationCorrection and filterLabel in self.config.illumFilters:
             self.log.info("Performing illumination correction.")
             isrFunctions.illuminationCorrection(ccdExposure.getMaskedImage(),
                                                 illumMaskedImage, illumScale=self.config.illumScale,
@@ -2477,11 +2477,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
         """
-        filterName = exposure.getFilterLabel()
-        if filterName in self.config.fluxMag0T1:
-            fluxMag0 = self.config.fluxMag0T1[filterName]
+        filterLabel = exposure.getFilterLabel()
+        if filterLabel in self.config.fluxMag0T1:
+            fluxMag0 = self.config.fluxMag0T1[filterLabel]
         else:
-            self.log.warn("No rough magnitude zero point set for filter %s.", filterName)
+            self.log.warn("No rough magnitude zero point set for filter %s.", filterLabel)
             fluxMag0 = self.config.defaultFluxMag0T1
 
         expTime = exposure.getInfo().getVisitInfo().getExposureTime()
