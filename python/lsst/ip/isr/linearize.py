@@ -339,7 +339,7 @@ class Linearizer(IsrCalib):
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
 
-        if self.tableData:
+        if self.tableData is not None:
             catalog = Table([{'LOOKUP_VALUES': value} for value in self.tableData])
             tableList.append(catalog)
         return(tableList)
@@ -579,7 +579,8 @@ class LinearizeLookupTable(LinearizeBase):
         if rowInd < 0 or rowInd > numTableRows:
             raise RuntimeError("LinearizeLookupTable rowInd=%s not in range[0, %s)" %
                                (rowInd, numTableRows))
-        tableRow = table[rowInd, :]
+        tableRow = np.array(table[rowInd, :], dtype=image.getArray().dtype)
+
         numOutOfRange += applyLookupTable(image, tableRow, colIndOffset)
 
         if numOutOfRange > 0 and log is not None:
