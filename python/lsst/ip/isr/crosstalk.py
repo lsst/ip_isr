@@ -27,6 +27,7 @@ from astropy.table import Table
 
 import lsst.afw.math
 import lsst.afw.detection
+import lsst.daf.butler
 from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
@@ -700,7 +701,8 @@ class CrosstalkTask(Task):
         ------
         RuntimeError
             Raised if called for a detector that does not have a
-            crosstalk correction.
+            crosstalk correction.  Also raised if the crosstalkSource
+            is not an expected type.
         """
         if not crosstalk:
             crosstalk = CrosstalkCalib(log=self.log)
@@ -724,10 +726,13 @@ class CrosstalkTask(Task):
                     if isinstance(crosstalkSources[0], lsst.afw.image.Exposure):
                         # Received afwImage.Exposure
                         sourceNames = [exp.getDetector().getName() for exp in crosstalkSources]
-                    else:
+                    elif isinstance(crosstalkSources[0], lsst.daf.butler.DeferredDatasetHandle):
                         # Received dafButler.DeferredDatasetHandle
                         detectorList = [source.dataId['detector'] for source in crosstalkSources]
                         sourceNames = [camera[detector].getName() for detector in detectorList]
+                    else:
+                        raise RuntimeError("Unknown object passed as crosstalk sources.",
+                                           type(crosstalkSources[0]))
 
                     for detName in crosstalk.interChip:
                         if detName not in sourceNames:
@@ -738,11 +743,14 @@ class CrosstalkTask(Task):
                         interChipCoeffs = crosstalk.interChip[detName]
 
                         sourceExposure = crosstalkSources[sourceNames.index(detName)]
-                        if not isinstance(sourceExposure, lsst.afw.image.Exposure):
+                        if isinstance(sourceExposure, lsst.daf.butler.DeferredDatasetHandle):
                             # Dereference the dafButler.DeferredDatasetHandle.
                             sourceExposure = sourceExposure.get()
+                        if not isinstance(sourceExposure, lsst.afw.image.Exposure):
+                            raise RuntimeError("Unknown object passed as crosstalk sources.",
+                                               type(sourceExposure))
 
-                        self.log.warn("Correcting detector %s with ctSource %s",
+                        self.log.info("Correcting detector %s with ctSource %s",
                                       exposure.getDetector().getName(),
                                       sourceExposure.getDetector().getName())
                         crosstalk.subtractCrosstalk(exposure, sourceExposure=sourceExposure,
