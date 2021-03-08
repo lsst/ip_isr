@@ -896,7 +896,7 @@ def checkFilter(exposure, filterList, log):
         return True
     elif thisFilter.bandLabel in filterList:
         if log:
-            log.warn("Physical filter (%s) should be used instead of band %s (%s)",
+            log.warn("Physical filter (%s) should be used instead of band %s for filter configurations (%s)",
                      thisFilter.physicalLabel, thisFilter.bandLabel, filterList)
         return True
     else:
