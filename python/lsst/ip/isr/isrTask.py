@@ -988,17 +988,23 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 brighterFatterKernel = inputs.get('bfKernel', None)
 
             if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
+                # This is a ISR calib kernel
                 detName = detector.getName()
-                inputs['bfGains'] = brighterFatterKernel.gains
-                # If the kernel is not an ndarray, it's the cp_pipe version
-                # so extract the kernel for this detector, or raise an error
+                level = brighterFatterKernel.level
+
+                # This is expected to be a dictionary of amp-wise gains.
+                inputs['bfGains'] = brighterFatterKernel.gain
                 if self.config.brighterFatterLevel == 'DETECTOR':
-                    if brighterFatterKernel.detKernel:
-                        inputs['bfKernel'] = brighterFatterKernel.detKernel[detName]
-                    else:
-                        raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
-                else:
-                    # TODO DM-15631 for implementing this
+                    if level == 'DETECTOR':
+                        if detName in brighterFatterKernel.detKernels:
+                            inputs['bfKernel'] = brighterFatterKernel.detKernels[detName]
+                        else:
+                            raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
+                    elif level == 'AMP':
+                        self.log.warn("Making DETECTOR level kernel from AMP based brighter fatter kernels.")
+                        brighterFatterKernel.makeDetectorKernelFromAmpwiseKernels(detName)
+                        inputs['bfKernel'] = brighterFatterKernel.detKernels[detName]
+                elif self.config.brighterFatterLevel == 'AMP':
                     raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
 
         if self.config.doFringe is True and self.fringe.checkFilter(inputs['ccdExposure']):
