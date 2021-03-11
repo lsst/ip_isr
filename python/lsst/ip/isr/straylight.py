@@ -24,6 +24,7 @@ from typing import Optional
 from lsst.pex.config import Config, Field, ListField
 from lsst.pipe.base import Task
 from lsst.geom import Angle
+from .isrFunctions import checkFilter
 
 
 class StrayLightConfig(Config):
@@ -114,7 +115,7 @@ class StrayLightTask(Task):
             If True, then the exposure has a filter listed in the
             configuration, and should have the fringe applied.
         """
-        return exposure.getFilter().getName() in self.config.filters
+        return checkFilter(exposure, self.config.filters, log=self.log)
 
 
 class StrayLightData(ABC):
