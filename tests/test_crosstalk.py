@@ -90,9 +90,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
             return image
 
         # Construct detector
-        detName = 'detector'
+        detName = 'detector 1'
         detId = 1
-        detSerial = 'serial'
+        detSerial = 'serial 1'
         orientation = cameraGeom.Orientation()
         pixelSize = lsst.geom.Extent2D(1, 1)
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
@@ -106,6 +106,23 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         detBuilder.setOrientation(orientation)
         detBuilder.setPixelSize(pixelSize)
         detBuilder.setCrosstalk(crosstalk)
+
+        # Construct second detector in this fake camera
+        detName = 'detector 2'
+        detId = 2
+        detSerial = 'serial 2'
+        orientation = cameraGeom.Orientation()
+        pixelSize = lsst.geom.Extent2D(1, 1)
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                               lsst.geom.Extent2I(2*width, 2*height))
+        crosstalk = np.array(self.crosstalk, dtype=np.float32)
+
+        detBuilder2 = camBuilder.add(detName, detId)
+        detBuilder2.setSerial(detSerial)
+        detBuilder2.setBBox(bbox)
+        detBuilder2.setOrientation(orientation)
+        detBuilder2.setPixelSize(pixelSize)
+        detBuilder2.setCrosstalk(crosstalk)
 
         # Create amp info
         for ii, (xx, yy, corner) in enumerate([(0, 0, lsst.afw.cameraGeom.ReadoutCorner.LL),
@@ -121,12 +138,18 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
                                                lsst.geom.Extent2I(width, height)))
             amp.setReadoutCorner(corner)
             detBuilder.append(amp)
+            detBuilder2.append(amp)
 
         cam = camBuilder.finish()
-        ccd = cam.get('detector')
+        ccd1 = cam.get('detector 1')
+        ccd2 = cam.get('detector 2')
 
         self.exposure = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
-        self.exposure.setDetector(ccd)
+        self.exposure.setDetector(ccd1)
+
+        # Create a single ctSource that will be used for interChip CT correction.
+        self.ctSource = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
+        self.ctSource.setDetector(ccd2)
 
         self.corrected = construct(withoutCrosstalk)
 
@@ -231,6 +254,26 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         task = NullCrosstalkTask()
         result = task.run(exposure, crosstalkSources=None)
         self.assertIsNone(result)
+
+    def test_interChip(self):
+        """Test that passing an external exposure as the crosstalk source works.
+        """
+        exposure = self.exposure
+        ctSources = [self.ctSource]
+
+        coeff = np.array(self.crosstalk).transpose()
+        calib = CrosstalkCalib().fromDetector(exposure.getDetector(), coeffVector=coeff)
+        # Now convert this into zero intra-chip, full inter-chip:
+        calib.interChip['detector 2'] = coeff
+        calib.coeffs = np.zeros_like(coeff)
+
+        # Process and check as above
+        config = IsrTask.ConfigClass()
+        config.crosstalk.minPixelToMask = self.value - 1
+        config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
+        isr = IsrTask(config=config)
+        isr.crosstalk.run(exposure, crosstalk=calib, crosstalkSources=ctSources)
+        self.checkSubtracted(exposure)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

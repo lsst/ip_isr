@@ -1424,7 +1424,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
-                               crosstalkSources=crosstalkSources)
+                               crosstalkSources=crosstalkSources, camera=camera)
             self.debugView(ccdExposure, "doCrosstalk")
 
         if self.config.doAssembleCcd:
