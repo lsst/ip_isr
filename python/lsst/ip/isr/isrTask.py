@@ -782,7 +782,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     maskListToInterpolate = pexConfig.ListField(
         dtype=str,
         doc="List of mask planes that should be interpolated.",
-        default=['SAT', 'BAD', 'UNMASKEDNAN'],
+        default=['SAT', 'BAD'],
     )
     doSaveInterpPixels = pexConfig.Field(
         dtype=bool,
