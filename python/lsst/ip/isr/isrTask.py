@@ -638,10 +638,16 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=True,
         doc="Should the gain be applied when applying the brighter fatter correction?"
     )
+    brighterFatterMaskListToInterpolate = pexConfig.ListField(
+        dtype=str,
+        doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
+        "correction.",
+        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
+    )
     brighterFatterMaskGrowSize = pexConfig.Field(
         dtype=int,
         default=0,
-        doc="Number of pixels to grow the masks listed in config.maskListToInterpolate "
+        doc="Number of pixels to grow the masks listed in config.brighterFatterMaskListToInterpolate "
         " when brighter-fatter correction is applied."
     )
 
@@ -1516,7 +1522,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     maskedImage=interpExp.getMaskedImage(),
                     fwhm=self.config.fwhm,
                     growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                    maskNameList=self.config.maskListToInterpolate
+                    maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
                 )
             bfExp = interpExp.clone()
 
@@ -1550,7 +1556,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
             if self.config.brighterFatterMaskGrowSize > 0:
                 self.log.info("Growing masks to account for brighter-fatter kernel convolution.")
-                for maskPlane in self.config.maskListToInterpolate:
+                for maskPlane in self.config.brighterFatterMaskListToInterpolate:
                     isrFunctions.growMasks(ccdExposure.getMask(),
                                            radius=self.config.brighterFatterMaskGrowSize,
                                            maskNameList=maskPlane,
