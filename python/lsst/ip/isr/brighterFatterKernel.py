@@ -55,7 +55,7 @@ class BrighterFatterKernel(IsrCalib):
 
     """
     _OBSTYPE = 'BFK'
-    _SCHEMA = 'Gen3 brighter-fatter kernel'
+    _SCHEMA = 'Brighter-fatter kernel'
     _VERSION = 1.0
 
     def __init__(self, camera=None, level=None, **kwargs):
@@ -147,6 +147,27 @@ class BrighterFatterKernel(IsrCalib):
 
         return self
 
+    def getLengths(self):
+        """Return the set of lengths needed for reshaping components.
+
+        Returns
+        -------
+        kernelLength : `int`
+            Product of the elements of self.shape.
+        smallLength : `int`
+            Size of an untiled covariance.
+        nObs : `int`
+            Number of observation pairs used in the kernel.
+        """
+        kernelLength = self.shape[0] * self.shape[1]
+        smallLength = int((self.shape[0] - 1)*(self.shape[1] - 1)/4)
+        nObservations = set([len(self.means[amp]) for amp in self.means])
+        if len(nObservations) != 1:
+            raise RuntimeError("Inconsistent number of observations found.")
+        nObs = nObservations.pop()
+
+        return (kernelLength, smallLength, nObs)
+
     @classmethod
     def fromDict(cls, dictionary):
         """Construct a calibration from a dictionary of properties.
@@ -169,9 +190,9 @@ class BrighterFatterKernel(IsrCalib):
         """
         calib = cls()
 
-        if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
+        if calib._OBSTYPE != (found := dictionary['metadata']['OBSTYPE']):
             raise RuntimeError(f"Incorrect brighter-fatter kernel supplied.  Expected {calib._OBSTYPE}, "
-                               f"found {dictionary['metadata']['OBSTYPE']}")
+                               f"found {found}")
 
         calib.setMetadata(dictionary['metadata'])
         calib.calibInfoFromDict(dictionary)
@@ -185,11 +206,7 @@ class BrighterFatterKernel(IsrCalib):
         calib.variances = {amp: np.array(dictionary['variances'][amp]) for amp in dictionary['variances']}
 
         # Lengths for reshape:
-        smallShape = (int((calib.shape[0] - 1) / 2), int((calib.shape[1] - 1)/2))
-        nObservations = set([len(calib.means[amp]) for amp in calib.means])
-        if len(nObservations) != 1:
-            raise RuntimeError("Inconsistent number of observations found.")
-        nObs = nObservations.pop()
+        _, smallShape, nObs = calib.getLengths()
 
         calib.rawXcorrs = {amp: np.array(dictionary['rawXcorrs'][amp]).reshape((nObs,
                                                                                 smallShape[0],
@@ -228,12 +245,7 @@ class BrighterFatterKernel(IsrCalib):
         outDict['metadata'] = metadata
 
         # Lengths for ravel:
-        kernelLength = self.shape[0] * self.shape[1]
-        smallLength = int((self.shape[0] - 1)*(self.shape[1] - 1)/4)
-        nObservations = set([len(self.means[amp]) for amp in self.means])
-        if len(nObservations) != 1:
-            raise RuntimeError("Inconsistent number of observations found.")
-        nObs = nObservations.pop()
+        kernelLength, smallLength, nObs = self.getLengths()
 
         outDict['means'] = {amp: np.array(self.means[amp]).tolist() for amp in self.means}
         outDict['variances'] = {amp: np.array(self.variances[amp]).tolist() for amp in self.variances}
@@ -327,12 +339,7 @@ class BrighterFatterKernel(IsrCalib):
         self.updateMetadata()
 
         # Lengths
-        kernelLength = self.shape[0] * self.shape[1]
-        smallLength = int((self.shape[0] - 1)*(self.shape[1] - 1)/4)
-        nObservations = set([len(self.means[amp]) for amp in self.means])
-        if len(nObservations) != 1:
-            raise RuntimeError("Inconsistent number of observations found.")
-        nObs = nObservations.pop()
+        kernelLength, smallLength, nObs = self.getLengths()
 
         ampList = []
         meanList = []
