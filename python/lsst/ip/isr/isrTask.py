@@ -32,10 +32,8 @@ import lsst.pipe.base.connectionTypes as cT
 from contextlib import contextmanager
 from lsstDebug import getDebugFrame
 
-from lsst.afw.cameraGeom import (PIXELS, FOCAL_PLANE, NullLinearityType,
-                                 ReadoutCorner)
+from lsst.afw.cameraGeom import NullLinearityType, ReadoutCorner
 from lsst.afw.display import getDisplay
-from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
 from lsst.daf.persistence.butler import NoResults
 from lsst.meas.algorithms.detection import SourceDetectionTask
@@ -859,8 +857,20 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     # Vignette correction configuration.
     doVignette = pexConfig.Field(
         dtype=bool,
-        doc="Apply vignetting parameters?",
+        doc="Compute and attach validPolygon to exposure according to vignetting parameters?",
         default=False,
+    )
+    doMaskVignettePolygon = pexConfig.Field(
+        dtype=bool,
+        doc=("Add a mask bit for pixels within the vingetted region?  Ignored if doVignette "
+             "is False"),
+        default=True,
+    )
+    vignetteValue = pexConfig.Field(
+        dtype=float,
+        doc="Value to replance image array pixels with in the vingetted region?  Ignored if None.",
+        optional=True,
+        default=None,
     )
     vignette = pexConfig.ConfigurableField(
         target=VignetteTask,
@@ -1676,11 +1686,13 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.fringe.run(ccdExposure, **fringes.getDict())
 
         if self.config.doVignette:
-            self.log.info("Constructing Vignette polygon.")
-            self.vignettePolygon = self.vignette.run(ccdExposure)
-
-            if self.config.vignette.doWriteVignettePolygon:
-                self.setValidPolygonIntersect(ccdExposure, self.vignettePolygon)
+            if self.config.doMaskVignettePolygon:
+                self.log.info("Constructing, attaching, and masking vignette polygon.")
+            else:
+                self.log.info("Constructing and attaching vignette polygon.")
+            self.vignettePolygon = self.vignette.run(
+                exposure=ccdExposure, doUpdateMask=self.config.doMaskVignettePolygon,
+                vignetteValue=self.config.vignetteValue, log=self.log)
 
         if self.config.doAttachTransmissionCurve:
             self.log.info("Adding transmission curves.")
@@ -2642,29 +2654,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.log.info("Setting rough magnitude zero point for filter %s: %f",
                       physicalFilter, 2.5*math.log10(fluxMag0*expTime))
         exposure.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0*expTime, 0.0))
-
-    def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
-        """Set valid polygon as the intersection of fpPolygon and chip corners.
-
-        Parameters
-        ----------
-        ccdExposure : `lsst.afw.image.Exposure`
-            Exposure to process.
-        fpPolygon : `lsst.afw.geom.Polygon`
-            Polygon in focal plane coordinates.
-        """
-        # Get ccd corners in focal plane coordinates
-        ccd = ccdExposure.getDetector()
-        fpCorners = ccd.getCorners(FOCAL_PLANE)
-        ccdPolygon = Polygon(fpCorners)
-
-        # Get intersection of ccd corners with fpPolygon
-        intersect = ccdPolygon.intersectionSingle(fpPolygon)
-
-        # Transform back to pixel positions and build new polygon
-        ccdPoints = ccd.transform(intersect, FOCAL_PLANE, PIXELS)
-        validPolygon = Polygon(ccdPoints)
-        ccdExposure.getInfo().setValidPolygon(validPolygon)
 
     @contextmanager
     def flatContext(self, exp, flat, dark=None):
