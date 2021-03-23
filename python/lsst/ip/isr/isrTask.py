@@ -597,7 +597,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
     doNanMasking = pexConfig.Field(
         dtype=bool,
-        doc="Mask NAN pixels?",
+        doc="Mask non-finite (NAN, inf) pixels?",
         default=True,
     )
     doWidenSaturationTrails = pexConfig.Field(
@@ -610,7 +610,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     doBrighterFatter = pexConfig.Field(
         dtype=bool,
         default=False,
-        doc="Apply the brighter fatter correction"
+        doc="Apply the brighter-fatter correction?"
     )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
@@ -624,25 +624,31 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     brighterFatterMaxIter = pexConfig.Field(
         dtype=int,
         default=10,
-        doc="Maximum number of iterations for the brighter fatter correction"
+        doc="Maximum number of iterations for the brighter-fatter correction"
     )
     brighterFatterThreshold = pexConfig.Field(
         dtype=float,
         default=1000,
-        doc="Threshold used to stop iterating the brighter fatter correction.  It is the "
-        " absolute value of the difference between the current corrected image and the one"
-        " from the previous iteration summed over all the pixels."
+        doc="Threshold used to stop iterating the brighter-fatter correction.  It is the "
+        "absolute value of the difference between the current corrected image and the one "
+        "from the previous iteration summed over all the pixels."
     )
     brighterFatterApplyGain = pexConfig.Field(
         dtype=bool,
         default=True,
-        doc="Should the gain be applied when applying the brighter fatter correction?"
+        doc="Should the gain be applied when applying the brighter-fatter correction?"
+    )
+    brighterFatterMaskListToInterpolate = pexConfig.ListField(
+        dtype=str,
+        doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
+        "correction.",
+        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
     )
     brighterFatterMaskGrowSize = pexConfig.Field(
         dtype=int,
         default=0,
-        doc="Number of pixels to grow the masks listed in config.maskListToInterpolate "
-        " when brighter-fatter correction is applied."
+        doc="Number of pixels to grow the masks listed in config.brighterFatterMaskListToInterpolate "
+        "when brighter-fatter correction is applied."
     )
 
     # Dark subtraction.
@@ -776,7 +782,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     maskListToInterpolate = pexConfig.ListField(
         dtype=str,
         doc="List of mask planes that should be interpolated.",
-        default=['SAT', 'BAD', 'UNMASKEDNAN'],
+        default=['SAT', 'BAD'],
     )
     doSaveInterpPixels = pexConfig.Field(
         dtype=bool,
@@ -974,7 +980,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 if not isinstance(inputs["defects"], Defects):
                     inputs["defects"] = Defects.fromTable(inputs["defects"])
 
-        # Load the correct style of brighter fatter kernel, and repack
+        # Load the correct style of brighter-fatter kernel, and repack
         # the information as a numpy array.
         if self.config.doBrighterFatter:
             brighterFatterKernel = inputs.pop('newBFKernel', None)
@@ -1114,11 +1120,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 # gains, i.e. the ones inside the kernel object itself
                 brighterFatterKernel = dataRef.get("brighterFatterKernel")
                 brighterFatterGains = brighterFatterKernel.gain
-                self.log.info("New style bright-fatter kernel (brighterFatterKernel) loaded")
+                self.log.info("New style brighter-fatter kernel (brighterFatterKernel) loaded")
             except NoResults:
                 try:  # Fall back to the old-style numpy-ndarray style kernel if necessary.
                     brighterFatterKernel = dataRef.get("bfKernel")
-                    self.log.info("Old style bright-fatter kernel (np.array) loaded")
+                    self.log.info("Old style brighter-fatter kernel (np.array) loaded")
                 except NoResults:
                     brighterFatterKernel = None
             if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
@@ -1478,7 +1484,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                crosstalkSources=crosstalkSources, isTrimmed=True)
             self.debugView(ccdExposure, "doCrosstalk")
 
-        # Masking block. Optionally mask known defects, NAN pixels, widen trails, and do
+        # Masking block. Optionally mask known defects, NAN/inf pixels, widen trails, and do
         # anything else the camera needs. Saturated and suspect pixels have already been masked.
         if self.config.doDefect:
             self.log.info("Masking defects.")
@@ -1490,7 +1496,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                maskPlane="SUSPECT", level=self.config.edgeMaskLevel)
 
         if self.config.doNanMasking:
-            self.log.info("Masking NAN value pixels.")
+            self.log.info("Masking non-finite (NAN, inf) value pixels.")
             self.maskNan(ccdExposure)
 
         if self.config.doWidenSaturationTrails:
@@ -1516,11 +1522,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     maskedImage=interpExp.getMaskedImage(),
                     fwhm=self.config.fwhm,
                     growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                    maskNameList=self.config.maskListToInterpolate
+                    maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
                 )
             bfExp = interpExp.clone()
 
-            self.log.info("Applying brighter fatter correction using kernel type %s / gains %s.",
+            self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
                           type(bfKernel), type(bfGains))
             bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
                                                               self.config.brighterFatterMaxIter,
@@ -1528,10 +1534,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                                               self.config.brighterFatterApplyGain,
                                                               bfGains)
             if bfResults[1] == self.config.brighterFatterMaxIter:
-                self.log.warn("Brighter fatter correction did not converge, final difference %f.",
+                self.log.warn("Brighter-fatter correction did not converge, final difference %f.",
                               bfResults[0])
             else:
-                self.log.info("Finished brighter fatter correction in %d iterations.",
+                self.log.info("Finished brighter-fatter correction in %d iterations.",
                               bfResults[1])
             image = ccdExposure.getMaskedImage().getImage()
             bfCorr = bfExp.getMaskedImage().getImage()
@@ -1544,13 +1550,13 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             # produce a valid correction. Mark pixels within the size
             # of the brighter-fatter kernel as EDGE to warn of this
             # fact.
-            self.log.info("Ensuring image edges are masked as SUSPECT to the brighter-fatter kernel size.")
+            self.log.info("Ensuring image edges are masked as EDGE to the brighter-fatter kernel size.")
             self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
                            maskPlane="EDGE")
 
             if self.config.brighterFatterMaskGrowSize > 0:
                 self.log.info("Growing masks to account for brighter-fatter kernel convolution.")
-                for maskPlane in self.config.maskListToInterpolate:
+                for maskPlane in self.config.brighterFatterMaskListToInterpolate:
                     isrFunctions.growMasks(ccdExposure.getMask(),
                                            radius=self.config.brighterFatterMaskGrowSize,
                                            maskNameList=maskPlane,
@@ -2369,11 +2375,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         Notes
         -----
-        We mask over all NaNs, including those that are masked with
-        other bits (because those may or may not be interpolated over
-        later, and we want to remove all NaNs).  Despite this
-        behaviour, the "UNMASKEDNAN" mask plane is used to preserve
-        the historical name.
+        We mask over all non-finite values (NaN, inf), including those
+        that are masked with other bits (because those may or may not be
+        interpolated over later, and we want to remove all NaN/infs).
+        Despite this behaviour, the "UNMASKEDNAN" mask plane is used to
+        preserve the historical name.
         """
         maskedImage = exposure.getMaskedImage()
 
@@ -2386,7 +2392,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.warn("There were %d unmasked NaNs.", numNans)
 
     def maskAndInterpolateNan(self, exposure):
-        """"Mask and interpolate NaNs using mask plane "UNMASKEDNAN", in place.
+        """"Mask and interpolate NaN/infs using mask plane "UNMASKEDNAN",
+        in place.
 
         Parameters
         ----------
