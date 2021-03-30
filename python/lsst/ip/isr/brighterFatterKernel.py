@@ -42,7 +42,9 @@ class BrighterFatterKernel(IsrCalib):
 
     makeDetectorKernelFromAmpwiseKernels is a method to generate the
     kernel for a detector, constructed by averaging together the
-    ampwise kernels in the detector.
+    ampwise kernels in the detector.  The existing application code is
+    only defined for kernels with level == 'DETECTOR', so this method
+    is used if the supplied kernel was built with level == 'AMP'.
 
     Parameters
     ----------
@@ -66,7 +68,7 @@ class BrighterFatterKernel(IsrCalib):
         self.variances = dict()
         self.rawXcorrs = dict()
         self.badAmps = list()
-        self.shape = (8, 8)
+        self.shape = (17, 17)
         self.gain = dict()
         self.noise = dict()
 
@@ -85,6 +87,24 @@ class BrighterFatterKernel(IsrCalib):
         self.requiredAttributes.update(['level', 'means', 'variances', 'rawXcorrs',
                                         'badAmps', 'gain', 'noise', 'meanXcorrs', 'valid',
                                         'ampKernels', 'detKernels'])
+
+    def __eq__(self, other):
+        """Calibration equivalence
+        """
+        if not isinstance(other, self.__class__):
+            return False
+
+        for attr in self._requiredAttributes:
+            attrSelf = getattr(self, attr)
+            attrOther = getattr(other, attr)
+            if isinstance(attrSelf, dict) and isinstance(attrOther, dict):
+                for ampName in attrSelf:
+                    if not np.allclose(attrSelf[ampName], attrOther[ampName], equal_nan=True):
+                        return False
+            else:
+                if attrSelf != attrOther:
+                    return False
+        return True
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update calibration metadata.
@@ -120,10 +140,19 @@ class BrighterFatterKernel(IsrCalib):
         -------
         calib : `lsst.ip.isr.BrighterFatterKernel`
             The initialized calibration.
+
+        Raises
+        ------
+        RuntimeError :
+            Raised if no detectorId is supplied for a calibration with
+            level='AMP'.
         """
         self._instrument = camera.getName()
 
         if self.level == 'AMP':
+            if detectorId is None:
+                raise RuntimeError("A detectorId must be supplied if level='AMP'.")
+
             detector = camera[detectorId]
             self._detectorId = detectorId
             self._detectorName = detector.getName()
@@ -200,18 +229,19 @@ class BrighterFatterKernel(IsrCalib):
         calib.level = dictionary['metadata'].get('LEVEL', 'AMP')
         calib.shape = (dictionary['metadata'].get('KERNEL_DX', 0),
                        dictionary['metadata'].get('KERNEL_DY', 0))
-        calib.badAmps = dictionary['badAmps']
 
         calib.means = {amp: np.array(dictionary['means'][amp]) for amp in dictionary['means']}
         calib.variances = {amp: np.array(dictionary['variances'][amp]) for amp in dictionary['variances']}
 
         # Lengths for reshape:
-        _, smallShape, nObs = calib.getLengths()
+        _, smallLength, nObs = calib.getLengths()
+        smallShapeSide = int(np.sqrt(smallLength))
 
         calib.rawXcorrs = {amp: np.array(dictionary['rawXcorrs'][amp]).reshape((nObs,
-                                                                                smallShape[0],
-                                                                                smallShape[1]))
+                                                                                smallShapeSide,
+                                                                                smallShapeSide))
                            for amp in dictionary['rawXcorrs']}
+
         calib.gain = dictionary['gain']
         calib.noise = dictionary['noise']
 
@@ -220,6 +250,7 @@ class BrighterFatterKernel(IsrCalib):
         calib.ampKernels = {amp: np.array(dictionary['ampKernels'][amp]).reshape(calib.shape)
                             for amp in dictionary['ampKernels']}
         calib.valid = {amp: bool(value) for amp, value in dictionary['valid'].items()}
+        calib.badAmps = [amp for amp, valid in dictionary['valid'].items() if valid is False]
 
         calib.detKernels = {det: np.array(dictionary['detKernels'][det]).reshape(calib.shape)
                             for det in dictionary['detKernels']}
@@ -311,7 +342,7 @@ class BrighterFatterKernel(IsrCalib):
         inDict['ampKernels'] = {amp: kernel for amp, kernel in zip(amps, ampKernels)}
         inDict['valid'] = {amp: bool(valid) for amp, valid in zip(amps, validList)}
 
-        inDict['badAmps'] = [amp for amp, valid in inDict['valid'].items() if valid is True]
+        inDict['badAmps'] = [amp for amp, valid in inDict['valid'].items() if valid is False]
 
         if len(tableList) > 1:
             detTable = tableList[1]

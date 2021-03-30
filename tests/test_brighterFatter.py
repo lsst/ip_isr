@@ -21,29 +21,49 @@
 #
 
 import unittest
-import pickle
-import os
+import numpy as np
 
 import lsst.utils.tests
+import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.image as afwImage
 import lsst.ip.isr.isrFunctions as isrFunctions
+from lsst.ip.isr import BrighterFatterKernel
 
 
 class BrighterFatterTestCases(lsst.utils.tests.TestCase):
 
     def setUp(self):
-        self.filename = "bf_kernel.pkl"
-        kernel = afwImage.ImageF(17, 17)
-        kernel[9, 9, afwImage.LOCAL] = 1
-        kernelPickleString = kernel.getArray().dumps()
-        # kernel.getArray().dump(self.filename) triggers an "unclosed file" warning with numpy 1.13.1
-        with open(self.filename, 'wb') as f:
-            f.write(kernelPickleString)
+        """Set up a no-op BFK dataset
+        """
+        cameraBuilder = cameraGeom.Camera.Builder('fake camera')
+        detectorWrapper = cameraGeom.testUtils.DetectorWrapper(numAmps=4, cameraBuilder=cameraBuilder)
+        self.detector = detectorWrapper.detector
+        camera = cameraBuilder.finish()
 
-    def tearDown(self):
-        os.unlink(self.filename)
+        self.bfk = BrighterFatterKernel(level='AMP', camera=camera, detectorId=1)
+        self.bfk.shape = (17, 17)
+        self.bfk.badAmps = ['amp 3']
 
-    def testBrighterFatterInterface(self):
+        covar = np.zeros((8, 8))
+        covar[0, 0] = 1.0
+
+        kernel = np.zeros(self.bfk.shape)
+        kernel[8, 8] = 1.0
+
+        for amp in self.detector:
+            ampName = amp.getName()
+            self.bfk.means[ampName] = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
+            self.bfk.variances[ampName] = np.array(self.bfk.means[ampName], dtype=float)
+            self.bfk.rawXcorrs[ampName] = [covar for _ in self.bfk.means[ampName]]
+            self.bfk.gain[ampName] = 1.0
+            self.bfk.noise[ampName] = 5.0
+
+            self.bfk.meanXcorrs[ampName] = kernel
+            self.bfk.valid[ampName] = (ampName != 'amp 3')
+
+            self.bfk.ampKernels[ampName] = kernel
+
+    def test_BrighterFatterInterface(self):
         """Test brighter fatter correction interface using a delta function kernel on a flat image"""
 
         image = afwImage.ImageF(100, 100)
@@ -53,11 +73,20 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
         mi = afwImage.makeMaskedImage(image)
         exp = afwImage.makeExposure(mi)
 
-        with open(self.filename, 'rb') as f:
-            bfKernel = pickle.load(f)
+        self.bfk.makeDetectorKernelFromAmpwiseKernels(self.detector.getName())
+        kernelToUse = self.bfk.detKernels[self.detector.getName()]
 
-        isrFunctions.brighterFatterCorrection(exp, bfKernel, 5, 100, False)
+        isrFunctions.brighterFatterCorrection(exp, kernelToUse, 5, 100, False)
         self.assertImagesEqual(ref_image, image)
+
+    def test_BrighterFatterIO(self):
+        dictionary = self.bfk.toDict()
+        newBfk = BrighterFatterKernel().fromDict(dictionary)
+        self.assertEqual(self.bfk, newBfk)
+
+        tables = self.bfk.toTable()
+        newBfk = BrighterFatterKernel().fromTable(tables)
+        self.assertEqual(self.bfk, newBfk)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
