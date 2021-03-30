@@ -215,6 +215,61 @@ class PhotonTransferCurveDataset(IsrCalib):
                     return False
         return True
 
+    def setAmpValues(self, ampName, inputExpIdPair=[(np.nan, np.nan)], expIdMask=[np.nan],
+                     rawExpTime=[np.nan], rawMean=[np.nan], rawVar=[np.nan], photoCharge=[np.nan],
+                     gain=np.nan, gainErr=np.nan, noise=np.nan, noiseErr=np.nan, ptcFitPars=[np.nan],
+                     ptcFitParsError=[np.nan], ptcFitChiSq=np.nan, covArray=[], covArrayModel=[],
+                     covSqrtWeights=[], aMatrix=[], bMatrix=[], covArrayModelNoB=[], aMatrixNoB=[],
+                     finalVar=[np.nan], finalModelVar=[np.nan], finalMean=[np.nan]):
+        """Function to initialize an amp of a PhotonTransferCurveDataset.
+
+        Notes
+        -----
+        The parameters are all documented in `init`.
+        """
+        nanMatrix = np.full((self.covMatrixSide, self.covMatrixSide), np.nan)
+        if len(covArray) == 0:
+            covArray = [nanMatrix]
+        if len(covArrayModel) == 0:
+            covArrayModel = [nanMatrix]
+        if len(covSqrtWeights) == 0:
+            covSqrtWeights = [nanMatrix]
+        if len(covArrayModelNoB) == 0:
+            covArrayModelNoB = [nanMatrix]
+        if len(aMatrix) == 0:
+            aMatrix = nanMatrix
+        if len(bMatrix) == 0:
+            bMatrix = nanMatrix
+        if len(aMatrixNoB) == 0:
+            aMatrixNoB = nanMatrix
+
+        self.inputExpIdPairs[ampName] = inputExpIdPair
+        self.expIdMask[ampName] = expIdMask
+        self.rawExpTimes[ampName] = rawExpTime
+        self.rawMeans[ampName] = rawMean
+        self.rawVars[ampName] = rawVar
+        self.photoCharge[ampName] = photoCharge
+        self.gain[ampName] = gain
+        self.gainErr[ampName] = gainErr
+        self.noise[ampName] = noise
+        self.noiseErr[ampName] = noiseErr
+        self.ptcFitPars[ampName] = ptcFitPars
+        self.ptcFitParsError[ampName] = ptcFitParsError
+        self.ptcFitChiSq[ampName]
+        self.covariances[ampName] = covArray
+        self.covariancesSqrtWeights[ampName] = covSqrtWeights
+        self.covariancesModel[ampName] = covArrayModel
+        self.covariancesModelNoB[ampName] = covArrayModelNoB
+        self.aMatrix[ampName] = aMatrix
+        self.bMatrix[ampName] = bMatrix
+        self.aMatrixNoB[ampName] = aMatrixNoB
+        self.ptcFitPars[ampName] = ptcFitPars
+        self.ptcFitParsError[ampName] = ptcFitParsError
+        self.ptcFitChiSq[ampName] = ptcFitChiSq
+        self.finalVars[ampName] = finalVar
+        self.finalModelVars[ampName] = finalModelVar
+        self.finalMeans[ampName] = finalMean
+
     def updateMetadata(self, setDate=False, **kwargs):
         """Update calibration metadata.
         This calls the base class's method after ensuring the required
