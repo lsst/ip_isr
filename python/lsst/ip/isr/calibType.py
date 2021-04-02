@@ -23,6 +23,8 @@ import datetime
 import os.path
 import warnings
 import yaml
+import numpy as np
+
 from astropy.table import Table
 from astropy.io import fits
 
@@ -91,15 +93,42 @@ class IsrCalib(abc.ABC):
     def __eq__(self, other):
         """Calibration equivalence.
 
-        Subclasses will need to check specific sub-properties.  The
-        default is only to check common entries.
+        Running ``calib.log.setLevel(0)`` enables debug statements to
+        identify problematic fields.
         """
         if not isinstance(other, self.__class__):
+            self.log.debug("Incorrect class type: %s %s", self.__class__, other.__class__)
             return False
 
         for attr in self._requiredAttributes:
-            if getattr(self, attr) != getattr(other, attr):
+            attrSelf = getattr(self, attr)
+            attrOther = getattr(other, attr)
+
+            if isinstance(attrSelf, dict):
+                # Dictionary of arrays.
+                if attrSelf.keys() != attrOther.keys():
+                    self.log.debug("Dict Key Failure: %s %s %s", attr, attrSelf.keys(), attrOther.keys())
+                    return False
+                for key in attrSelf:
+                    if not np.allclose(attrSelf[key], attrOther[key], equal_nan=True):
+                        self.log.debug("Array Failure: %s %s %s", key, attrSelf[key], attrOther[key])
+                        return False
+            elif isinstance(attrSelf, np.ndarray):
+                # Bare array.
+                if not np.allclose(attrSelf, attrOther, equal_nan=True):
+                    self.log.debug("Array Failure: %s %s %s", attr, attrSelf, attrOther)
+                    return False
+            elif type(attrSelf) != type(attrOther):
+                if set([attrSelf, attrOther]) == set([None, ""]):
+                    # Fits converts None to "", but None is not "".
+                    continue
+                self.log.debug("Type Failure: %s %s %s %s %s", attr, type(attrSelf), type(attrOther),
+                               attrSelf, attrOther)
                 return False
+            else:
+                if attrSelf != attrOther:
+                    self.log.debug("Value Failure: %s %s %s", attr, attrSelf, attrOther)
+                    return False
 
         return True
 
