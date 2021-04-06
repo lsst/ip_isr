@@ -506,6 +506,8 @@ class FringeTask(Task):
                                (len(fringes), len(solution)))
 
         for s, f in zip(solution, fringes):
+            # We do not want to add the mask from the fringe to the image.
+            f.getMaskedImage().getMask().getArray()[:] = 0
             science.getMaskedImage().scaledMinus(s, f.getMaskedImage())
 
 
