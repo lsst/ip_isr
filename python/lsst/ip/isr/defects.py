@@ -185,6 +185,10 @@ class Defects(IsrCalib):
         if self._bulk_update:
             return
 
+        # If we have no defects, there is nothing to normalize.
+        if len(self) == 0:
+            return
+
         # work out the minimum and maximum bounds from all defect regions.
         minX, minY, maxX, maxY = float('inf'), float('inf'), float('-inf'), float('-inf')
         for defect in self:
