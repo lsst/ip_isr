@@ -743,7 +743,7 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
     return combined
 
 
-def applyGains(exposure, normalizeGains=False):
+def applyGains(exposure, normalizeGains=False, ptcDataset=None):
     """Scale an exposure by the amplifier gains.
 
     Parameters
@@ -753,6 +753,8 @@ def applyGains(exposure, normalizeGains=False):
     normalizeGains : `Bool`, optional
         If True, then amplifiers are scaled to force the median of
         each amplifier to equal the median of those medians.
+    ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+        PTC dataset containing the gains.
     """
     ccd = exposure.getDetector()
     ccdImage = exposure.getMaskedImage()
@@ -760,7 +762,10 @@ def applyGains(exposure, normalizeGains=False):
     medians = []
     for amp in ccd:
         sim = ccdImage.Factory(ccdImage, amp.getBBox())
-        sim *= amp.getGain()
+        if ptcDataset:
+            sim *= ptcDataset.gain[amp.getName()]
+        else:
+            sim *= amp.getGain()
 
         if normalizeGains:
             medians.append(numpy.median(sim.getImage().getArray()))
