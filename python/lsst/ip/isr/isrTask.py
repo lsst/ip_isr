@@ -281,7 +281,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.prerequisiteInputs.discard("dark")
         if config.doFlat is not True:
             self.prerequisiteInputs.discard("flat")
-        if config.usePtcGains is not True and config.usePtcGains is not True:
+        if config.usePtcGains is not True and config.usePtcReadNoise is not True:
             self.prerequisiteInputs.discard("ptc")
         if config.doAttachTransmissionCurve is not True:
             self.prerequisiteInputs.discard("opticsTransmission")
@@ -1216,7 +1216,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
     @pipeBase.timeMethod
     def run(self, ccdExposure, camera=None, bias=None, linearizer=None,
             crosstalk=None, crosstalkSources=None,
-            dark=None, flat=None, ptcDataset=None, bfKernel=None, bfGains=None, defects=None,
+            dark=None, flat=None, ptc=None, bfKernel=None, bfGains=None, defects=None,
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
@@ -1262,7 +1262,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Dark calibration frame.
         flat : `lsst.afw.image.Exposure`, optional
             Flat calibration frame.
-        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
             Photon transfer curve dataset, with, e.g., gains
             and read noise.
         bfKernel : `numpy.ndarray`, optional
@@ -1482,11 +1482,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     if overscanResults is not None:
                         self.updateVariance(ampExposure, amp,
                                             overscanImage=overscanResults.overscanImage,
-                                            ptcDataset=ptcDataset)
+                                            ptcDataset=ptc)
                     else:
                         self.updateVariance(ampExposure, amp,
                                             overscanImage=None,
-                                            ptcDataset=ptcDataset)
+                                            ptcDataset=ptc)
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
                                                          afwMath.MEDIAN | afwMath.STDEVCLIP)
@@ -1614,7 +1614,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             if self.config.usePtcGains:
                 self.log.info("Using gains from the Photon Transfer Curve.")
                 isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
-                                        ptcGains=ptcDataset.gain)
+                                        ptcGains=ptc.gain)
             else:
                 isrFunctions.applyGains(ccdExposure, self.config.normalizeGains)
 
