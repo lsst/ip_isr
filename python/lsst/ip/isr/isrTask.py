@@ -2140,6 +2140,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                           amp.getName(), readNoise)
         elif self.config.usePtcReadNoise and ptcDataset is not None:
             readNoise = ptcDataset.noise[amp.getName()]
+            self.log.info("Using read noise from Photon Transfer Curve.")
         else:
             readNoise = amp.getReadNoise()
 
