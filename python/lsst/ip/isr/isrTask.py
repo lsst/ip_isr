@@ -2110,13 +2110,28 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Image of overscan, required only for empirical read noise.
         ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
             PTC dataset containing the gains and read noise.
+
+
+        Raises
+        ------
+        RuntimeError
+            Raised is either ``usePtcGains`` of ``usePtcReadNoise``
+            are ``True``, but there is not ptcDataset provided.
+
+            Raised if ```doEmpiricalReadNoise`` is ``True`` but
+            ``overscanImage`` is ``None``.
+
         See also
         --------
         lsst.ip.isr.isrFunctions.updateVariance
         """
         maskPlanes = [self.config.saturatedMaskName, self.config.suspectMaskName]
-        if self.config.usePtcGains and ptcDataset is not None:
-            gain = ptcDataset.gain[amp.getName()]
+        if self.config.usePtcGains:
+            if ptcDataset is None:
+                raise RuntimeError("No ptcDataset provided to use PTC gains.")
+            else:
+                gain = ptcDataset.gain[amp.getName()]
+                self.log.info("Using gain from Photon Transfer Curve.")
         else:
             gain = amp.getGain()
 
@@ -2130,7 +2145,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             gain = patchedGain
 
         if self.config.doEmpiricalReadNoise and overscanImage is None:
-            self.log.info("Overscan is none for EmpiricalReadNoise.")
+            raise RuntimeError("Overscan is none for EmpiricalReadNoise.")
 
         if self.config.doEmpiricalReadNoise and overscanImage is not None:
             stats = afwMath.StatisticsControl()
@@ -2138,8 +2153,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
             self.log.info("Calculated empirical read noise for amp %s: %f.",
                           amp.getName(), readNoise)
-        elif self.config.usePtcReadNoise and ptcDataset is not None:
-            readNoise = ptcDataset.noise[amp.getName()]
+        elif self.config.usePtcReadNoise:
+            if ptcDataset is None:
+                raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
+            else:
+                readNoise = ptcDataset.noise[amp.getName()]
             self.log.info("Using read noise from Photon Transfer Curve.")
         else:
             readNoise = amp.getReadNoise()
