@@ -2115,8 +2115,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         Raises
         ------
         RuntimeError
-            Raised is either ``usePtcGains`` of ``usePtcReadNoise``
-            are ``True``, but there is not ptcDataset provided.
+            Raised if either ``usePtcGains`` of ``usePtcReadNoise``
+            are ``True``, but ptcDataset is not provided.
 
             Raised if ```doEmpiricalReadNoise`` is ``True`` but
             ``overscanImage`` is ``None``.
