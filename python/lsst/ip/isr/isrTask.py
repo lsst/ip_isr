@@ -1214,7 +1214,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                )
 
     @pipeBase.timeMethod
-    def run(self, ccdExposure, camera=None, bias=None, linearizer=None,
+    def run(self, ccdExposure, *, camera=None, bias=None, linearizer=None,
             crosstalk=None, crosstalkSources=None,
             dark=None, flat=None, ptc=None, bfKernel=None, bfGains=None, defects=None,
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
