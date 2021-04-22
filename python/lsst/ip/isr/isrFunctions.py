@@ -754,7 +754,7 @@ def applyGains(exposure, normalizeGains=False, ptcGains=None):
         If True, then amplifiers are scaled to force the median of
         each amplifier to equal the median of those medians.
     ptcGains : `dict`[`str`], optional
-        Dictionary keyed by amp number containing the PTC gains.
+        Dictionary keyed by amp name containing the PTC gains.
     """
     ccd = exposure.getDetector()
     ccdImage = exposure.getMaskedImage()
