@@ -152,6 +152,13 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "physical_filter", "detector"],
         isCalibration=True,
     )
+    ptc = cT.PrerequisiteInput(
+        name="ptc",
+        doc="Input Photon Transfer Curve dataset",
+        storageClass="PhotonTransferCurveDataset",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
     fringes = cT.PrerequisiteInput(
         name="fringe",
         doc="Input fringe calibration.",
@@ -274,6 +281,8 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.prerequisiteInputs.discard("dark")
         if config.doFlat is not True:
             self.prerequisiteInputs.discard("flat")
+        if config.usePtcGains is not True and config.usePtcReadNoise is not True:
+            self.prerequisiteInputs.discard("ptc")
         if config.doAttachTransmissionCurve is not True:
             self.prerequisiteInputs.discard("opticsTransmission")
             self.prerequisiteInputs.discard("filterTransmission")
@@ -565,7 +574,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False,
         doc="Calculate empirical read noise instead of value from AmpInfo data?"
     )
-
+    usePtcReadNoise = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Use readnoise values from the Photon Transfer Curve?"
+    )
     # Linearization.
     doLinearize = pexConfig.Field(
         dtype=bool,
@@ -710,6 +723,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     doApplyGains = pexConfig.Field(
         dtype=bool,
         doc="Correct the amplifiers for their gains instead of applying flat correction",
+        default=False,
+    )
+    usePtcGains = pexConfig.Field(
+        dtype=bool,
+        doc="Use the gain values from the Photon Transfer Curve?",
         default=False,
     )
     normalizeGains = pexConfig.Field(
@@ -1196,9 +1214,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                )
 
     @pipeBase.timeMethod
-    def run(self, ccdExposure, camera=None, bias=None, linearizer=None,
+    def run(self, ccdExposure, *, camera=None, bias=None, linearizer=None,
             crosstalk=None, crosstalkSources=None,
-            dark=None, flat=None, bfKernel=None, bfGains=None, defects=None,
+            dark=None, flat=None, ptc=None, bfKernel=None, bfGains=None, defects=None,
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
@@ -1244,6 +1262,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Dark calibration frame.
         flat : `lsst.afw.image.Exposure`, optional
             Flat calibration frame.
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+            Photon transfer curve dataset, with, e.g., gains
+            and read noise.
         bfKernel : `numpy.ndarray`, optional
             Brighter-fatter kernel.
         bfGains : `dict` of `float`, optional
@@ -1460,10 +1481,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                     if overscanResults is not None:
                         self.updateVariance(ampExposure, amp,
-                                            overscanImage=overscanResults.overscanImage)
+                                            overscanImage=overscanResults.overscanImage,
+                                            ptcDataset=ptc)
                     else:
                         self.updateVariance(ampExposure, amp,
-                                            overscanImage=None)
+                                            overscanImage=None,
+                                            ptcDataset=ptc)
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
                                                          afwMath.MEDIAN | afwMath.STDEVCLIP)
@@ -1588,7 +1611,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.config.doApplyGains:
             self.log.info("Applying gain correction instead of flat.")
-            isrFunctions.applyGains(ccdExposure, self.config.normalizeGains)
+            if self.config.usePtcGains:
+                self.log.info("Using gains from the Photon Transfer Curve.")
+                isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
+                                        ptcGains=ptc.gain)
+            else:
+                isrFunctions.applyGains(ccdExposure, self.config.normalizeGains)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction after flat.")
@@ -2065,8 +2093,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         return overscanResults
 
-    def updateVariance(self, ampExposure, amp, overscanImage=None):
-        """Set the variance plane using the amplifier gain and read noise
+    def updateVariance(self, ampExposure, amp, overscanImage=None, ptcDataset=None):
+        """Set the variance plane using the gain and read noise
 
         The read noise is calculated from the ``overscanImage`` if the
         ``doEmpiricalReadNoise`` option is set in the configuration; otherwise
@@ -2080,13 +2108,32 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Amplifier detector data.
         overscanImage : `lsst.afw.image.MaskedImage`, optional.
             Image of overscan, required only for empirical read noise.
+        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+            PTC dataset containing the gains and read noise.
+
+
+        Raises
+        ------
+        RuntimeError
+            Raised if either ``usePtcGains`` of ``usePtcReadNoise``
+            are ``True``, but ptcDataset is not provided.
+
+            Raised if ```doEmpiricalReadNoise`` is ``True`` but
+            ``overscanImage`` is ``None``.
 
         See also
         --------
         lsst.ip.isr.isrFunctions.updateVariance
         """
         maskPlanes = [self.config.saturatedMaskName, self.config.suspectMaskName]
-        gain = amp.getGain()
+        if self.config.usePtcGains:
+            if ptcDataset is None:
+                raise RuntimeError("No ptcDataset provided to use PTC gains.")
+            else:
+                gain = ptcDataset.gain[amp.getName()]
+                self.log.info("Using gain from Photon Transfer Curve.")
+        else:
+            gain = amp.getGain()
 
         if math.isnan(gain):
             gain = 1.0
@@ -2098,7 +2145,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             gain = patchedGain
 
         if self.config.doEmpiricalReadNoise and overscanImage is None:
-            self.log.info("Overscan is none for EmpiricalReadNoise.")
+            raise RuntimeError("Overscan is none for EmpiricalReadNoise.")
 
         if self.config.doEmpiricalReadNoise and overscanImage is not None:
             stats = afwMath.StatisticsControl()
@@ -2106,6 +2153,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
             self.log.info("Calculated empirical read noise for amp %s: %f.",
                           amp.getName(), readNoise)
+        elif self.config.usePtcReadNoise:
+            if ptcDataset is None:
+                raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
+            else:
+                readNoise = ptcDataset.noise[amp.getName()]
+            self.log.info("Using read noise from Photon Transfer Curve.")
         else:
             readNoise = amp.getReadNoise()
 
