@@ -55,6 +55,8 @@ from .straylight import StrayLightTask
 from .vignette import VignetteTask
 from lsst.daf.butler import DimensionGraph
 
+# DM-29695
+from lsst.pipe.tasks.scaleVariance import ScaleVarianceTask, ScaleVarianceConfig
 
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
@@ -1322,6 +1324,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         exposure after all ISR processing has finished.
 
         """
+        # DM-29695
+        scaleConfig = ScaleVarianceConfig()
+        scaleTask = ScaleVarianceTask(config=scaleConfig)
 
         if isGen3 is True:
             # Gen3 currently cannot automatically do configuration overrides.
@@ -1379,7 +1384,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
             self.debugView(ccdExposure, "doBias")
-
+            # DM-29695
+            scaleFactors = ScaleVarianceTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
         # Amplifier level processing.
         overscans = []
         for amp in ccd:
@@ -1434,6 +1441,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
                                crosstalkSources=crosstalkSources, camera=camera)
             self.debugView(ccdExposure, "doCrosstalk")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doAssembleCcd:
             self.log.info("Assembling CCD from amplifiers.")
@@ -1442,6 +1452,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warn("No WCS found in input exposure.")
             self.debugView(ccdExposure, "doAssembleCcd")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         ossThumb = None
         if self.config.qa.doThumbnailOss:
@@ -1452,6 +1465,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
             self.debugView(ccdExposure, "doBias")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doVariance:
             for amp, overscanResults in zip(ccd, overscans):
@@ -1485,6 +1501,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
                                crosstalkSources=crosstalkSources, isTrimmed=True)
             self.debugView(ccdExposure, "doCrosstalk")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         # Masking block. Optionally mask known defects, NAN/inf pixels, widen trails, and do
         # anything else the camera needs. Saturated and suspect pixels have already been masked.
@@ -1565,34 +1584,55 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                            maskValue=maskPlane)
 
             self.debugView(ccdExposure, "doBrighterFatter")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doDark:
             self.log.info("Applying dark correction.")
             self.darkCorrection(ccdExposure, dark)
             self.debugView(ccdExposure, "doDark")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction before flat.")
             self.fringe.run(ccdExposure, **fringes.getDict())
             self.debugView(ccdExposure, "doFringe")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doStrayLight and self.strayLight.check(ccdExposure):
             self.log.info("Checking strayLight correction.")
             self.strayLight.run(ccdExposure, strayLightData)
             self.debugView(ccdExposure, "doStrayLight")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doFlat:
             self.log.info("Applying flat correction.")
             self.flatCorrection(ccdExposure, flat)
             self.debugView(ccdExposure, "doFlat")
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doApplyGains:
             self.log.info("Applying gain correction instead of flat.")
             isrFunctions.applyGains(ccdExposure, self.config.normalizeGains)
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction after flat.")
             self.fringe.run(ccdExposure, **fringes.getDict())
+            # DM-29695
+            scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+            self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         if self.config.doVignette:
             self.log.info("Constructing Vignette polygon.")
@@ -1669,6 +1709,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                    qaStats.getValue(afwMath.STDEVCLIP))
 
         self.debugView(ccdExposure, "postISRCCD")
+        # DM-29695
+        scaleFactors = scaleTask.computeScaleFactors(ccdExposure.getMaskedImage())
+        self.log.info(f"DM-29696: scaleFactors{scaleFactors}")
 
         return pipeBase.Struct(
             exposure=ccdExposure,
