@@ -79,7 +79,7 @@ class FringeTask(Task):
     ConfigClass = FringeConfig
     _DefaultName = 'isrFringe'
 
-    def readFringes(self, dataRef, assembler=None):
+    def readFringes(self, dataRef, expId=None, assembler=None):
         """Read the fringe frame(s), and pack data into a Struct
 
         The current implementation assumes only a single fringe frame and
@@ -93,6 +93,8 @@ class FringeTask(Task):
         dataRef : `daf.butler.butlerSubset.ButlerDataRef`
             Butler reference for the exposure that will have fringing
             removed.
+        expId : `int`, optional
+            Exposure id to be fringe corrected, used to set RNG seed.
         assembler : `lsst.ip.isr.AssembleCcdTask`, optional
             An instance of AssembleCcdTask (for assembling fringe
             frames).
@@ -111,9 +113,9 @@ class FringeTask(Task):
         except Exception as e:
             raise RuntimeError("Unable to retrieve fringe for %s: %s" % (dataRef.dataId, e))
 
-        return self.loadFringes(fringe, assembler)
+        return self.loadFringes(fringe, expId=expId, assembler=assembler)
 
-    def loadFringes(self, fringeExp, expId=0, assembler=None):
+    def loadFringes(self, fringeExp, expId=None, assembler=None):
         """Pack the fringe data into a Struct.
 
         This method moves the struct parsing code into a butler
