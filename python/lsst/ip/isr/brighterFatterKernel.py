@@ -88,24 +88,6 @@ class BrighterFatterKernel(IsrCalib):
                                         'badAmps', 'gain', 'noise', 'meanXcorrs', 'valid',
                                         'ampKernels', 'detKernels'])
 
-    def __eq__(self, other):
-        """Calibration equivalence
-        """
-        if not isinstance(other, self.__class__):
-            return False
-
-        for attr in self._requiredAttributes:
-            attrSelf = getattr(self, attr)
-            attrOther = getattr(other, attr)
-            if isinstance(attrSelf, dict) and isinstance(attrOther, dict):
-                for ampName in attrSelf:
-                    if not np.allclose(attrSelf[ampName], attrOther[ampName], equal_nan=True):
-                        return False
-            else:
-                if attrSelf != attrOther:
-                    return False
-        return True
-
     def updateMetadata(self, setDate=False, **kwargs):
         """Update calibration metadata.
 

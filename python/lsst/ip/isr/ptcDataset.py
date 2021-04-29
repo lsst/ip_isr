@@ -197,24 +197,6 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
                                         'photoCharge'])
 
-    def __eq__(self, other):
-        """Calibration equivalence
-        """
-        if not isinstance(other, self.__class__):
-            return False
-
-        for attr in self._requiredAttributes:
-            attrSelf = getattr(self, attr)
-            attrOther = getattr(other, attr)
-            if isinstance(attrSelf, dict) and isinstance(attrOther, dict):
-                for ampName in attrSelf:
-                    if not np.allclose(attrSelf[ampName], attrOther[ampName], equal_nan=True):
-                        return False
-            else:
-                if attrSelf != attrOther:
-                    return False
-        return True
-
     def setAmpValues(self, ampName, inputExpIdPair=[(np.nan, np.nan)], expIdMask=[np.nan],
                      rawExpTime=[np.nan], rawMean=[np.nan], rawVar=[np.nan], photoCharge=[np.nan],
                      gain=np.nan, gainErr=np.nan, noise=np.nan, noiseErr=np.nan, ptcFitPars=[np.nan],

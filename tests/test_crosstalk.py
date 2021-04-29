@@ -275,6 +275,27 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         isr.crosstalk.run(exposure, crosstalk=calib, crosstalkSources=ctSources)
         self.checkSubtracted(exposure)
 
+    def test_crosstalkIO(self):
+        """Test that crosstalk doesn't change on being converted to persistable formats."""
+
+        # Add the interchip crosstalk as in the previous test.
+        exposure = self.exposure
+
+        coeff = np.array(self.crosstalk).transpose()
+        calib = CrosstalkCalib().fromDetector(exposure.getDetector(), coeffVector=coeff)
+        # Now convert this into zero intra-chip, full inter-chip:
+        calib.interChip['detector 2'] = coeff
+
+        outPath = tempfile.mktemp() + '.yaml'
+        calib.writeText(outPath)
+        newCrosstalk = CrosstalkCalib().readText(outPath)
+        self.assertEqual(calib, newCrosstalk)
+
+        outPath = tempfile.mktemp() + '.fits'
+        calib.writeFits(outPath)
+        newCrosstalk = CrosstalkCalib().readFits(outPath)
+        self.assertEqual(calib, newCrosstalk)
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

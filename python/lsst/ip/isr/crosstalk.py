@@ -150,6 +150,7 @@ class CrosstalkCalib(IsrCalib):
 
         """
         if detector.hasCrosstalk() or coeffVector:
+            self._detectorId = detector.getId()
             self._detectorName = detector.getName()
             self._detectorSerial = detector.getSerial()
 
@@ -168,7 +169,11 @@ class CrosstalkCalib(IsrCalib):
                 raise RuntimeError("Crosstalk coefficients do not match detector shape. "
                                    f"{self.crosstalkShape} {self.nAmp}")
 
+            self.coeffErr = np.zeros(self.crosstalkShape)
+            self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
+            self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
             self.interChip = {}
+
             self.hasCrosstalk = True
             self.updateMetadata()
         return self
@@ -334,11 +339,11 @@ class CrosstalkCalib(IsrCalib):
         inDict['nAmp'] = metadata['NAMP']
 
         inDict['coeffs'] = coeffTable['CT_COEFFS']
-        if 'CT_ERRORS' in coeffTable:
+        if 'CT_ERRORS' in coeffTable.columns:
             inDict['coeffErr'] = coeffTable['CT_ERRORS']
-        if 'CT_COUNTS' in coeffTable:
+        if 'CT_COUNTS' in coeffTable.columns:
             inDict['coeffNum'] = coeffTable['CT_COUNTS']
-        if 'CT_VALID' in coeffTable:
+        if 'CT_VALID' in coeffTable.columns:
             inDict['coeffValid'] = coeffTable['CT_VALID']
 
         if len(tableList) > 1:
