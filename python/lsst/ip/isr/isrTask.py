@@ -1163,7 +1163,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         defectList = (dataRef.get("defects")
                       if self.config.doDefect else None)
-        fringeStruct = (self.fringe.readFringes(dataRef, assembler=self.assembleCcd
+        expId = rawExposure.getInfo().getVisitInfo().getExposureId()
+        fringeStruct = (self.fringe.readFringes(dataRef, expId=expId, assembler=self.assembleCcd
                                                 if self.config.doAssembleIsrExposures else None)
                         if self.config.doFringe and self.fringe.checkFilter(rawExposure)
                         else pipeBase.Struct(fringes=None))
