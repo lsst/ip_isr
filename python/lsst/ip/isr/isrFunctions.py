@@ -897,12 +897,46 @@ def checkFilter(exposure, filterList, log):
         log.warn("No FilterLabel attached to this exposure!")
         return False
 
-    if thisFilter.physicalLabel in filterList:
+    thisPhysicalFilter = getPhysicalFilter(thisFilter, log)
+    if thisPhysicalFilter in filterList:
         return True
     elif thisFilter.bandLabel in filterList:
         if log:
             log.warn("Physical filter (%s) should be used instead of band %s for filter configurations (%s)",
-                     thisFilter.physicalLabel, thisFilter.bandLabel, filterList)
+                     thisPhysicalFilter, thisFilter.bandLabel, filterList)
         return True
     else:
         return False
+
+
+def getPhysicalFilter(filterLabel, log):
+    """Get the physical filter label associated with the given filterLabel.
+
+    If ``filterLabel`` is `None` or there is no physicalLabel attribute
+    associated with the given ``filterLabel``, the returned label will be
+    "Unknown".
+
+    Parameters
+    ----------
+    filterLabel : `lsst.afw.image.FilterLabel`
+        The `lsst.afw.image.FilterLabel` object from which to derive the
+        physical filter label.
+    log : `lsst.log.Log`
+        Logger to handle messages.
+
+    Returns
+    -------
+    physicalFilter : `str`
+        The value returned by the physicalLabel attribute of ``filterLabel`` if
+        it exists, otherwise set to \"Unknown\".
+    """
+    if filterLabel is None:
+        physicalFilter = "Unknown"
+        log.warn("filterLabel is None.  Setting physialFilter to \"Unknown\".")
+    else:
+        try:
+            physicalFilter = filterLabel.physicalLabel
+        except RuntimeError:
+            log.warn("filterLabel has no physicalLabel attribute.  Setting physialFilter to \"Unknown\".")
+            physicalFilter = "Unknown"
+    return physicalFilter
