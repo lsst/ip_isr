@@ -56,7 +56,7 @@ class BrighterFatterKernel(IsrCalib):
         Parameters to pass to parent constructor.
 
     """
-    _OBSTYPE = 'BFK'
+    _OBSTYPE = 'bfk'
     _SCHEMA = 'Brighter-fatter kernel'
     _VERSION = 1.0
 
@@ -80,10 +80,11 @@ class BrighterFatterKernel(IsrCalib):
         self.ampKernels = dict()
         self.detKernels = dict()
 
+        super().__init__(**kwargs)
+
         if camera:
             self.initFromCamera(camera, detectorId=kwargs.get('detectorId', None))
 
-        super().__init__(**kwargs)
         self.requiredAttributes.update(['level', 'means', 'variances', 'rawXcorrs',
                                         'badAmps', 'gain', 'noise', 'meanXcorrs', 'valid',
                                         'ampKernels', 'detKernels'])
@@ -131,14 +132,16 @@ class BrighterFatterKernel(IsrCalib):
         """
         self._instrument = camera.getName()
 
-        if self.level == 'AMP':
-            if detectorId is None:
-                raise RuntimeError("A detectorId must be supplied if level='AMP'.")
-
+        if detectorId is not None:
             detector = camera[detectorId]
             self._detectorId = detectorId
             self._detectorName = detector.getName()
             self._detectorSerial = detector.getSerial()
+
+        if self.level == 'AMP':
+            if detectorId is None:
+                raise RuntimeError("A detectorId must be supplied if level='AMP'.")
+
             self.badAmps = []
 
             for amp in detector:
@@ -152,9 +155,12 @@ class BrighterFatterKernel(IsrCalib):
                 self.ampKernels[ampName] = []
                 self.valid[ampName] = []
         elif self.level == 'DETECTOR':
-            for det in camera:
-                detName = det.getName()
-                self.detKernels[detName] = []
+            if detectorId is None:
+                for det in camera:
+                    detName = det.getName()
+                    self.detKernels[detName] = []
+            else:
+                self.detKernels[self._detectorName] = []
 
         return self
 
@@ -172,10 +178,13 @@ class BrighterFatterKernel(IsrCalib):
         """
         kernelLength = self.shape[0] * self.shape[1]
         smallLength = int((self.shape[0] - 1)*(self.shape[1] - 1)/4)
-        nObservations = set([len(self.means[amp]) for amp in self.means])
-        if len(nObservations) != 1:
-            raise RuntimeError("Inconsistent number of observations found.")
-        nObs = nObservations.pop()
+        if self.level == 'AMP':
+            nObservations = set([len(self.means[amp]) for amp in self.means])
+            if len(nObservations) != 1:
+                raise RuntimeError("Inconsistent number of observations found.")
+            nObs = nObservations.pop()
+        else:
+            nObs = 0
 
         return (kernelLength, smallLength, nObs)
 
@@ -273,6 +282,7 @@ class BrighterFatterKernel(IsrCalib):
         outDict['ampKernels'] = {amp: self.ampKernels[amp].reshape(kernelLength).tolist()
                                  for amp in self.ampKernels}
         outDict['valid'] = self.valid
+
         outDict['detKernels'] = {det: self.detKernels[det].reshape(kernelLength).tolist()
                                  for det in self.detKernels}
         return outDict
@@ -365,17 +375,18 @@ class BrighterFatterKernel(IsrCalib):
         kernelList = []
         validList = []
 
-        for amp in self.means.keys():
-            ampList.append(amp)
-            meanList.append(self.means[amp])
-            varianceList.append(self.variances[amp])
-            rawXcorrs.append(np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist())
-            gainList.append(self.gain[amp])
-            noiseList.append(self.noise[amp])
+        if self.level == 'AMP':
+            for amp in self.means.keys():
+                ampList.append(amp)
+                meanList.append(self.means[amp])
+                varianceList.append(self.variances[amp])
+                rawXcorrs.append(np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist())
+                gainList.append(self.gain[amp])
+                noiseList.append(self.noise[amp])
 
-            meanXcorrsList.append(self.meanXcorrs[amp].reshape(kernelLength).tolist())
-            kernelList.append(self.ampKernels[amp].reshape(kernelLength).tolist())
-            validList.append(int(self.valid[amp] and not (amp in self.badAmps)))
+                meanXcorrsList.append(self.meanXcorrs[amp].reshape(kernelLength).tolist())
+                kernelList.append(self.ampKernels[amp].reshape(kernelLength).tolist())
+                validList.append(int(self.valid[amp] and not (amp in self.badAmps)))
 
         ampTable = Table({'AMPLIFIER': ampList,
                           'MEANS': meanList,
