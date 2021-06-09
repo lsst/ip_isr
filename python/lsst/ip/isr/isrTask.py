@@ -119,6 +119,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="CrosstalkCalib",
         dimensions=["instrument", "detector"],
         isCalibration=True,
+        minimum=0,  # can fall back to cameraGeom
     )
     # TODO: DM-25348.  This does not work yet to correctly load
     # possible crosstalk sources.
@@ -130,6 +131,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         deferLoad=True,
         multiple=True,
         lookupFunction=crosstalkSourceLookup,
+        minimum=0,  # not needed for all instruments, no config to control this
     )
     bias = cT.PrerequisiteInput(
         name="bias",
@@ -165,6 +167,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="ExposureF",
         dimensions=["instrument", "physical_filter", "detector"],
         isCalibration=True,
+        minimum=0,  # only needed for some bands, even when enabled
     )
     strayLightData = cT.PrerequisiteInput(
         name='yBackground',
@@ -172,6 +175,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="StrayLightData",
         dimensions=["instrument", "physical_filter", "detector"],
         isCalibration=True,
+        minimum=0,  # only needed for some bands, even when enabled
     )
     bfKernel = cT.PrerequisiteInput(
         name='bfKernel',
@@ -179,6 +183,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="NumpyArray",
         dimensions=["instrument"],
         isCalibration=True,
+        minimum=0,  # can use either bfKernel or newBFKernel
     )
     newBFKernel = cT.PrerequisiteInput(
         name='brighterFatterKernel',
@@ -186,6 +191,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="BrighterFatterKernel",
         dimensions=["instrument", "detector"],
         isCalibration=True,
+        minimum=0,  # can use either bfKernel or newBFKernel
     )
     defects = cT.PrerequisiteInput(
         name='defects',
@@ -200,6 +206,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         doc="Linearity correction calibration.",
         dimensions=["instrument", "detector"],
         isCalibration=True,
+        minimum=0,  # can fall back to cameraGeom
     )
     opticsTransmission = cT.PrerequisiteInput(
         name="transmission_optics",
@@ -281,6 +288,10 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.prerequisiteInputs.discard("dark")
         if config.doFlat is not True:
             self.prerequisiteInputs.discard("flat")
+        if config.doFringe is not True:
+            self.prerequisiteInputs.discard("fringe")
+        if config.doStrayLight is not True:
+            self.prerequisiteInputs.discard("strayLightData")
         if config.usePtcGains is not True and config.usePtcReadNoise is not True:
             self.prerequisiteInputs.discard("ptc")
         if config.doAttachTransmissionCurve is not True:
