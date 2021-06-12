@@ -1105,6 +1105,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         ccd = rawExposure.getDetector()
         filterLabel = rawExposure.getFilterLabel()
+        physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
         biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
                         if self.config.doBias else None)
@@ -1192,7 +1193,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         illumMaskedImage = (self.getIsrExposure(dataRef,
                             self.config.illuminationCorrectionDataProductName).getMaskedImage()
                             if (self.config.doIlluminationCorrection
-                            and filterLabel in self.config.illumFilters)
+                                and physicalFilter in self.config.illumFilters)
                             else None)
 
         # Struct should include only kwargs to run()
@@ -1362,6 +1363,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         ccd = ccdExposure.getDetector()
         filterLabel = ccdExposure.getFilterLabel()
+        physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
 
         if not ccd:
             assert not self.config.doAssembleCcd, "You need a Detector to run assembleCcd."
@@ -1380,14 +1382,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             raise RuntimeError("Must supply a flat exposure if config.doFlat=True.")
         if self.config.doDefect and defects is None:
             raise RuntimeError("Must supply defects if config.doDefect=True.")
-        if (self.config.doFringe and filterLabel in self.fringe.config.filters
+        if (self.config.doFringe and physicalFilter in self.fringe.config.filters
                 and fringes.fringes is None):
             # The `fringes` object needs to be a pipeBase.Struct, as
             # we use it as a `dict` for the parameters of
             # `FringeTask.run()`.  The `fringes.fringes` `list` may
             # not be `None` if `doFringe=True`.  Otherwise, raise.
             raise RuntimeError("Must supply fringe exposure as a pipeBase.Struct.")
-        if (self.config.doIlluminationCorrection and filterLabel in self.config.illumFilters
+        if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters
                 and illumMaskedImage is None):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
 
@@ -1641,7 +1643,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if self.config.qa.doThumbnailFlattened:
             flattenedThumb = isrQa.makeThumbnail(ccdExposure, isrQaConfig=self.config.qa)
 
-        if self.config.doIlluminationCorrection and filterLabel in self.config.illumFilters:
+        if self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters:
             self.log.info("Performing illumination correction.")
             isrFunctions.illuminationCorrection(ccdExposure.getMaskedImage(),
                                                 illumMaskedImage, illumScale=self.config.illumScale,
@@ -2541,10 +2543,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Exposure to process.
         """
         filterLabel = exposure.getFilterLabel()
-        if filterLabel in self.config.fluxMag0T1:
-            fluxMag0 = self.config.fluxMag0T1[filterLabel]
+        physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
+
+        if physicalFilter in self.config.fluxMag0T1:
+            fluxMag0 = self.config.fluxMag0T1[physicalFilter]
         else:
-            self.log.warn("No rough magnitude zero point set for filter %s.", filterLabel)
+            self.log.warn("No rough magnitude zero point defined for filter {}.".format(physicalFilter))
             fluxMag0 = self.config.defaultFluxMag0T1
 
         expTime = exposure.getInfo().getVisitInfo().getExposureTime()
@@ -2552,7 +2556,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.warn("Non-positive exposure time; skipping rough zero point.")
             return
 
-        self.log.info("Setting rough magnitude zero point: %f", 2.5*math.log10(fluxMag0*expTime))
+        self.log.info("Setting rough magnitude zero point for filter {}: {}".
+                      format(physicalFilter, 2.5*math.log10(fluxMag0*expTime)))
         exposure.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0*expTime, 0.0))
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
