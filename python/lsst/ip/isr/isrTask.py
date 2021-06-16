@@ -1147,15 +1147,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             except NoResults:
                 try:  # Fall back to the old-style numpy-ndarray style kernel if necessary.
                     brighterFatterKernel = dataRef.get("bfKernel")
-                    self.log.info("Old style brighter-fatter kernel (np.array) loaded")
+                    self.log.info("Old style brighter-fatter kernel (bfKernel) loaded")
                 except NoResults:
                     brighterFatterKernel = None
             if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
                 # If the kernel is not an ndarray, it's the cp_pipe version
                 # so extract the kernel for this detector, or raise an error
                 if self.config.brighterFatterLevel == 'DETECTOR':
-                    if brighterFatterKernel.detectorKernel:
-                        brighterFatterKernel = brighterFatterKernel.detectorKernel[ccd.getId()]
+                    if brighterFatterKernel.detKernels:
+                        brighterFatterKernel = brighterFatterKernel.detKernels[ccd.getName()]
                     else:
                         raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
                 else:
