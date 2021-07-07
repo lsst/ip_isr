@@ -1717,7 +1717,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             ossThumb=ossThumb,
             flattenedThumb=flattenedThumb,
 
-            preInterpolatedExposure=preInterpExp,
+            preInterpExposure=preInterpExp,
             outputExposure=ccdExposure,
             outputOssThumbnail=ossThumb,
             outputFlattenedThumbnail=flattenedThumb,
