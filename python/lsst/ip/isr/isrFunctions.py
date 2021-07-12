@@ -932,11 +932,11 @@ def getPhysicalFilter(filterLabel, log):
     """
     if filterLabel is None:
         physicalFilter = "Unknown"
-        log.warning("filterLabel is None.  Setting physialFilter to \"Unknown\".")
+        log.warning("filterLabel is None.  Setting physicalFilter to \"Unknown\".")
     else:
         try:
             physicalFilter = filterLabel.physicalLabel
         except RuntimeError:
-            log.warning("filterLabel has no physicalLabel attribute.  Setting physialFilter to \"Unknown\".")
+            log.warning("filterLabel has no physicalLabel attribute.  Setting physicalFilter to \"Unknown\".")
             physicalFilter = "Unknown"
     return physicalFilter
