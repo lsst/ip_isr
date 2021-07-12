@@ -2560,7 +2560,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if physicalFilter in self.config.fluxMag0T1:
             fluxMag0 = self.config.fluxMag0T1[physicalFilter]
         else:
-            self.log.warning("No rough magnitude zero point defined for filter {}.".format(physicalFilter))
+            self.log.warning("No rough magnitude zero point defined for filter %s.", physicalFilter)
             fluxMag0 = self.config.defaultFluxMag0T1
 
         expTime = exposure.getInfo().getVisitInfo().getExposureTime()
@@ -2568,8 +2568,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.warning("Non-positive exposure time; skipping rough zero point.")
             return
 
-        self.log.info("Setting rough magnitude zero point for filter {}: {}".
-                      format(physicalFilter, 2.5*math.log10(fluxMag0*expTime)))
+        self.log.info("Setting rough magnitude zero point for filter %s: %f",
+                      physicalFilter, 2.5*math.log10(fluxMag0*expTime))
         exposure.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0*expTime, 0.0))
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
