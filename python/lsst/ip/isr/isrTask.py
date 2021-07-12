@@ -981,26 +981,26 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 inputs['crosstalk'] = crosstalkCalib
             if inputs['crosstalk'].interChip and len(inputs['crosstalk'].interChip) > 0:
                 if 'crosstalkSources' not in inputs:
-                    self.log.warn("No crosstalkSources found for chip with interChip terms!")
+                    self.log.warning("No crosstalkSources found for chip with interChip terms!")
 
         if self.doLinearize(detector) is True:
             if 'linearizer' in inputs:
                 if isinstance(inputs['linearizer'], dict):
                     linearizer = linearize.Linearizer(detector=detector, log=self.log)
                     linearizer.fromYaml(inputs['linearizer'])
-                    self.log.warn("Dictionary linearizers will be deprecated in DM-28741.")
+                    self.log.warning("Dictionary linearizers will be deprecated in DM-28741.")
                 elif isinstance(inputs['linearizer'], numpy.ndarray):
                     linearizer = linearize.Linearizer(table=inputs.get('linearizer', None),
                                                       detector=detector,
                                                       log=self.log)
-                    self.log.warn("Bare lookup table linearizers will be deprecated in DM-28741.")
+                    self.log.warning("Bare lookup table linearizers will be deprecated in DM-28741.")
                 else:
                     linearizer = inputs['linearizer']
                     linearizer.log = self.log
                 inputs['linearizer'] = linearizer
             else:
                 inputs['linearizer'] = linearize.Linearizer(detector=detector, log=self.log)
-                self.log.warn("Constructing linearizer from cameraGeom information.")
+                self.log.warning("Constructing linearizer from cameraGeom information.")
 
         if self.config.doDefect is True:
             if "defects" in inputs and inputs['defects'] is not None:
@@ -1030,7 +1030,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         else:
                             raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
                     elif level == 'AMP':
-                        self.log.warn("Making DETECTOR level kernel from AMP based brighter fatter kernels.")
+                        self.log.warning("Making DETECTOR level kernel from AMP based brighter "
+                                         "fatter kernels.")
                         brighterFatterKernel.makeDetectorKernelFromAmpwiseKernels(detName)
                         inputs['bfKernel'] = brighterFatterKernel.detKernels[detName]
                 elif self.config.brighterFatterLevel == 'AMP':
@@ -1111,7 +1112,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             dateObs = rawExposure.getInfo().getVisitInfo().getDate()
             dateObs = dateObs.toPython().isoformat()
         except RuntimeError:
-            self.log.warn("Unable to identify dateObs for rawExposure.")
+            self.log.warning("Unable to identify dateObs for rawExposure.")
             dateObs = None
 
         ccd = rawExposure.getDetector()
@@ -1457,7 +1458,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
                     if badAmp:
-                        self.log.warn("Amplifier %s is bad.", amp.getName())
+                        self.log.warning("Amplifier %s is bad.", amp.getName())
                     overscanResults = None
 
                 overscans.append(overscanResults if overscanResults is not None else None)
@@ -1475,7 +1476,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
             if self.config.expectWcs and not ccdExposure.getWcs():
-                self.log.warn("No WCS found in input exposure.")
+                self.log.warning("No WCS found in input exposure.")
             self.debugView(ccdExposure, "doAssembleCcd")
 
         ossThumb = None
@@ -1573,8 +1574,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                                               self.config.brighterFatterApplyGain,
                                                               bfGains)
             if bfResults[1] == self.config.brighterFatterMaxIter:
-                self.log.warn("Brighter-fatter correction did not converge, final difference %f.",
-                              bfResults[0])
+                self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
+                                 bfResults[0])
             else:
                 self.log.info("Finished brighter-fatter correction in %d iterations.",
                               bfResults[1])
@@ -1817,7 +1818,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             except Exception as exc2:
                 raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s." %
                                    (datasetType, dataRef.dataId, self.config.fallbackFilterName, exc1, exc2))
-            self.log.warn("Using fallback calibration from filter %s.", self.config.fallbackFilterName)
+            self.log.warning("Using fallback calibration from filter %s.", self.config.fallbackFilterName)
 
         if self.config.doAssembleIsrExposures:
             exp = self.assembleCcd.assembleCcd(exp)
@@ -2151,11 +2152,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if math.isnan(gain):
             gain = 1.0
-            self.log.warn("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
+            self.log.warning("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
         elif gain <= 0:
             patchedGain = 1.0
-            self.log.warn("Gain for amp %s == %g <= 0; setting to %f.",
-                          amp.getName(), gain, patchedGain)
+            self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
+                             amp.getName(), gain, patchedGain)
             gain = patchedGain
 
         if self.config.doEmpiricalReadNoise and overscanImage is None:
@@ -2213,7 +2214,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         else:
             # DM-17444: darkExposure.getInfo.getVisitInfo() is None
             #           so getDarkTime() does not exist.
-            self.log.warn("darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.")
+            self.log.warning("darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.")
             darkScale = 1.0
 
         isrFunctions.darkCorrection(
@@ -2458,7 +2459,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         numNans = maskNans(maskedImage, maskVal)
         self.metadata.set("NUMNANS", numNans)
         if numNans > 0:
-            self.log.warn("There were %d unmasked NaNs.", numNans)
+            self.log.warning("There were %d unmasked NaNs.", numNans)
 
     def maskAndInterpolateNan(self, exposure):
         """"Mask and interpolate NaN/infs using mask plane "UNMASKEDNAN",
@@ -2559,16 +2560,16 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if physicalFilter in self.config.fluxMag0T1:
             fluxMag0 = self.config.fluxMag0T1[physicalFilter]
         else:
-            self.log.warn("No rough magnitude zero point defined for filter {}.".format(physicalFilter))
+            self.log.warning("No rough magnitude zero point defined for filter %s.", physicalFilter)
             fluxMag0 = self.config.defaultFluxMag0T1
 
         expTime = exposure.getInfo().getVisitInfo().getExposureTime()
         if not expTime > 0:  # handle NaN as well as <= 0
-            self.log.warn("Non-positive exposure time; skipping rough zero point.")
+            self.log.warning("Non-positive exposure time; skipping rough zero point.")
             return
 
-        self.log.info("Setting rough magnitude zero point for filter {}: {}".
-                      format(physicalFilter, 2.5*math.log10(fluxMag0*expTime)))
+        self.log.info("Setting rough magnitude zero point for filter %s: %f",
+                      physicalFilter, 2.5*math.log10(fluxMag0*expTime))
         exposure.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0*expTime, 0.0))
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):

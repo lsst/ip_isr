@@ -741,8 +741,8 @@ class CrosstalkTask(Task):
 
                     for detName in crosstalk.interChip:
                         if detName not in sourceNames:
-                            self.log.warn("Crosstalk lists %s, not found in sources: %s",
-                                          detName, sourceNames)
+                            self.log.warning("Crosstalk lists %s, not found in sources: %s",
+                                             detName, sourceNames)
                             continue
                         # Get the coefficients.
                         interChipCoeffs = crosstalk.interChip[detName]
@@ -765,7 +765,7 @@ class CrosstalkTask(Task):
                                                     isTrimmed=isTrimmed,
                                                     backgroundMethod=self.config.crosstalkBackgroundMethod)
                 else:
-                    self.log.warn("Crosstalk contains interChip coefficients, but no sources found!")
+                    self.log.warning("Crosstalk contains interChip coefficients, but no sources found!")
 
 
 class NullCrosstalkTask(CrosstalkTask):
