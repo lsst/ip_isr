@@ -894,7 +894,7 @@ def checkFilter(exposure, filterList, log):
     """
     thisFilter = exposure.getFilterLabel()
     if thisFilter is None:
-        log.warn("No FilterLabel attached to this exposure!")
+        log.warning("No FilterLabel attached to this exposure!")
         return False
 
     thisPhysicalFilter = getPhysicalFilter(thisFilter, log)
@@ -902,8 +902,8 @@ def checkFilter(exposure, filterList, log):
         return True
     elif thisFilter.bandLabel in filterList:
         if log:
-            log.warn("Physical filter (%s) should be used instead of band %s for filter configurations (%s)",
-                     thisPhysicalFilter, thisFilter.bandLabel, filterList)
+            log.warning("Physical filter (%s) should be used instead of band %s for filter configurations"
+                        " (%s)", thisPhysicalFilter, thisFilter.bandLabel, filterList)
         return True
     else:
         return False
@@ -932,11 +932,11 @@ def getPhysicalFilter(filterLabel, log):
     """
     if filterLabel is None:
         physicalFilter = "Unknown"
-        log.warn("filterLabel is None.  Setting physialFilter to \"Unknown\".")
+        log.warning("filterLabel is None.  Setting physialFilter to \"Unknown\".")
     else:
         try:
             physicalFilter = filterLabel.physicalLabel
         except RuntimeError:
-            log.warn("filterLabel has no physicalLabel attribute.  Setting physialFilter to \"Unknown\".")
+            log.warning("filterLabel has no physicalLabel attribute.  Setting physialFilter to \"Unknown\".")
             physicalFilter = "Unknown"
     return physicalFilter

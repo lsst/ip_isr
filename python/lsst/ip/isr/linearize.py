@@ -411,16 +411,16 @@ class Linearizer(IsrCalib):
                                    (ampName, ))
             if amp.getLinearityType() != self.linearityType[ampName]:
                 if self.override:
-                    self.log.warn("Overriding amplifier defined linearityType (%s) for %s",
-                                  self.linearityType[ampName], ampName)
+                    self.log.warning("Overriding amplifier defined linearityType (%s) for %s",
+                                     self.linearityType[ampName], ampName)
                 else:
                     raise RuntimeError("Amplifier %s type %s does not match saved value %s" %
                                        (ampName, amp.getLinearityType(), self.linearityType[ampName]))
             if (amp.getLinearityCoeffs().shape != self.linearityCoeffs[ampName].shape or not
                     np.allclose(amp.getLinearityCoeffs(), self.linearityCoeffs[ampName], equal_nan=True)):
                 if self.override:
-                    self.log.warn("Overriding amplifier defined linearityCoeffs (%s) for %s",
-                                  self.linearityCoeffs[ampName], ampName)
+                    self.log.warning("Overriding amplifier defined linearityCoeffs (%s) for %s",
+                                     self.linearityCoeffs[ampName], ampName)
                 else:
                     raise RuntimeError("Amplifier %s coeffs %s does not match saved value %s" %
                                        (ampName, amp.getLinearityCoeffs(), self.linearityCoeffs[ampName]))
@@ -463,8 +463,8 @@ class Linearizer(IsrCalib):
                 if success:
                     numLinearized += 1
                 elif log is not None:
-                    log.warn("Amplifier %s did not linearize.",
-                             ampName)
+                    log.warning("Amplifier %s did not linearize.",
+                                ampName)
         return Struct(
             numAmps=numAmps,
             numLinearized=numLinearized,
@@ -584,8 +584,8 @@ class LinearizeLookupTable(LinearizeBase):
         numOutOfRange += applyLookupTable(image, tableRow, colIndOffset)
 
         if numOutOfRange > 0 and log is not None:
-            log.warn("%s pixels were out of range of the linearization table",
-                     numOutOfRange)
+            log.warning("%s pixels were out of range of the linearization table",
+                        numOutOfRange)
         if numOutOfRange < image.getArray().size:
             return True, numOutOfRange
         else:

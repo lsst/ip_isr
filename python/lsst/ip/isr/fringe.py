@@ -379,7 +379,7 @@ class FringeTask(Task):
 
             There are no good pixels; doesn't matter what we return.
             """
-            self.log.warn("Unable to solve for fringes: no good pixels%s", msg)
+            self.log.warning("Unable to solve for fringes: no good pixels%s", msg)
             out = [0]
             if len(fringes) > 1:
                 out = out*len(fringes)
