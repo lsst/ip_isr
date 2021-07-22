@@ -168,7 +168,7 @@ class Defects(IsrCalib):
         return True
 
     def __str__(self):
-        baseStr = super().__str__(self)
+        baseStr = super().__str__()
         return baseStr + ",".join(str(d.getBBox()) for d in self) + ")"
 
     def _normalize(self):
