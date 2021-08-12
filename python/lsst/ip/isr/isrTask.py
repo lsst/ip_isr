@@ -590,6 +590,18 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False,
         doc="Use readnoise values from the Photon Transfer Curve?"
     )
+    maskNegativeVariance = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Mask pixels that claim a negative variance?  This likely indicates a failure "
+        "in the measurement of the overscan at an edge due to the data falling off faster "
+        "than the overscan model can account for it."
+    )
+    negativeVarianceMaskName = pexConfig.Field(
+        dtype=str,
+        default="BAD",
+        doc="Mask plane to use to mark pixels with negative variance, if `maskNegativeVariance` is True.",
+    )
     # Linearization.
     doLinearize = pexConfig.Field(
         dtype=bool,
@@ -1512,6 +1524,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         self.log.debug("  Variance stats for amplifer %s: %f +/- %f.",
                                        amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                        qaStats.getValue(afwMath.STDEVCLIP))
+            if self.config.maskNegativeVariance:
+                self.maskNegativeVariance(ccdExposure)
 
         if self.doLinearize(ccd):
             self.log.info("Applying linearizer.")
@@ -2182,6 +2196,22 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             gain=gain,
             readNoise=readNoise,
         )
+
+    def maskNegativeVariance(self, exposure):
+        """Identify and mask pixels with negative variance values.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+
+        See Also
+        --------
+        lsst.ip.isr.isrFunctions.updateVariance
+        """
+        maskPlane = exposure.getMask().getPlaneBitMask(self.config.negativeVarianceMaskName)
+        bad = numpy.where(exposure.getVariance().getArray() <= 0.0)
+        exposure.mask.array[bad] |= maskPlane
 
     def darkCorrection(self, exposure, darkExposure, invert=False):
         """Apply dark correction in place.
