@@ -123,6 +123,7 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         self.config.doNanMasking = False
         self.config.doInterpolate = False
 
+        self.config.maskNegativeVariance = False  # This runs on mocks.
         # Set the things that match our test setup
         self.config.overscan.fitType = "CHEB"
         self.config.overscan.order = 1
