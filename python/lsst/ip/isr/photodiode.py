@@ -49,7 +49,7 @@ class PhotodiodeCalib(IsrCalib):
     _VERSION = 1.0
 
     def __init__(self, timeSamples=None, currentSamples=None, **kwargs):
-        if timeSamples and currentSamples:
+        if timeSamples is not None and currentSamples is not None:
             if len(timeSamples) != len(currentSamples):
                 raise RuntimeError(f"Inconsitent vector lengths: {len(timeSamples)} {len(currentSamples)}")
             else:
@@ -59,9 +59,18 @@ class PhotodiodeCalib(IsrCalib):
             self.timeSamples = np.array([])
             self.currentSamples = np.array([])
 
-        self.integrationMethod = "DIRECT_SUM"
-
         super().__init__(**kwargs)
+
+        if 'integrationMethod' in kwargs:
+            self.integrationMethod = kwargs.pop('integrationMethod')
+        else:
+            self.integrationMethod = 'DIRECT_SUM'
+
+        if 'day_obs' in kwargs:
+            self.updateMetadata(day_obs=kwargs['day_obs'])
+        if 'seq_num' in kwargs:
+            self.updateMetadata(seq_num=kwargs['seq_num'])
+
         self.requiredAttributes.update(['timeSamples', 'currentSamples', 'integrationMethod'])
 
     @classmethod
@@ -177,6 +186,20 @@ class PhotodiodeCalib(IsrCalib):
 
         return([catalog])
 
+    @classmethod
+    def readSummitPhotodiode(cls, filename):
+        """
+        """
+        rawData = np.loadtxt(filename, dtype=[('time', 'float'), ('current', 'float')])
+
+        import os.path
+        basename = os.path.basename(filename)
+        cleaned = os.path.splitext(basename)[0]
+        _, _, day_obs, seq_num = cleaned.split("_")
+
+        return cls(timeSamples=rawData['time'], currentSamples=rawData['current'],
+                   day_obs=day_obs, seq_num=seq_num)
+
     def integrate(self):
         """Integrate the current.
 
@@ -188,6 +211,8 @@ class PhotodiodeCalib(IsrCalib):
 
         if self.integrationMethod == 'DIRECT_SUM':
             return self.integrateDirectSum()
+        elif self.integrationMethod == 'TRIMMED_SUM':
+            return self.integrateTrimmedSum()
         else:
             raise RuntimeError(f"Unknown integration method {self.integrationMethod}")
 
@@ -202,3 +227,23 @@ class PhotodiodeCalib(IsrCalib):
             Total charge measured.
         """
         return np.trapz(self.currentSamples, x=self.timeSamples)
+
+    def integrateTrimmedSum(self):
+        """Integrate points consistent with the median value.
+
+        This uses numpy's trapezoidal integrator.
+
+        Returns
+        -------
+        sum : `float`
+            Total charge measured.
+        """
+        good = np.where(self.currentSamples > 0.0)
+        (q25, q50, q75) = np.nanpercentile(np.log10(self.currentSamples[good]), [25, 50, 75])
+
+        good = np.where(np.abs(np.log10(self.currentSamples[good]) - q50) < 3.0 * 0.74 * (q75 - q25))
+
+        current = self.currentSamples[good]
+        time = self.timeSamples[good]
+
+        return np.trapz(current, time)
