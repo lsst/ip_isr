@@ -429,6 +429,31 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 40800)
 
+    def test_maskingCase_noMasking(self):
+        """Test masking cases of configuration parameters.
+        """
+        self.batchSetConfiguration(True)
+        self.config.overscanFitType = "POLY"
+        self.config.overscanOrder = 1
+
+        self.config.doSaturation = False
+        self.config.doWidenSaturationTrails = False
+        self.config.doSaturationInterpolation = False
+        self.config.doSuspect = False
+        self.config.doSetBadRegions = False
+        self.config.doDefect = False
+        self.config.doBrighterFatter = False
+
+        self.config.maskNegativeVariance = False
+        self.config.doInterpolate = False
+
+        results = self.validateIsrResults()
+
+        self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
+        self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 0)
+        self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 0)
+        self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 0)
+
     def test_maskingCase_satMasking(self):
         """Test masking cases of configuration parameters.
         """
