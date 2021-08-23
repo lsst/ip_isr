@@ -18,13 +18,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Optional
 
 from lsst.pex.config import Config, Field, ListField
 from lsst.pipe.base import Task
 from lsst.geom import Angle
 from .isrFunctions import checkFilter
+from .calibType import IsrCalib
 
 
 class StrayLightConfig(Config):
@@ -118,7 +119,7 @@ class StrayLightTask(Task):
         return checkFilter(exposure, self.config.filters, log=self.log)
 
 
-class StrayLightData(ABC):
+class StrayLightData(IsrCalib):
     """An abstract base class for rotator-dependent stray light information.
     """
 
