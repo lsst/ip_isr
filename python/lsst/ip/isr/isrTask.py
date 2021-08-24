@@ -174,6 +174,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         doc="Input stray light calibration.",
         storageClass="StrayLightData",
         dimensions=["instrument", "physical_filter", "detector"],
+        deferLoad=True,
         isCalibration=True,
         minimum=0,  # only needed for some bands, even when enabled
     )
