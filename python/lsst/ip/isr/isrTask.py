@@ -1386,8 +1386,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             # Gen3 currently cannot automatically do configuration overrides.
             # DM-15257 looks to discuss this issue.
             # Configure input exposures;
-            if detectorNum is None:
-                raise RuntimeError("Must supply the detectorNum if running as Gen3.")
 
             ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
             bias = self.ensureExposure(bias, camera, detectorNum)
@@ -1855,7 +1853,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
 
-    def ensureExposure(self, inputExp, camera, detectorNum):
+    def ensureExposure(self, inputExp, camera=None, detectorNum=None):
         """Ensure that the data returned by Butler is a fully constructed exposure.
 
         ISR requires exposure-level image data for historical reasons, so if we did
@@ -1899,6 +1897,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                             (type(inputExp), ))
 
         if inputExp.getDetector() is None:
+            if camera is None or detectorNum is None:
+                raise RuntimeError('Must supply both a camera and detector number when using exposures '
+                                   'without a detector set.')
             inputExp.setDetector(camera[detectorNum])
 
         return inputExp
