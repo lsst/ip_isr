@@ -1285,8 +1285,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             The raw exposure that is to be run through ISR.  The
             exposure is modified by this method.
         camera : `lsst.afw.cameraGeom.Camera`, optional
-            The camera geometry for this exposure. Required if ``isGen3`` is
-            `True` and one or more of ``ccdExposure``, ``bias``, ``dark``, or
+            The camera geometry for this exposure. Required if
+            one or more of ``ccdExposure``, ``bias``, ``dark``, or
             ``flat`` does not have an associated detector.
         bias : `lsst.afw.image.Exposure`, optional
             Bias calibration frame.
@@ -1865,11 +1865,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         inputExp : `lsst.afw.image.Exposure`, `lsst.afw.image.DecoratedImageU`, or
                    `lsst.afw.image.ImageF`
             The input data structure obtained from Butler.
-        camera : `lsst.afw.cameraGeom.camera`
+        camera : `lsst.afw.cameraGeom.camera`, optional
             The camera associated with the image.  Used to find the appropriate
-            detector.
-        detectorNum : `int`
-            The detector this exposure should match.
+            detector if detector is not already set.
+        detectorNum : `int`, optional
+            The detector in the camera to attach, if the detector is not
+            already set.
 
         Returns
         -------
