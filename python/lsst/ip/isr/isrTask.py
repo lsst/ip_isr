@@ -488,7 +488,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
                     " This option will no longer be used, and will be removed after v20.")
     )
-    # These options do not get deprecated, as they define how we slice up the image data.
+    # These options do not get deprecated, as they define how we slice up the
+    # image data.
     overscanNumLeadingColumnsToSkip = pexConfig.Field(
         dtype=int,
         doc="Number of columns to skip in overscan, i.e. those closest to amplifier",
@@ -743,7 +744,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False
     )
 
-    # Amplifier normalization based on gains instead of using flats configuration.
+    # Amplifier normalization based on gains instead of using flats
+    # configuration.
     doApplyGains = pexConfig.Field(
         dtype=bool,
         doc="Correct the amplifiers for their gains instead of applying flat correction",
@@ -916,7 +918,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Only perform illumination correction for these filters."
     )
 
-    # Write the outputs to disk.  If ISR is run as a subtask, this may not be needed.
+    # Write the outputs to disk. If ISR is run as a subtask, this may not
+    # be needed.
     doWrite = pexConfig.Field(
         dtype=bool,
         doc="Persist postISRCCD?",
@@ -961,9 +964,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
     Parameters
     ----------
     args : `list`
-        Positional arguments passed to the Task constructor. None used at this time.
+        Positional arguments passed to the Task constructor.
+        None used at this time.
     kwargs : `dict`, optional
-        Keyword arguments passed on to the Task constructor. None used at this time.
+        Keyword arguments passed on to the Task constructor.
+        None used at this time.
     """
     ConfigClass = IsrTaskConfig
     _DefaultName = "isr"
@@ -1028,8 +1033,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.config.doDefect is True:
             if "defects" in inputs and inputs['defects'] is not None:
-                # defects is loaded as a BaseCatalog with columns x0, y0, width, height.
-                # masking expects a list of defects defined by their bounding box
+                # defects is loaded as a BaseCatalog with columns
+                # x0, y0, width, height. Masking expects a list of defects
+                # defined by their bounding box
                 if not isinstance(inputs["defects"], Defects):
                     inputs["defects"] = Defects.fromTable(inputs["defects"])
 
@@ -1099,7 +1105,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         result : `lsst.pipe.base.Struct`
             Result struct with components (which may be `None`):
             - ``bias``: bias calibration frame (`afw.image.Exposure`)
-            - ``linearizer``: functor for linearization (`ip.isr.linearize.LinearizeBase`)
+            - ``linearizer``: functor for linearization
+                (`ip.isr.linearize.LinearizeBase`)
             - ``crosstalkSources``: list of possible crosstalk sources (`list`)
             - ``dark``: dark calibration frame (`afw.image.Exposure`)
             - ``flat``: flat calibration frame (`afw.image.Exposure`)
@@ -1110,14 +1117,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
               - ``seed``: random seed derived from the ccdExposureId for random
                   number generator (`uint32`).
             - ``opticsTransmission``: `lsst.afw.image.TransmissionCurve`
-                A ``TransmissionCurve`` that represents the throughput of the optics,
-                to be evaluated in focal-plane coordinates.
+                A ``TransmissionCurve`` that represents the throughput of the
+                optics, to be evaluated in focal-plane coordinates.
             - ``filterTransmission`` : `lsst.afw.image.TransmissionCurve`
-                A ``TransmissionCurve`` that represents the throughput of the filter
-                itself, to be evaluated in focal-plane coordinates.
+                A ``TransmissionCurve`` that represents the throughput of the
+                filter itself, to be evaluated in focal-plane coordinates.
             - ``sensorTransmission`` : `lsst.afw.image.TransmissionCurve`
-                A ``TransmissionCurve`` that represents the throughput of the sensor
-                itself, to be evaluated in post-assembly trimmed detector coordinates.
+                A ``TransmissionCurve`` that represents the throughput of the
+                sensor itself, to be evaluated in post-assembly trimmed
+                detector coordinates.
             - ``atmosphereTransmission`` : `lsst.afw.image.TransmissionCurve`
                 A ``TransmissionCurve`` that represents the throughput of the
                 atmosphere, assumed to be spatially constant.
@@ -1125,12 +1133,14 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 An opaque object containing calibration information for
                 stray-light correction.  If `None`, no correction will be
                 performed.
-            - ``illumMaskedImage`` : illumination correction image (`lsst.afw.image.MaskedImage`)
+            - ``illumMaskedImage`` : illumination correction image
+                (`lsst.afw.image.MaskedImage`)
 
         Raises
         ------
         NotImplementedError :
-            Raised if a per-amplifier brighter-fatter kernel is requested by the configuration.
+            Raised if a per-amplifier brighter-fatter kernel is requested by
+            the configuration.
         """
         try:
             dateObs = rawExposure.getInfo().getVisitInfo().getDate()
@@ -1145,7 +1155,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
         biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
                         if self.config.doBias else None)
-        # immediate=True required for functors and linearizers are functors; see ticket DM-6515
+        # immediate=True required for functors and linearizers are functors
+        # see ticket DM-6515
         linearizer = (dataRef.get("linearizer", immediate=True)
                       if self.doLinearize(ccd) else None)
         if linearizer is not None and not isinstance(linearizer, numpy.ndarray):
@@ -1285,8 +1296,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             The raw exposure that is to be run through ISR.  The
             exposure is modified by this method.
         camera : `lsst.afw.cameraGeom.Camera`, optional
-            The camera geometry for this exposure. Required if ``isGen3`` is
-            `True` and one or more of ``ccdExposure``, ``bias``, ``dark``, or
+            The camera geometry for this exposure. Required if
+            one or more of ``ccdExposure``, ``bias``, ``dark``, or
             ``flat`` does not have an associated detector.
         bias : `lsst.afw.image.Exposure`, optional
             Bias calibration frame.
@@ -1318,14 +1329,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             - ``seed``: random seed derived from the ccdExposureId for random
                 number generator (`uint32`)
         opticsTransmission: `lsst.afw.image.TransmissionCurve`, optional
-            A ``TransmissionCurve`` that represents the throughput of the optics,
-            to be evaluated in focal-plane coordinates.
+            A ``TransmissionCurve`` that represents the throughput of the,
+            optics, to be evaluated in focal-plane coordinates.
         filterTransmission : `lsst.afw.image.TransmissionCurve`
-            A ``TransmissionCurve`` that represents the throughput of the filter
-            itself, to be evaluated in focal-plane coordinates.
+            A ``TransmissionCurve`` that represents the throughput of the
+            filter itself, to be evaluated in focal-plane coordinates.
         sensorTransmission : `lsst.afw.image.TransmissionCurve`
-            A ``TransmissionCurve`` that represents the throughput of the sensor
-            itself, to be evaluated in post-assembly trimmed detector coordinates.
+            A ``TransmissionCurve`` that represents the throughput of the
+            sensor itself, to be evaluated in post-assembly trimmed detector
+            coordinates.
         atmosphereTransmission : `lsst.afw.image.TransmissionCurve`
             A ``TransmissionCurve`` that represents the throughput of the
             atmosphere, assumed to be spatially constant.
@@ -1386,8 +1398,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             # Gen3 currently cannot automatically do configuration overrides.
             # DM-15257 looks to discuss this issue.
             # Configure input exposures;
-            if detectorNum is None:
-                raise RuntimeError("Must supply the detectorNum if running as Gen3.")
 
             ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
             bias = self.ensureExposure(bias, camera, detectorNum)
@@ -1443,9 +1453,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # Amplifier level processing.
         overscans = []
         for amp in ccd:
-            # if ccdExposure is one amp, check for coverage to prevent performing ops multiple times
+            # if ccdExposure is one amp,
+            # check for coverage to prevent performing ops multiple times
             if ccdExposure.getBBox().contains(amp.getBBox()):
-                # Check for fully masked bad amplifiers, and generate masks for SUSPECT and SATURATED values.
+                # Check for fully masked bad amplifiers,
+                # and generate masks for SUSPECT and SATURATED values.
                 badAmp = self.maskAmplifier(ccdExposure, amp, defects)
 
                 if self.config.doOverscan and not badAmp:
@@ -1550,8 +1562,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                crosstalkSources=crosstalkSources, isTrimmed=True)
             self.debugView(ccdExposure, "doCrosstalk")
 
-        # Masking block. Optionally mask known defects, NAN/inf pixels, widen trails, and do
-        # anything else the camera needs. Saturated and suspect pixels have already been masked.
+        # Masking block. Optionally mask known defects, NAN/inf pixels,
+        # widen trails, and do anything else the camera needs. Saturated and
+        # suspect pixels have already been masked.
         if self.config.doDefect:
             self.log.info("Masking defects.")
             self.maskDefect(ccdExposure, defects)
@@ -1574,14 +1587,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.masking.run(ccdExposure)
 
         if self.config.doBrighterFatter:
-            # We need to apply flats and darks before we can interpolate, and we
-            # need to interpolate before we do B-F, but we do B-F without the
-            # flats and darks applied so we can work in units of electrons or holes.
-            # This context manager applies and then removes the darks and flats.
+            # We need to apply flats and darks before we can interpolate, and
+            # we need to interpolate before we do B-F, but we do B-F without
+            # the flats and darks applied so we can work in units of electrons
+            # or holes. This context manager applies and then removes the darks
+            # and flats.
             #
-            # We also do not want to interpolate values here, so operate on temporary
-            # images so we can apply only the BF-correction and roll back the
-            # interpolation.
+            # We also do not want to interpolate values here, so operate on
+            # temporary images so we can apply only the BF-correction and roll
+            # back the interpolation.
             interpExp = ccdExposure.clone()
             with self.flatContext(interpExp, flat, dark):
                 isrFunctions.interpolateFromMask(
@@ -1855,23 +1869,24 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             exp = self.assembleCcd.assembleCcd(exp)
         return exp
 
-    def ensureExposure(self, inputExp, camera, detectorNum):
-        """Ensure that the data returned by Butler is a fully constructed exposure.
+    def ensureExposure(self, inputExp, camera=None, detectorNum=None):
+        """Ensure that the data returned by Butler is a fully constructed exp.
 
-        ISR requires exposure-level image data for historical reasons, so if we did
-        not recieve that from Butler, construct it from what we have, modifying the
-        input in place.
+        ISR requires exposure-level image data for historical reasons, so if we
+        did not recieve that from Butler, construct it from what we have,
+        modifying the input in place.
 
         Parameters
         ----------
-        inputExp : `lsst.afw.image.Exposure`, `lsst.afw.image.DecoratedImageU`, or
-                   `lsst.afw.image.ImageF`
+        inputExp : `lsst.afw.image.Exposure`, `lsst.afw.image.DecoratedImageU`,
+                   or `lsst.afw.image.ImageF`
             The input data structure obtained from Butler.
-        camera : `lsst.afw.cameraGeom.camera`
+        camera : `lsst.afw.cameraGeom.camera`, optional
             The camera associated with the image.  Used to find the appropriate
-            detector.
-        detectorNum : `int`
-            The detector this exposure should match.
+            detector if detector is not already set.
+        detectorNum : `int`, optional
+            The detector in the camera to attach, if the detector is not
+            already set.
 
         Returns
         -------
@@ -1899,6 +1914,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                             (type(inputExp), ))
 
         if inputExp.getDetector() is None:
+            if camera is None or detectorNum is None:
+                raise RuntimeError('Must supply both a camera and detector number when using exposures '
+                                   'without a detector set.')
             inputExp.setDetector(camera[detectorNum])
 
         return inputExp
@@ -1965,13 +1983,15 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         badAmp = False
 
-        # Check if entire amp region is defined as a defect (need to use amp.getBBox() for correct
-        # comparison with current defects definition.
+        # Check if entire amp region is defined as a defect
+        # NB: need to use amp.getBBox() for correct comparison with current
+        # defects definition.
         if defects is not None:
             badAmp = bool(sum([v.getBBox().contains(amp.getBBox()) for v in defects]))
 
-        # In the case of a bad amp, we will set mask to "BAD" (here use amp.getRawBBox() for correct
-        # association with pixels in current ccdExposure).
+        # In the case of a bad amp, we will set mask to "BAD"
+        # (here use amp.getRawBBox() for correct association with pixels in
+        # current ccdExposure).
         if badAmp:
             dataView = afwImage.MaskedImageF(maskedImage, amp.getRawBBox(),
                                              afwImage.PARENT)
@@ -1980,8 +2000,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             del maskView
             return badAmp
 
-        # Mask remaining defects after assembleCcd() to allow for defects that cross amplifier boundaries.
-        # Saturation and suspect pixels can be masked now, though.
+        # Mask remaining defects after assembleCcd() to allow for defects that
+        # cross amplifier boundaries. Saturation and suspect pixels can be
+        # masked now, though.
         limits = dict()
         if self.config.doSaturation and not badAmp:
             limits.update({self.config.saturatedMaskName: amp.getSaturation()})
@@ -2000,7 +2021,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     maskName=maskName
                 )
 
-        # Determine if we've fully masked this amplifier with SUSPECT and SAT pixels.
+        # Determine if we've fully masked this amplifier with SUSPECT and
+        # SAT pixels.
         maskView = afwImage.Mask(maskedImage.getMask(), amp.getRawDataBBox(),
                                  afwImage.PARENT)
         maskVal = maskView.getPlaneBitMask([self.config.saturatedMaskName,
@@ -2071,7 +2093,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             dx0 += self.config.overscanNumTrailingColumnsToSkip
             dx1 -= self.config.overscanNumLeadingColumnsToSkip
 
-        # Determine if we need to work on subregions of the amplifier and overscan.
+        # Determine if we need to work on subregions of the amplifier
+        # and overscan.
         imageBBoxes = []
         overscanBBoxes = []
 
@@ -2105,7 +2128,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                                   lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
                                                                      oscanBBox.getHeight())))
 
-        # Perform overscan correction on subregions, ensuring saturated pixels are masked.
+        # Perform overscan correction on subregions, ensuring saturated
+        # pixels are masked.
         for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
             ampImage = ccdExposure.maskedImage[imageBBox]
             overscanImage = ccdExposure.maskedImage[overscanBBox]
@@ -2318,7 +2342,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def saturationDetection(self, exposure, amp):
-        """Detect saturated pixels and mask them using mask plane config.saturatedMaskName, in place.
+        """Detect and mask saturated pixels in config.saturatedMaskName.
 
         Parameters
         ----------
@@ -2367,7 +2391,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def suspectDetection(self, exposure, amp):
-        """Detect suspect pixels and mask them using mask plane config.suspectMaskName, in place.
+        """Detect and mask suspect pixels in config.suspectMaskName.
 
         Parameters
         ----------
@@ -2382,11 +2406,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         Notes
         -----
-        Suspect pixels are pixels whose value is greater than amp.getSuspectLevel().
-        This is intended to indicate pixels that may be affected by unknown systematics;
-        for example if non-linearity corrections above a certain level are unstable
-        then that would be a useful value for suspectLevel. A value of `nan` indicates
-        that no such level exists and no pixels are to be masked as suspicious.
+        Suspect pixels are pixels whose value is greater than
+        amp.getSuspectLevel(). This is intended to indicate pixels that may be
+        affected by unknown systematics; for example if non-linearity
+        corrections above a certain level are unstable then that would be a
+        useful value for suspectLevel. A value of `nan` indicates that no such
+        level exists and no pixels are to be masked as suspicious.
         """
         suspectLevel = amp.getSuspectLevel()
         if math.isnan(suspectLevel):
@@ -2414,7 +2439,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         Notes
         -----
-        Call this after CCD assembly, since defects may cross amplifier boundaries.
+        Call this after CCD assembly, since defects may cross amplifier
+        boundaries.
         """
         maskedImage = exposure.getMaskedImage()
         if not isinstance(defectBaseList, Defects):
@@ -2448,7 +2474,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 boxes = [amp.getBBox() for amp in exposure.getDetector()]
 
             for box in boxes:
-                # This makes a bbox numEdgeSuspect pixels smaller than the image on each side
+                # This makes a bbox numEdgeSuspect pixels smaller than the
+                # image on each side
                 subImage = maskedImage[box]
                 box.grow(-numEdgePixels)
                 # Mask pixels outside box
@@ -2530,7 +2557,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         )
 
     def measureBackground(self, exposure, IsrQaConfig=None):
-        """Measure the image background in subgrids, for quality control purposes.
+        """Measure the image background in subgrids, for quality control.
 
         Parameters
         ----------
@@ -2620,7 +2647,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         exposure.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0*expTime, 0.0))
 
     def setValidPolygonIntersect(self, ccdExposure, fpPolygon):
-        """Set the valid polygon as the intersection of fpPolygon and the ccd corners.
+        """Set valid polygon as the intersection of fpPolygon and chip corners.
 
         Parameters
         ----------
