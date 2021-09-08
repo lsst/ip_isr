@@ -50,7 +50,7 @@ class BrighterFatterKernel(IsrCalib):
     ----------
     level : `str`
         Level the kernels will be generated for.
-    log : `lsst.log.Log`, optional
+    log : `logging.Logger`, optional
         Log to write messages to.
     **kwargs :
         Parameters to pass to parent constructor.

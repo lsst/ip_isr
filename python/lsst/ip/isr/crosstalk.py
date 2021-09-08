@@ -47,7 +47,7 @@ class CrosstalkCalib(IsrCalib):
         Detector to use to pull coefficients from.
     nAmp : `int`, optional
         Number of amplifiers to initialize.
-    log : `lsst.log.Log`, optional
+    log : `logging.Logger`, optional
         Log to write messages to.
     **kwargs :
         Parameters to pass to parent constructor.

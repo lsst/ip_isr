@@ -51,7 +51,7 @@ class Linearizer(IsrCalib):
         (numpy default "C" order)
     detector : `lsst.afw.cameraGeom.Detector`, optional
         Detector object.  Passed to self.fromDetector() on init.
-    log : `lsst.log.Log`, optional
+    log : `logging.Logger`, optional
         Logger to handle messages.
     kwargs : `dict`, optional
         Other keyword arguments to pass to the parent init.
@@ -438,7 +438,7 @@ class Linearizer(IsrCalib):
         detector : `~lsst.afw.cameraGeom.detector`
             Detector to use for linearity parameters if not already
             populated.
-        log : `~lsst.log.Log`, optional
+        log : `~logging.Logger`, optional
             Log object to use for logging.
         """
         if log is None:
@@ -501,7 +501,7 @@ class LinearizeBase(metaclass=abc.ABCMeta):
             ``"table"``
                 Lookup table data (`numpy.array`).
             ``"log"``
-                Logger to handle messages (`lsst.log.Log`).
+                Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
@@ -553,7 +553,7 @@ class LinearizeLookupTable(LinearizeBase):
             ``"table"``
                 Lookup table data (`numpy.array`).
             ``"log"``
-                Logger to handle messages (`lsst.log.Log`).
+                Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
@@ -624,7 +624,7 @@ class LinearizePolynomial(LinearizeBase):
                 should have a length of n-1 ("k0" and "k1" are
                 not needed for the correction).
             ``"log"``
-                Logger to handle messages (`lsst.log.Log`).
+                Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
@@ -668,7 +668,7 @@ class LinearizeSquared(LinearizeBase):
             ``"coeffs"``
                 Coefficient vector (`list` or `numpy.array`).
             ``"log"``
-                Logger to handle messages (`lsst.log.Log`).
+                Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
@@ -714,7 +714,7 @@ class LinearizeSpline(LinearizeBase):
             ``"coeffs"``
                 Coefficient vector (`list` or `numpy.array`).
             ``"log"``
-                Logger to handle messages (`lsst.log.Log`).
+                Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
@@ -752,7 +752,7 @@ class LinearizeProportional(LinearizeBase):
             ``"coeffs"``
                 Coefficient vector (`list` or `numpy.array`).
             ``"log"``
-                Logger to handle messages (`lsst.log.Log`).
+                Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
@@ -781,7 +781,7 @@ class LinearizeNone(LinearizeBase):
             ``"coeffs"``
                 Coefficient vector (`list` or `numpy.array`).
             ``"log"``
-                Logger to handle messages (`lsst.log.Log`).
+                Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
