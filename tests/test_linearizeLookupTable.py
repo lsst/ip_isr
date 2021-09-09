@@ -21,7 +21,7 @@
 #
 import unittest
 import pickle
-
+import logging
 import numpy as np
 
 import lsst.utils.tests
@@ -31,7 +31,6 @@ import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
 from lsst.ip.isr import applyLookupTable, Linearizer
-from lsst.log import Log
 
 
 def refLinearize(image, detector, table):
@@ -82,7 +81,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             inImage = makeRampImage(bbox=self.bbox, start=-5, stop=250, imageClass=imageClass)
             table = self.makeTable(inImage)
 
-            log = Log.getLogger("ip.isr.LinearizeLookupTable")
+            log = logging.getLogger("ip.isr.LinearizeLookupTable")
 
             measImage = inImage.Factory(inImage, True)
             llt = Linearizer(table=table, detector=self.detector)
@@ -97,7 +96,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             self.assertImagesAlmostEqual(refImage, measImage)
 
             # make sure logging is accepted
-            log = Log.getLogger("ip.isr.LinearizeLookupTable")
+            log = logging.getLogger("ip.isr.LinearizeLookupTable")
             linRes = llt.applyLinearity(image=measImage, detector=self.detector, log=log)
 
     def testErrorHandling(self):

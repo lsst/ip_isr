@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import abc
 import datetime
+import logging
 import os.path
 import warnings
 import yaml
@@ -28,7 +29,6 @@ import numpy as np
 from astropy.table import Table
 from astropy.io import fits
 
-from lsst.log import Log
 from lsst.daf.base import PropertyList
 
 
@@ -55,7 +55,7 @@ class IsrCalib(abc.ABC):
         Camera to extract metadata from.
     detector : `lsst.afw.cameraGeom.Detector`, optional
         Detector to extract metadata from.
-    log : `lsst.log.Log`, optional
+    log : `logging.Logger`, optional
         Log for messages.
     """
     _OBSTYPE = 'generic'
@@ -81,7 +81,7 @@ class IsrCalib(abc.ABC):
                                         '_detectorName', '_detectorSerial', '_detectorId',
                                         '_filter', '_calibId', '_metadata'])
 
-        self.log = log if log else Log.getLogger(__name__.partition(".")[2])
+        self.log = log if log else logging.getLogger(__name__.partition(".")[2])
 
         if detector:
             self.fromDetector(detector)

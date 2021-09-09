@@ -884,7 +884,7 @@ def checkFilter(exposure, filterList, log):
         Exposure to examine.
     filterList : `list` [`str`]
         List of physical_filter names to check.
-    log : `lsst.log.Log`
+    log : `logging.Logger`
         Logger to handle messages.
 
     Returns
@@ -921,7 +921,7 @@ def getPhysicalFilter(filterLabel, log):
     filterLabel : `lsst.afw.image.FilterLabel`
         The `lsst.afw.image.FilterLabel` object from which to derive the
         physical filter label.
-    log : `lsst.log.Log`
+    log : `logging.Logger`
         Logger to handle messages.
 
     Returns
