@@ -67,9 +67,6 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
     when inter-chip crosstalk has been identified should this be
     populated.
 
-    This will be unused until DM-25348 resolves the quantum graph
-    generation issue.
-
     Parameters
     ----------
     datasetType : `str`
@@ -124,8 +121,6 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         isCalibration=True,
         minimum=0,  # can fall back to cameraGeom
     )
-    # TODO: DM-25348.  This does not work yet to correctly load
-    # possible crosstalk sources.
     crosstalkSources = cT.PrerequisiteInput(
         name="isrOverscanCorrected",
         doc="Overscan corrected input images.",
