@@ -89,12 +89,14 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
         crosstalkSources.
     """
     newDataId = quantumDataId.subset(DimensionGraph(registry.dimensions, names=["instrument", "exposure"]))
-    results = list(registry.queryDatasets(datasetType,
-                                          collections=collections,
-                                          dataId=newDataId,
-                                          findFirst=True,
-                                          ).expanded())
-    return results
+    results = set(registry.queryDatasets(datasetType, collections=collections, dataId=newDataId,
+                                         findFirst=True))
+    # In some contexts, calling `.expanded()` to expand all data IDs in the
+    # query results can be a lot faster because it vectorizes lookups.  But in
+    # this case, expandDataId shouldn't need to hit the database at all in the
+    # steady state, because only the detector record is unknown and those are
+    # cached in the registry.
+    return [ref.expanded(registry.expandDataId(ref.dataId, records=newDataId.records)) for ref in results]
 
 
 class IsrTaskConnections(pipeBase.PipelineTaskConnections,
