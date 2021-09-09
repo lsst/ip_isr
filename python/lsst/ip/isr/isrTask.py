@@ -281,7 +281,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         if config.doLinearize is not True:
             self.prerequisiteInputs.discard("linearizer")
         if config.doCrosstalk is not True:
-            self.inputs.discard("crosstalkSources")
+            self.prerequisiteInputs.discard("crosstalkSources")
             self.prerequisiteInputs.discard("crosstalk")
         if config.doBrighterFatter is not True:
             self.prerequisiteInputs.discard("bfKernel")
