@@ -31,7 +31,8 @@ __all__ = ["PhotodiodeCalib"]
 
 
 class PhotodiodeCalib(IsrCalib):
-    """Independent current measurements from photodiode for linearity calculations.
+    """Independent current measurements from photodiode for linearity
+    calculations.
 
     Parameters
     ----------
@@ -44,6 +45,7 @@ class PhotodiodeCalib(IsrCalib):
     **kwargs :
         Paramters to pass to parent constructor.
     """
+
     _OBSTYPE = 'PHOTODIODE'
     _SCHEMA = 'Gen3 Photodiode'
     _VERSION = 1.0
@@ -188,7 +190,17 @@ class PhotodiodeCalib(IsrCalib):
 
     @classmethod
     def readSummitPhotodiode(cls, filename):
-        """
+        """Construct a PhotodiodeCalib by reading the simple column format.
+
+        Parameters
+        ----------
+        filename : `str`
+            File to read samples from.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.PhotodiodeCalib`
+            The calibration defined in the file.
         """
         rawData = np.loadtxt(filename, dtype=[('time', 'float'), ('current', 'float')])
 
@@ -208,7 +220,6 @@ class PhotodiodeCalib(IsrCalib):
         RuntimeError :
             Raised if the integration method is not known.
         """
-
         if self.integrationMethod == 'DIRECT_SUM':
             return self.integrateDirectSum()
         elif self.integrationMethod == 'TRIMMED_SUM':
