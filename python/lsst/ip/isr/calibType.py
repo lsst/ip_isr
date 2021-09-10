@@ -30,6 +30,8 @@ from astropy.table import Table
 from astropy.io import fits
 
 from lsst.daf.base import PropertyList
+from lsst.daf.butler.core.utils import getFullTypeName
+from lsst.utils import doImport
 
 
 __all__ = ["IsrCalib", "IsrProvenance"]
@@ -251,6 +253,7 @@ class IsrCalib(abc.ABC):
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
         self._metadata["CALIB_ID"] = self._calibId if self._calibId else None
+        self._metadata["CALIBCLS"] = getFullTypeName(self)
 
         mdSupplemental.update(kwargs)
         mdOriginal.update(mdSupplemental)
@@ -333,12 +336,20 @@ class IsrCalib(abc.ABC):
         """
         if filename.endswith((".ecsv", ".ECSV")):
             data = Table.read(filename, format='ascii.ecsv')
-            return cls.fromTable([data], **kwargs)
+            if 'CALIBCLS' in data.meta:
+                storedClass = doImport(data.meta['CALIBCLS'])
+                return storedClass.fromTable([data], **kwargs)
+            else:
+                return cls.fromTable([data], **kwargs)
 
         elif filename.endswith((".yaml", ".YAML")):
             with open(filename, 'r') as f:
                 data = yaml.load(f, Loader=yaml.CLoader)
-            return cls.fromDict(data, **kwargs)
+            if 'CALIBCLS' in data['metadata']:
+                storedClass = doImport(data['metadata']['CALIBCLS'])
+                return storedClass.fromDict(data, **kwargs)
+            else:
+                return cls.fromDict(data, **kwargs)
         else:
             raise RuntimeError(f"Unknown filename extension: {filename}")
 
@@ -370,7 +381,6 @@ class IsrCalib(abc.ABC):
         -----
         The file is written to YAML/ECSV format and will include any
         associated metadata.
-
         """
         if format == 'yaml' or (format == 'auto' and filename.lower().endswith((".yaml", ".YAML"))):
             outDict = self.toDict()
@@ -432,7 +442,11 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        return cls.fromTable(tableList, **kwargs)
+        if 'CALIBCLS' in table[0].meta:
+            storedClass = doImport(table[0].meta['CALIBCLS'])
+            return storedClass.fromTable(tableList, **kwargs)
+        else:
+            return cls.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
         """Write calibration data to a FITS file.

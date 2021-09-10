@@ -23,7 +23,7 @@ import tempfile
 
 import lsst.utils.tests
 
-from lsst.ip.isr import IsrProvenance
+from lsst.ip.isr import IsrProvenance, IsrCalib
 
 
 class IsrCalibCases(lsst.utils.tests.TestCase):
@@ -46,6 +46,10 @@ class IsrCalibCases(lsst.utils.tests.TestCase):
         fromText = IsrProvenance.readText(usedFilename)
         self.assertEqual(self.calib, fromText)
 
+        # Test generic interface:
+        fromGeneric = IsrCalib.readText(usedFilename)
+        self.assertEqual(self.calib, fromGeneric)
+
     def test_Text(self):
         self.runText('.yaml')
         self.runText('.ecsv')
@@ -58,6 +62,10 @@ class IsrCalibCases(lsst.utils.tests.TestCase):
 
         fromFits.updateMetadata(setDate=True)
         self.assertNotEqual(self.calib, fromFits)
+
+        # Test generic interface:
+        fromGeneric = IsrCalib.readFits(usedFilename)
+        self.assertEqual(self.calib, fromGeneric)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
