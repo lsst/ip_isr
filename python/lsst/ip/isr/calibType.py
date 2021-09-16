@@ -313,6 +313,36 @@ class IsrCalib(abc.ABC):
         self._calibId = search(dictionary, ["CALIB_ID"])
 
     @classmethod
+    def determineCalibClass(cls, metadata, message):
+        """Attempt to find calibration class in metadata.
+
+        Parameters
+        ----------
+        metadata : `dict` or `lsst.daf.base.PropertyList`
+            Metadata possibly containing a calibration class entry.
+        message : `str`
+            Message to include in any errors.
+
+        Returns
+        -------
+        calibClass : `object`
+            The class to use to read the file contents.  Should be an
+            `lsst.ip.isr.IsrCalib` subclass.
+
+        Raises
+        ------
+        ValueError :
+            Raised if the resulting calibClass is the base
+            `lsst.ip.isr.IsrClass` (which does not implement the
+            content methods).
+        """
+        calibClassName = metadata.get("CALIBCLS")
+        calibClass = doImport(calibClassName) if calibClassName is not None else cls
+        if calibClass is IsrCalib:
+            raise ValueError(f"Cannot use base class to read calibration data: {msg}")
+        return calibClass
+
+    @classmethod
     def readText(cls, filename, **kwargs):
         """Read calibration representation from a yaml/ecsv file.
 
@@ -336,16 +366,12 @@ class IsrCalib(abc.ABC):
         """
         if filename.endswith((".ecsv", ".ECSV")):
             data = Table.read(filename, format="ascii.ecsv")
-            calibClass = cls
-            if "CALIBCLS" in data.meta:
-                calibClass = doImport(data.meta["CALIBCLS"])
+            calibClass = cls.determineCalibClass(data.meta, "readText/ECSV")
             return calibClass.fromTable([data], **kwargs)
         elif filename.endswith((".yaml", ".YAML")):
             with open(filename, "r") as f:
                 data = yaml.load(f, Loader=yaml.CLoader)
-            calibClass = cls
-            if "CALIBCLS" in data["metadata"]:
-                calibClass = doImport(data["metadata"]["CALIBCLS"])
+            calibClass = cls.determineCalibClass(data["metadata"], "readText/YAML")
             return calibClass.fromDict(data, **kwargs)
         else:
             raise RuntimeError(f"Unknown filename extension: {filename}")
@@ -439,9 +465,7 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        calibClass = cls
-        if "CALIBCLS" in table[0].meta:
-            calibClass = doImport(table[0].meta["CALIBCLS"])
+        calibClass = cls.determineCalibClass(table[0].meta, "readFits")
         return calibClass.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
