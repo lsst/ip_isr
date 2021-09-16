@@ -335,21 +335,18 @@ class IsrCalib(abc.ABC):
             Raised if the filename does not end in ".ecsv" or ".yaml".
         """
         if filename.endswith((".ecsv", ".ECSV")):
-            data = Table.read(filename, format='ascii.ecsv')
-            if 'CALIBCLS' in data.meta:
-                storedClass = doImport(data.meta['CALIBCLS'])
-                return storedClass.fromTable([data], **kwargs)
-            else:
-                return cls.fromTable([data], **kwargs)
-
+            data = Table.read(filename, format="ascii.ecsv")
+            calibClass = cls
+            if "CALIBCLS" in data.meta:
+                calibClass = doImport(data.meta["CALIBCLS"])
+            return calibClass.fromTable([data], **kwargs)
         elif filename.endswith((".yaml", ".YAML")):
-            with open(filename, 'r') as f:
+            with open(filename, "r") as f:
                 data = yaml.load(f, Loader=yaml.CLoader)
-            if 'CALIBCLS' in data['metadata']:
-                storedClass = doImport(data['metadata']['CALIBCLS'])
-                return storedClass.fromDict(data, **kwargs)
-            else:
-                return cls.fromDict(data, **kwargs)
+            calibClass = cls
+            if "CALIBCLS" in data["metadata"]:
+                calibClass = doImport(data["metadata"]["CALIBCLS"])
+            return calibClass.fromDict(data, **kwargs)
         else:
             raise RuntimeError(f"Unknown filename extension: {filename}")
 
@@ -442,11 +439,10 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        if 'CALIBCLS' in table[0].meta:
-            storedClass = doImport(table[0].meta['CALIBCLS'])
-            return storedClass.fromTable(tableList, **kwargs)
-        else:
-            return cls.fromTable(tableList, **kwargs)
+        calibClass = cls
+        if "CALIBCLS" in table[0].meta:
+            calibClass = doImport(table[0].meta["CALIBCLS"])
+        return calibClass.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
         """Write calibration data to a FITS file.
