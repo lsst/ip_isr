@@ -465,7 +465,7 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        calibClass = cls.determineCalibClass(table[0].meta, "readFits")
+        calibClass = cls.determineCalibClass(tableList[0].meta, "readFits")
         return calibClass.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
