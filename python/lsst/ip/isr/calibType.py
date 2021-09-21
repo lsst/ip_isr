@@ -30,6 +30,8 @@ from astropy.table import Table
 from astropy.io import fits
 
 from lsst.daf.base import PropertyList
+from lsst.daf.butler.core.utils import getFullTypeName
+from lsst.utils import doImport
 
 
 __all__ = ["IsrCalib", "IsrProvenance"]
@@ -58,8 +60,8 @@ class IsrCalib(abc.ABC):
     log : `logging.Logger`, optional
         Log for messages.
     """
-    _OBSTYPE = 'generic'
-    _SCHEMA = 'NO SCHEMA'
+    _OBSTYPE = "generic"
+    _SCHEMA = "NO SCHEMA"
     _VERSION = 0
 
     def __init__(self, camera=None, detector=None, log=None, **kwargs):
@@ -76,10 +78,10 @@ class IsrCalib(abc.ABC):
         self.calibInfoFromDict(kwargs)
 
         # Define the required attributes for this calibration.
-        self.requiredAttributes = set(['_OBSTYPE', '_SCHEMA', '_VERSION'])
-        self.requiredAttributes.update(['_instrument', '_raftName', '_slotName',
-                                        '_detectorName', '_detectorSerial', '_detectorId',
-                                        '_filter', '_calibId', '_metadata'])
+        self.requiredAttributes = set(["_OBSTYPE", "_SCHEMA", "_VERSION"])
+        self.requiredAttributes.update(["_instrument", "_raftName", "_slotName",
+                                        "_detectorName", "_detectorSerial", "_detectorId",
+                                        "_filter", "_calibId", "_metadata"])
 
         self.log = log if log else logging.getLogger(__name__.partition(".")[2])
 
@@ -226,9 +228,9 @@ class IsrCalib(abc.ABC):
 
         if setDate:
             date = datetime.datetime.now()
-            mdSupplemental['CALIBDATE'] = date.isoformat()
-            mdSupplemental['CALIB_CREATION_DATE'] = date.date().isoformat()
-            mdSupplemental['CALIB_CREATION_TIME'] = date.time().isoformat()
+            mdSupplemental["CALIBDATE"] = date.isoformat()
+            mdSupplemental["CALIB_CREATION_DATE"] = date.date().isoformat()
+            mdSupplemental["CALIB_CREATION_TIME"] = date.time().isoformat()
 
         if setCalibId:
             values = []
@@ -238,7 +240,7 @@ class IsrCalib(abc.ABC):
             values.append(f"detector={self._detectorId}") if self._detectorId else None
             values.append(f"filter={self._filter}") if self._filter else None
 
-            calibDate = mdOriginal.get('CALIBDATE', mdSupplemental.get('CALIBDATE', None))
+            calibDate = mdOriginal.get("CALIBDATE", mdSupplemental.get("CALIBDATE", None))
             values.append(f"calibDate={calibDate}") if calibDate else None
 
             self._calibId = " ".join(values)
@@ -251,6 +253,7 @@ class IsrCalib(abc.ABC):
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
         self._metadata["CALIB_ID"] = self._calibId if self._calibId else None
+        self._metadata["CALIBCLS"] = getFullTypeName(self)
 
         mdSupplemental.update(kwargs)
         mdOriginal.update(mdSupplemental)
@@ -280,34 +283,64 @@ class IsrCalib(abc.ABC):
             test = [haystack.get(x) for x in needles]
             test = set([x for x in test if x is not None])
             if len(test) == 0:
-                if 'metadata' in haystack:
-                    return search(haystack['metadata'], needles)
+                if "metadata" in haystack:
+                    return search(haystack["metadata"], needles)
                 else:
                     return None
             elif len(test) == 1:
                 value = list(test)[0]
-                if value == '':
+                if value == "":
                     return None
                 else:
                     return value
             else:
                 raise ValueError(f"Too many values found: {len(test)} {test} {needles}")
 
-        if 'metadata' in dictionary:
-            metadata = dictionary['metadata']
+        if "metadata" in dictionary:
+            metadata = dictionary["metadata"]
 
-            if self._OBSTYPE != metadata['OBSTYPE']:
+            if self._OBSTYPE != metadata["OBSTYPE"]:
                 raise RuntimeError(f"Incorrect calibration supplied.  Expected {self._OBSTYPE}, "
                                    f"found {metadata['OBSTYPE']}")
 
-        self._instrument = search(dictionary, ['INSTRUME', 'instrument'])
-        self._raftName = search(dictionary, ['RAFTNAME'])
-        self._slotName = search(dictionary, ['SLOTNAME'])
-        self._detectorId = search(dictionary, ['DETECTOR', 'detectorId'])
-        self._detectorName = search(dictionary, ['DET_NAME', 'DETECTOR_NAME', 'detectorName'])
-        self._detectorSerial = search(dictionary, ['DET_SER', 'DETECTOR_SERIAL', 'detectorSerial'])
-        self._filter = search(dictionary, ['FILTER', 'filterName'])
-        self._calibId = search(dictionary, ['CALIB_ID'])
+        self._instrument = search(dictionary, ["INSTRUME", "instrument"])
+        self._raftName = search(dictionary, ["RAFTNAME"])
+        self._slotName = search(dictionary, ["SLOTNAME"])
+        self._detectorId = search(dictionary, ["DETECTOR", "detectorId"])
+        self._detectorName = search(dictionary, ["DET_NAME", "DETECTOR_NAME", "detectorName"])
+        self._detectorSerial = search(dictionary, ["DET_SER", "DETECTOR_SERIAL", "detectorSerial"])
+        self._filter = search(dictionary, ["FILTER", "filterName"])
+        self._calibId = search(dictionary, ["CALIB_ID"])
+
+    @classmethod
+    def determineCalibClass(cls, metadata, message):
+        """Attempt to find calibration class in metadata.
+
+        Parameters
+        ----------
+        metadata : `dict` or `lsst.daf.base.PropertyList`
+            Metadata possibly containing a calibration class entry.
+        message : `str`
+            Message to include in any errors.
+
+        Returns
+        -------
+        calibClass : `object`
+            The class to use to read the file contents.  Should be an
+            `lsst.ip.isr.IsrCalib` subclass.
+
+        Raises
+        ------
+        ValueError :
+            Raised if the resulting calibClass is the base
+            `lsst.ip.isr.IsrClass` (which does not implement the
+            content methods).
+        """
+        calibClassName = metadata.get("CALIBCLS")
+        calibClass = doImport(calibClassName) if calibClassName is not None else cls
+        if calibClass is IsrCalib:
+            raise ValueError(f"Cannot use base class to read calibration data: {msg}")
+        return calibClass
 
     @classmethod
     def readText(cls, filename, **kwargs):
@@ -332,17 +365,18 @@ class IsrCalib(abc.ABC):
             Raised if the filename does not end in ".ecsv" or ".yaml".
         """
         if filename.endswith((".ecsv", ".ECSV")):
-            data = Table.read(filename, format='ascii.ecsv')
-            return cls.fromTable([data], **kwargs)
-
+            data = Table.read(filename, format="ascii.ecsv")
+            calibClass = cls.determineCalibClass(data.meta, "readText/ECSV")
+            return calibClass.fromTable([data], **kwargs)
         elif filename.endswith((".yaml", ".YAML")):
-            with open(filename, 'r') as f:
+            with open(filename, "r") as f:
                 data = yaml.load(f, Loader=yaml.CLoader)
-            return cls.fromDict(data, **kwargs)
+            calibClass = cls.determineCalibClass(data["metadata"], "readText/YAML")
+            return calibClass.fromDict(data, **kwargs)
         else:
             raise RuntimeError(f"Unknown filename extension: {filename}")
 
-    def writeText(self, filename, format='auto'):
+    def writeText(self, filename, format="auto"):
         """Write the calibration data to a text file.
 
         Parameters
@@ -370,15 +404,14 @@ class IsrCalib(abc.ABC):
         -----
         The file is written to YAML/ECSV format and will include any
         associated metadata.
-
         """
-        if format == 'yaml' or (format == 'auto' and filename.lower().endswith((".yaml", ".YAML"))):
+        if format == "yaml" or (format == "auto" and filename.lower().endswith((".yaml", ".YAML"))):
             outDict = self.toDict()
             path, ext = os.path.splitext(filename)
             filename = path + ".yaml"
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 yaml.dump(outDict, f)
-        elif format == 'ecsv' or (format == 'auto' and filename.lower().endswith((".ecsv", ".ECSV"))):
+        elif format == "ecsv" or (format == "auto" and filename.lower().endswith((".ecsv", ".ECSV"))):
             tableList = self.toTable()
             if len(tableList) > 1:
                 # ECSV doesn't support multiple tables per file, so we
@@ -432,7 +465,8 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        return cls.fromTable(tableList, **kwargs)
+        calibClass = cls.determineCalibClass(tableList[0].meta, "readFits")
+        return calibClass.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
         """Write calibration data to a FITS file.
@@ -615,7 +649,7 @@ class IsrProvenance(IsrCalib):
         Identifier for the detector.
 
     """
-    _OBSTYPE = 'IsrProvenance'
+    _OBSTYPE = "IsrProvenance"
 
     def __init__(self, calibType="unknown",
                  **kwargs):
@@ -625,7 +659,7 @@ class IsrProvenance(IsrCalib):
 
         super().__init__(**kwargs)
 
-        self.requiredAttributes.update(['calibType', 'dimensions', 'dataIdList'])
+        self.requiredAttributes.update(["calibType", "dimensions", "dataIdList"])
 
     def __str__(self):
         return f"{self.__class__.__name__}(obstype={self._OBSTYPE}, calibType={self.calibType}, )"
@@ -644,7 +678,7 @@ class IsrProvenance(IsrCalib):
         kwargs : `dict` or `collections.abc.Mapping`, optional
             Other keyword parameters to set in the metadata.
         """
-        kwargs['calibType'] = self.calibType
+        kwargs["calibType"] = self.calibType
         super().updateMetadata(setDate=setDate, **kwargs)
 
     def fromDataIds(self, dataIdList):
@@ -678,22 +712,22 @@ class IsrProvenance(IsrCalib):
         table = tableList[0]
         metadata = table.meta
         inDict = dict()
-        inDict['metadata'] = metadata
-        inDict['calibType'] = metadata['calibType']
-        inDict['dimensions'] = set()
-        inDict['dataIdList'] = list()
+        inDict["metadata"] = metadata
+        inDict["calibType"] = metadata["calibType"]
+        inDict["dimensions"] = set()
+        inDict["dataIdList"] = list()
 
         schema = dict()
         for colName in table.columns:
             schema[colName.lower()] = colName
-            inDict['dimensions'].add(colName.lower())
-        inDict['dimensions'] = sorted(inDict['dimensions'])
+            inDict["dimensions"].add(colName.lower())
+        inDict["dimensions"] = sorted(inDict["dimensions"])
 
         for row in table:
             entry = dict()
-            for dim in sorted(inDict['dimensions']):
+            for dim in sorted(inDict["dimensions"]):
                 entry[dim] = row[schema[dim]]
-            inDict['dataIdList'].append(entry)
+            inDict["dataIdList"].append(entry)
 
         return cls.fromDict(inDict)
 
@@ -712,17 +746,17 @@ class IsrProvenance(IsrCalib):
             The provenance defined in the tables.
         """
         calib = cls()
-        if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
+        if calib._OBSTYPE != dictionary["metadata"]["OBSTYPE"]:
             raise RuntimeError(f"Incorrect calibration supplied.  Expected {calib._OBSTYPE}, "
                                f"found {dictionary['metadata']['OBSTYPE']}")
-        calib.updateMetadata(setDate=False, setCalibInfo=True, **dictionary['metadata'])
+        calib.updateMetadata(setDate=False, setCalibInfo=True, **dictionary["metadata"])
 
         # These properties should be in the metadata, but occasionally
         # are found in the dictionary itself.  Check both places,
         # ending with `None` if neither contains the information.
-        calib.calibType = dictionary['calibType']
-        calib.dimensions = set(dictionary['dimensions'])
-        calib.dataIdList = dictionary['dataIdList']
+        calib.calibType = dictionary["calibType"]
+        calib.dimensions = set(dictionary["dimensions"])
+        calib.dataIdList = dictionary["dataIdList"]
 
         calib.updateMetadata()
         return calib
@@ -740,14 +774,14 @@ class IsrProvenance(IsrCalib):
         outDict = {}
 
         metadata = self.getMetadata()
-        outDict['metadata'] = metadata
-        outDict['detectorName'] = self._detectorName
-        outDict['detectorSerial'] = self._detectorSerial
-        outDict['detectorId'] = self._detectorId
-        outDict['instrument'] = self._instrument
-        outDict['calibType'] = self.calibType
-        outDict['dimensions'] = list(self.dimensions)
-        outDict['dataIdList'] = self.dataIdList
+        outDict["metadata"] = metadata
+        outDict["detectorName"] = self._detectorName
+        outDict["detectorSerial"] = self._detectorSerial
+        outDict["detectorId"] = self._detectorId
+        outDict["instrument"] = self._instrument
+        outDict["calibType"] = self.calibType
+        outDict["dimensions"] = list(self.dimensions)
+        outDict["dataIdList"] = self.dataIdList
 
         return outDict
 
