@@ -30,7 +30,7 @@ from astropy.table import Table
 from astropy.io import fits
 
 from lsst.daf.base import PropertyList
-from lsst.daf.butler.core.utils import getFullTypeName
+from lsst.utils.introspection import get_full_type_name
 from lsst.utils import doImport
 
 
@@ -253,7 +253,7 @@ class IsrCalib(abc.ABC):
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
         self._metadata["CALIB_ID"] = self._calibId if self._calibId else None
-        self._metadata["CALIBCLS"] = getFullTypeName(self)
+        self._metadata["CALIBCLS"] = get_full_type_name(self)
 
         mdSupplemental.update(kwargs)
         mdOriginal.update(mdSupplemental)
