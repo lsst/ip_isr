@@ -127,7 +127,7 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         # Spline coefficients: should match a 1e-6 Squared solution
         self.splineCoeffs = np.array([-100, 0.0, 1000, 2000, 3000, 4000, 5000,
                                       0.0, 0.0, 1.0, 4.0, 9.0, 16.0, 25.0])
-        self.log = logging.getLogger("ip.isr.testLinearizer")
+        self.log = logging.getLogger("lsst.ip.isr.testLinearizer")
 
     def tearDown(self):
         # destroy LSST objects so memory test passes.

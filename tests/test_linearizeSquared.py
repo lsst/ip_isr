@@ -84,7 +84,7 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
             self.assertImagesAlmostEqual(refImage, measImage)
 
             # make sure logging is accepted
-            log = logging.getLogger("ip.isr.LinearizeSquared")
+            log = logging.getLogger("lsst.ip.isr.LinearizeSquared")
             linRes = linCorr.applyLinearity(image=measImage, detector=self.detector, log=log)
 
     def testKnown(self):

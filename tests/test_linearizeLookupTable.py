@@ -81,7 +81,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             inImage = makeRampImage(bbox=self.bbox, start=-5, stop=250, imageClass=imageClass)
             table = self.makeTable(inImage)
 
-            log = logging.getLogger("ip.isr.LinearizeLookupTable")
+            log = logging.getLogger("lsst.ip.isr.LinearizeLookupTable")
 
             measImage = inImage.Factory(inImage, True)
             llt = Linearizer(table=table, detector=self.detector)
@@ -96,7 +96,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
             self.assertImagesAlmostEqual(refImage, measImage)
 
             # make sure logging is accepted
-            log = logging.getLogger("ip.isr.LinearizeLookupTable")
+            log = logging.getLogger("lsst.ip.isr.LinearizeLookupTable")
             linRes = llt.applyLinearity(image=measImage, detector=self.detector, log=log)
 
     def testErrorHandling(self):
