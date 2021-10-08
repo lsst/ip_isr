@@ -83,7 +83,7 @@ class IsrCalib(abc.ABC):
                                         "_detectorName", "_detectorSerial", "_detectorId",
                                         "_filter", "_calibId", "_metadata"])
 
-        self.log = log if log else logging.getLogger(__name__.partition(".")[2])
+        self.log = log if log else logging.getLogger(__name__)
 
         if detector:
             self.fromDetector(detector)
