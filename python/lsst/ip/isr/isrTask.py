@@ -39,6 +39,7 @@ from lsst.afw.geom import Polygon
 from lsst.daf.persistence import ButlerDataRef
 from lsst.daf.persistence.butler import NoResults
 from lsst.meas.algorithms.detection import SourceDetectionTask
+from lsst.utils.timer import timeMethod
 
 from . import isrFunctions
 from . import isrQa
@@ -1259,7 +1260,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                illumMaskedImage=illumMaskedImage
                                )
 
-    @pipeBase.timeMethod
+    @timeMethod
     def run(self, ccdExposure, *, camera=None, bias=None, linearizer=None,
             crosstalk=None, crosstalkSources=None,
             dark=None, flat=None, ptc=None, bfKernel=None, bfGains=None, defects=None,
@@ -1766,7 +1767,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             outputFlattenedThumbnail=flattenedThumb,
         )
 
-    @pipeBase.timeMethod
+    @timeMethod
     def runDataRef(self, sensorRef):
         """Perform instrument signature removal on a ButlerDataRef of a Sensor.
 

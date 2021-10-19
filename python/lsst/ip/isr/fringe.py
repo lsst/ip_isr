@@ -26,8 +26,9 @@ import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 import lsst.afw.display as afwDisplay
 
-from lsst.pipe.base import Task, Struct, timeMethod
+from lsst.pipe.base import Task, Struct
 from lsst.pex.config import Config, Field, ListField, ConfigField
+from lsst.utils.timer import timeMethod
 from .isrFunctions import checkFilter
 
 afwDisplay.setDefaultMaskTransparency(75)
