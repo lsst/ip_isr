@@ -59,7 +59,10 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
     def testDataOnly(self):
         calib = PhotodiodeCalib(timeSamples=self.timeSeries,
                                 currentSamples=self.currentSeries)
+
         self.assertAlmostEqual(calib.integrate(), 2.88414e-10, 5)
+        self.assertAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, 5)
+        self.assertAlmostEqual(calib.integrateTrimmedSum(), 2.88414e-10, 5)
 
         outPath = tempfile.mktemp() + '.yaml'
         calib.writeText(outPath)
@@ -78,6 +81,8 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
                                 camera=self.camera)
 
         self.assertAlmostEqual(calib.integrate(), 2.88414e-10, 5)
+        self.assertAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, 5)
+        self.assertAlmostEqual(calib.integrateTrimmedSum(), 2.88414e-10, 5)
 
         outPath = tempfile.mktemp() + '.yaml'
         calib.writeText(outPath)
