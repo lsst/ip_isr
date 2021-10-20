@@ -43,17 +43,23 @@ class PhotodiodeCalib(IsrCalib):
     log : `lsst.log.Log`, optional
         Log to write messages to.
     **kwargs :
-        Paramters to pass to parent constructor.
+        Additional parameters. These will be passed to the parent
+        constructor with the exception of:
+
+        ``"integrationMethod"``
+            Name of the algorithm to use to integrate the current
+            samples. Allowed values are ``DIRECT_SUM`` and
+            ``TRIMMED_SUM`` (`str`).
     """
 
     _OBSTYPE = 'PHOTODIODE'
-    _SCHEMA = 'Gen3 Photodiode'
+    _SCHEMA = 'Photodiode'
     _VERSION = 1.0
 
     def __init__(self, timeSamples=None, currentSamples=None, **kwargs):
         if timeSamples is not None and currentSamples is not None:
             if len(timeSamples) != len(currentSamples):
-                raise RuntimeError(f"Inconsitent vector lengths: {len(timeSamples)} {len(currentSamples)}")
+                raise RuntimeError(f"Inconsitent vector lengths: {len(timeSamples)} vs {len(currentSamples)}")
             else:
                 self.timeSamples = np.array(timeSamples)
                 self.currentSamples = np.array(currentSamples)
@@ -91,6 +97,7 @@ class PhotodiodeCalib(IsrCalib):
 
         Raises
         ------
+        RuntimeError :
             Raised if the supplied dictionary is for a different
             calibration type.
         """
@@ -102,9 +109,9 @@ class PhotodiodeCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
-        calib.timeSamples = np.array(dictionary.get('timeSamples'))
-        calib.currentSamples = np.array(dictionary.get('currentSamples'))
-        calib.integrationMethod = dictionary.get('integrationMethod')
+        calib.timeSamples = np.array(dictionary['timeSamples'])
+        calib.currentSamples = np.array(dictionary['currentSamples'])
+        calib.integrationMethod = dictionary.get('integrationMethod', "DIRECT_SUM")
 
         calib.updateMetadata()
         return calib
@@ -123,8 +130,7 @@ class PhotodiodeCalib(IsrCalib):
         self.updateMetadata()
 
         outDict = {}
-        metadata = self.getMetadata()
-        outDict['metadata'] = metadata
+        outDict['metadata'] = self.getMetadata()
 
         outDict['timeSamples'] = self.timeSamples.tolist()
         outDict['currentSamples'] = self.currentSamples.tolist()
@@ -157,7 +163,7 @@ class PhotodiodeCalib(IsrCalib):
         metadata = dataTable.meta
         inDict = {}
         inDict['metadata'] = metadata
-        inDict['integrationMethod'] = metadata.pop('INTEGRATION_METHOD', None)
+        inDict['integrationMethod'] = metadata.pop('INTEGRATION_METHOD', 'DIRECT_SUM')
 
         inDict['timeSamples'] = dataTable['TIME']
         inDict['currentSamples'] = dataTable['CURRENT']
@@ -189,7 +195,7 @@ class PhotodiodeCalib(IsrCalib):
         return([catalog])
 
     @classmethod
-    def readSummitPhotodiode(cls, filename):
+    def readTwoColumnPhotodiodeData(cls, filename):
         """Construct a PhotodiodeCalib by reading the simple column format.
 
         Parameters
@@ -210,7 +216,7 @@ class PhotodiodeCalib(IsrCalib):
         _, _, day_obs, seq_num = cleaned.split("_")
 
         return cls(timeSamples=rawData['time'], currentSamples=rawData['current'],
-                   day_obs=day_obs, seq_num=seq_num)
+                   day_obs=int(day_obs), seq_num=int(seq_num))
 
     def integrate(self):
         """Integrate the current.
