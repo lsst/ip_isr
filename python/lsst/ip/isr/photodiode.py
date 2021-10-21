@@ -247,7 +247,7 @@ class PhotodiodeCalib(IsrCalib):
         return np.trapz(self.currentSamples, x=self.timeSamples)
 
     def integrateTrimmedSum(self):
-        """Integrate points consistent with the median value.
+        """Integrate points with a baseline level subtracted.
 
         This uses numpy's trapezoidal integrator.
 
@@ -255,13 +255,13 @@ class PhotodiodeCalib(IsrCalib):
         -------
         sum : `float`
             Total charge measured.
+
+        See Also
+        --------
+        lsst.eotask.gen3.eoPtc
         """
-        good = np.where(self.currentSamples > 0.0)
-        (q25, q50, q75) = np.nanpercentile(np.log10(self.currentSamples[good]), [25, 50, 75])
-
-        good = np.where(np.abs(np.log10(self.currentSamples[good]) - q50) < 3.0 * 0.74 * (q75 - q25))
-
-        current = self.currentSamples[good]
-        time = self.timeSamples[good]
-
-        return np.trapz(current, time)
+        currentThreshold = ((max(self.currentSamples) - min(self.currentSamples))/5.0
+                            + min(self.currentSamples))
+        lowValueIndices = np.where(self.currentSamples < currentThreshold)
+        baseline = np.median(self.currentSamples[lowValueIndices])
+        return np.trapz(self.currentSamples - baseline, self.timeSamples)
