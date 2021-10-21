@@ -208,9 +208,10 @@ class PhotodiodeCalib(IsrCalib):
         calib : `lsst.ip.isr.PhotodiodeCalib`
             The calibration defined in the file.
         """
+        import os.path
+
         rawData = np.loadtxt(filename, dtype=[('time', 'float'), ('current', 'float')])
 
-        import os.path
         basename = os.path.basename(filename)
         cleaned = os.path.splitext(basename)[0]
         _, _, day_obs, seq_num = cleaned.split("_")
