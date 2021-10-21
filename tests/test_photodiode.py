@@ -60,9 +60,9 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
         calib = PhotodiodeCalib(timeSamples=self.timeSeries,
                                 currentSamples=self.currentSeries)
 
-        self.assertAlmostEqual(calib.integrate(), 2.88414e-10, 5)
-        self.assertAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, 5)
-        self.assertAlmostEqual(calib.integrateTrimmedSum(), 2.88414e-10, 5)
+        self.assertFloatsAlmostEqual(calib.integrate(), 2.88414e-10, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateTrimmedSum(), 2.88720e-10, rtol=1e-14)
 
         outPath = tempfile.mktemp() + '.yaml'
         calib.writeText(outPath)
@@ -80,9 +80,9 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
                                 detector=self.detector,
                                 camera=self.camera)
 
-        self.assertAlmostEqual(calib.integrate(), 2.88414e-10, 5)
-        self.assertAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, 5)
-        self.assertAlmostEqual(calib.integrateTrimmedSum(), 2.88414e-10, 5)
+        self.assertFloatsAlmostEqual(calib.integrate(), 2.88414e-10, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateTrimmedSum(), 2.88720e-10, rtol=1e-14)
 
         outPath = tempfile.mktemp() + '.yaml'
         calib.writeText(outPath)
