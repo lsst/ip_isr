@@ -1066,7 +1066,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
 
         if self.config.doFringe is True and self.fringe.checkFilter(inputs['ccdExposure']):
-            expId = inputs['ccdExposure'].getInfo().getVisitInfo().getExposureId()
+            expId = inputs['ccdExposure'].info.id
             inputs['fringes'] = self.fringe.loadFringes(inputs['fringes'],
                                                         expId=expId,
                                                         assembler=self.assembleCcd
@@ -1209,7 +1209,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         defectList = (dataRef.get("defects")
                       if self.config.doDefect else None)
-        expId = rawExposure.getInfo().getVisitInfo().getExposureId()
+        expId = rawExposure.info.id
         fringeStruct = (self.fringe.readFringes(dataRef, expId=expId, assembler=self.assembleCcd
                                                 if self.config.doAssembleIsrExposures else None)
                         if self.config.doFringe and self.fringe.checkFilter(rawExposure)
