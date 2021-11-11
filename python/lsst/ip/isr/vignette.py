@@ -29,6 +29,10 @@ from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 
 
+__all__ = ('VignetteConfig', 'VignetteTask', 'setValidPolygonCcdIntersect',
+           'maskVignettedRegion')
+
+
 class VignetteConfig(Config):
     """Settings to define vignetting pattern.
     """

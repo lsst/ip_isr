@@ -290,7 +290,6 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
 
         self.config.doApplyGains = not value
         self.config.doCameraSpecificMasking = value
-        self.config.vignette.doWriteVignettePolygon = value
 
     def validateIsrResults(self):
         """results should be a struct with components that are
