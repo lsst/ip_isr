@@ -18,13 +18,13 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import logging
 import numpy as np
 
 import lsst.geom as geom
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.geom as afwGeom
 
-from lsst.log import Log
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 
@@ -106,7 +106,7 @@ def setValidPolygonCcdIntersect(ccdExposure, fpPolygon, log=None):
         Exposure to process.
     fpPolygon : `lsst.afw.geom.Polygon`
         Polygon in focal plane coordinates.
-    log : `lsst.log.Log`, optional
+    log : `logging.Logger`, optional
         Log object to write to.
 
     """
@@ -139,16 +139,15 @@ def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=No
     ----------
     exposure : `lsst.afw.image.Exposure`
         Image whose mask plane is to be updated.
-    polygon : `lsst..afw.geom.Polygon` optional
+    polygon : `lsst..afw.geom.Polygon`
         Polygon region defining the vignetted region in the pixel coordinates
-        of ``exposure``.  If `None`, the region will be obtained from the (if
-        any) validPolygon attached to the ``exposure``.
+        of ``exposure``.
     maskPlane : `str`, optional
         Mask plane to assign vignetted pixels to.
     vignetteValue : `float` or `None`, optional
         Value to assign to the image array pixels within the ``polygon``
         region.  If `None`, image pixel values are not replaced.
-    log : `lsst.log.Log`, optional
+    log : `logging.Logger`, optional
         Log object to write to.
 
     Raises
@@ -156,33 +155,23 @@ def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=No
     RuntimeError
         Raised if no valid polygon exists.
     """
-    # polygon = polygon if polygon else exposure.getInfo().getValidPolygon()
+    log = log if log else logging.getLogger(__name__)
     if not polygon:
-        # Make one completely outside of exposure's box
-        bbox = exposure.getBBox()
-        maxLength = max(bbox.getWidth(), bbox.getHeight())
-        polygon = afwGeom.Polygon([geom.Point2D(-4*maxLength, -4*maxLength),
-                                   geom.Point2D(-4*maxLength, -2*maxLength),
-                                   geom.Point2D(-2*maxLength, -2*maxLength),
-                                   geom.Point2D(-2*maxLength, -4*maxLength),
-                                   geom.Point2D(-4*maxLength, -4*maxLength)])
-        if log is not None:
-            log.info("Polygon provided is None...maksing entire exposure")
-
-    log = log if log else Log.getLogger(__name__.partition(".")[2])
+        log.info("No polygon provided.  Masking nothing.")
 
     fullyIlluminated = True
     for corner in exposure.getBBox().getCorners():
         if not polygon.contains(geom.Point2D(corner)):
             fullyIlluminated = False
-    if fullyIlluminated:
-        log.info("Exposure is fully illuminated? %s", fullyIlluminated)
-    else:
+    log.info("Exposure is fully illuminated? %s", fullyIlluminated)
+
+    if not fullyIlluminated:
         # Scan pixels.
         mask = exposure.getMask()
         numPixels = mask.getBBox().getArea()
         xx, yy = np.meshgrid(np.arange(0, mask.getWidth(), dtype=int),
                              np.arange(0, mask.getHeight(), dtype=int))
+
         vignMask = np.array([not polygon.contains(geom.Point2D(x, y)) for x, y in
                              zip(xx.reshape(numPixels), yy.reshape(numPixels))])
         vignMask = vignMask.reshape(mask.getHeight(), mask.getWidth())
@@ -192,6 +181,7 @@ def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=No
         maskArray[vignMask] |= bitMask
         log.info("Exposure contains {} vignetted pixels which are now masked with mask plane {}.".
                  format(np.count_nonzero(vignMask), maskPlane))
+
         if vignetteValue is not None:
             imageArray = exposure.getImage().getArray()
             imageArray[vignMask] = vignetteValue
