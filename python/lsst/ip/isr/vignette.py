@@ -53,6 +53,13 @@ class VignetteConfig(Config):
         doc="Number of points used to define the vignette polygon.",
         default=100,
     )
+    doWriteVignettePolygon = Field(
+        dtype=bool,
+        doc="Persist polygon used to define vignetted region?",
+        default=False,
+        deprecated=("Vignetted polygon is added to the exposure by default."
+                    " This option is no longer used, and will be removed after v24.")
+    )
 
 
 class VignetteTask(Task):
