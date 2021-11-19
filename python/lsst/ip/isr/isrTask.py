@@ -857,18 +857,19 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     # Vignette correction configuration.
     doVignette = pexConfig.Field(
         dtype=bool,
-        doc="Compute and attach validPolygon to exposure according to vignetting parameters?",
+        doc=("Compute and attach the validPolygon defining the unvignetted region to the exposure "
+             "according to vignetting parameters?"),
         default=False,
     )
     doMaskVignettePolygon = pexConfig.Field(
         dtype=bool,
-        doc=("Add a mask bit for pixels within the vingetted region?  Ignored if doVignette "
+        doc=("Add a mask bit for pixels within the vignetted region.  Ignored if doVignette "
              "is False"),
         default=True,
     )
     vignetteValue = pexConfig.Field(
         dtype=float,
-        doc="Value to replance image array pixels with in the vingetted region?  Ignored if None.",
+        doc="Value to replace image array pixels with in the vignetted region?  Ignored if None.",
         optional=True,
         default=None,
     )

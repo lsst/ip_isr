@@ -78,8 +78,17 @@ class VignetteTask(Task):
 
         Parameters
         ----------
-        exposure : `lsst.afw.image.Exposure`
+        exposure : `lsst.afw.image.Exposure`, optional
             Exposure to construct, apply, and optionally mask vignette for.
+        doUpdateMask : `bool`, optional
+            If true, the mask will be updated to mask the vignetted region.
+        maskPlane : `str`, optional
+            Mask plane to assign vignetted pixels to.
+        vignetteValue : `float` or `None`, optional
+            Value to assign to the image array pixels within the ``polygon``
+            region.  If `None`, image pixel values are not replaced.
+        log : `logging.Logger`, optional
+            Log object to write to.
 
         Returns
         -------
@@ -107,8 +116,8 @@ class VignetteTask(Task):
 def setValidPolygonCcdIntersect(ccdExposure, fpPolygon, log=None):
     """Set valid polygon on ccdExposure associated with focal plane polygon.
 
-    Where the ccd exposure's valid polygon is considered the intersection of
-    fpPolygon, a valid polygon in focal plane coordinates, and the ccd corners,
+    The ccd exposure's valid polygon is the intersection of fpPolygon,
+    a valid polygon in focal plane coordinates, and the ccd corners,
     in ccd pixel coordinates.
 
     Parameters
@@ -119,7 +128,6 @@ def setValidPolygonCcdIntersect(ccdExposure, fpPolygon, log=None):
         Polygon in focal plane coordinates.
     log : `logging.Logger`, optional
         Log object to write to.
-
     """
     # Get ccd corners in focal plane coordinates
     ccd = ccdExposure.getDetector()
