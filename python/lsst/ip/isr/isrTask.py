@@ -1473,8 +1473,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                             qaMedian = qaStats.getValue(afwMath.MEDIAN)
                             qaStdev = qaStats.getValue(afwMath.STDEVCLIP)
 
-                        self.metadata.set(f"FIT MEDIAN {amp.getName()}", qaMedian)
-                        self.metadata.set(f"FIT STDEV {amp.getName()}", qaStdev)
+                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = qaMedian
+                        self.metadata[f"FIT STDEV {amp.getName()}"] = qaStdev
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",
                                        amp.getName(), qaMedian, qaStdev)
 
@@ -1484,8 +1484,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                         qaMedianAfter = qaStatsAfter.getValue(afwMath.MEDIAN)
                         qaStdevAfter = qaStatsAfter.getValue(afwMath.STDEVCLIP)
 
-                        self.metadata.set(f"RESIDUAL MEDIAN {amp.getName()}", qaMedianAfter)
-                        self.metadata.set(f"RESIDUAL STDEV {amp.getName()}", qaStdevAfter)
+                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = qaMedianAfter
+                        self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = qaStdevAfter
                         self.log.debug("  Overscan stats for amplifer %s after correction: %f +/- %f",
                                        amp.getName(), qaMedianAfter, qaStdevAfter)
 
@@ -1539,10 +1539,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
                                                          afwMath.MEDIAN | afwMath.STDEVCLIP)
-                        self.metadata.set(f"ISR VARIANCE {amp.getName()} MEDIAN",
-                                          qaStats.getValue(afwMath.MEDIAN))
-                        self.metadata.set(f"ISR VARIANCE {amp.getName()} STDEV",
-                                          qaStats.getValue(afwMath.STDEVCLIP))
+                        self.metadata[f"ISR VARIANCE {amp.getName()} MEDIAN"] = \
+                            qaStats.getValue(afwMath.MEDIAN)
+                        self.metadata[f"ISR VARIANCE {amp.getName()} STDEV"] = \
+                            qaStats.getValue(afwMath.STDEVCLIP)
                         self.log.debug("  Variance stats for amplifer %s: %f +/- %f.",
                                        amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                        qaStats.getValue(afwMath.STDEVCLIP))
@@ -1746,10 +1746,9 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                     qaStats = afwMath.makeStatistics(ampExposure.getImage(),
                                                      afwMath.MEDIAN | afwMath.STDEVCLIP)
-                    self.metadata.set("ISR BACKGROUND {} MEDIAN".format(amp.getName()),
-                                      qaStats.getValue(afwMath.MEDIAN))
-                    self.metadata.set("ISR BACKGROUND {} STDEV".format(amp.getName()),
-                                      qaStats.getValue(afwMath.STDEVCLIP))
+                    self.metadata[f"ISR BACKGROUND {amp.getName()} MEDIAN"] = qaStats.getValue(afwMath.MEDIAN)
+                    self.metadata[f"ISR BACKGROUND {amp.getName()} STDEV"] = \
+                        qaStats.getValue(afwMath.STDEVCLIP)
                     self.log.debug("  Background stats for amplifer %s: %f +/- %f",
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                    qaStats.getValue(afwMath.STDEVCLIP))
@@ -2152,12 +2151,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             ampNum = amp.getName()
             # if self.config.overscanFitType in ("MEDIAN", "MEAN", "MEANCLIP"):
             if isinstance(overscanResults.overscanFit, float):
-                metadata.set("ISR_OSCAN_LEVEL%s" % ampNum, overscanResults.overscanFit)
-                metadata.set("ISR_OSCAN_SIGMA%s" % ampNum, 0.0)
+                metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = overscanResults.overscanFit
+                metadata[f"ISR_OSCAN_SIGMA{ampNum}"] = 0.0
             else:
                 stats = afwMath.makeStatistics(overscanResults.overscanFit, levelStat | sigmaStat, sctrl)
-                metadata.set("ISR_OSCAN_LEVEL%s" % ampNum, stats.getValue(levelStat))
-                metadata.set("ISR_OSCAN_SIGMA%s" % ampNum, stats.getValue(sigmaStat))
+                metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = stats.getValue(levelStat)
+                metadata[f"ISR_OSCAN_SIGMA%{ampNum}"] = stats.getValue(sigmaStat)
 
         return overscanResults
 
@@ -2529,7 +2528,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         maskedImage.getMask().addMaskPlane("UNMASKEDNAN")
         maskVal = maskedImage.getMask().getPlaneBitMask("UNMASKEDNAN")
         numNans = maskNans(maskedImage, maskVal)
-        self.metadata.set("NUMNANS", numNans)
+        self.metadata["NUMNANS"] = numNans
         if numNans > 0:
             self.log.warning("There were %d unmasked NaNs.", numNans)
 
@@ -2576,8 +2575,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             skySigma = stats.getValue(afwMath.STDEVCLIP)
             self.log.info("Flattened sky level: %f +/- %f.", skyLevel, skySigma)
             metadata = exposure.getMetadata()
-            metadata.set('SKYLEVEL', skyLevel)
-            metadata.set('SKYSIGMA', skySigma)
+            metadata["SKYLEVEL"] = skyLevel
+            metadata["SKYSIGMA"] = skySigma
 
             # calcluating flatlevel over the subgrids
             stat = afwMath.MEANCLIP if IsrQaConfig.flatness.doClip else afwMath.MEAN
@@ -2612,11 +2611,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             self.log.info("Sky flatness in %dx%d grids - pp: %f rms: %f.",
                           nX, nY, flatness_pp, flatness_rms)
 
-            metadata.set('FLATNESS_PP', float(flatness_pp))
-            metadata.set('FLATNESS_RMS', float(flatness_rms))
-            metadata.set('FLATNESS_NGRIDS', '%dx%d' % (nX, nY))
-            metadata.set('FLATNESS_MESHX', IsrQaConfig.flatness.meshX)
-            metadata.set('FLATNESS_MESHY', IsrQaConfig.flatness.meshY)
+            metadata["FLATNESS_PP"] = float(flatness_pp)
+            metadata["FLATNESS_RMS"] = float(flatness_rms)
+            metadata["FLATNESS_NGRIDS"] = '%dx%d' % (nX, nY)
+            metadata["FLATNESS_MESHX"] = IsrQaConfig.flatness.meshX
+            metadata["FLATNESS_MESHY"] = IsrQaConfig.flatness.meshY
 
     def roughZeroPoint(self, exposure):
         """Set an approximate magnitude zero point for the exposure.
