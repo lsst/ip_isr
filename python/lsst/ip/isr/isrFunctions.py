@@ -892,6 +892,8 @@ def checkFilter(exposure, filterList, log):
     result : `bool`
         True if the exposure's filter is contained in the list.
     """
+    if len(filterList) == 0:
+        return False
     thisFilter = exposure.getFilterLabel()
     if thisFilter is None:
         log.warning("No FilterLabel attached to this exposure!")

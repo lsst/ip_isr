@@ -45,27 +45,12 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         with self.assertRaises(NotImplementedError):
             task.run(self.inputExp, None)
 
-    def test_vignette_noWrite(self):
-        """Assert that the vignette task does not error when given an exposure
-        """
-        config = vignette.VignetteConfig()
-        config.radius = 125.0
-        config.xCenter = 100.0
-        config.yCenter = 100.0
-
-        config.doWriteVignettePolygon = False
-        task = vignette.VignetteTask(config=config)
-        result = task.run(self.inputExp)
-
-        # DM-19707: ip_isr functionality not fully tested by unit tests
-        self.assertIsNone(result)
-
     def test_vignette_doWrite(self):
         """Assert that the vignette task does not error when given an exposure
         """
         config = vignette.VignetteConfig()
         config.radius = 125.0
-        config.xCenter = 100.0
+        config.xCenter = 0.0
         config.yCenter = 100.0
 
         config.doWriteVignettePolygon = True
