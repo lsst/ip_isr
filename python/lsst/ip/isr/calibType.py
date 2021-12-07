@@ -339,7 +339,7 @@ class IsrCalib(abc.ABC):
         calibClassName = metadata.get("CALIBCLS")
         calibClass = doImport(calibClassName) if calibClassName is not None else cls
         if calibClass is IsrCalib:
-            raise ValueError(f"Cannot use base class to read calibration data: {msg}")
+            raise ValueError(f"Cannot use base class to read calibration data: {message}")
         return calibClass
 
     @classmethod
