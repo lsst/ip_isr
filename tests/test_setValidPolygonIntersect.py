@@ -61,7 +61,9 @@ def makeSquarePolygon(fpX0, fpY0, fpSize):
 
 
 class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
-    """A test case for setting of valid focal plane polygon intersection with ccd corners """
+    """A test case for setting of valid focal plane polygon intersection with
+    ccd corners.
+    """
 
     def testSetPolygonIntersect(self):
         # Create a detector
@@ -83,12 +85,14 @@ class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
         fpCenterY = fpCenter[1]
         pixCenter = exposure.getDetector().getCenter(PIXELS)
 
-        # Make a polygon that encompases entire ccd (radius of 2*max of width/height)
+        # Make a polygon that encompases entire ccd (radius of 2*max of
+        # width/height)
         fpRadius = 2.0*max(exposure.getWidth()*pixelSizeMm, exposure.getHeight()*pixelSizeMm)
         fpPolygon = makeCircularPolygon(fpCenterX, fpCenterY, fpRadius, numPolygonPoints)
         # Set the polygon that is the intersection of fpPolygon and ccd
         setValidPolygonCcdIntersect(exposure, fpPolygon)
-        # Since the ccd is fully contained in the fpPolygon, the intersection should be the ccdPolygon itself
+        # Since the ccd is fully contained in the fpPolygon, the intersection
+        # should be the ccdPolygon itself
         ccdPolygonPix = afwGeom.Polygon(exposure.getDetector().getCorners(PIXELS))
         self.assertEqual(exposure.getInfo().getValidPolygon(), ccdPolygonPix)
 
@@ -104,11 +108,13 @@ class SetValidPolygonIntersectTestCase(lsst.utils.tests.TestCase):
         # intersection is smaller than the ccd
         self.assertNotEqual(exposure.getInfo().getValidPolygon(), ccdPolygonPix)
 
-        # make a simple square polygon that partly intersects the ccd, centered at ccd center
+        # make a simple square polygon that partly intersects the ccd, centered
+        # at ccd center
         fpPolygonSize = max(exposure.getWidth()*pixelSizeMm, exposure.getHeight()*pixelSizeMm)
         fpPolygon = makeSquarePolygon(fpCenterX, fpCenterY, fpPolygonSize)
         setValidPolygonCcdIntersect(exposure, fpPolygon)
-        # Check that the polygon contains the central pixel (offset by one to actually be "contained")
+        # Check that the polygon contains the central pixel (offset by one to
+        # actually be "contained")
         pixCenterPlusOne = lsst.geom.Point2D(pixCenter[0] + 1, pixCenter[1] + 1)
         self.assertTrue(exposure.getInfo().getValidPolygon().contains(lsst.geom.Point2D(pixCenterPlusOne)))
         # Check that the polygon contains the upper right ccd edge

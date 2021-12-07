@@ -51,7 +51,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         width, height = 250, 500
         self.numAmps = 4
         numPixelsPerAmp = 1000
-        # crosstalk[i][j] is the fraction of the j-th amp present on the i-th amp.
+        # crosstalk[i][j] is the fraction of the j-th amp present on the i-th
+        # amp.
         self.crosstalk = [[0.0, 1e-4, 2e-4, 3e-4],
                           [3e-4, 0.0, 2e-4, 1e-4],
                           [4e-4, 5e-4, 0.0, 6e-4],
@@ -59,8 +60,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.value = 12345
         self.crosstalkStr = "XTLK"
 
-        # A bit of noise is important, because otherwise the pixel distributions are razor-thin
-        # and then rejection doesn't work
+        # A bit of noise is important, because otherwise the pixel
+        # distributions are razor-thin and then rejection doesn't work.
         rng = np.random.RandomState(12345)
         self.noise = rng.normal(0.0, 0.1, (2*height, 2*width))
 
@@ -147,7 +148,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.exposure = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
         self.exposure.setDetector(ccd1)
 
-        # Create a single ctSource that will be used for interChip CT correction.
+        # Create a single ctSource that will be used for interChip CT
+        # correction.
         self.ctSource = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
         self.ctSource.setDetector(ccd2)
 
@@ -256,7 +258,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.assertIsNone(result)
 
     def test_interChip(self):
-        """Test that passing an external exposure as the crosstalk source works.
+        """Test that passing an external exposure as the crosstalk source
+        works.
         """
         exposure = self.exposure
         ctSources = [self.ctSource]
@@ -276,7 +279,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.checkSubtracted(exposure)
 
     def test_crosstalkIO(self):
-        """Test that crosstalk doesn't change on being converted to persistable formats."""
+        """Test that crosstalk doesn't change on being converted to persistable
+        formats.
+        """
 
         # Add the interchip crosstalk as in the previous test.
         exposure = self.exposure

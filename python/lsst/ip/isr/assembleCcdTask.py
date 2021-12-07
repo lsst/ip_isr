@@ -54,7 +54,8 @@ class AssembleCcdTask(pipeBase.Task):
     r"""!
     @anchor AssembleCcdTask_
 
-    @brief Assemble a set of amplifier images into a full detector size set of pixels.
+    @brief Assemble a set of amplifier images into a full detector size set of
+    pixels.
 
     @section ip_isr_assemble_Contents Contents
 
@@ -67,12 +68,14 @@ class AssembleCcdTask(pipeBase.Task):
 
     @section ip_isr_assemble_Purpose Description
 
-    This task assembles sections of an image into a larger mosaic.  The sub-sections
-    are typically amplifier sections and are to be assembled into a detector size pixel grid.
-    The assembly is driven by the entries in the raw amp information.  The task can be configured
-    to return a detector image with non-data (e.g. overscan) pixels included.  The task can also
-    renormalize the pixel values to a nominal gain of 1.  The task also removes exposure metadata that
-    has context in raw amps, but not in trimmed detectors (e.g. 'BIASSEC').
+    This task assembles sections of an image into a larger mosaic.  The
+    sub-sections are typically amplifier sections and are to be assembled
+    into a detector size pixel grid. The assembly is driven by the entries in
+    the raw amp information.  The task can be configured to return a detector
+    image with non-data (e.g. overscan) pixels included.  The task can also
+    renormalize the pixel values to a nominal gain of 1.  The task also
+    removes exposure metadata that has context in raw amps, but not in trimmed
+    detectors (e.g. 'BIASSEC').
 
     @section ip_isr_assemble_Initialize Task initialization
 
@@ -88,40 +91,46 @@ class AssembleCcdTask(pipeBase.Task):
 
     @section ip_isr_assemble_Debug Debug variables
 
-    The @link lsst.pipe.base.cmdLineTask.CmdLineTask command line task@endlink interface supports a
-    flag @c -d to import @b debug.py from your @c PYTHONPATH; see <a
-    href="https://developer.lsst.io/stack/debug.html">Debugging Tasks with lsstDebug</a> for more
-    about @b debug.py files.
+    The @link lsst.pipe.base.cmdLineTask.CmdLineTask command line task@endlink
+    interface supports a flag @c -d to import @b debug.py from your
+    @c PYTHONPATH; see <a
+    href="https://developer.lsst.io/stack/debug.html">Debugging Tasks with
+    lsstDebug</a> for more about @b debug.py files.
 
     The available variables in AssembleCcdTask are:
     <DL>
       <DT> @c display
-      <DD> A dictionary containing debug point names as keys with frame number as value. Valid keys are:
+      <DD> A dictionary containing debug point names as keys with frame number
+           as value. Valid keys are:
         <DL>
           <DT> assembledExposure
           <DD> display assembled exposure
         </DL>
     </DL>
 
-    @section ip_isr_assemble_Example A complete example of using AssembleCcdTask
+    @section ip_isr_assemble_Example A complete example of using
+    AssembleCcdTask
 
     <HR>
     To investigate the @ref ip_isr_assemble_Debug, put something like
     @code{.py}
     import lsstDebug
     def DebugInfo(name):
-        di = lsstDebug.getInfo(name)        # N.b. lsstDebug.Info(name) would call us recursively
+        di = lsstDebug.getInfo(name)  # N.b. lsstDebug.Info(name) would call
+                                      # us recursively
         if name == "lsst.ip.isr.assembleCcdTask":
             di.display = {'assembledExposure':2}
         return di
 
     lsstDebug.Info = DebugInfo
     @endcode
-    into your debug.py file and run runAssembleTask.py with the @c --debug flag.
+    into your debug.py file and run runAssembleTask.py with the @c --debug
+    flag.
 
 
     Conversion notes:
-        Display code should be updated once we settle on a standard way of controlling what is displayed.
+        Display code should be updated once we settle on a standard way of
+        controlling what is displayed.
     """
     ConfigClass = AssembleCcdConfig
     _DefaultName = "assembleCcd"
@@ -129,8 +138,8 @@ class AssembleCcdTask(pipeBase.Task):
     def __init__(self, **kwargs):
         """!Initialize the AssembleCcdTask
 
-        The keys for removal specified in the config are added to a default set:
-        ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN')
+        The keys for removal specified in the config are added to a default
+        set: ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN')
         """
         pipeBase.Task.__init__(self, **kwargs)
 
@@ -138,17 +147,21 @@ class AssembleCcdTask(pipeBase.Task):
 
     def assembleCcd(self, assembleInput):
         """!Assemble a set of amps into a single CCD size image
-        @param[in] assembleInput -- Either a dictionary of amp lsst.afw.image.Exposures or a single
+        @param[in] assembleInput -- Either a dictionary of amp
+                                    lsst.afw.image.Exposures or a single
                                     lsst.afw.image.Exposure containing all raw
                                     amps.  If a dictionary of amp exposures,
                                     the key should be the amp name.
-        @return assembledCcd -- An lsst.afw.image.Exposure of the assembled amp sections.
+        @return assembledCcd -- An lsst.afw.image.Exposure of the assembled
+                                amp sections.
 
         @throws TypeError with the following string:
 
         <DL>
-          <DT> Expected either a dictionary of amp exposures or a single raw exposure
-          <DD> The input exposures to be assembled do not adhere to the required format.
+          <DT> Expected either a dictionary of amp exposures or a single raw
+               exposure.
+          <DD> The input exposures to be assembled do not adhere to the
+               required format.
         </DL>
 
         @throws RuntimeError with the following string:
@@ -162,7 +175,8 @@ class AssembleCcdTask(pipeBase.Task):
         if isinstance(assembleInput, dict):
             # assembleInput is a dictionary of amp name: amp exposure
 
-            # Assume all amps have the same detector, so get the detector from an arbitrary amp
+            # Assume all amps have the same detector, so get the detector from
+            # an arbitrary amp.
             ccd = next(iter(assembleInput.values())).getDetector()
 
             def getNextExposure(amp):
@@ -195,8 +209,9 @@ class AssembleCcdTask(pipeBase.Task):
             inMI = getNextExposure(amp).getMaskedImage()
             assemble(outMI, inMI, amp)
         #
-        # If we are returning an "untrimmed" image (with overscans and extended register) we
-        # need to update the ampInfo table in the Detector as we've moved the amp images into
+        # If we are returning an "untrimmed" image (with overscans and
+        # extended register) we need to update the ampInfo table in the
+        # Detector as we've moved the amp images into
         # place in a single Detector image
         #
         if not self.config.doTrim:
@@ -208,7 +223,8 @@ class AssembleCcdTask(pipeBase.Task):
         return outExposure
 
     def postprocessExposure(self, outExposure, inExposure):
-        """Set exposure non-image attributes, including wcs and metadata and display exposure (if requested)
+        """Set exposure non-image attributes, including wcs and metadata and
+        display exposure (if requested)
 
         Call after assembling the pixels
 
@@ -226,7 +242,8 @@ class AssembleCcdTask(pipeBase.Task):
                 exposureMetadata.remove(key)
         outExposure.setMetadata(exposureMetadata)
 
-        # note: don't copy PhotoCalib, because it is assumed to be unknown in raw data
+        # note: don't copy PhotoCalib, because it is assumed to be unknown in
+        # raw data.
         outExposure.info.id = inExposure.info.id
         outExposure.setFilterLabel(inExposure.getFilterLabel())
         outExposure.getInfo().setVisitInfo(inExposure.getInfo().getVisitInfo())

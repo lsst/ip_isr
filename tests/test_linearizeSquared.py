@@ -39,7 +39,8 @@ def refLinearizeSquared(image, detector):
 
     corr = uncorr + coeff[0]*uncorr^2
 
-    @param[in,out] image  image to correct in place (an lsst.afw.image.Image of some type)
+    @param[in,out] image  image to correct in place (an lsst.afw.image.Image of
+                          some type)
     @param[in] detector  detector info (an lsst.afw.cameraGeom.Detector)
     """
     ampInfoCat = detector.getAmplifiers()
@@ -92,7 +93,8 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
         """
         numAmps = (2, 2)
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(4, 4))
-        # make a 4x4 image with 4 identical 2x2 subregions that flatten to -1, 0, 1, 2
+        # make a 4x4 image with 4 identical 2x2 subregions that flatten
+        # to -1, 0, 1, 2
         im = afwImage.ImageF(bbox)
         imArr = im.getArray()
         imArr[:, :] = np.array(((-1, 0, -1, 0),
@@ -143,7 +145,8 @@ class LinearizeSquaredTestCase(lsst.utils.tests.TestCase):
 
         @param[in] bbox  bounding box for image
         @param[n] numAmps  x,y number of amplifiers (pair of int)
-        @param[in] sqCoeffs  square coefficient for each amplifier (2D array of float)
+        @param[in] sqCoeffs  square coefficient for each amplifier (2D array of
+                             float)
         @param[in] detName  detector name (a str)
         @param[in] detID  detector ID (an int)
         @param[in] detSerial  detector serial numbe (a str)

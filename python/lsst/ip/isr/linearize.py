@@ -271,13 +271,14 @@ class Linearizer(IsrCalib):
 
         Notes
         -----
-        The method reads a FITS file with 1 or 2 extensions. The metadata is read from the header of
-        extension 1, which must exist.  Then the table is loaded, and  the ['AMPLIFIER_NAME', 'TYPE',
-        'COEFFS', 'BBOX_X0', 'BBOX_Y0', 'BBOX_DX', 'BBOX_DY'] columns are read and used to
-        set each dictionary by looping over rows.
-        Eextension 2 is then attempted to read in the try block (which only exists for lookup tables).
-        It has a column named 'LOOKUP_VALUES' that contains a vector of the lookup entries in each row.
-
+        The method reads a FITS file with 1 or 2 extensions. The metadata is
+        read from the header of extension 1, which must exist.  Then the table
+        is loaded, and  the ['AMPLIFIER_NAME', 'TYPE', 'COEFFS', 'BBOX_X0',
+        'BBOX_Y0', 'BBOX_DX', 'BBOX_DY'] columns are read and used to set each
+        dictionary by looping over rows.
+        Extension 2 is then attempted to read in the try block (which only
+        exists for lookup tables). It has a column named 'LOOKUP_VALUES' that
+        contains a vector of the lookup entries in each row.
         """
         coeffTable = tableList[0]
 
@@ -311,7 +312,8 @@ class Linearizer(IsrCalib):
         return cls().fromDict(inDict)
 
     def toTable(self):
-        """Construct a list of tables containing the information in this calibration
+        """Construct a list of tables containing the information in this
+        calibration.
 
         The list of tables should create an identical calibration
         after being passed to this class's fromTable method.

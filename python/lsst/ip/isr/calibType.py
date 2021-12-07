@@ -194,7 +194,8 @@ class IsrCalib(abc.ABC):
         setCalibInfo : `bool`, optional
             Set calibration parameters from metadata.
         setDate : `bool`, optional
-            Ensure the metadata CALIBDATE fields are set to the current datetime.
+            Ensure the metadata CALIBDATE fields are set to the current
+            datetime.
         kwargs : `dict` or `collections.abc.Mapping`, optional
             Set of key=value pairs to assign to the metadata.
         """
