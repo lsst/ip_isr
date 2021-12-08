@@ -36,13 +36,17 @@ from lsst.ip.isr import applyLookupTable, Linearizer
 def refLinearize(image, detector, table):
     """!Basic implementation of lookup table based non-linearity correction
 
-    @param[in,out] image  image to correct in place (an lsst.afw.image.Image of some type)
+    @param[in,out] image  image to correct in place (an lsst.afw.image.Image
+                          of some type)
     @param[in] detector  detector info (an lsst.afw.cameraGeom.Detector)
-    @param[in] table  lookup table: a 2D array of values of the same type as image;
-            - one row for each row index (value of coef[0] in the amp info catalog)
+    @param[in] table  lookup table: a 2D array of values of the same type as
+           image;
+            - one row for each row index (value of coef[0] in the amp info
+              catalog)
             - one column for each image value
 
-    @return the number of pixels whose values were out of range of the lookup table
+    @return the number of pixels whose values were out of range of the lookup
+    table
     """
     ampInfoCat = detector.getAmplifiers()
     numOutOfRange = 0
@@ -142,7 +146,8 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         """
         numAmps = (2, 2)
         bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(4, 4))
-        # make a 4x4 image with 4 identical 2x2 subregions that flatten to -1, 0, 1, 2
+        # make a 4x4 image with 4 identical 2x2 subregions that flatten
+        # to -1, 0, 1, 2
         im = afwImage.ImageF(bbox)
         imArr = im.getArray()
         imArr[:, :] = np.array(((-1, 0, -1, 0),
@@ -160,7 +165,8 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         detector = self.makeDetector(bbox=bbox, numAmps=numAmps, rowInds=rowInds, colIndOffsets=colIndOffsets)
         ampInfoCat = detector.getAmplifiers()
 
-        # note: table rows are reversed relative to amplifier order because rowInds is a descending ramp
+        # note: table rows are reversed relative to amplifier order because
+        # rowInds is a descending ramp
         table = np.array(((7, 6, 5, 4), (1, 1, 1, 1), (5, 4, 3, 2), (0, 0, 0, 0)), dtype=imArr.dtype)
 
         llt = Linearizer(table=table, detector=detector)
@@ -168,15 +174,18 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         lltRes = llt.applyLinearity(image=im, detector=detector)
         self.assertEqual(lltRes.numOutOfRange, 2)
 
-        # amp 0 is a constant correction of 0; one image value is out of range, but it doesn't matter
+        # amp 0 is a constant correction of 0; one image value is out of range,
+        # but it doesn't matter
         imArr0 = im.Factory(im, ampInfoCat[0].getBBox()).getArray()
         self.assertFloatsAlmostEqual(imArr0.flatten(), (-1, 0, 1, 2))
 
-        # amp 1 is a correction of (5, 4, 3, 2), but the first image value is under range
+        # amp 1 is a correction of (5, 4, 3, 2), but the first image value is
+        # under range
         imArr1 = im.Factory(im, ampInfoCat[1].getBBox()).getArray()
         self.assertFloatsAlmostEqual(imArr1.flatten(), (4, 5, 5, 5))
 
-        # amp 2 is a constant correction of +1; all image values are in range, but it doesn't matter
+        # amp 2 is a constant correction of +1; all image values are in range,
+        # but it doesn't matter
         imArr2 = im.Factory(im, ampInfoCat[2].getBBox()).getArray()
         self.assertFloatsAlmostEqual(imArr2.flatten(), (0, 1, 2, 3))
 
@@ -209,8 +218,10 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
 
         @param[in] bbox  bounding box for image
         @param[n] numAmps  x,y number of amplifiers (pair of int)
-        @param[in] rowInds  index of lookup table for each amplifier (array of shape numAmps)
-        @param[in] colIndOffsets  column index offset for each amplifier (array of shape numAmps)
+        @param[in] rowInds  index of lookup table for each amplifier (array of
+                            shape numAmps)
+        @param[in] colIndOffsets  column index offset for each amplifier
+                                  (array of shape numAmps)
         @param[in] detName  detector name (a str)
         @param[in] detSerial  detector serial numbe (a str)
         @param[in] linearityType  name of linearity type (a str)
@@ -240,7 +251,8 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
                 ampInfo.setName("amp %d_%d" % (i + 1, j + 1))
                 ampInfo.setBBox(boxArr[i, j])
                 ampInfo.setLinearityType(linearityType)
-                # setLinearityCoeffs is picky about getting a mixed int/float list.
+                # setLinearityCoeffs is picky about getting a mixed int/float
+                # list.
                 ampInfo.setLinearityCoeffs(np.array([rowInds[i, j], colIndOffsets[i, j], 0, 0], dtype=float))
                 detBuilder.append(ampInfo)
 
@@ -250,7 +262,8 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         """!Make a 2D lookup table
 
         @param[in] image  image whose type is used for the table
-        @param[in] numCols  number of columns for table; defaults to self.numCols
+        @param[in] numCols  number of columns for table; defaults to
+                            self.numCols
         @param[in] numRows  number of rows for the table
         @param[in] sigma  standard deviation of normal distribution
         """

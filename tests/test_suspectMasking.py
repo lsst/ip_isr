@@ -78,7 +78,8 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         self.assertMaskedImagesAlmostEqual(inMaskedImage, maskedImage)
 
     def testRenamedMasking(self):
-        """Test that masking works using some other mask name instead of the default
+        """Test that masking works using some other mask name instead of the
+        default.
         """
         AltMaskName = "BAD"  # pick something that exists for simplicity
 
@@ -108,7 +109,8 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 def makeRampMaskedImage(bbox, minVal, maxVal, imgClass=afwImage.MaskedImageF):
     """Make a ramp image of the specified size and image class
 
-    Image values start from 0 at the lower left corner and increase by 1 along rows
+    Image values start from 0 at the lower left corner and increase by 1 along
+    rows.
     Variance values equal image values + 100
     Mask values equal 0
     """

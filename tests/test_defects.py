@@ -138,7 +138,8 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         # - Point2I(340, 344)
         # - Box2I(minimum=Point2I(5, -5), dimensions=Extent2I(10, 20))
         #
-        # The two coincident points are combined on read, so we end up with two defects.
+        # The two coincident points are combined on read, so we end up with two
+        # defects.
 
         with self.assertLogs():
             defects = Defects.readFits(os.path.join(TESTDIR, "data", "fits_region.fits"),
@@ -199,8 +200,8 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         for defect in defects:
             boxesMeasured.append(defect.getBBox())
 
-        # The normalizing function should have created the following two boxes out
-        # of the individual 1-pixel defects from above
+        # The normalizing function should have created the following two boxes
+        # out of the individual 1-pixel defects from above
         expectedDefects = [lsst.geom.Box2I(corner=lsst.geom.Point2I(15, 1),
                                            dimensions=lsst.geom.Extent2I(1, 5)),
                            lsst.geom.Box2I(corner=lsst.geom.Point2I(20, 11),
@@ -210,7 +211,8 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         for expDef, measDef in zip(expectedDefects, boxesMeasured):
             self.assertEqual(expDef, measDef)
 
-        # Normalize two distinct sets of Defects and ensure they compare to the same thing
+        # Normalize two distinct sets of Defects and ensure they compare to the
+        # same thing.
         defects = Defects()
         # Set 1
         defects.append(lsst.geom.Box2I(corner=lsst.geom.Point2I(25, 1), dimensions=lsst.geom.Extent2I(1, 1)))

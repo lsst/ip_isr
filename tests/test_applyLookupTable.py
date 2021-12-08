@@ -44,7 +44,8 @@ def referenceApply(image, table, indOffset):
 
     @param[in,out] image  image to which to add the values; modified in place
     @param[in] table  lookup table
-    @param[in] indOffset  scalar added to image value before truncating to lookup column
+    @param[in] indOffset  scalar added to image value before truncating to
+                          lookup column
 
     @return the number of pixels whose values were out of range
     """
@@ -90,8 +91,9 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
     def testKnown(self):
         """Test that a given image and lookup table produce the known answer
 
-        Apply a negative ramp table to a positive ramp image to get a flat image,
-        but have one value out of range at each end, to offset each end point by one
+        Apply a negative ramp table to a positive ramp image to get a flat
+        image, but have one value out of range at each end, to offset each end
+        point by one
         """
         # generate a small ramp image with ascending integer values
         # starting at some small negative value going positive
@@ -102,7 +104,8 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         im = makeRampImage(bbox=bbox, start=start, stop=stop, imageClass=afwImage.ImageF)
         # generate a ramp lookup table with descending integer values,
         # with a range offset by a small arbitrary value from the image ramp
-        # make it two elements too short so we can have one value out of range at each end
+        # make it two elements too short so we can have one value out of range
+        # at each end
         numOutOfRangePerEnd = 1
         numOutOfRange = 2*numOutOfRangePerEnd
         tableOffset = -2
@@ -111,7 +114,8 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
             stop=numOutOfRange + start + tableOffset,
             num=numPix - numOutOfRange)
         table = np.array(table, dtype=im.getArray().dtype)
-        # apply the table with the first and last image value out of range by one
+        # apply the table with the first and last image value out of range by
+        # one.
         indOffset = -(start + numOutOfRangePerEnd)
         measNumOutOfRange = applyLookupTable(im, table, indOffset)
         self.assertEqual(numOutOfRange, measNumOutOfRange)

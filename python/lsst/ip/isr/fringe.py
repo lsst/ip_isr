@@ -150,7 +150,8 @@ class FringeTask(Task):
             print(f"{self.config.stats.rngSeedOffset} {expId}")
             seed = self.config.stats.rngSeedOffset + expId
 
-        # Seed for numpy.random.RandomState must be convertable to a 32 bit unsigned integer
+        # Seed for numpy.random.RandomState must be convertable to a 32 bit
+        # unsigned integer.
         seed %= 2**32
 
         return Struct(fringes=fringeExp,
@@ -276,7 +277,8 @@ class FringeTask(Task):
         mi -= pedestal
 
     def generatePositions(self, exposure, rng):
-        """Generate a random distribution of positions for measuring fringe amplitudes.
+        """Generate a random distribution of positions for measuring fringe
+        amplitudes.
 
         Parameters
         ----------
@@ -393,8 +395,8 @@ class FringeTask(Task):
         if oldNum == 0:
             return emptyResult()
 
-        # Up-front rejection to get rid of extreme, potentially troublesome values
-        # (e.g., fringe apertures that fall on objects).
+        # Up-front rejection to get rid of extreme, potentially troublesome
+        # values (e.g., fringe apertures that fall on objects).
         good = select(science, self.config.clip)
         for ff in range(fringes.shape[1]):
             good &= select(fringes[:, ff], self.config.clip)

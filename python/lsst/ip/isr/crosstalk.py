@@ -355,7 +355,8 @@ class CrosstalkCalib(IsrCalib):
         return cls().fromDict(inDict)
 
     def toTable(self):
-        """Construct a list of tables containing the information in this calibration.
+        """Construct a list of tables containing the information in this
+        calibration.
 
         The list of tables should create an identical calibration
         after being passed to this class's fromTable method.
@@ -424,7 +425,8 @@ class CrosstalkCalib(IsrCalib):
         thisAmpCorner = amp.getReadoutCorner()
         targetAmpCorner = ampTarget.getReadoutCorner()
 
-        # Flipping is necessary only if the desired configuration doesn't match what we currently have
+        # Flipping is necessary only if the desired configuration doesn't match
+        # what we currently have.
         xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[thisAmpCorner]
         yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[thisAmpCorner]
         return lsst.afw.math.flipImage(output, xFlip, yFlip)
@@ -433,8 +435,9 @@ class CrosstalkCalib(IsrCalib):
     def calculateBackground(mi, badPixels=["BAD"]):
         """Estimate median background in image.
 
-        Getting a great background model isn't important for crosstalk correction,
-        since the crosstalk is at a low level. The median should be sufficient.
+        Getting a great background model isn't important for crosstalk
+        correction, since the crosstalk is at a low level. The median should
+        be sufficient.
 
         Parameters
         ----------
@@ -456,16 +459,18 @@ class CrosstalkCalib(IsrCalib):
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
                           backgroundMethod="None"):
-        """Subtract the crosstalk from thisExposure, optionally using a different source.
+        """Subtract the crosstalk from thisExposure, optionally using a
+        different source.
 
-        We set the mask plane indicated by ``crosstalkStr`` in a target amplifier
-        for pixels in a source amplifier that exceed ``minPixelToMask``. Note that
-        the correction is applied to all pixels in the amplifier, but only those
-        that have a substantial crosstalk are masked with ``crosstalkStr``.
+        We set the mask plane indicated by ``crosstalkStr`` in a target
+        amplifier for pixels in a source amplifier that exceed
+        ``minPixelToMask``. Note that the correction is applied to all pixels
+        in the amplifier, but only those that have a substantial crosstalk
+        are masked with ``crosstalkStr``.
 
-        The uncorrected image is used as a template for correction. This is good
-        enough if the crosstalk is small (e.g., coefficients < ~ 1e-3), but if it's
-        larger you may want to iterate.
+        The uncorrected image is used as a template for correction. This is
+        good enough if the crosstalk is small (e.g., coefficients < ~ 1e-3),
+        but if it's larger you may want to iterate.
 
         Parameters
         ----------
@@ -556,8 +561,9 @@ class CrosstalkCalib(IsrCalib):
                 jImage -= backgrounds[jj]
                 iImage.scaledPlus(coeffs[ii, jj], jImage)
 
-        # Set crosstalkStr bit only for those pixels that have been significantly modified (i.e., those
-        # masked as such in 'subtrahend'), not necessarily those that are bright originally.
+        # Set crosstalkStr bit only for those pixels that have been
+        # significantly modified (i.e., those masked as such in 'subtrahend'),
+        # not necessarily those that are bright originally.
         mask.clearMaskPlane(crosstalkPlane)
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
@@ -604,7 +610,8 @@ class CrosstalkConfig(Config):
     )
 
     def getCrosstalk(self, detector=None):
-        """Return a 2-D numpy array of crosstalk coefficients in the proper shape.
+        """Return a 2-D numpy array of crosstalk coefficients in the proper
+        shape.
 
         Parameters
         ----------
@@ -619,7 +626,8 @@ class CrosstalkConfig(Config):
         Raises
         ------
         RuntimeError
-            Raised if no coefficients could be generated from this detector/configuration.
+            Raised if no coefficients could be generated from this
+            detector/configuration.
         """
         if self.useConfigCoefficients is True:
             coeffs = np.array(self.crosstalkValues).reshape(self.crosstalkShape)
@@ -646,7 +654,8 @@ class CrosstalkConfig(Config):
         Returns
         -------
         hasCrosstalk : `bool`
-            True if this detector/configuration has crosstalk coefficients defined.
+            True if this detector/configuration has crosstalk coefficients
+            defined.
         """
         if self.useConfigCoefficients is True and self.crosstalkValues is not None:
             return True
@@ -662,7 +671,8 @@ class CrosstalkTask(Task):
     _DefaultName = 'isrCrosstalk'
 
     def prepCrosstalk(self, dataRef, crosstalk=None):
-        """Placeholder for crosstalk preparation method, e.g., for inter-detector crosstalk.
+        """Placeholder for crosstalk preparation method, e.g., for
+        inter-detector crosstalk.
 
         Parameters
         ----------
@@ -727,7 +737,8 @@ class CrosstalkTask(Task):
 
             if crosstalk.interChip:
                 if crosstalkSources:
-                    # Parse crosstalkSources: Identify which detectors we have available
+                    # Parse crosstalkSources: Identify which detectors we have
+                    # available
                     if isinstance(crosstalkSources[0], lsst.afw.image.Exposure):
                         # Received afwImage.Exposure
                         sourceNames = [exp.getDetector().getName() for exp in crosstalkSources]

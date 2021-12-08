@@ -89,7 +89,8 @@ class PhotonTransferCurveDataset(IsrCalib):
     noise : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing the fitted noise.
     noiseErr : `dict`, [`str`, `list`]
-        Dictionary keyed by amp names containing the errors on the fitted noise.
+        Dictionary keyed by amp names containing the errors on the fitted
+        noise.
     ptcFitPars : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing the fitted parameters of the
         PTC model for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].

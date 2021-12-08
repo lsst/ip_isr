@@ -704,7 +704,8 @@ class IsrMock(pipeBase.Task):
         Parameters
         ----------
         amp : `~lsst.afw.ampInfo.AmpInfoRecord`
-            Amplifier to operate on. Needed for amp<->exp coordinate transforms.
+            Amplifier to operate on. Needed for amp<->exp coordinate
+            transforms.
         ampData : `lsst.afw.image.ImageF`
             Amplifier image to operate on.
         scale : `numpy.array` or `float`
@@ -735,7 +736,8 @@ class IsrMock(pipeBase.Task):
         Parameters
         ----------
         amp : `lsst.afw.ampInfo.AmpInfoRecord`
-            Amplifier to operate on. Needed for amp<->exp coordinate transforms.
+            Amplifier to operate on. Needed for amp<->exp coordinate
+            transforms.
         ampData : `lsst.afw.image.ImageF`
             Amplifier image to operate on.
         fracDrop : `float`

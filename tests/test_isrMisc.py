@@ -39,7 +39,8 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         self.mi = self.inputExp.getMaskedImage()
 
     def test_straylight(self):
-        """Assert that the straylight task does not error when given an exposure.
+        """Assert that the straylight task does not error when given an
+        exposure.
         """
         task = straylight.StrayLightTask()
         with self.assertRaises(NotImplementedError):
@@ -70,11 +71,13 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         self.assertIsNone(result)
 
     def test_linearize(self):
-        """Assert that the linearize task does not error when a linearity is requested.
+        """Assert that the linearize task does not error when a linearity is
+        requested.
         """
         for linearityTypeName in ('LookupTable', 'Squared', 'Polynomial', 'Unknown'):
             result = linearize.Linearizer().getLinearityTypeByName(linearityTypeName)
-            # These return the actual class to use, so use Equal instead of IsInstance.
+            # These return the actual class to use, so use Equal instead of
+            # IsInstance.
             if linearityTypeName == 'LookupTable':
                 self.assertEqual(result, linearize.LinearizeLookupTable, msg=f"{linearityTypeName}")
             elif linearityTypeName == 'Squared':

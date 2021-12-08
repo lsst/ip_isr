@@ -174,8 +174,9 @@ def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
     mask = maskedImage.getMask()
 
     if growSaturatedFootprints > 0 and "SAT" in maskNameList:
-        # If we are interpolating over an area larger than the original masked region, we need
-        # to expand the original mask bit to the full area to explain why we interpolated there.
+        # If we are interpolating over an area larger than the original masked
+        # region, we need to expand the original mask bit to the full area to
+        # explain why we interpolated there.
         growMasks(mask, radius=growSaturatedFootprints, maskNameList=['SAT'], maskValue="SAT")
 
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskNameList), afwDetection.Threshold.BITMASK)
@@ -392,8 +393,9 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
                            (maskedImage.getBBox(afwImage.LOCAL), flatMaskedImage.getBBox(afwImage.LOCAL)))
 
     # Figure out scale from the data
-    # Ideally the flats are normalized by the calibration product pipeline, but this allows some flexibility
-    # in the case that the flat is created by some other mechanism.
+    # Ideally the flats are normalized by the calibration product pipeline,
+    # but this allows some flexibility in the case that the flat is created by
+    # some other mechanism.
     if scalingType in ('MEAN', 'MEDIAN'):
         scalingType = afwMath.stringToStatisticsProperty(scalingType)
         flatScale = afwMath.makeStatistics(flatMaskedImage.image, scalingType).getValue()
@@ -467,7 +469,8 @@ def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1,
         Polynomial order or number of spline knots; ignored unless
         ``fitType`` indicates a polynomial or spline.
     statControl : `lsst.afw.math.StatisticsControl`
-        Statistics control object.  In particular, we pay attention to numSigmaClip
+        Statistics control object.  In particular, we pay attention to
+        ``numSigmaClip``.
     overscanIsInt : `bool`
         Treat the overscan region as consisting of integers, even if it's been
         converted to float.  E.g. handle ties properly.
@@ -558,7 +561,8 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
     To evaluate the derivative term we expand it as follows:
 
-    0.5 * ( d/dx(I(x))*d/dx(int(dy*K(x-y)*I(y))) + I(x)*d^2/dx^2(int(dy* K(x-y)*I(y))) )
+    0.5 * ( d/dx(I(x))*d/dx(int(dy*K(x-y)*I(y)))
+        + I(x)*d^2/dx^2(int(dy* K(x-y)*I(y))) )
 
     Because we use the measured counts instead of the incident counts
     we apply the correction iteratively to reconstruct the original
@@ -594,9 +598,11 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
         convCntrl = afwMath.ConvolutionControl(False, True, 1)
         fixedKernel = afwMath.FixedKernel(kernelImage)
 
-        # Define boundary by convolution region.  The region that the correction will be
-        # calculated for is one fewer in each dimension because of the second derivative terms.
-        # NOTE: these need to use integer math, as we're using start:end as numpy index ranges.
+        # Define boundary by convolution region.  The region that the
+        # correction will be calculated for is one fewer in each dimension
+        # because of the second derivative terms.
+        # NOTE: these need to use integer math, as we're using start:end as
+        # numpy index ranges.
         startX = kLx//2
         endX = -kLx//2
         startY = kLy//2
@@ -779,7 +785,8 @@ def applyGains(exposure, normalizeGains=False, ptcGains=None):
 
 
 def widenSaturationTrails(mask):
-    """Grow the saturation trails by an amount dependent on the width of the trail.
+    """Grow the saturation trails by an amount dependent on the width of the
+    trail.
 
     Parameters
     ----------

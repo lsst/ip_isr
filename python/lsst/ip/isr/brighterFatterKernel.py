@@ -346,7 +346,8 @@ class BrighterFatterKernel(IsrCalib):
         return cls.fromDict(inDict)
 
     def toTable(self):
-        """Construct a list of tables containing the information in this calibration.
+        """Construct a list of tables containing the information in this
+        calibration.
 
         The list of tables should create an identical calibration
         after being passed to this class's fromTable method.
@@ -418,7 +419,8 @@ class BrighterFatterKernel(IsrCalib):
 
     # Implementation methods
     def makeDetectorKernelFromAmpwiseKernels(self, detectorName, ampsToExclude=[]):
-        """Average the amplifier level kernels to create a detector level kernel.
+        """Average the amplifier level kernels to create a detector level
+        kernel.
         """
         inKernels = np.array([self.ampKernels[amp] for amp in
                               self.ampKernels if amp not in ampsToExclude])

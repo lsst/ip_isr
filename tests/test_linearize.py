@@ -269,7 +269,8 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 if linearityType == 'Squared':
                     ampInfo.setLinearityCoeffs([self.sqCoeffs[i, j]])
                 elif linearityType == 'LookupTable':
-                    # setLinearityCoeffs is picky about getting a mixed int/float list.
+                    # setLinearityCoeffs is picky about getting a mixed
+                    # int/float list.
                     ampInfo.setLinearityCoeffs(np.array([self.rowInds[i, j], self.colIndOffsets[i, j],
                                                          0, 0], dtype=float))
                 elif linearityType == 'Polynomial':

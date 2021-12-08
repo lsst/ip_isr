@@ -389,7 +389,8 @@ class OverscanCorrectionTask(pipeBase.Task):
 
     @staticmethod
     def splineEval(indices, interp):
-        """Wrapper function to match spline evaluation API to polynomial fit API.
+        """Wrapper function to match spline evaluation API to polynomial fit
+        API.
 
         Parameters
         ----------

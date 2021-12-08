@@ -41,7 +41,8 @@ else:
 
 
 class FringeDataRef(object):
-    """Quacks like a ButlerDataRef, so we can provide an in-memory fringe frame.
+    """Quacks like a ButlerDataRef, so we can provide an in-memory fringe
+    frame.
     """
     def __init__(self, fringe):
         self.fringe = fringe

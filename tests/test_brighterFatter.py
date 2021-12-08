@@ -64,7 +64,8 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
             self.bfk.ampKernels[ampName] = kernel
 
     def test_BrighterFatterInterface(self):
-        """Test brighter fatter correction interface using a delta function kernel on a flat image"""
+        """Test brighter fatter correction interface using a delta function
+        kernel on a flat image"""
 
         image = afwImage.ImageF(100, 100)
         image.set(100)

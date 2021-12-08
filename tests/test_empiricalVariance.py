@@ -139,8 +139,9 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         postIsr = results.exposure
 
         self.assertFloatsEqual(postIsr.mask.array, 0)
-        # Image is not exactly zero because the noise in the overscan (required to be able to set
-        # the empirical variance) leads to a slight misestimate in the polynomial fit.
+        # Image is not exactly zero because the noise in the overscan (required
+        # to be able to set the empirical variance) leads to a slight
+        # misestimate in the polynomial fit.
         self.assertFloatsAlmostEqual(np.median(postIsr.image.array), 0.0, atol=5.0e-2)
         self.assertFloatsAlmostEqual(np.nanmedian(postIsr.variance.array), self.sigma**2, rtol=5.0e-2)
 
