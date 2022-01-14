@@ -53,6 +53,7 @@ from .overscan import OverscanCorrectionTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
 from .ampOffset import AmpOffsetTask
+from .deferredCharge import DeferredChargeTask
 from lsst.daf.butler import DimensionGraph
 
 
@@ -241,6 +242,13 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "physical_filter", "detector"],
         isCalibration=True,
     )
+    deferredChargeCalib = cT.PrerequisiteInput(
+        name="deferredCharge",
+        doc="Deferred charge/CTI correction dataset.",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
 
     outputExposure = cT.Output(
         name='postISRCCD',
@@ -308,6 +316,8 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
                 self.prerequisiteInputs.remove("atmosphereTransmission")
         if config.doIlluminationCorrection is not True:
             self.prerequisiteInputs.remove("illumMaskedImage")
+        if config.doDeferredCharge is not True:
+            self.prerequisiteInputs.remove("deferredChargeCalib")
 
         if config.doWrite is not True:
             self.outputs.remove("outputExposure")
@@ -561,6 +571,17 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         dtype=bool,
         doc="Reverse order of overscan and bias correction.",
         default=False
+    )
+
+    # Deferred charge correction.
+    doDeferredCharge = pexConfig.Field(
+        dtype=bool,
+        doc="Apply deferred charge correction?",
+        default=False,
+    )
+    deferredCharge = pexConfig.ConfigurableField(
+        target=DeferredChargeTask,
+        doc="Deferred charge correction task.",
     )
 
     # Variance construction
@@ -993,6 +1014,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("overscan")
         self.makeSubtask("vignette")
         self.makeSubtask("ampOffset")
+        self.makeSubtask("deferredCharge")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
         inputs = butlerQC.get(inputRefs)
@@ -1279,7 +1301,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
-            isGen3=False,
+            deferredCharge=None, isGen3=False,
             ):
         """Perform instrument signature removal on an exposure.
 
@@ -1448,6 +1470,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters
                 and illumMaskedImage is None):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
+        if (self.config.doDeferredCharge and deferredCharge is None):
+            raise RuntimeError("Must supply a deferred charge calibration if config.doDeferredCharge=True.")
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1534,6 +1558,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
             self.debugView(ccdExposure, "doBias")
+
+        if self.config.doDeferredCharge:
+            self.log.info("Applying deferred charge/CTI correction.")
+            self.deferredCharge(ccdExposure, overscans, deferredCharge)
+            self.debugView(ccdExposure, "doDeferredCharge")
 
         if self.config.doVariance:
             for amp, overscanResults in zip(ccd, overscans):
