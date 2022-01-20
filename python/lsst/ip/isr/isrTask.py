@@ -54,6 +54,7 @@ from .straylight import StrayLightTask
 from .vignette import VignetteTask
 from .ampOffset import AmpOffsetTask
 from .deferredCharge import DeferredChargeTask
+from .isrStatistics import IsrStatisticsTask
 from lsst.daf.butler import DimensionGraph
 
 
@@ -274,6 +275,12 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="Thumbnail",
         dimensions=["instrument", "exposure", "detector"],
     )
+    outputStatistics = cT.Output(
+        name="isrStatistics",
+        doc="Output of additional statistics table.",
+        storageClass="StructuredDataDict",
+        dimensions=["instrument", "exposure", "detector"],
+    )
 
     def __init__(self, *, config=None):
         super().__init__(config=config)
@@ -324,12 +331,16 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.outputs.remove("preInterpExposure")
             self.outputs.remove("outputFlattenedThumbnail")
             self.outputs.remove("outputOssThumbnail")
+            self.outputs.remove("outputStatistics")
+
         if config.doSaveInterpPixels is not True:
             self.outputs.remove("preInterpExposure")
         if config.qa.doThumbnailOss is not True:
             self.outputs.remove("outputOssThumbnail")
         if config.qa.doThumbnailFlattened is not True:
             self.outputs.remove("outputFlattenedThumbnail")
+        if config.doCalculateStatistics is not True:
+            self.outputs.remove("outputStatistics")
 
 
 class IsrTaskConfig(pipeBase.PipelineTaskConfig,
@@ -949,6 +960,17 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Only perform illumination correction for these filters."
     )
 
+    # Calculate additional statistics?
+    doCalculateStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Should additional ISR statistics be calculated?",
+        default=False,
+    )
+    isrStats = pexConfig.ConfigurableField(
+        target=IsrStatisticsTask,
+        doc="Task to calculate additional statistics.",
+    )
+
     # Write the outputs to disk. If ISR is run as a subtask, this may not
     # be needed.
     doWrite = pexConfig.Field(
@@ -1015,6 +1037,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("vignette")
         self.makeSubtask("ampOffset")
         self.makeSubtask("deferredCharge")
+        self.makeSubtask("isrStats")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
         inputs = butlerQC.get(inputRefs)
@@ -1395,6 +1418,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 Thumbnail image of the exposure after overscan subtraction.
             - ``flattenedThumb`` : `numpy.ndarray`
                 Thumbnail image of the exposure after flat-field correction.
+            - ``outputStatistics`` : ``
+                Values of the additional statistics calculated.
 
         Raises
         ------
@@ -1796,6 +1821,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                    qaStats.getValue(afwMath.STDEVCLIP))
 
+        # calculate additional statistics.
+        outputStatistics = None
+        if self.config.doCalculateStatistics:
+            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans).results
+            #        import pdb; pdb.set_trace()
         self.debugView(ccdExposure, "postISRCCD")
 
         return pipeBase.Struct(
@@ -1807,6 +1837,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             outputExposure=ccdExposure,
             outputOssThumbnail=ossThumb,
             outputFlattenedThumbnail=flattenedThumb,
+            outputStatistics=outputStatistics,
         )
 
     @timeMethod

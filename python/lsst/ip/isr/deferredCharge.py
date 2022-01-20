@@ -21,13 +21,16 @@
 import numpy as np
 from astropy.table import Table
 
+# import lsst.afw.math as afwMath
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 from .isrFunctions import gainContext
 from .calibType import IsrCalib
 
+import scipy.interpolate as interp
 
-__all__ = ('DeferredChargeConfig', 'DeferredChargeTask')
+
+__all__ = ('DeferredChargeConfig', 'DeferredChargeTask', 'SerialTrap', 'DeferredChargeCalib')
 
 
 class SerialTrap():
@@ -62,6 +65,12 @@ class SerialTrap():
 
         self.trapType = trapType
         self.coeffs = coeffs
+
+        if self.trapType == 'spline':
+            centers, values = np.split(np.array(self.coeffs), 2)
+            # self.interp = afwMath.makeInterpolate(centers, values,
+            #                                      afwMath.stringToInterpStyle("AKIMA_SPLINE"))
+            self.interp = interp.interp1d(centers, values)
 
         self._trap_array = None
         self._trapped_charge = None
@@ -146,9 +155,8 @@ class SerialTrap():
             f0, k = (self.coeffs[0], self.coeffs[1])
             return self.size/(1.+np.exp(-k*(pixel_signals-f0)))
         elif self.trapType == 'spline':
-            raise NotImplementedError("Spline currently not implemented.")
-            # super().__init__(200000., emission_time, pixel)
-            # self.f = interpolant
+            #            return self.interp.interpolate(pixel_signals)
+            return self.interp(pixel_signals)
 
 
 class DeferredChargeCalib(IsrCalib):
@@ -217,12 +225,12 @@ class DeferredChargeCalib(IsrCalib):
         inDict['metadata'] = ampTable.meta
 
         amps = ampTable['AMPLIFIER']
-        driftScales = ampTable['DRIFT_SCALE']
-        decayTimes = ampTable['DECAY_TIME']
+        driftScale = ampTable['DRIFT_SCALE']
+        decayTime = ampTable['DECAY_TIME']
         globalCti = ampTable['GLOBAL_CTI']
 
-        inDict['driftScale'] = {amp: value for amp, value in zip(amps, driftScales)}
-        inDict['decayTimes'] = {amp: value for amp, value in zip(amps, decayTimes)}
+        inDict['driftScale'] = {amp: value for amp, value in zip(amps, driftScale)}
+        inDict['decayTime'] = {amp: value for amp, value in zip(amps, decayTime)}
         inDict['globalCti'] = {amp: value for amp, value in zip(amps, globalCti)}
 
         trapTable = tableList[1]
@@ -251,19 +259,19 @@ class DeferredChargeCalib(IsrCalib):
         self.updateMetadata()
 
         ampList = []
-        driftScales = []
-        decayTimes = []
+        driftScale = []
+        decayTime = []
         globalCti = []
 
         for amp in self.driftScale.keys():
             ampList.append(amp)
-            driftScales.append(self.driftScale[amp])
-            decayTimes.append(self.decayTimes[amp])
+            driftScale.append(self.driftScale[amp])
+            decayTime.append(self.decayTime[amp])
             globalCti.append(self.globalCti[amp])
 
         ampTable = Table({'AMPLIFIER': ampList,
-                          'DRIFT_SCALE': driftScales,
-                          'DECAY_TIME': decayTimes,
+                          'DRIFT_SCALE': driftScale,
+                          'DECAY_TIME': decayTime,
                           'GLOBAL_CTI': globalCti,
                           })
 
