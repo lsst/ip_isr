@@ -19,6 +19,7 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+import numpy as np
 from astropy.table import Table
 from .calibType import IsrCalib
 
@@ -188,8 +189,8 @@ class PhotodiodeCorrection(IsrCalib):
         tableList = []
         self.updateMetadata()
         catalog = Table([{'PAIR': key,
-                          'PD_CORR': self.abscissaCorrections[key]
-                     } for key in self.abscissaCorrections.keys()])
+                          'PD_CORR': self.abscissaCorrections[key]}
+                         for key in self.abscissaCorrections.keys()])
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
 
