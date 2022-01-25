@@ -19,6 +19,7 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+from astropy.table import Table
 from .calibType import IsrCalib
 
 __all__ = ["PhotodiodeCorrection"]
@@ -56,6 +57,13 @@ class PhotodiodeCorrection(IsrCalib):
 
     def __init__(self, table=None, **kwargs):
         self.abscissaCorrections = dict()
+        self.tableData = None
+        if table is not None:
+            if len(table.shape) != 2:
+                raise RuntimeError("table shape = %s; must have two dimensions" % (table.shape,))
+            if table.shape[1] < table.shape[0]:
+                raise RuntimeError("table shape = %s; indices are switched" % (table.shape,))
+            self.tableData = np.array(table, order="C")
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['abscissaCorrections'])
@@ -104,10 +112,12 @@ class PhotodiodeCorrection(IsrCalib):
                                f"found {dictionary['metadata']['OBSTYPE']}")
 
         calib.setMetadata(dictionary['metadata'])
-
-        calib.abscissaCorrections = np.array(dictionary['abscissaCorrections'])
+        for pair in dictionary['pairs']:
+            correction = dictionary['pairs'][pair]
+            calib.abscissaCorrections[pair] = correction
 
         calib.updateMetadata()
+
         return calib
 
     def toDict(self):
@@ -125,8 +135,8 @@ class PhotodiodeCorrection(IsrCalib):
 
         outDict = {}
         outDict['metadata'] = self.getMetadata()
-
-        outDict['abscissaCorrections'] = self.abscissaCorrections.tolist()
+        for pair in self.abscissaCorrections.keys():
+            outDict['pairs'][pair] = self.abscissaCorrections[pair]
 
         return outDict
 
@@ -152,9 +162,13 @@ class PhotodiodeCorrection(IsrCalib):
         dataTable = tableList[0]
 
         metadata = dataTable.meta
-        inDict = {}
+        inDict = dict()
         inDict['metadata'] = metadata
-        inDict['abscissaCorrections'] = dataTable['PD_CORR']
+        inDict['pairs'] = dict()
+
+        for record in dataTable:
+            pair = record['PAIR']
+            inDict['pairs'][pair] = record['PD_CORR']
 
         return cls().fromDict(inDict)
 
@@ -171,14 +185,19 @@ class PhotodiodeCorrection(IsrCalib):
             List of tables containing the photodiode correction
             information.
         """
+        tableList = []
         self.updateMetadata()
-        catalog = Table([{'PD_CORR': self.absciccaCorrections}])
-        inMeta = self.getMetadata().toDict()
-        outMeta = {k: v for k, v in inMeta.items() if v is not None}
-        outMeta.update({k: "" for k, v in inMeta.items() if v is None})
-        catalog.meta = outMeta
+        catalog = Table([{'PAIR': key,
+                          'PD_CORR': self.abscissaCorrections[key]
+                     } for key in self.abscissaCorrections.keys()])
+        catalog.meta = self.getMetadata().toDict()
+        tableList.append(catalog)
 
-        return([catalog])
+        if self.tableData is not None:
+            catalog = Table([{'LOOKUP_VALUES': value} for value in self.tableData])
+            tableList.append(catalog)
+
+        return(tableList)
 
     def validate(self):
         """Validate photodiode correction"""
