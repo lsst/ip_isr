@@ -1945,6 +1945,10 @@ class IsrTask(pipeBase.PipelineTask):
         else:
             readNoise = amp.getReadNoise()
 
+        metadata = ampExposure.getMetadata()
+        metadata[f'LSST GAIN {amp.getName()}'] = gain
+        metadata[f'LSST READNOISE {amp.getName()}'] = readNoise
+
         isrFunctions.updateVariance(
             maskedImage=ampExposure.getMaskedImage(),
             gain=gain,
