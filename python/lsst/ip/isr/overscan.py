@@ -382,6 +382,18 @@ class OverscanCorrectionTask(pipeBase.Task):
                                   weights=collapsed.data*~collapsed.mask)[0]/numPerBin
             binCenters = np.histogram(indices, bins=numBins,
                                       weights=indices*~collapsed.mask)[0]/numPerBin
+
+            if len(binCenters[numPerBin > 0]) < 3:
+                self.log.warn("Cannot do spline fitting for overscan: %s valid points.",
+                              len(binCenters[numPerBin > 0]))
+                # Return a scalar value if we have one, otherwise
+                # return zero.  This amplifier is hopefully already
+                # masked.
+                if len(values[numPerBin > 0]) != 0:
+                    return float(values[numPerBin > 0][0])
+                else:
+                    return 0.0
+
             interp = afwMath.makeInterpolate(binCenters.astype(float)[numPerBin > 0],
                                              values.astype(float)[numPerBin > 0],
                                              afwMath.stringToInterpStyle(self.config.fitType))
@@ -482,9 +494,19 @@ class OverscanCorrectionTask(pipeBase.Task):
                 'AKIMA_SPLINE': (self.splineFit, self.splineEval)
             }[self.config.fitType]
 
+            # These are the polynomial coefficients, or an
+            # interpolation object.
             coeffs = fitter(indices, collapsed, self.config.order)
-            overscanVector = evaler(indices, coeffs)
-            maskArray = self.maskExtrapolated(collapsed)
+
+            if isinstance(coeffs, float):
+                self.log.warn("Using fallback value %f due to fitter failure. Amplifier will be masked.",
+                              coeffs)
+                overscanVector = np.full_like(indices, coeffs)
+                maskArray = np.full_like(collapsed, True, dtype=bool)
+            else:
+                # Otherwise we can just use things as normal.
+                overscanVector = evaler(indices, coeffs)
+                maskArray = self.maskExtrapolated(collapsed)
         return pipeBase.Struct(overscanValue=np.array(overscanVector),
                                maskArray=maskArray,
                                isTransposed=isTransposed)
