@@ -383,7 +383,7 @@ class OverscanCorrectionTask(pipeBase.Task):
             binCenters = np.histogram(indices, bins=numBins,
                                       weights=indices*~collapsed.mask)[0]/numPerBin
 
-            if len(binCenters[numPerBin > 0]) < 3:
+            if len(binCenters[numPerBin > 0]) < 5:
                 self.log.warn("Cannot do spline fitting for overscan: %s valid points.",
                               len(binCenters[numPerBin > 0]))
                 # Return a scalar value if we have one, otherwise
