@@ -1,9 +1,10 @@
+# This file is part of ip_isr.
 #
-# LSST Data Management System
-# Copyright 2016 AURA/LSST.
-#
-# This product includes software developed by the
-# LSST Project (http://www.lsst.org/).
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,10 +16,11 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and
-# the GNU General Public License along with this program.  If not,
-# see <http://www.lsstcorp.org/LegalNotices/>.
-#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+PhotodiodeCorrection storage class.
+"""
 import numpy as np
 from astropy.table import Table
 from .calibType import IsrCalib
@@ -48,9 +50,8 @@ class PhotodiodeCorrection(IsrCalib):
     Notes
     -----
     The photodiode correction attributes stored are:
-
-    abscissaCorrections : 'dict' 'float'
-        Correction value indexed by exposure pair
+    abscissaCorrections : `dict` : [`str`, `float`]
+    Correction value indexed by exposure pair
     """
     _OBSTYPE = "PHOTODIODE_CORRECTION"
     _SCHEMA = 'PhotodiodeCorrection'
@@ -109,7 +110,7 @@ class PhotodiodeCorrection(IsrCalib):
         calib = cls()
 
         if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
-            raise RuntimeError(f"Incorrect photodiode correctionsupplied.  Expected {calib._OBSTYPE}, "
+            raise RuntimeError(f"Incorrect photodiode correction supplied.  Expected {calib._OBSTYPE}, "
                                f"found {dictionary['metadata']['OBSTYPE']}")
 
         calib.setMetadata(dictionary['metadata'])
