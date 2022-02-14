@@ -29,13 +29,19 @@ __all__ = ["PhotodiodeCorrection"]
 
 
 class PhotodiodeCorrection(IsrCalib):
-    """Parameter set for linearization.
+    """Parameter set for photodiode correction.
 
     These parameters are included in cameraGeom.Amplifier, but
     should be accessible externally to allow for testing.
 
     Parameters
     ----------
+    table : `numpy.array`, optional
+        Lookup table; a 2-dimensional array of floats:
+            - one row for each row index (value of coef[0] in the amplifier)
+            - one column for each image value
+        To avoid copying the table the last index should vary fastest
+        (numpy default "C" order)
     log : `logging.Logger`, optional
         Logger to handle messages.
     kwargs : `dict`, optional
@@ -118,7 +124,9 @@ class PhotodiodeCorrection(IsrCalib):
             correction = dictionary['pairs'][pair]
             calib.abscissaCorrections[pair] = correction
 
-        calib.updateMetadata()
+        calib.tableData = dictionary.get('tableData', None)
+        if calib.tableData:
+            calib.tableData = np.array(calib.tableData)
 
         return calib
 
@@ -135,10 +143,14 @@ class PhotodiodeCorrection(IsrCalib):
         """
         self.updateMetadata()
 
-        outDict = {}
+        outDict = dict()
+        outDict['pairs'] = dict()
         outDict['metadata'] = self.getMetadata()
         for pair in self.abscissaCorrections.keys():
             outDict['pairs'][pair] = self.abscissaCorrections[pair]
+
+        if self.tableData is not None:
+            outDict['tableData'] = self.tableData.tolist()
 
         return outDict
 
@@ -171,6 +183,10 @@ class PhotodiodeCorrection(IsrCalib):
         for record in dataTable:
             pair = record['PAIR']
             inDict['pairs'][pair] = record['PD_CORR']
+
+        if len(tableList) > 1:
+            tableData = tableList[1]
+            inDict['tableData'] = [record['LOOKUP_VALUES'] for record in tableData]
 
         return cls().fromDict(inDict)
 
