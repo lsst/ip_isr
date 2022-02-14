@@ -1824,7 +1824,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         # calculate additional statistics.
         outputStatistics = None
         if self.config.doCalculateStatistics:
-            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans).results
+            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
+                                                 ptc=ptc).results
             #        import pdb; pdb.set_trace()
         self.debugView(ccdExposure, "postISRCCD")
 

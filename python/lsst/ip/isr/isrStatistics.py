@@ -24,6 +24,8 @@ import lsst.afw.image as afwImage
 import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
+from lsst.afw.cameraGeom import ReadoutCorner
+
 
 class IsrStatisticsTaskConfig(pexConfig.Config):
     """Overscan correction options.
@@ -72,15 +74,54 @@ class IsrStatisticsTask(pipeBase.Task):
                                                      afwImage.Mask.getPlaneBitMask(self.config.badMask))
         self.statType = afwMath.stringToStatisticsProperty(self.config.stat)
 
-    def run(self, inputExp, **kwargs):
+    def run(self, inputExp, ptc=None, overscanResults=None, **kwargs):
+        """Task to run arbitrary statistics.
+
+        The statistics should be measured by individual methods, and
+        add to the dictionary in the return struct.
+
+        Parameters
+        ----------
+        inputExp : `~lsst.afw.image.Exposure`
+            The exposure to measure.
+        ptc : `~lsst.ip.isr.PtcDataset`, optional
+            A PTC object containing gains to use.
+        overscanResults : `list` [`lsst.pipe.base.Struct`], optional
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        resultStruct : `lsst.pipe.base.Struct`
+            Expected to contain the measured statistics as a dict
+            contained in a field named ``results``.
+        """
+        # Find gains.
+        detector = inputExp.getDetector()
+        if ptc is not None:
+            gains = ptc.gain
+        elif detector is not None:
+            gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
+
         if self.config.doCtiStatistics:
-            ctiResults = self.measureCti(inputExp, kwargs['overscanResults'])
+            ctiResults = self.measureCti(inputExp, overscanResults, gains)
 
         return pipeBase.Struct(
             results={'CTI': ctiResults, },
         )
 
-    def measureCti(self, inputExp, overscans):
+    def measureCti(self, inputExp, overscans, gains):
         """Task to measure CTI statistics.
 
         Parameters
@@ -101,6 +142,8 @@ class IsrStatisticsTask(pipeBase.Task):
                 correction applied (`lsst.afw.image.Image`). This
                 quantity is used to estimate the amplifier read noise
                 empirically.
+        gains : `dict` [`str` `float]
+            Dictionary of per-amplifier gains, indexed by amplifier name.
 
         Returns
         -------
@@ -114,38 +157,55 @@ class IsrStatisticsTask(pipeBase.Task):
         image = inputExp.getImage()
         for ampIter, amp in enumerate(detector.getAmplifiers()):
             ampStats = {}
-
+            gain = gains[amp.getName()]
+            readoutCorner = amp.getReadoutCorner()
             # Full data region.
             dataRegion = image[amp.getBBox()]
             ampStats['IMAGE_MEAN'] = afwMath.makeStatistics(dataRegion, self.statType,
                                                             self.statControl).getValue()
 
-            # First and last.
-            ampStats['FIRST_MEAN'] = afwMath.makeStatistics(dataRegion.getArray()[:, 0],
-                                                            self.statType,
-                                                            self.statControl).getValue()
-            ampStats['LAST_MEAN'] = afwMath.makeStatistics(dataRegion.getArray()[:, -1],
-                                                           self.statType,
-                                                           self.statControl).getValue()
+            # First and last image columns.
+            pixelA = afwMath.makeStatistics(dataRegion.getArray()[:, 0],
+                                            self.statType,
+                                            self.statControl).getValue()
+            pixelZ = afwMath.makeStatistics(dataRegion.getArray()[:, -1],
+                                            self.statType,
+                                            self.statControl).getValue()
 
-            # Overscan
+            # We want these relative to the readout corner.  If that's
+            # on the right side, we need to swap them.
+            if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
+                ampStats['FIRST_MEAN'] = pixelZ
+                ampStats['LAST_MEAN'] = pixelA
+            else:
+                ampStats['FIRST_MEAN'] = pixelZ
+                ampStats['LAST_MEAN'] = pixelZ
+
+            # Measure the columns of the overscan.
             if overscans[ampIter] is None:
                 # The amplifier is likely entirely bad, and needs to
                 # be skipped.
-                ampStats['OVERSCAN_COLUMNS'] = [np.nan]
-                ampStats['OVERSCAN_VALUES'] = [np.nan]
-                continue
+                nCols = amp.getSerialOverscanBBox().getWidth()
+                ampStats['OVERSCAN_COLUMNS'] = np.full((nCols, ), np.nan)
+                ampStats['OVERSCAN_VALUES'] = np.full((nCols, ), np.nan)
+            else:
+                overscanImage = overscans[ampIter].overscanImage
+                columns = []
+                values = []
+                for column in range(0, overscanImage.getWidth()):
+                    osMean = afwMath.makeStatistics(overscanImage.getImage().getArray()[:, column],
+                                                    self.statType, self.statControl).getValue()
+                    columns.append(column)
+                    values.append(gain * osMean)
 
-            overscanImage = overscans[ampIter].overscanImage
-            columns = []
-            values = []
-            for column in range(0, overscanImage.getWidth()):
-                osMean = afwMath.makeStatistics(overscanImage.getImage().getArray()[:, column],
-                                                self.statType, self.statControl).getValue()
-                columns.append(column)
-                values.append(osMean)
-            ampStats['OVERSCAN_COLUMNS'] = columns
-            ampStats['OVERSCAN_VALUES'] = values
+                # We want these relative to the readout corner.  If that's
+                # on the right side, we need to swap them.
+                if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
+                    ampStats['OVERSCAN_COLUMNS'] = np.flip(columns).tolist()
+                    ampStats['OVERSCAN_VALUES'] = np.flip(values).tolist()
+                else:
+                    ampStats['OVERSCAN_COLUMNS'] = columns
+                    ampStats['OVERSCAN_VALUES'] = values
 
             outputStats[amp.getName()] = ampStats
 
