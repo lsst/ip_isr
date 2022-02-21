@@ -89,6 +89,11 @@ class Linearizer(IsrCalib):
         construct the correction coefficients, indexed as above.
     fitChiSq : `dict` [`str`, `float`], optional
         Chi-squared value of the linearity fit, indexed as above.
+    fitResiduals : `dict` [`str`, `numpy.array`], optional
+        Residuals of the fit, indexed as above. Used for
+        calculating photdiode corrections
+    linearFit : The linear fit to the low flux region of the curve.
+        [intercept, slope].
     tableData : `numpy.array`, optional
         Lookup table data for the linearity correction.
     """
@@ -104,11 +109,11 @@ class Linearizer(IsrCalib):
         self.linearityCoeffs = dict()
         self.linearityType = dict()
         self.linearityBBox = dict()
-
         self.fitParams = dict()
         self.fitParamsErr = dict()
         self.fitChiSq = dict()
-
+        self.fitResiduals = dict()
+        self.linearFit = dict()
         self.tableData = None
         if table is not None:
             if len(table.shape) != 2:
@@ -122,7 +127,7 @@ class Linearizer(IsrCalib):
                                         'ampNames',
                                         'linearityCoeffs', 'linearityType', 'linearityBBox',
                                         'fitParams', 'fitParamsErr', 'fitChiSq',
-                                        'tableData'])
+                                        'fitResiduals', 'linearFit', 'tableData'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -216,6 +221,8 @@ class Linearizer(IsrCalib):
                 calib.fitParams[ampName] = np.array(amp.get('fitParams', [0.0]))
                 calib.fitParamsErr[ampName] = np.array(amp.get('fitParamsErr', [0.0]))
                 calib.fitChiSq[ampName] = amp.get('fitChiSq', np.nan)
+                calib.fitResiduals[ampName] = np.array(amp.get('fitResiduals', [0.0]))
+                calib.linearFit[ampName] = np.array(amp.get('linearFit', [0.0]))
 
             calib.tableData = dictionary.get('tableData', None)
             if calib.tableData:
@@ -245,7 +252,9 @@ class Linearizer(IsrCalib):
                                               'linearityBBox': self.linearityBBox[ampName],
                                               'fitParams': self.fitParams[ampName].tolist(),
                                               'fitParamsErr': self.fitParamsErr[ampName].tolist(),
-                                              'fitChiSq': self.fitChiSq[ampName]}
+                                              'fitChiSq': self.fitChiSq[ampName],
+                                              'fitResiduals': self.fitResiduals[ampName].tolist(),
+                                              'linearFit': self.linearFit[ampName].tolist()}
         if self.tableData is not None:
             outDict['tableData'] = self.tableData.tolist()
 
@@ -294,6 +303,8 @@ class Linearizer(IsrCalib):
             fitParams = record['FIT_PARAMS'] if 'FIT_PARAMS' in record.columns else np.array([0.0])
             fitParamsErr = record['FIT_PARAMS_ERR'] if 'FIT_PARAMS_ERR' in record.columns else np.array([0.0])
             fitChiSq = record['RED_CHI_SQ'] if 'RED_CHI_SQ' in record.columns else np.nan
+            fitResiduals = record['FIT_RES'] if 'FIT_RES' in record.columns else np.array([0.0])
+            linearFit = record['LIN_FIT'] if 'LIN_FIT' in record.columns else np.array([0.0])
 
             inDict['amplifiers'][ampName] = {
                 'linearityType': record['TYPE'],
@@ -303,6 +314,8 @@ class Linearizer(IsrCalib):
                 'fitParams': fitParams,
                 'fitParamsErr': fitParamsErr,
                 'fitChiSq': fitChiSq,
+                'fitResiduals': fitResiduals,
+                'linearFit': linearFit,
             }
 
         if len(tableList) > 1:
@@ -337,6 +350,8 @@ class Linearizer(IsrCalib):
                           'FIT_PARAMS': self.fitParams[ampName],
                           'FIT_PARAMS_ERR': self.fitParamsErr[ampName],
                           'RED_CHI_SQ': self.fitChiSq[ampName],
+                          'FIT_RES': self.fitResiduals[ampName],
+                          'LIN_FIT': self.linearFit[ampName],
                           } for ampName in self.ampNames])
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
