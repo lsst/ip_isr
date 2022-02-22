@@ -178,7 +178,7 @@ class IsrStatisticsTask(pipeBase.Task):
                 ampStats['FIRST_MEAN'] = pixelZ
                 ampStats['LAST_MEAN'] = pixelA
             else:
-                ampStats['FIRST_MEAN'] = pixelZ
+                ampStats['FIRST_MEAN'] = pixelA
                 ampStats['LAST_MEAN'] = pixelZ
 
             # Measure the columns of the overscan.
