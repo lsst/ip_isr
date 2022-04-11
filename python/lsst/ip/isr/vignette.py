@@ -177,6 +177,7 @@ def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=No
     log = log if log else logging.getLogger(__name__)
     if not polygon:
         log.info("No polygon provided.  Masking nothing.")
+        return
 
     fullyIlluminated = True
     for corner in exposure.getBBox().getCorners():
