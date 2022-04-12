@@ -158,7 +158,7 @@ def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=No
     ----------
     exposure : `lsst.afw.image.Exposure`
         Image whose mask plane is to be updated.
-    polygon : `lsst..afw.geom.Polygon`
+    polygon : `lsst.afw.geom.Polygon`
         Polygon region defining the vignetted region in the pixel coordinates
         of ``exposure``.
     maskPlane : `str`, optional
@@ -177,6 +177,7 @@ def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=No
     log = log if log else logging.getLogger(__name__)
     if not polygon:
         log.info("No polygon provided.  Masking nothing.")
+        return
 
     fullyIlluminated = True
     for corner in exposure.getBBox().getCorners():
