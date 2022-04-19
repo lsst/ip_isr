@@ -287,7 +287,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         if config.doFlat is not True:
             self.prerequisiteInputs.discard("flat")
         if config.doFringe is not True:
-            self.prerequisiteInputs.discard("fringe")
+            self.prerequisiteInputs.discard("fringes")
         if config.doStrayLight is not True:
             self.prerequisiteInputs.discard("strayLightData")
         if config.usePtcGains is not True and config.usePtcReadNoise is not True:
