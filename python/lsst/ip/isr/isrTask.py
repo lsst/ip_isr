@@ -2216,6 +2216,21 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
             overscanResults = self.overscan.run(ampImage.getImage(), overscanImage, amp)
 
+            # If we trimmed columns, we need to restore them.
+            if dx0 != 0 and dx1 != 0:
+                fullOverscan = ccdExposure.maskedImage[oscanBBox]
+                overscanVector = overscanResults.overscanFit.getArray()[:, 0]
+                overscanModel = afwImage.ImageF(fullOverscan.getDimensions())
+                overscanModel.getArray()[:, :] = 0.0
+                overscanModel.getArray()[:, 0:dx0] = overscanVector[:, numpy.newaxis]
+                overscanModel.getArray()[:, dx1:] = overscanVector[:, numpy.newaxis]
+                fullOverscanImage = fullOverscan.getImage()
+                fullOverscanImage -= overscanModel
+                overscanResults = pipeBase.Struct(imageFit=overscanResults.imageFit,
+                                                  overscanFit=overscanModel,
+                                                  overscanImage=fullOverscan,
+                                                  edgeMask=overscanResults.edgeMask)
+
             # Measure average overscan levels and record them in the metadata.
             levelStat = afwMath.MEDIAN
             sigmaStat = afwMath.STDEVCLIP
