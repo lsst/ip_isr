@@ -44,13 +44,13 @@ class SerialTrap():
         Trap emission time constant, in inverse transfers.
     pixel : `int`
         Serial pixel location of the trap.
-    trapType : `str`
+    trap_type : `str`
         Type of trap capture to use.
     coeffs : `list` [`float`]
         Coefficients for the capture process.
     """
 
-    def __init__(self, size, emission_time, pixel, trapType, coeffs):
+    def __init__(self, size, emission_time, pixel, trap_type, coeffs):
         if size < 0.0:
             raise ValueError('Trap size must be greater than or equal to 0.')
         self.size = size
@@ -63,13 +63,11 @@ class SerialTrap():
 
         self.pixel = int(pixel)
 
-        self.trapType = trapType
+        self.trap_type = trap_type
         self.coeffs = coeffs
 
-        if self.trapType == 'spline':
+        if self.trap_type == 'spline':
             centers, values = np.split(np.array(self.coeffs), 2)
-            # self.interp = afwMath.makeInterpolate(centers, values,
-            #                                      afwMath.stringToInterpStyle("AKIMA_SPLINE"))
             self.interp = interp.interp1d(centers, values)
 
         self._trap_array = None
@@ -148,14 +146,13 @@ class SerialTrap():
         captured_charge : `list` [`float`]
             Amount of charge captured from each pixel.
         """
-        if self.trapType == 'linear':
+        if self.trap_type == 'linear':
             scaling = self.coeffs[0]
             return np.minimum(self.size, pixel_signals*scaling)
-        elif self.trapType == 'logistic':
+        elif self.trap_type == 'logistic':
             f0, k = (self.coeffs[0], self.coeffs[1])
             return self.size/(1.+np.exp(-k*(pixel_signals-f0)))
-        elif self.trapType == 'spline':
-            #            return self.interp.interpolate(pixel_signals)
+        elif self.trap_type == 'spline':
             return self.interp(pixel_signals)
 
 
@@ -192,7 +189,7 @@ class DeferredChargeCalib(IsrCalib):
         for ampName in dictionary['serialTraps']:
             ampTraps = dictionary['serialTraps'][ampName]
             calib.serialTraps[ampName] = SerialTrap(ampTraps['size'], ampTraps['emissionTime'],
-                                                    ampTraps['pixel'], ampTraps['trapType'],
+                                                    ampTraps['pixel'], ampTraps['trap_type'],
                                                     ampTraps['coeffs'])
         calib.updateMetadata()
         return calib
@@ -211,7 +208,7 @@ class DeferredChargeCalib(IsrCalib):
             ampTrap = {'size': self.serialTraps[ampName].size,
                        'emissionTime': self.serialTraps[ampName].emission_time,
                        'pixel': self.serialTraps[ampName].pixel,
-                       'trapType': self.serialTraps[ampName].trapType,
+                       'trap_type': self.serialTraps[ampName].trap_type,
                        'coeffs': self.serialTraps[ampName].coeffs}
             outDict['serialTraps'][ampName] = ampTrap
 
@@ -233,22 +230,23 @@ class DeferredChargeCalib(IsrCalib):
         inDict['decayTime'] = {amp: value for amp, value in zip(amps, decayTime)}
         inDict['globalCti'] = {amp: value for amp, value in zip(amps, globalCti)}
 
+        inDict['serialTraps'] = {}
         trapTable = tableList[1]
 
         amps = trapTable['AMPLIFIER']
         sizes = trapTable['SIZE']
         emissionTimes = trapTable['EMISSION_TIME']
         pixels = trapTable['PIXEL']
-        trapType = trapTable['TYPE']
-        coeffs = trapTable['coeffs']
+        trap_type = trapTable['TYPE']
+        coeffs = trapTable['COEFFS']
 
         for index, amp in enumerate(amps):
             ampTrap = {}
             ampTrap['size'] = sizes[index]
             ampTrap['emissionTime'] = emissionTimes[index]
             ampTrap['pixel'] = pixels[index]
-            ampTrap['trapType'] = trapType[index]
-            ampTrap['coeffs'] = coeffs[index]
+            ampTrap['trap_type'] = trap_type[index]
+            ampTrap['coeffs'] = np.array(coeffs[index])[~np.isnan(coeffs[index])].tolist()
 
             inDict['serialTraps'][amp] = ampTrap
 
@@ -278,7 +276,41 @@ class DeferredChargeCalib(IsrCalib):
         ampTable.meta = self.getMetadata().toDict()
         tableList.append(ampTable)
 
-        # serial Traps??
+        ampList = []
+        sizeList = []
+        timeList = []
+        pixelList = []
+        typeList = []
+        coeffList = []
+
+        # Get maximum coeff length
+        maxCoeffLength = 0
+
+        for trap in self.serialTraps.values():
+            maxCoeffLength = np.maximum(maxCoeffLength, len(trap.coeffs))
+
+        for amp, trap in self.serialTraps.items():
+            ampList.append(amp)
+            sizeList.append(trap.size)
+            timeList.append(trap.emission_time)
+            pixelList.append(trap.pixel)
+            typeList.append(trap.trap_type)
+
+            coeffs = trap.coeffs
+            if len(coeffs) != maxCoeffLength:
+                coeffs = np.pad(coeffs, (0, maxCoeffLength - len(coeffs)),
+                                constant_values=np.nan).tolist()
+            coeffList.append(coeffs)
+
+        trapTable = Table({'AMPLIFIER': ampList,
+                           'SIZE': sizeList,
+                           'EMISSION_TIME': timeList,
+                           'PIXEL': pixelList,
+                           'TYPE': typeList,
+                           'COEFFS': coeffList})
+
+        tableList.append(trapTable)
+
         return tableList
 
 
