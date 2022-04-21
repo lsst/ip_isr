@@ -357,28 +357,45 @@ class DeferredChargeTask(Task):
         """
         image = exposure.getMaskedImage().getImage()
         detector = exposure.getDetector()
+        if gains is None:
+            gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
+            gains = {amp.getName(): 1.0 for amp in detector.getAmplifiers()}
+
         with gainContext(exposure, image, True, gains):
             for amp in detector.getAmplifiers():
-                ampImage = image[amp.getBBox()]
+                ampName = amp.getName()
 
-                if ctiCalib.driftScale[amp] > 0.0:
-                    correctedAmpImage = self.local_offset_inverse(ampImage.getArray(),
-                                                                  ctiCalib.driftScale[amp],
-                                                                  ctiCalib.decayTime[amp],
+                ampImage = image[amp.getRawBBox()]
+                # We don't apply overscan subtraction, so zero these
+                # out for now.
+                # ampImage[amp.getRawParallelOverscanBBox()].getArray()[:,
+                # :] = 0.0
+                # ampImage[amp.getRawSerialPrescanBBox()].getArray()[:,
+                # :] = 0.0
+
+                # CZW: This should use the corners.  Just for testing!
+                ampData = np.fliplr(np.flipud(ampImage.getArray()))
+
+                if ctiCalib.driftScale[ampName] > 0.0:
+                    correctedAmpImage = self.local_offset_inverse(ampData,
+                                                                  ctiCalib.driftScale[ampName],
+                                                                  ctiCalib.decayTime[ampName],
                                                                   self.config.nPixelOffsetCorrection)
                 else:
                     correctedAmpImage = ampImage.clone()
 
-                correctedAmpImage = self.local_trap_inverse(correctedAmpImage.getArray(),
-                                                            ctiCalib.serialTraps[amp],
-                                                            ctiCalib.globalCti[amp],
+                correctedAmpImage = self.local_trap_inverse(correctedAmpImage,
+                                                            ctiCalib.serialTraps[ampName],
+                                                            ctiCalib.globalCti[ampName],
                                                             self.config.nPixelTrapCorrection)
-            image.getArray()[:, :] = correctedAmpImage[:, :]
+                # Undo flips here:
+                correctedAmpImage = np.fliplr(np.flipud(correctedAmpImage))
+                image[amp.getBBox()].getArray()[:, :] = correctedAmpImage[:, :]
 
         return exposure
 
     @staticmethod
-    def local_offset_inverse(inputArr, scale, decay_time, num_previous_pixels=4):
+    def local_offset_inverse(inputArr, scale, decay_time, num_previous_pixels=15):
         """
         """
         r = np.exp(-1/decay_time)
@@ -398,7 +415,7 @@ class DeferredChargeTask(Task):
         return outputArr
 
     @staticmethod
-    def local_trap_inverse(inputArr, trap, global_cti=0.0, num_previous_pixels=4):
+    def local_trap_inverse(inputArr, trap, global_cti=0.0, num_previous_pixels=6):
         """Apply localized trapping inverse operator to pixel signals."""
 
         Ny, Nx = inputArr.shape

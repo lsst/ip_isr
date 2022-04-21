@@ -243,12 +243,12 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "physical_filter", "detector"],
         isCalibration=True,
     )
-    deferredChargeCalib = cT.PrerequisiteInput(
+    deferredCharge = cT.PrerequisiteInput(
         name="deferredCharge",
         doc="Deferred charge/CTI correction dataset.",
         storageClass="IsrCalib",
         dimensions=["instrument", "detector"],
-        isCalibration=True,
+        # isCalibration=True,
     )
 
     outputExposure = cT.Output(
@@ -590,7 +590,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Apply deferred charge correction?",
         default=False,
     )
-    deferredCharge = pexConfig.ConfigurableField(
+    deferredChargeCorrection = pexConfig.ConfigurableField(
         target=DeferredChargeTask,
         doc="Deferred charge correction task.",
     )
@@ -1036,7 +1036,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("overscan")
         self.makeSubtask("vignette")
         self.makeSubtask("ampOffset")
-        self.makeSubtask("deferredCharge")
+        self.makeSubtask("deferredChargeCorrection")
         self.makeSubtask("isrStats")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
@@ -1560,6 +1560,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             else:
                 self.log.info("Skipped OSCAN for %s.", amp.getName())
 
+        if self.config.doDeferredCharge:
+            self.log.info("Applying deferred charge/CTI correction.")
+            self.deferredChargeCorrection.run(ccdExposure, overscans, deferredCharge)
+            self.debugView(ccdExposure, "doDeferredCharge")
+
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
@@ -1583,11 +1588,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
             self.debugView(ccdExposure, "doBias")
-
-        if self.config.doDeferredCharge:
-            self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredCharge(ccdExposure, overscans, deferredCharge)
-            self.debugView(ccdExposure, "doDeferredCharge")
 
         if self.config.doVariance:
             for amp, overscanResults in zip(ccd, overscans):
