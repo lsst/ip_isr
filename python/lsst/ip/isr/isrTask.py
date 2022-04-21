@@ -297,14 +297,15 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.prerequisiteInputs.remove("filterTransmission")
             self.prerequisiteInputs.remove("sensorTransmission")
             self.prerequisiteInputs.remove("atmosphereTransmission")
-        if config.doUseOpticsTransmission is not True:
-            self.prerequisiteInputs.remove("opticsTransmission")
-        if config.doUseFilterTransmission is not True:
-            self.prerequisiteInputs.remove("filterTransmission")
-        if config.doUseSensorTransmission is not True:
-            self.prerequisiteInputs.remove("sensorTransmission")
-        if config.doUseAtmosphereTransmission is not True:
-            self.prerequisiteInputs.remove("atmosphereTransmission")
+        else:
+            if config.doUseOpticsTransmission is not True:
+                self.prerequisiteInputs.remove("opticsTransmission")
+            if config.doUseFilterTransmission is not True:
+                self.prerequisiteInputs.remove("filterTransmission")
+            if config.doUseSensorTransmission is not True:
+                self.prerequisiteInputs.remove("sensorTransmission")
+            if config.doUseAtmosphereTransmission is not True:
+                self.prerequisiteInputs.remove("atmosphereTransmission")
         if config.doIlluminationCorrection is not True:
             self.prerequisiteInputs.remove("illumMaskedImage")
 
