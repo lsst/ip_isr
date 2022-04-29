@@ -22,6 +22,7 @@ import numpy as np
 from astropy.table import Table
 
 # import lsst.afw.math as afwMath
+from lsst.afw.cameraGeom import ReadoutCorner
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 from .isrFunctions import gainContext
@@ -157,7 +158,31 @@ class SerialTrap():
 
 
 class DeferredChargeCalib(IsrCalib):
-    """Calibration of deferred charge/CTI parameters.
+    """Calibration containing deferred charge/CTI parameters.
+
+    Parameters
+    ----------
+    detector : `lsst.afw.cameraGeom.Detector`, optional
+        Detector to use for metadata properties.
+    **kwargs :
+        Additional parameters to pass to parent constructor.
+
+    Notes
+    -----
+    The charge transfer inefficiency attributes stored are:
+
+    driftScale : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the local electronic
+        offset drift scale parameter, A_L in Snyder+2021.
+    decayTime : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the local electronic
+        offset decay time, \tau_L in Snyder+2021.
+    globalCti : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the mean global CTI
+        paramter, b in Snyder+2021.
+    serialTraps : `dict` [`str`, `lsst.ip.isr.SerialTrap`]
+        A dictionary, keyed by amplifier name, containing a single
+        serial trap for each amplifier.
     """
     _OBSTYPE = 'CTI'
     _SCHEMA = 'Deferred Charge'
@@ -174,6 +199,24 @@ class DeferredChargeCalib(IsrCalib):
 
     @classmethod
     def fromDict(cls, dictionary):
+        """Construct a calibration from a dictionary of properties.
+
+        Parameters
+        ----------
+        dictionary : `dict`
+            Dictionary of properties.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.CalibType`
+            Constructed calibration.
+
+        Raises
+        ------
+        RuntimeError :
+            Raised if the supplied dictionary is for a different
+            calibration.
+        """
         calib = cls()
 
         if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
@@ -195,6 +238,15 @@ class DeferredChargeCalib(IsrCalib):
         return calib
 
     def toDict(self):
+        """Return a dictionary containing the calibration properties.
+        The dictionary should be able to be round-tripped through
+        `fromDict`.
+
+        Returns
+        -------
+        dictionary : `dict`
+            Dictionary of properties.
+        """
         self.updateMetadata()
         outDict = {}
         outDict['metadata'] = self.getMetadata()
@@ -216,6 +268,25 @@ class DeferredChargeCalib(IsrCalib):
 
     @classmethod
     def fromTable(cls, tableList):
+        """Construct calibration from a list of tables.
+
+        This method uses the `fromDict` method to create the
+        calibration, after constructing an appropriate dictionary from
+        the input tables.
+
+        Parameters
+        ----------
+        tableList : `list` [`lsst.afw.table.Table`]
+            List of tables to use to construct the crosstalk
+            calibration.  Two tables are expected in this list, the
+            first containing the per-amplifier CTI parameters, and the
+            second containing the parameters for serial traps.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.CrosstalkCalib`
+            The calibration defined in the tables.
+        """
         ampTable = tableList[0]
 
         inDict = {}
@@ -253,6 +324,20 @@ class DeferredChargeCalib(IsrCalib):
         return cls.fromDict(inDict)
 
     def toTable(self):
+        """Construct a list of tables containing the information in this
+        calibration.
+
+        The list of tables should create an identical calibration
+        after being passed to this class's fromTable method.
+
+        Returns
+        -------
+        tableList : `list` [`lsst.afw.table.Table`]
+            List of tables containing the crosstalk calibration
+            information.  Two tables are generated for this list, the
+            first containing the per-amplifier CTI parameters, and the
+            second containing the parameters for serial traps.
+        """
         tableList = []
         self.updateMetadata()
 
@@ -285,10 +370,10 @@ class DeferredChargeCalib(IsrCalib):
 
         # Get maximum coeff length
         maxCoeffLength = 0
-
         for trap in self.serialTraps.values():
             maxCoeffLength = np.maximum(maxCoeffLength, len(trap.coeffs))
 
+        # Pack and pad the end of the coefficients with NaN values.
         for amp, trap in self.serialTraps.items():
             ampList.append(amp)
             sizeList.append(trap.size)
@@ -327,10 +412,24 @@ class DeferredChargeConfig(Config):
         doc="Number of prior pixels to CZW DOC.",
         default=6,
     )
+    useGains = Field(
+        dtype=bool,
+        doc="If true, scale by the gain.",
+        default=False,
+    )
+    zeroUnusedPixels = Field(
+        dtype=bool,
+        doc="If true, set serial prescan and parallel overscan to zero before correction.",
+        default=False,
+    )
 
 
 class DeferredChargeTask(Task):
-    """CZW DOC.
+    """Task to correct an exposure for charge transfer inefficiency.
+
+    This uses the methods described by Snyder et al. 2021, Journal of
+    Astronimcal Telescopes, Instruments, and Systems, 7,
+    048002. doi:10.1117/1.JATIS.7.4.048002 (Snyder+21).
     """
     ConfigClass = DeferredChargeConfig
     _DefaultName = 'isrDeferredCharge'
@@ -357,8 +456,10 @@ class DeferredChargeTask(Task):
         """
         image = exposure.getMaskedImage().getImage()
         detector = exposure.getDetector()
-        if gains is None:
-            gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
+        if self.config.useGains:
+            if gains is None:
+                gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
+        else:
             gains = {amp.getName(): 1.0 for amp in detector.getAmplifiers()}
 
         with gainContext(exposure, image, True, gains):
@@ -366,58 +467,138 @@ class DeferredChargeTask(Task):
                 ampName = amp.getName()
 
                 ampImage = image[amp.getRawBBox()]
-                # We don't apply overscan subtraction, so zero these
-                # out for now.
-                # ampImage[amp.getRawParallelOverscanBBox()].getArray()[:,
-                # :] = 0.0
-                # ampImage[amp.getRawSerialPrescanBBox()].getArray()[:,
-                # :] = 0.0
+                if self.config.zeroUnusedPixels:
+                    # We don't apply overscan subtraction, so zero these
+                    # out for now.
+                    ampImage[amp.getRawParallelOverscanBBox()].getArray()[:, :] = 0.0
+                    ampImage[amp.getRawSerialPrescanBBox()].getArray()[:, :] = 0.0
 
-                # CZW: This should use the corners.  Just for testing!
-                ampData = np.fliplr(np.flipud(ampImage.getArray()))
+                # The algorithm expects that the readout corner is in
+                # the lower left corner.  Flip it to be so:
+
+                ampData = self.flipData(ampImage.getArray(), amp)
 
                 if ctiCalib.driftScale[ampName] > 0.0:
-                    correctedAmpImage = self.local_offset_inverse(ampData,
-                                                                  ctiCalib.driftScale[ampName],
-                                                                  ctiCalib.decayTime[ampName],
-                                                                  self.config.nPixelOffsetCorrection)
+                    correctedAmpData = self.local_offset_inverse(ampData,
+                                                                 ctiCalib.driftScale[ampName],
+                                                                 ctiCalib.decayTime[ampName],
+                                                                 self.config.nPixelOffsetCorrection)
                 else:
-                    correctedAmpImage = ampImage.clone()
+                    correctedAmpData = ampData.copy()
 
-                correctedAmpImage = self.local_trap_inverse(correctedAmpImage,
-                                                            ctiCalib.serialTraps[ampName],
-                                                            ctiCalib.globalCti[ampName],
-                                                            self.config.nPixelTrapCorrection)
-                # Undo flips here:
-                correctedAmpImage = np.fliplr(np.flipud(correctedAmpImage))
-                image[amp.getBBox()].getArray()[:, :] = correctedAmpImage[:, :]
+                correctedAmpData = self.local_trap_inverse(correctedAmpData,
+                                                           ctiCalib.serialTraps[ampName],
+                                                           ctiCalib.globalCti[ampName],
+                                                           self.config.nPixelTrapCorrection)
+
+                # Undo flips here.  The method is symmetric.
+                correctedAmpData = self.flipData(correctedAmpData, amp)
+                image[amp.getBBox()].getArray()[:, :] = correctedAmpData[:, :]
 
         return exposure
 
     @staticmethod
-    def local_offset_inverse(inputArr, scale, decay_time, num_previous_pixels=15):
+    def flipData(ampData, amp):
+        """Flip data array such that readout corner is at lower-left.
+
+        Parameters
+        ----------
+        ampData : `np.ndarray`, (nx, ny)
+            Image data to flip.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            Amplifier to get readout corner information.
+
+        Returns
+        -------
+        ampData : `np.ndarray`, (nx, ny)
+            Flipped image data.
         """
+        X_FLIP = {ReadoutCorner.LL: False,
+                  ReadoutCorner.LR: True,
+                  ReadoutCorner.UL: False,
+                  ReadoutCorner.UR: True}
+        Y_FLIP = {ReadoutCorner.LL: False,
+                  ReadoutCorner.LR: False,
+                  ReadoutCorner.UL: True,
+                  ReadoutCorner.UR: True}
+
+        if X_FLIP(amp.getReadoutCorner()):
+            ampData = np.fliplr(ampData)
+        if Y_FLIP(amp.getReadoutCorner()):
+            ampData = np.flipud(ampData)
+
+        return ampData
+
+    @staticmethod
+    def local_offset_inverse(inputArr, drift_scale, decay_time, num_previous_pixels=15):
+        """Remove CTI effects from local offsets.
+
+        This implements equation 10 of Snyder+21.  For an image with
+        CTI, s'(m, n), the correction factor is equal to the maximum
+        value of the set of:
+            {A_L s'(m, n - j) exp(-j t / \tau_L)}_j=0^jmax
+
+        Parameters
+        ----------
+        inputArr : `np.ndarray`, (nx, ny)
+            Input image data to correct.
+        drift_scale : `float`
+            Drift scale (Snyder+21 A_L value) to use in correction.
+        decay_time : `float`
+            Decay time (Snyder+21 \tau_L) of the correction.
+        num_previous_pixels : `int`, optional
+            Number of previous pixels to use for correction.  As the
+            CTI has an exponential decay, this essentially truncates
+            the correction where that decay scales the input charge to
+            near zero.
+
+        Returns
+        -------
+        outputArr : `np.ndarray`, (nx, ny)
+            Corrected image data.
         """
         r = np.exp(-1/decay_time)
         Ny, Nx = inputArr.shape
 
+        # j = 0 term:
         offset = np.zeros((num_previous_pixels, Ny, Nx))
-        offset[0, :, :] = scale*np.maximum(0, inputArr)
+        offset[0, :, :] = drift_scale*np.maximum(0, inputArr)
 
+        # j = 1..jmax terms:
         for n in range(1, num_previous_pixels):
-            offset[n, :, n:] = scale*np.maximum(0, inputArr[:, :-n])*(r**n)
+            offset[n, :, n:] = drift_scale*np.maximum(0, inputArr[:, :-n])*(r**n)
 
-        L = np.amax(offset, axis=0)
-
-        # This probably should just return L, the correction
-        outputArr = inputArr - L
+        Linv = np.amax(offset, axis=0)
+        outputArr = inputArr - Linv
 
         return outputArr
 
     @staticmethod
     def local_trap_inverse(inputArr, trap, global_cti=0.0, num_previous_pixels=6):
-        """Apply localized trapping inverse operator to pixel signals."""
+        """Apply localized trapping inverse operator to pixel signals.
 
+        This implements equation 13 of Snyder+21.  For an image with
+        CTI, s'(m, n), the correction factor is equal to the maximum
+        value of the set of:
+            {A_L s'(m, n - j) exp(-j t / \tau_L)}_j=0^jmax
+
+        Parameters
+        ----------
+        inputArr : `np.ndarray`, (nx, ny)
+            Input image data to correct.
+        trap : `lsst.ip.isr.SerialTrap`
+            Serial trap describing the capture and release of charge.
+        global_cti: `float`
+            Mean charge transfer inefficiency, b from Snyder+21.
+        num_previous_pixels : `int`, optional
+            Number of previous pixels to use for correction.
+
+        Returns
+        -------
+        outputArr : `np.ndarray`, (nx, ny)
+            Corrected image data.
+
+        """
         Ny, Nx = inputArr.shape
         a = 1 - global_cti
         r = np.exp(-1/trap.emission_time)
