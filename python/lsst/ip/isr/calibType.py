@@ -112,9 +112,17 @@ class IsrCalib(abc.ABC):
                     self.log.debug("Dict Key Failure: %s %s %s", attr, attrSelf.keys(), attrOther.keys())
                     return False
                 for key in attrSelf:
-                    if not np.allclose(attrSelf[key], attrOther[key], equal_nan=True):
-                        self.log.debug("Array Failure: %s %s %s", key, attrSelf[key], attrOther[key])
-                        return False
+                    try:
+                        if not np.allclose(attrSelf[key], attrOther[key], equal_nan=True):
+                            self.log.debug("Array Failure: %s %s %s", key, attrSelf[key], attrOther[key])
+                            return False
+                    except TypeError:
+                        # If it is not something numpy can handle
+                        # (it's not a number or array of numbers),
+                        # then it needs to have its own equivalence
+                        # operator.
+                        if attrSelf[key] != attrOther[key]:
+                            return False
             elif isinstance(attrSelf, np.ndarray):
                 # Bare array.
                 if not np.allclose(attrSelf, attrOther, equal_nan=True):

@@ -74,6 +74,22 @@ class SerialTrap():
         self._trap_array = None
         self._trapped_charge = None
 
+    def __eq__(self, other):
+        # A trap is equal to another trap if all of the initialization
+        # parameters are equal.  All other properties are only filled
+        # during use, and are not persisted into the calibration.
+        if self.size != other.size:
+            return False
+        if self.emission_time != other.emission_time:
+            return False
+        if self.pixel != other.pixel:
+            return False
+        if self.trap_type != other.trap_type:
+            return False
+        if self.coeffs != other.coeffs:
+            return False
+        return True
+
     @property
     def trap_array(self):
         return self._trap_array
@@ -618,7 +634,6 @@ class DeferredChargeTask(Task):
         R[:, 1:] = trap_occupancy[:, 1:]*(1-r)
         T = R - C
 
-        # This probably should just return a*T, the correction amount
         outputArr = inputArr - a*T
 
         return outputArr
