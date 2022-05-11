@@ -243,12 +243,12 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "physical_filter", "detector"],
         isCalibration=True,
     )
-    deferredCharge = cT.PrerequisiteInput(
+    deferredChargeCalib = cT.PrerequisiteInput(
         name="deferredCharge",
         doc="Deferred charge/CTI correction dataset.",
         storageClass="IsrCalib",
         dimensions=["instrument", "detector"],
-        # isCalibration=True,
+        isCalibration=True,
     )
 
     outputExposure = cT.Output(
