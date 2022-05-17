@@ -20,6 +20,7 @@
  * see <https://www.lsstcorp.org/LegalNotices/>.
  */
 #include "pybind11/pybind11.h"
+#include "pybind11/stl.h"
 
 #include <memory>
 
@@ -59,8 +60,7 @@ static void declareAll(py::module& mod, std::string const& suffix) {
     declareCountMaskedPixels<PixelT>(mod, suffix);
 
     mod.def("maskNans", &maskNans<PixelT>, "maskedImage"_a, "maskVal"_a, "allow"_a = 0);
-    mod.def("fitOverscanImage", &fitOverscanImage<PixelT, double>, "overscanFunction"_a, "overscan"_a,
-            "stepSize"_a = 1.1, "sigma"_a = 1);
+    mod.def("fitOverscanImage", &fitOverscanImage<PixelT>, "maskedImage"_a, "isTransposed"_a);
 }
 
 }  // namespace lsst::ip::isr::<anonymous>
@@ -68,6 +68,7 @@ static void declareAll(py::module& mod, std::string const& suffix) {
 PYBIND11_MODULE(isr, mod) {
     declareAll<float>(mod, "F");
     declareAll<double>(mod, "D");
+    declareAll<int>(mod, "I");
 }
 
 }  // isr

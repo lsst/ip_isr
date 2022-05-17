@@ -97,12 +97,10 @@ namespace isr {
         );
 
 
-    template<typename ImagePixelT, typename FunctionT>
-    void fitOverscanImage(
-        std::shared_ptr<lsst::afw::math::Function1<FunctionT> > &overscanFunction,
-        lsst::afw::image::MaskedImage<ImagePixelT> const& overscan,
-        double ssize=1.,
-        int sigma=1
+    template<typename ImagePixelT>
+    std::vector<double> fitOverscanImage(
+        lsst::afw::image::Image<ImagePixelT> const& overscan,
+        bool isTransposed
         );
 
 }}} // namespace lsst::ip::isr

@@ -49,52 +49,49 @@ size_t maskNans(afw::image::MaskedImage<PixelT> const& mi, afw::image::MaskPixel
     return nPix;
 }
 
-template<typename ImagePixelT, typename FunctionT>
-void fitOverscanImage(
-    std::shared_ptr< afw::math::Function1<FunctionT> > &overscanFunction,
-    afw::image::MaskedImage<ImagePixelT> const& overscan,
-    double ssize,
-    int sigma
+template<typename ImagePixelT>
+std::vector<double> fitOverscanImage(
+    afw::image::Image<ImagePixelT> const& overscan,
+    bool isTransposed
 ) {
-    typedef afw::image::MaskedImage<ImagePixelT> MaskedImage;
+    typedef afw::image::Image<ImagePixelT> Image;
 
-
+    /**
+    This is transposed here to match the existing numpy-array ordering.
+    This effectively transposes the image for us.
+    **/
     const int height = overscan.getHeight();
     const int width  = overscan.getWidth();
-    std::vector<double> values(height);
-    std::vector<double> errors(height);
-    std::vector<double> positions(height);
 
-    std::vector<double> parameters(overscanFunction->getNParameters(), 0.);
-    std::vector<double> stepsize(overscanFunction->getNParameters(), ssize);
+    int length = height;
+    if (isTransposed) {
+        length = width;
+    }
 
-    for (int y = 0; y < height; ++y) {
+    std::vector<double> values(length);
+
+    const int x0 = overscan.getX0();
+    const int y0 = overscan.getY0();
+    for (int x = 0; x < length; ++x) {
         /**
         geom::Box2I bbox       = geom::Box2I( geom::Point2I(0, y),
                                               geom::Point2I(0, width) );
         The above was how this was defined before ticket #1556.  As I understand it
         the following is the new way to do this
         **/
-        geom::Box2I bbox = geom::Box2I(geom::Point2I(0,y), geom::Point2I(width,y));
-        MaskedImage mi         = MaskedImage(overscan, bbox);
-        afw::math::Statistics stats = afw::math::makeStatistics(*(mi.getImage()), afw::math::MEAN | afw::math::STDEV);
+        geom::Box2I bbox;
+        if (isTransposed) {
+            bbox = geom::Box2I(geom::Point2I(x0 + x,y0), geom::Extent2I(1,height));
+        }
+        else {
+            bbox = geom::Box2I(geom::Point2I(x0,y0 + x), geom::Extent2I(width,1));
+        }
+        Image mi         = Image(overscan, bbox);
+        afw::math::Statistics stats = afw::math::makeStatistics(mi, afw::math::MEDIAN);
 
-        values[y]    = stats.getValue(afw::math::MEAN);
-        errors[y]    = stats.getValue(afw::math::STDEV);
-        positions[y] = y;
-
+        values[x]    = stats.getValue(afw::math::MEDIAN);
     }
-    afw::math::FitResults fitResults = afw::math::minimize(
-        *overscanFunction,
-        parameters,
-        stepsize,
-        values,
-        errors,
-        positions,
-        sigma
-        );
-
-    overscanFunction->setParameters(fitResults.parameterList);
+    return values;
 }
 
 std::string between(std::string &s, char ldelim, char rdelim) {
@@ -115,26 +112,25 @@ std::string between(std::string &s, char ldelim, char rdelim) {
 // Explicit instantiations
 
 template
-void fitOverscanImage(
-     std::shared_ptr<afw::math::Function1<double> > &overscanFunction,
-    afw::image::MaskedImage<float> const& overscan,
-    double ssize,
-    int sigma);
-
+std::vector<double> fitOverscanImage<int>(
+    afw::image::Image<int> const&, bool isTransposed);
 template
-void fitOverscanImage(
-     std::shared_ptr<afw::math::Function1<double> > &overscanFunction,
-    afw::image::MaskedImage<double> const& overscan,
-    double ssize,
-    int sigma);
+std::vector<double> fitOverscanImage<float>(
+    afw::image::Image<float> const&, bool isTransposed);
+template
+std::vector<double> fitOverscanImage<double>(
+    afw::image::Image<double> const&, bool isTransposed);
 
 template class CountMaskedPixels<float>;
 template class CountMaskedPixels<double>;
+template class CountMaskedPixels<int>;
 
 // Function to mask nans in a masked image
 template size_t maskNans<float>(afw::image::MaskedImage<float> const&, afw::image::MaskPixel,
                                 afw::image::MaskPixel);
 template size_t maskNans<double>(afw::image::MaskedImage<double> const&, afw::image::MaskPixel,
                                  afw::image::MaskPixel);
+template size_t maskNans<int>(afw::image::MaskedImage<int> const&, afw::image::MaskPixel,
+                              afw::image::MaskPixel);
 
 }}} // namespace lsst::ip::isr
