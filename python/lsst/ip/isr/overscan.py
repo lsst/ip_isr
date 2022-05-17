@@ -65,7 +65,7 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
     maskPlanes = pexConfig.ListField(
         dtype=str,
         doc="Mask planes to reject when measuring overscan",
-        default=['SAT'],
+        default=['BAD', 'SAT'],
     )
     overscanIsInt = pexConfig.Field(
         dtype=bool,
@@ -479,11 +479,18 @@ class OverscanCorrectionTask(pipeBase.Task):
         masked = self.maskOutliers(calcImage)
 
         startTime = time.perf_counter()
+
         if self.config.fitType == 'MEDIAN_PER_ROW':
-            if isinstance(image, afwImage.MaskedImage):
-                overscanVector = fitOverscanImage(image.getImage(), isTransposed)
-            else:
-                overscanVector = fitOverscanImage(image, isTransposed)
+            mi = afwImage.MaskedImageI(image.getBBox())
+            masked = masked.astype(int)
+            if isTransposed:
+                masked = masked.transpose()
+
+            mi.getImage().getArray()[:, :] = masked.data[:, :]
+            if bool(masked.mask.shape):
+                mi.getMask().getArray()[:, :] = masked.mask[:, :]
+
+            overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
             maskArray = self.maskExtrapolated(overscanVector)
         else:
             collapsed = self.collapseArray(masked)

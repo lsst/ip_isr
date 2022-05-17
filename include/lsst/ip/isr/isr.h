@@ -99,7 +99,8 @@ namespace isr {
 
     template<typename ImagePixelT>
     std::vector<double> fitOverscanImage(
-        lsst::afw::image::Image<ImagePixelT> const& overscan,
+        lsst::afw::image::MaskedImage<ImagePixelT> const& overscan,
+        std::vector<std::string> badPixelMask,
         bool isTransposed
         );
 

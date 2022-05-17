@@ -51,10 +51,11 @@ size_t maskNans(afw::image::MaskedImage<PixelT> const& mi, afw::image::MaskPixel
 
 template<typename ImagePixelT>
 std::vector<double> fitOverscanImage(
-    afw::image::Image<ImagePixelT> const& overscan,
+    afw::image::MaskedImage<ImagePixelT> const& overscan,
+    std::vector<std::string> badPixelMask,
     bool isTransposed
 ) {
-    typedef afw::image::Image<ImagePixelT> Image;
+    typedef afw::image::MaskedImage<ImagePixelT> MaskedImage;
 
     /**
     This is transposed here to match the existing numpy-array ordering.
@@ -70,6 +71,8 @@ std::vector<double> fitOverscanImage(
 
     std::vector<double> values(length);
 
+    afw::math::StatisticsControl statControl;
+    statControl.setAndMask(overscan.getMask()->getPlaneBitMask(badPixelMask));
     const int x0 = overscan.getX0();
     const int y0 = overscan.getY0();
     for (int x = 0; x < length; ++x) {
@@ -86,10 +89,9 @@ std::vector<double> fitOverscanImage(
         else {
             bbox = geom::Box2I(geom::Point2I(x0,y0 + x), geom::Extent2I(width,1));
         }
-        Image mi         = Image(overscan, bbox);
-        afw::math::Statistics stats = afw::math::makeStatistics(mi, afw::math::MEDIAN);
+        MaskedImage mi = MaskedImage(overscan, bbox);
 
-        values[x]    = stats.getValue(afw::math::MEDIAN);
+        values[x] = afw::math::makeStatistics(mi, afw::math::MEDIAN, statControl).getValue();
     }
     return values;
 }
@@ -113,13 +115,13 @@ std::string between(std::string &s, char ldelim, char rdelim) {
 
 template
 std::vector<double> fitOverscanImage<int>(
-    afw::image::Image<int> const&, bool isTransposed);
+    afw::image::MaskedImage<int> const&, std::vector<std::string> badPixelMask, bool isTransposed);
 template
 std::vector<double> fitOverscanImage<float>(
-    afw::image::Image<float> const&, bool isTransposed);
+    afw::image::MaskedImage<float> const&, std::vector<std::string> badPixelMask, bool isTransposed);
 template
 std::vector<double> fitOverscanImage<double>(
-    afw::image::Image<double> const&, bool isTransposed);
+    afw::image::MaskedImage<double> const&, std::vector<std::string> badPixelMask, bool isTransposed);
 
 template class CountMaskedPixels<float>;
 template class CountMaskedPixels<double>;
