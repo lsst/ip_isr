@@ -55,6 +55,7 @@ from .vignette import VignetteTask
 from .ampOffset import AmpOffsetTask
 from lsst.daf.butler import DimensionGraph
 
+from my_utils import splitTime
 
 __all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
 
@@ -995,7 +996,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("ampOffset")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
+        splitTime('Entry to isr task runQuantum:')
+
         inputs = butlerQC.get(inputRefs)
+        splitTime('Finished getting ISR inputRefs:')
 
         try:
             inputs['detectorNum'] = inputRefs.ccdExposure.dataId['detector']
@@ -1152,6 +1156,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             Raised if a per-amplifier brighter-fatter kernel is requested by
             the configuration.
         """
+        splitTime('Entry to readIsrData:')
         try:
             dateObs = rawExposure.getInfo().getVisitInfo().getDate()
             dateObs = dateObs.toPython().isoformat()
@@ -1252,6 +1257,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                             if (self.config.doIlluminationCorrection
                                 and physicalFilter in self.config.illumFilters)
                             else None)
+        splitTime('Finished readIsrData:')
 
         # Struct should include only kwargs to run()
         return pipeBase.Struct(bias=biasExposure,
@@ -1403,6 +1409,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         exposure after all ISR processing has finished.
 
         """
+        splitTime('Start of isr task run:')
 
         if isGen3 is True:
             # Gen3 currently cannot automatically do configuration overrides.
@@ -1768,6 +1775,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                    qaStats.getValue(afwMath.STDEVCLIP))
 
         self.debugView(ccdExposure, "postISRCCD")
+        splitTime('End of isr task:')
 
         return pipeBase.Struct(
             exposure=ccdExposure,
