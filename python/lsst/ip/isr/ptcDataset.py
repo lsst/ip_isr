@@ -101,6 +101,9 @@ class PhotonTransferCurveDataset(IsrCalib):
     ptcFitChiSq : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing the reduced chi squared
         of the fit for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].
+    ptcTurnoff : `float`
+        Flux value (in ADU) where the variance of the PTC curve starts
+        decreasing consistently.
     covariances : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing a list of measured
         covariances per mean flux.
@@ -176,6 +179,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ptcFitPars = {ampName: [] for ampName in ampNames}
         self.ptcFitParsError = {ampName: [] for ampName in ampNames}
         self.ptcFitChiSq = {ampName: np.nan for ampName in ampNames}
+        self.ptcTurnoff = {ampName: np.nan for ampName in ampNames}
 
         self.covariances = {ampName: [] for ampName in ampNames}
         self.covariancesModel = {ampName: [] for ampName in ampNames}
@@ -192,18 +196,18 @@ class PhotonTransferCurveDataset(IsrCalib):
         super().__init__(**kwargs)
         self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'expIdMask', 'rawExpTimes',
                                         'rawMeans', 'rawVars', 'gain', 'gainErr', 'noise', 'noiseErr',
-                                        'ptcFitPars', 'ptcFitParsError', 'ptcFitChiSq', 'aMatrixNoB',
-                                        'covariances', 'covariancesModel', 'covariancesSqrtWeights',
-                                        'covariancesModelNoB',
+                                        'ptcFitPars', 'ptcFitParsError', 'ptcFitChiSq', 'ptcTurnoff',
+                                        'aMatrixNoB', 'covariances', 'covariancesModel',
+                                        'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
                                         'photoCharge'])
 
     def setAmpValues(self, ampName, inputExpIdPair=[(np.nan, np.nan)], expIdMask=[np.nan],
                      rawExpTime=[np.nan], rawMean=[np.nan], rawVar=[np.nan], photoCharge=[np.nan],
                      gain=np.nan, gainErr=np.nan, noise=np.nan, noiseErr=np.nan, ptcFitPars=[np.nan],
-                     ptcFitParsError=[np.nan], ptcFitChiSq=np.nan, covArray=[], covArrayModel=[],
-                     covSqrtWeights=[], aMatrix=[], bMatrix=[], covArrayModelNoB=[], aMatrixNoB=[],
-                     finalVar=[np.nan], finalModelVar=[np.nan], finalMean=[np.nan]):
+                     ptcFitParsError=[np.nan], ptcFitChiSq=np.nan, ptcTurnoff=np.nan, covArray=[],
+                     covArrayModel=[], covSqrtWeights=[], aMatrix=[], bMatrix=[], covArrayModelNoB=[],
+                     aMatrixNoB=[], finalVar=[np.nan], finalModelVar=[np.nan], finalMean=[np.nan]):
         """Function to initialize an amp of a PhotonTransferCurveDataset.
 
         Notes
@@ -238,7 +242,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.noiseErr[ampName] = noiseErr
         self.ptcFitPars[ampName] = ptcFitPars
         self.ptcFitParsError[ampName] = ptcFitParsError
-        self.ptcFitChiSq[ampName]
+        self.ptcFitChiSq[ampName] = ptcFitChiSq
+        self.ptcTurnoff[ampName] = ptcTurnoff
         self.covariances[ampName] = covArray
         self.covariancesSqrtWeights[ampName] = covSqrtWeights
         self.covariancesModel[ampName] = covArrayModel
@@ -315,6 +320,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.ptcFitPars[ampName] = np.array(dictionary['ptcFitPars'][ampName]).tolist()
             calib.ptcFitParsError[ampName] = np.array(dictionary['ptcFitParsError'][ampName]).tolist()
             calib.ptcFitChiSq[ampName] = np.array(dictionary['ptcFitChiSq'][ampName]).tolist()
+            calib.ptcTurnoff[ampName] = np.array(dictionary['ptcTurnoff'][ampName]).tolist()
             calib.covariances[ampName] = np.array(dictionary['covariances'][ampName]).reshape(
                 (nSignalPoints, covMatrixSide, covMatrixSide)).tolist()
             calib.covariancesModel[ampName] = np.array(
@@ -370,6 +376,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['ptcFitPars'] = self.ptcFitPars
         outDict['ptcFitParsError'] = self.ptcFitParsError
         outDict['ptcFitChiSq'] = self.ptcFitChiSq
+        outDict['ptcTurnoff'] = self.ptcTurnoff
         outDict['covariances'] = self.covariances
         outDict['covariancesModel'] = self.covariancesModel
         outDict['covariancesSqrtWeights'] = self.covariancesSqrtWeights
@@ -419,6 +426,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['ptcFitPars'] = dict()
         inDict['ptcFitParsError'] = dict()
         inDict['ptcFitChiSq'] = dict()
+        inDict['ptcTurnoff'] = dict()
         inDict['covariances'] = dict()
         inDict['covariancesModel'] = dict()
         inDict['covariancesSqrtWeights'] = dict()
@@ -450,6 +458,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['ptcFitPars'][ampName] = record['PTC_FIT_PARS']
             inDict['ptcFitParsError'][ampName] = record['PTC_FIT_PARS_ERROR']
             inDict['ptcFitChiSq'][ampName] = record['PTC_FIT_CHI_SQ']
+            inDict['ptcTurnoff'][ampName] = record['PTC_TURNOFF']
             inDict['covariances'][ampName] = record['COVARIANCES']
             inDict['covariancesModel'][ampName] = record['COVARIANCES_MODEL']
             inDict['covariancesSqrtWeights'][ampName] = record['COVARIANCES_SQRT_WEIGHTS']
@@ -507,6 +516,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                           'PTC_FIT_PARS': np.array(self.ptcFitPars[ampName]).tolist(),
                           'PTC_FIT_PARS_ERROR': np.array(self.ptcFitParsError[ampName]).tolist(),
                           'PTC_FIT_CHI_SQ': self.ptcFitChiSq[ampName],
+                          'PTC_TURNOFF': self.ptcTurnoff[ampName],
                           'COVARIANCES': np.pad(np.array(self.covariances[ampName]),
                                                 ((0, nPadPoints[ampName]), (0, 0), (0, 0)),
                                                 'constant', constant_values=np.nan).reshape(
