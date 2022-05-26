@@ -95,6 +95,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.ptcFitPars[ampName] = np.array([10.0, 1.5, 1e-6]).tolist()
                     localDataset.ptcFitParsError[ampName] = np.array([1.0, 0.2, 1e-7]).tolist()
                     localDataset.ptcFitChiSq[ampName] = 1.0
+                    localDataset.ptcTurnoff[ampName] = localDataset.rawMeans[ampName][-1]
+
                     localDataset.covariances[ampName] = np.full(
                         (nSignalPoints, nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
                     localDataset.covariancesModel[ampName] = np.full(
@@ -112,6 +114,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.ptcFitPars[ampName] = np.array([np.nan, np.nan]).tolist()
                     localDataset.ptcFitParsError[ampName] = np.array([np.nan, np.nan]).tolist()
                     localDataset.ptcFitChiSq[ampName] = np.array([np.nan, np.nan]).tolist()
+                    localDataset.ptcTurnoff[ampName] = np.array([np.nan, np.nan]).tolist()
 
                     localDataset.covariances[ampName] = np.full(
                         (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0).tolist()
