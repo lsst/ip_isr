@@ -486,9 +486,9 @@ class OverscanCorrectionTask(pipeBase.Task):
             if isTransposed:
                 masked = masked.transpose()
 
-            mi.getImage().getArray()[:, :] = masked.data[:, :]
+            mi.image.array[:, :] = masked.data[:, :]
             if bool(masked.mask.shape):
-                mi.getMask().getArray()[:, :] = masked.mask[:, :]
+                mi.mask.array[:, :] = masked.mask[:, :]
 
             overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
             maskArray = self.maskExtrapolated(overscanVector)
@@ -522,7 +522,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                 overscanVector = evaler(indices, coeffs)
                 maskArray = self.maskExtrapolated(collapsed)
         endTime = time.perf_counter()
-        self.log.info(f"Overscan measurement took {endTime - startTime} s {self.config.fitType}")
+        self.log.info(f"Overscan measurement took {endTime - startTime}s for {self.config.fitType}")
         return pipeBase.Struct(overscanValue=np.array(overscanVector),
                                maskArray=maskArray,
                                isTransposed=isTransposed)

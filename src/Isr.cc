@@ -73,25 +73,24 @@ std::vector<double> fitOverscanImage(
 
     afw::math::StatisticsControl statControl;
     statControl.setAndMask(overscan.getMask()->getPlaneBitMask(badPixelMask));
+
     const int x0 = overscan.getX0();
     const int y0 = overscan.getY0();
-    for (int x = 0; x < length; ++x) {
-        /**
-        geom::Box2I bbox       = geom::Box2I( geom::Point2I(0, y),
-                                              geom::Point2I(0, width) );
-        The above was how this was defined before ticket #1556.  As I understand it
-        the following is the new way to do this
-        **/
-        geom::Box2I bbox;
-        if (isTransposed) {
-            bbox = geom::Box2I(geom::Point2I(x0 + x,y0), geom::Extent2I(1,height));
-        }
-        else {
-            bbox = geom::Box2I(geom::Point2I(x0,y0 + x), geom::Extent2I(width,1));
-        }
-        MaskedImage mi = MaskedImage(overscan, bbox);
+    auto origin = geom::Point2I(x0, y0);
+    geom::Extent2I shifter;
+    geom::Extent2I extents;
+    if (isTransposed) {
+        shifter = geom::Extent2I(1, 0);
+        extents = geom::Extent2I(1, height);
+    } else {
+        shifter = geom::Extent2I(0, 1);
+        extents = geom::Extent2I(width, 1);
+    }
 
+    for (int x = 0; x < length; ++x) {
+        MaskedImage mi = MaskedImage(overscan, geom::Box2I(origin, extents));
         values[x] = afw::math::makeStatistics(mi, afw::math::MEDIAN, statControl).getValue();
+        origin.shift(shifter);
     }
     return values;
 }
