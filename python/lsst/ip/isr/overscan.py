@@ -20,10 +20,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import numpy as np
+import time
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
+
+from .isr import fitOverscanImage
 
 __all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask"]
 
@@ -62,7 +65,7 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
     maskPlanes = pexConfig.ListField(
         dtype=str,
         doc="Mask planes to reject when measuring overscan",
-        default=['SAT'],
+        default=['BAD', 'SAT'],
     )
     overscanIsInt = pexConfig.Field(
         dtype=bool,
@@ -475,8 +478,19 @@ class OverscanCorrectionTask(pipeBase.Task):
         calcImage, isTransposed = self.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
 
+        startTime = time.perf_counter()
+
         if self.config.fitType == 'MEDIAN_PER_ROW':
-            overscanVector = self.collapseArrayMedian(masked)
+            mi = afwImage.MaskedImageI(image.getBBox())
+            masked = masked.astype(int)
+            if isTransposed:
+                masked = masked.transpose()
+
+            mi.image.array[:, :] = masked.data[:, :]
+            if bool(masked.mask.shape):
+                mi.mask.array[:, :] = masked.mask[:, :]
+
+            overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
             maskArray = self.maskExtrapolated(overscanVector)
         else:
             collapsed = self.collapseArray(masked)
@@ -507,6 +521,8 @@ class OverscanCorrectionTask(pipeBase.Task):
                 # Otherwise we can just use things as normal.
                 overscanVector = evaler(indices, coeffs)
                 maskArray = self.maskExtrapolated(collapsed)
+        endTime = time.perf_counter()
+        self.log.info(f"Overscan measurement took {endTime - startTime}s for {self.config.fitType}")
         return pipeBase.Struct(overscanValue=np.array(overscanVector),
                                maskArray=maskArray,
                                isTransposed=isTransposed)
