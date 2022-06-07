@@ -901,7 +901,7 @@ def checkFilter(exposure, filterList, log):
     """
     if len(filterList) == 0:
         return False
-    thisFilter = exposure.getFilterLabel()
+    thisFilter = exposure.getFilter()
     if thisFilter is None:
         log.warning("No FilterLabel attached to this exposure!")
         return False

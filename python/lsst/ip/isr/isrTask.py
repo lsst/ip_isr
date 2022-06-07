@@ -1160,7 +1160,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             dateObs = None
 
         ccd = rawExposure.getDetector()
-        filterLabel = rawExposure.getFilterLabel()
+        filterLabel = rawExposure.getFilter()
         physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
         rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
         biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
@@ -1418,7 +1418,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 return self.runDataRef(ccdExposure)
 
         ccd = ccdExposure.getDetector()
-        filterLabel = ccdExposure.getFilterLabel()
+        filterLabel = ccdExposure.getFilter()
         physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
 
         if not ccd:
@@ -2639,7 +2639,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
         """
-        filterLabel = exposure.getFilterLabel()
+        filterLabel = exposure.getFilter()
         physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
 
         if physicalFilter in self.config.fluxMag0T1:

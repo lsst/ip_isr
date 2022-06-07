@@ -245,7 +245,7 @@ class AssembleCcdTask(pipeBase.Task):
         # note: don't copy PhotoCalib, because it is assumed to be unknown in
         # raw data.
         outExposure.info.id = inExposure.info.id
-        outExposure.setFilterLabel(inExposure.getFilterLabel())
+        outExposure.setFilter(inExposure.getFilter())
         outExposure.getInfo().setVisitInfo(inExposure.getInfo().getVisitInfo())
 
         frame = getDebugFrame(self._display, "assembledExposure")
