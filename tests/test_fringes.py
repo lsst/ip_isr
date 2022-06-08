@@ -78,7 +78,7 @@ def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
     array[x, y] = np.sin(xFreq*x + xOffset) + np.sin(yFreq*y + yOffset)
     mi = afwImage.makeMaskedImage(image)
     exp = afwImage.makeExposure(mi)
-    exp.setFilterLabel(afwImage.FilterLabel(band='y', physical='FILTER'))
+    exp.setFilter(afwImage.FilterLabel(band='y', physical='FILTER'))
     return exp
 
 
@@ -217,7 +217,7 @@ class FringeTestCase(lsst.utils.tests.TestCase):
             image.scaledPlus(s, f.getMaskedImage().getImage())
         mi = afwImage.makeMaskedImage(image)
         exp = afwImage.makeExposure(mi)
-        exp.setFilterLabel(afwImage.FilterLabel(physical='FILTER'))
+        exp.setFilter(afwImage.FilterLabel(physical='FILTER'))
 
         task = FringeTask(name="multiFringe", config=self.config)
         self.checkFringe(task, exp, fringeList, stddevMax=1.0e-2)
@@ -274,7 +274,7 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         dataRef = isrMock.FringeDataRefMock(config=config)
 
         exp = dataRef.get("raw")
-        exp.setFilterLabel(afwImage.FilterLabel(physical='FILTER'))
+        exp.setFilter(afwImage.FilterLabel(physical='FILTER'))
         medianBefore = np.nanmedian(exp.getImage().getArray())
         fringes = task.readFringes(dataRef, assembler=None)
 
