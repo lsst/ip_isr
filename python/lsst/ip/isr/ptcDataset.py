@@ -314,7 +314,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             covsAmp = np.array(dictionary['covariances'][ampName]).reshape((nSignalPoints, covMatrixSide,
                                                                             covMatrixSide))
 
-            # masks for covariances padding in `toTable`
+            # Masks for covariances padding in `toTable`
             maskCovsAmp = np.array([~np.isnan(entry).all() for entry in covsAmp])
             maskAmp = ~np.isnan(np.array(dictionary['finalMeans'][ampName]))
 
