@@ -27,6 +27,9 @@ import lsst.afw.math as afwMath
 import lsst.pex.config as pexConfig
 
 
+__all__ = ['IsrQaFlatnessConfig', 'IsrQaConfig', 'makeThumbnail']
+
+
 class IsrQaFlatnessConfig(pexConfig.Config):
     meshX = pexConfig.Field(
         dtype=int,
@@ -127,7 +130,7 @@ def makeThumbnail(exposure, isrQaConfig=None):
     ----------
     exposure : `lsst.afw.image.Exposure`
         The exposure to be converted into a thumbnail.
-    isrQaConfig : `Config`
+    isrQaConfig : `Config`, optional
         Configuration object containing all parameters to control the
         thumbnail generation.
 

@@ -97,6 +97,7 @@ class CrosstalkCalib(IsrCalib):
     of the numerator and denominator of the source and target signals, with
     "adu" meaning "ADU / ADU" and "electron" meaning "e- / e-".
     """
+
     _OBSTYPE = 'CROSSTALK'
     _SCHEMA = 'Gen3 Crosstalk'
     _VERSION = 1.1
@@ -176,7 +177,6 @@ class CrosstalkCalib(IsrCalib):
         -------
         calib : `lsst.ip.isr.CrosstalkCalib`
             The calibration constructed from the detector.
-
         """
         self._detectorId = detector.getId()
         self._detectorName = detector.getName()
@@ -218,8 +218,6 @@ class CrosstalkCalib(IsrCalib):
     @classmethod
     def fromDict(cls, dictionary):
         """Construct a calibration from a dictionary of properties.
-
-        Must be implemented by the specific calibration subclasses.
 
         Parameters
         ----------
@@ -387,7 +385,6 @@ class CrosstalkCalib(IsrCalib):
         -------
         calib : `lsst.ip.isr.CrosstalkCalib`
             The calibration defined in the tables.
-
         """
         coeffTable = tableList[0]
 
@@ -435,7 +432,6 @@ class CrosstalkCalib(IsrCalib):
         tableList : `list` [`lsst.afw.table.Table`]
             List of tables containing the crosstalk calibration
             information.
-
         """
         tableList = []
         self.updateMetadata()
@@ -447,6 +443,7 @@ class CrosstalkCalib(IsrCalib):
                           'CT_ERRORS_SQR': self.coeffErrSqr.reshape(self.nAmp*self.nAmp),
                           'CT_AMP_GAIN_RATIOS': self.ampGainRatios.reshape(self.nAmp*self.nAmp),
                           }])
+
         # filter None, because astropy can't deal.
         inMeta = self.getMetadata().toDict()
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
@@ -527,8 +524,9 @@ class CrosstalkCalib(IsrCalib):
         ----------
         mi : `lsst.afw.image.MaskedImage`
             MaskedImage for which to measure background.
-        badPixels : `list` of `str`
+        badPixels : `list` [`str`], optional
             Mask planes to ignore.
+
         Returns
         -------
         bg : `float`
@@ -569,7 +567,7 @@ class CrosstalkCalib(IsrCalib):
             Coefficients to use to correct crosstalk.
         crosstalkCoeffsSqr : `numpy.ndarray`, optional.
             Quadratic coefficients to use to correct crosstalk.
-        badPixels : `list` of `str`, optional
+        badPixels : `list` [`str`], optional
             Mask planes to ignore.
         minPixelToMask : `float`, optional
             Minimum pixel value (relative to the background level) in
@@ -745,6 +743,7 @@ class CrosstalkCalib(IsrCalib):
 
 class CrosstalkConfig(Config):
     """Configuration for intra-detector crosstalk removal."""
+
     minPixelToMask = Field(
         dtype=float,
         doc="Set crosstalk mask plane for pixels over this value.",
@@ -795,7 +794,7 @@ class CrosstalkConfig(Config):
 
         Parameters
         ----------
-        detector : `lsst.afw.cameraGeom.detector`
+        detector : `lsst.afw.cameraGeom.detector`, optional
             Detector that is to be crosstalk corrected.
 
         Returns
@@ -828,7 +827,7 @@ class CrosstalkConfig(Config):
 
         Parameters
         ----------
-        detector : `lsst.afw.cameraGeom.detector`
+        detector : `lsst.afw.cameraGeom.detector`, optional
             Detector that is to be crosstalk corrected.
 
         Returns
@@ -847,6 +846,7 @@ class CrosstalkConfig(Config):
 
 class CrosstalkTask(Task):
     """Apply intra-detector crosstalk correction."""
+
     ConfigClass = CrosstalkConfig
     _DefaultName = 'isrCrosstalk'
 
@@ -1026,5 +1026,6 @@ class CrosstalkTask(Task):
 
 
 class NullCrosstalkTask(CrosstalkTask):
+
     def run(self, exposure, crosstalkSources=None):
         self.log.info("Not performing any crosstalk correction")

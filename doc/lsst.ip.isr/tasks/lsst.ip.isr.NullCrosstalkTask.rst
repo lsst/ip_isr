@@ -4,18 +4,14 @@
 NullCrosstalkTask
 #################
 
-``NullCrosstalkTask`` does
+``NullCrosstalkTask`` is a dummy function that accepts the same inputs as the `lsst.ip.isr.CrosstalkTask` task, but performs no crosstalk subtraction.
 
 .. _lsst.ip.isr.NullCrosstalkTask-processing-summary:
 
 Processing summary
 ==================
 
-``NullCrosstalkTask`` runs these operations:
-
-#.
-#.
-
+``NullCrosstalkTask`` runs no operations.
 
 .. _lsst.ip.isr.NullCrosstalkTask-api:
 
@@ -39,7 +35,3 @@ Configuration fields
 .. lsst-task-config-fields:: lsst.ip.isr.NullCrosstalkTask
 
 .. _lsst.ip.isr.NullCrosstalkTask-debug:
-
-Debugging
-=========
-

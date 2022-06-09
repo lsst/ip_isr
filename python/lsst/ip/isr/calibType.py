@@ -58,7 +58,10 @@ class IsrCalib(abc.ABC):
         Detector to extract metadata from.
     log : `logging.Logger`, optional
         Log for messages.
+    kwargs : Any
+        Additional parameters that will be added to the metadata.
     """
+
     _OBSTYPE = "generic"
     _SCHEMA = "NO SCHEMA"
     _VERSION = 0
@@ -180,7 +183,7 @@ class IsrCalib(abc.ABC):
 
         Parameters
         ----------
-        metadata : `lsst.daf.base.PropertyList`
+        metadata : `dict` or `lsst.daf.base.PropertyList`
             Metadata to associate with the calibration.  Will be copied and
             overwrite existing metadata.
         """
@@ -241,11 +244,7 @@ class IsrCalib(abc.ABC):
                 (self._raftName, self._slotName) = self._detectorName.split("_")
 
         if filterName:
-            # TOD0 DM-28093: I think this whole comment can go away, if we
-            # always use physicalLabel everywhere in ip_isr.
-            # If set via:
-            # exposure.getInfo().getFilter().getName()
-            # then this will hold the abstract filter.
+            # These should always be physical_filter names.
             self._filter = filterName
 
         if setDate:
@@ -330,7 +329,6 @@ class IsrCalib(abc.ABC):
         RuntimeError
             Raised if the dictionary does not match the expected OBSTYPE.
         """
-
         def search(haystack, needles):
             """Search dictionary 'haystack' for an entry in 'needles'
             """
@@ -440,7 +438,7 @@ class IsrCalib(abc.ABC):
         ----------
         filename : `str`
             Name of the file to write.
-        format : `str`
+        format : `str`, optional
             Format to write the file as.  Supported values are:
                 ``"auto"`` : Determine filetype from filename.
                 ``"yaml"`` : Write as yaml.
@@ -697,20 +695,15 @@ class IsrProvenance(IsrCalib):
 
     Parameters
     ----------
-    instrument : `str`, optional
-        Name of the instrument the data was taken with.
     calibType : `str`, optional
         Type of calibration this provenance was generated for.
-    detectorName : `str`, optional
-        Name of the detector this calibration is for.
-    detectorSerial : `str`, optional
-        Identifier for the detector.
-
+    kwargs : Any
+        Additional parameters passed to the parent class.
     """
+
     _OBSTYPE = "IsrProvenance"
 
-    def __init__(self, calibType="unknown",
-                 **kwargs):
+    def __init__(self, calibType="unknown", **kwargs):
         self.calibType = calibType
         self.dimensions = set()
         self.dataIdList = list()

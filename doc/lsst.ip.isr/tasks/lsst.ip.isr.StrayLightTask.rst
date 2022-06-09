@@ -4,17 +4,14 @@
 StrayLightTask
 ##############
 
-``StrayLightTask`` does
+``StrayLightTask`` applies a stray light correction to the input exposure.
 
 .. _lsst.ip.isr.StrayLightTask-processing-summary:
 
 Processing summary
 ==================
 
-``StrayLightTask`` runs these operations:
-
-#.
-#.
+``StrayLightTask`` is a placeholder task, as the particular type of correction must be implemented by a camera specific class.
 
 
 .. _lsst.ip.isr.StrayLightTask-api:
@@ -39,7 +36,3 @@ Configuration fields
 .. lsst-task-config-fields:: lsst.ip.isr.StrayLightTask
 
 .. _lsst.ip.isr.StrayLightTask-debug:
-
-Debugging
-=========
-

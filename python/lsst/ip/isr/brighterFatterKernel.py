@@ -50,11 +50,9 @@ class BrighterFatterKernel(IsrCalib):
     ----------
     camera : `lsst.afw.cameraGeom.Camera`
         Camera describing detector geometry.
-    level : `str`
+    level : `str`, optional
         Level the kernels will be generated for.
-    log : `logging.Logger`, optional
-        Log to write messages to.
-    **kwargs :
+    **kwargs : Any
         Parameters to pass to parent constructor.
 
     Notes
@@ -95,6 +93,7 @@ class BrighterFatterKernel(IsrCalib):
     detKernels : `dict`
         Dictionary keyed by detector names containing the BF kernels.
     """
+
     _OBSTYPE = 'bfk'
     _SCHEMA = 'Brighter-fatter kernel'
     _VERSION = 1.1
@@ -140,7 +139,7 @@ class BrighterFatterKernel(IsrCalib):
         setDate : `bool`, optional
             Update the CALIBDATE fields in the metadata to the current
             time. Defaults to False.
-        kwargs :
+        kwargs : Any
             Other keyword parameters to set in the metadata.
         """
         kwargs['LEVEL'] = self.level
@@ -454,7 +453,6 @@ class BrighterFatterKernel(IsrCalib):
         tableList : `list` [`lsst.afw.table.Table`]
             List of tables containing the crosstalk calibration
             information.
-
         """
         tableList = []
         self.updateMetadata()
@@ -575,4 +573,17 @@ class BrighterFatterKernel(IsrCalib):
         self.detKernels[detectorName] = avgKernel
 
     def replaceDetectorKernelWithAmpKernel(self, ampName, detectorName):
-        self.detKernel[detectorName] = self.ampKernel[ampName]
+        """Create a detector level kernel by promoting an amplifier level
+        kernel.
+
+        Parameters
+        ----------
+        ampName : `str`
+            Amplifier name used as an index in the calibration
+            ``ampKernel` dictionary that will be promoted.
+        detectorName : `str`
+            Name of the detector to build a kernel for.  This supplies
+            the key that the new kernel will be indexed in the
+            calibration ``detKernels`` dictionary.
+        """
+        self.detKernels[detectorName] = self.ampKernel[ampName]

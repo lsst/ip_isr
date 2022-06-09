@@ -47,10 +47,31 @@ class AssembleCcdTask(pipeBase.Task):
     """Assemble a set of amplifier images into a full detector size set of
     pixels.
 
-    The keys for removal specified in
-    `lsst.ip.isr.AssembleCcdConfig.keysToRemove` are added to a default set:
-    ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN').
+    This task assembles sections of an image into a larger mosaic.
+    The sub-sections are typically amplifier sections and are to be
+    assembled into a detector size pixel grid. The assembly is driven
+    by the entries in the raw amp information.  The task can be
+    configured to return a detector image with non-data
+    (e.g. overscan) pixels included.  The task can also renormalize
+    the pixel values to a nominal gain of 1.  The task also removes
+    exposure metadata that has context in raw amps, but not in trimmed
+    detectors.  This includes the set ('DATASEC', 'BIASSEC',
+    'TRIMSEC', 'GAIN'), as well as any other keys specificied in the
+    task config..
+
+    Parameters
+    ----------
+    **kwargs : Any
+        Keyword parameters.
+
+    Notes
+    -----
+
+    Debug plotting of the assembled image can be enabled by setting
+    the ``assembledExposure`` keyword in the lsstDebug `debug.display`
+    dictionary to True.
     """
+
     ConfigClass = AssembleCcdConfig
     _DefaultName = "assembleCcd"
 
@@ -60,28 +81,29 @@ class AssembleCcdTask(pipeBase.Task):
         self.allKeysToRemove = ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN') + tuple(self.config.keysToRemove)
 
     def assembleCcd(self, assembleInput):
-        """Assemble a set of amps into a single CCD size image.
+        """Assemble a set of amps into a single CCD size image
 
         Parameters
         ----------
-        assembleInput : `dict` [`str`, `lsst.afw.image.Exposure`] or \
-                        `lsst.afw.image.Exposure`
-            Either a dictionary of amp exposures, or a single exposure
-            containing all raw amps. If a dictionary of amp exposures, the key
-            should be the amp name.
+        assembleInput : `lsst.afw.image.Exposure` or `dict`
+            If an `~lsst.afw.image.Exposure` is passed, it is assumed
+            to contain all the raw amps as regions within that
+            exposure.  If the input is a `dict`, then the keys are the
+            amplifier names, and the values are
+            `~lsst.afw.image.Exposure` entries containing the data for
+            that amplifier
 
         Returns
         -------
-        assembledCcd : `lsst.afw.image.Exposure`
-            An exposure of the assembled amp sections.
+        outExposure : `lsst.afw.image.Exposure`
+            The assembled exposure.
 
         Raises
         ------
         TypeError
-            Raised if the input exposures to be assembled do not adhere to the
-            required format.
+            Raised if the input is not an `lsst.afw.image.Exposure` or a `dict`.
         RuntimeError
-            Raised if the detector set on the input exposure is not set.
+            Raised if no input detector can be identified.
         """
         ccd = None
         if isinstance(assembleInput, dict):
@@ -120,12 +142,11 @@ class AssembleCcdTask(pipeBase.Task):
         for amp in ccd:
             inMI = getNextExposure(amp).getMaskedImage()
             assemble(outMI, inMI, amp)
-        #
+
         # If we are returning an "untrimmed" image (with overscans and
         # extended register) we need to update the ampInfo table in the
         # Detector as we've moved the amp images into
         # place in a single Detector image
-        #
         if not self.config.doTrim:
             ccd = cameraGeom.makeUpdatedDetector(ccd)
 

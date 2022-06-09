@@ -33,6 +33,10 @@ from lsst.pex.config import Config, Field, ListField, ConfigField
 from lsst.utils.timer import timeMethod
 from .isrFunctions import checkFilter
 
+
+__all__ = ['FringeStatisticsConfig', 'FringeConfig', 'FringeTask']
+
+
 afwDisplay.setDefaultMaskTransparency(75)
 
 
@@ -47,6 +51,7 @@ getFrame.frame = 0
 
 class FringeStatisticsConfig(Config):
     """Options for measuring fringes on an exposure"""
+
     badMaskPlanes = ListField(dtype=str, default=["SAT"], doc="Ignore pixels with these masks")
     stat = Field(dtype=int, default=int(afwMath.MEDIAN), doc="Statistic to use")
     clip = Field(dtype=float, default=3.0, doc="Sigma clip threshold")
@@ -57,9 +62,9 @@ class FringeStatisticsConfig(Config):
 
 class FringeConfig(Config):
     """Fringe subtraction options"""
-    # TODO DM-28093: change the doc to specify that these are physical labels
+
+    # These are always physical_filter names.
     filters = ListField(dtype=str, default=[], doc="Only fringe-subtract these filters")
-    # TODO: remove in DM-27177
     useFilterAliases = Field(dtype=bool, default=False, doc="Search filter aliases during check.",
                              deprecated=("Removed with no replacement (FilterLabel has no aliases)."
                                          "Will be removed after v22."))
@@ -73,12 +78,13 @@ class FringeConfig(Config):
 
 
 class FringeTask(Task):
-    """Task to remove fringes from a science exposure
+    """Task to remove fringes from a science exposure.
 
     We measure fringe amplitudes at random positions on the science exposure
     and at the same positions on the (potentially multiple) fringe frames
     and solve for the scales simultaneously.
     """
+
     ConfigClass = FringeConfig
     _DefaultName = 'isrFringe'
 
@@ -454,14 +460,25 @@ class FringeTask(Task):
 
 
 def measure(mi, x, y, size, statistic, stats):
-    """Measure a statistic within an aperture
+    """Measure a statistic within an aperture.
 
-    @param mi          MaskedImage to measure
-    @param x, y        Center for aperture
-    @param size        Size of aperture
-    @param statistic   Statistic to measure
-    @param stats       StatisticsControl object
-    @return Value of statistic within aperture
+    Parameters
+    ----------
+    mi : `lsst.afw.image.MaskedImage`
+        MaskedImage to measure.
+    x, y : `int`
+        Center for the aperture.
+    size : `int`
+        Size of the aperture.
+    statistic : `str`
+        Name of the statistic to measure.
+    stats : `lsst.afw.math.StatisticsControl`
+        Control object for the measurement.
+
+    Returns
+    -------
+    value : `float`
+        Measured value.
     """
     bbox = lsst.geom.Box2I(lsst.geom.Point2I(int(x) - size, int(y - size)),
                            lsst.geom.Extent2I(2*size, 2*size))
@@ -470,19 +487,37 @@ def measure(mi, x, y, size, statistic, stats):
 
 
 def stdev(vector):
-    """Calculate a robust standard deviation of an array of values
+    """Calculate a robust standard deviation of an array of values.
 
-    @param vector  Array of values
-    @return Standard deviation
+    Parameters
+    ----------
+    vector : `list` or `numpy.array`, (N,)
+        Values to find the dispersion of.
+
+    Returns
+    -------
+    value : `float`
+        Robust standard deviation.
     """
     q1, q3 = numpy.percentile(vector, (25, 75))
     return 0.74*(q3 - q1)
 
 
 def select(vector, clip):
-    """Select values within 'clip' standard deviations of the median
+    """Select values within 'clip' standard deviations of the median.
 
-    Returns a boolean array.
+    Parameters
+    ----------
+    vector : `list` or `numpy.array`, (N,)
+        Values to find the dispersion of.
+    clip : `float`
+        Number of sigma to use for rejecting values.
+
+    Returns
+    -------
+    mask : `numpy.array` [`bool`], (N,)
+        If True, than that element is within ``clip`` sigma of the
+        median.
     """
     q1, q2, q3 = numpy.percentile(vector, (25, 50, 75))
     return numpy.abs(vector - q2) < clip*0.74*(q3 - q1)
