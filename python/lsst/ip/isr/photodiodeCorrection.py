@@ -58,10 +58,12 @@ class PhotodiodeCorrection(IsrCalib):
 
     Notes
     -----
-    The photodiode correction attributes stored are:
+    The photodiode correction attributes stored as:
+
     abscissaCorrections : `dict` : [`str`, `float`]
-    Correction value indexed by exposure pair
+        Correction value indexed by exposure pair
     """
+
     _OBSTYPE = "PHOTODIODE_CORRECTION"
     _SCHEMA = 'PhotodiodeCorrection'
     _VERSION = 1.1
@@ -93,7 +95,6 @@ class PhotodiodeCorrection(IsrCalib):
         kwargs :
             Other keyword parameters to set in the metadata.
         """
-
         super().updateMetadata(setDate=setDate, **kwargs)
 
     @classmethod

@@ -31,6 +31,9 @@ from .isrFunctions import checkFilter
 from .calibType import IsrCalib
 
 
+__all__ = ['StrayLightConfig', 'StrayLightTask', 'StrayLightData']
+
+
 class StrayLightConfig(Config):
     doRotatorAngleCorrection = Field(
         dtype=bool,
@@ -50,6 +53,7 @@ class StrayLightTask(Task):
 
     This is a dummy task to be retargeted with an camera-specific version.
     """
+
     ConfigClass = StrayLightConfig
     _DefaultName = "isrStrayLight"
 
@@ -77,7 +81,7 @@ class StrayLightTask(Task):
         raise NotImplementedError("Must be implemented by subclasses.")
 
     def checkFilter(self, exposure):
-        """Check whether we should fringe-subtract the science exposure.
+        """Check whether we should straylight correct this science exposure.
 
         Parameters
         ----------

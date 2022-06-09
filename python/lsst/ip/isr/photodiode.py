@@ -36,12 +36,10 @@ class PhotodiodeCalib(IsrCalib):
 
     Parameters
     ----------
-    timeSamples : `list` or `numpy.ndarray`
+    timeSamples : `list` or `numpy.ndarray`, optional
         List of samples the photodiode was measured at.
-    currentSamples : `list` or `numpy.ndarray`
+    currentSamples : `list` or `numpy.ndarray`, optional
         List of current measurements at each time sample.
-    log : `lsst.log.Log`, optional
-        Log to write messages to.
     **kwargs :
         Additional parameters. These will be passed to the parent
         constructor with the exception of:

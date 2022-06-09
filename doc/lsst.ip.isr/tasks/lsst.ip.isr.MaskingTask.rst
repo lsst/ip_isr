@@ -4,18 +4,14 @@
 MaskingTask
 ###########
 
-``MaskingTask`` does
+``MaskingTask`` is a placeholder method.  It is intended to perform additional masking that is separate from any defects or saturated pixels.
 
 .. _lsst.ip.isr.MaskingTask-processing-summary:
 
 Processing summary
 ==================
 
-``MaskingTask`` runs these operations:
-
-#.
-#.
-
+``MaskingTask`` must be implemented by a camera-specific class.
 
 .. _lsst.ip.isr.MaskingTask-api:
 
@@ -39,7 +35,3 @@ Configuration fields
 .. lsst-task-config-fields:: lsst.ip.isr.MaskingTask
 
 .. _lsst.ip.isr.MaskingTask-debug:
-
-Debugging
-=========
-

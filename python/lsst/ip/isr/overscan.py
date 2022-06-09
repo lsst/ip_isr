@@ -35,6 +35,7 @@ from .isrFunctions import makeThresholdMask, countMaskedPixels
 class OverscanCorrectionTaskConfig(pexConfig.Config):
     """Overscan correction options.
     """
+
     fitType = pexConfig.ChoiceField(
         dtype=str,
         doc="The method for fitting the overscan bias level.",
@@ -130,7 +131,10 @@ class OverscanCorrectionTask(pipeBase.Task):
     ----------
     statControl : `lsst.afw.math.StatisticsControl`, optional
         Statistics control object.
+    kwargs : Any
+        Additional parameters passed to the parent class.
     """
+
     ConfigClass = OverscanCorrectionTaskConfig
     _DefaultName = "overscan"
 
@@ -505,6 +509,8 @@ class OverscanCorrectionTask(pipeBase.Task):
         image : `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage`
             Image data to pull array from.
 
+        Returns
+        -------
         calcImage : `numpy.ndarray`
             Image data array for numpy operating.
         """
@@ -647,7 +653,6 @@ class OverscanCorrectionTask(pipeBase.Task):
         values : `numpy.ndarray`
             Evaluated spline values at each index.
         """
-
         return interp.interpolate(indices.astype(float))
 
     @staticmethod

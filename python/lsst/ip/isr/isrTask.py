@@ -933,7 +933,7 @@ class IsrTask(pipeBase.PipelineTask):
 
     Parameters
     ----------
-    args : `list`
+    args : `list`, optional
         Positional arguments passed to the Task constructor.
         None used at this time.
     kwargs : `dict`, optional
@@ -1157,6 +1157,8 @@ class IsrTask(pipeBase.PipelineTask):
             correction.  If `None`, no correction will be performed.
         illumMaskedImage : `lsst.afw.image.MaskedImage`, optional
             Illumination correction image.
+        isGen3 : `bool`, optional
+            Flag this call to run() as using the Gen3 butler environment.
 
         Returns
         -------
@@ -1205,7 +1207,6 @@ class IsrTask(pipeBase.PipelineTask):
         In addition, setting the ``postISRCCD`` entry displays the
         exposure after all ISR processing has finished.
         """
-
         ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
         bias = self.ensureExposure(bias, camera, detectorNum)
         dark = self.ensureExposure(dark, camera, detectorNum)
@@ -1711,7 +1712,6 @@ class IsrTask(pipeBase.PipelineTask):
         ------
         RuntimeError
             Raised if the exposure type cannot be converted to float.
-
         """
         if isinstance(exposure, afwImage.ExposureF):
             # Nothing to be done
@@ -1742,10 +1742,9 @@ class IsrTask(pipeBase.PipelineTask):
 
         Returns
         -------
-        badAmp : `Bool`
+        badAmp : `bool`
             If this is true, the entire amplifier area is covered by
             defects and unusable.
-
         """
         maskedImage = ccdExposure.getMaskedImage()
 
@@ -1842,11 +1841,6 @@ class IsrTask(pipeBase.PipelineTask):
                 Clipped standard deviation of the overscan after
                 correction. (`float`)
 
-        Raises
-        ------
-        RuntimeError
-            Raised if the ``amp`` does not contain raw pixel information.
-
         See Also
         --------
         lsst.ip.isr.overscan.OverscanTask
@@ -1888,9 +1882,8 @@ class IsrTask(pipeBase.PipelineTask):
         ------
         RuntimeError
             Raised if either ``usePtcGains`` of ``usePtcReadNoise``
-            are ``True``, but ptcDataset is not provided.
-
-            Raised if ```doEmpiricalReadNoise`` is ``True`` but
+            are ``True``, but ptcDataset is not provided.  Also raised
+            if ```doEmpiricalReadNoise`` is ``True`` but
             ``overscanImage`` is ``None``.
 
         See also
@@ -1980,7 +1973,7 @@ class IsrTask(pipeBase.PipelineTask):
             Exposure to process.
         darkExposure : `lsst.afw.image.Exposure`
             Dark exposure of the same size as ``exposure``.
-        invert : `Bool`, optional
+        invert : `bool`, optional
             If True, re-add the dark to an already corrected image.
 
         Raises
@@ -2027,7 +2020,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         Returns
         -------
-        doLinearize : `Bool`
+        doLinearize : `bool`
             If True, linearization should be performed.
         """
         return self.config.doLinearize and \
@@ -2042,7 +2035,7 @@ class IsrTask(pipeBase.PipelineTask):
             Exposure to process.
         flatExposure : `lsst.afw.image.Exposure`
             Flat exposure of the same size as ``exposure``.
-        invert : `Bool`, optional
+        invert : `bool`, optional
             If True, unflatten an already flattened image.
 
         See Also
@@ -2280,7 +2273,7 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        IsrQaConfig : `lsst.ip.isr.isrQa.IsrQaConfig`
+        IsrQaConfig : `lsst.ip.isr.isrQa.IsrQaConfig`, optional
             Configuration object containing parameters on which background
             statistics and subgrids to use.
         """

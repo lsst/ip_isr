@@ -83,6 +83,7 @@ class CrosstalkCalib(IsrCalib):
         source on the detector indicated.
 
     """
+
     _OBSTYPE = 'CROSSTALK'
     _SCHEMA = 'Gen3 Crosstalk'
     _VERSION = 1.0
@@ -147,7 +148,6 @@ class CrosstalkCalib(IsrCalib):
         -------
         calib : `lsst.ip.isr.CrosstalkCalib`
             The calibration constructed from the detector.
-
         """
         if detector.hasCrosstalk() or coeffVector:
             self._detectorId = detector.getId()
@@ -181,8 +181,6 @@ class CrosstalkCalib(IsrCalib):
     @classmethod
     def fromDict(cls, dictionary):
         """Construct a calibration from a dictionary of properties.
-
-        Must be implemented by the specific calibration subclasses.
 
         Parameters
         ----------
@@ -328,7 +326,6 @@ class CrosstalkCalib(IsrCalib):
         -------
         calib : `lsst.ip.isr.CrosstalkCalib`
             The calibration defined in the tables.
-
         """
         coeffTable = tableList[0]
 
@@ -366,7 +363,6 @@ class CrosstalkCalib(IsrCalib):
         tableList : `list` [`lsst.afw.table.Table`]
             List of tables containing the crosstalk calibration
             information.
-
         """
         tableList = []
         self.updateMetadata()
@@ -375,6 +371,7 @@ class CrosstalkCalib(IsrCalib):
                           'CT_COUNTS': self.coeffNum.reshape(self.nAmp*self.nAmp),
                           'CT_VALID': self.coeffValid.reshape(self.nAmp*self.nAmp),
                           }])
+
         # filter None, because astropy can't deal.
         inMeta = self.getMetadata().toDict()
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
@@ -403,7 +400,7 @@ class CrosstalkCalib(IsrCalib):
         ampTarget : `lsst.afw.cameraGeom.Amplifier`
             Target amplifier that the extracted image will be flipped
             to match.
-        isTrimmed : `bool`
+        isTrimmed : `bool`, optional
             The image is already trimmed.
             TODO : DM-15409 will resolve this.
 
@@ -443,8 +440,9 @@ class CrosstalkCalib(IsrCalib):
         ----------
         mi : `lsst.afw.image.MaskedImage`
             MaskedImage for which to measure background.
-        badPixels : `list` of `str`
+        badPixels : `list` [`str`], optional
             Mask planes to ignore.
+
         Returns
         -------
         bg : `float`
@@ -481,19 +479,19 @@ class CrosstalkCalib(IsrCalib):
             thisExposure is used as the source (intra-detector crosstalk).
         crosstalkCoeffs : `numpy.ndarray`, optional.
             Coefficients to use to correct crosstalk.
-        badPixels : `list` of `str`
+        badPixels : `list` [`str`], optional
             Mask planes to ignore.
-        minPixelToMask : `float`
+        minPixelToMask : `float`, optional
             Minimum pixel value (relative to the background level) in
             source amplifier for which to set ``crosstalkStr`` mask plane
             in target amplifier.
-        crosstalkStr : `str`
+        crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
-        isTrimmed : `bool`
+        isTrimmed : `bool`, optional
             The image is already trimmed.
             This should no longer be needed once DM-15409 is resolved.
-        backgroundMethod : `str`
+        backgroundMethod : `str`, optional
             Method used to subtract the background.  "AMP" uses
             amplifier-by-amplifier background levels, "DETECTOR" uses full
             exposure/maskedImage levels.  Any other value results in no
@@ -570,6 +568,7 @@ class CrosstalkCalib(IsrCalib):
 
 class CrosstalkConfig(Config):
     """Configuration for intra-detector crosstalk removal."""
+
     minPixelToMask = Field(
         dtype=float,
         doc="Set crosstalk mask plane for pixels over this value.",
@@ -615,7 +614,7 @@ class CrosstalkConfig(Config):
 
         Parameters
         ----------
-        detector : `lsst.afw.cameraGeom.detector`
+        detector : `lsst.afw.cameraGeom.detector`, optional
             Detector that is to be crosstalk corrected.
 
         Returns
@@ -648,7 +647,7 @@ class CrosstalkConfig(Config):
 
         Parameters
         ----------
-        detector : `lsst.afw.cameraGeom.detector`
+        detector : `lsst.afw.cameraGeom.detector`, optional
             Detector that is to be crosstalk corrected.
 
         Returns
@@ -667,6 +666,7 @@ class CrosstalkConfig(Config):
 
 class CrosstalkTask(Task):
     """Apply intra-detector crosstalk correction."""
+
     ConfigClass = CrosstalkConfig
     _DefaultName = 'isrCrosstalk'
 
@@ -763,5 +763,6 @@ class CrosstalkTask(Task):
 
 
 class NullCrosstalkTask(CrosstalkTask):
+
     def run(self, exposure, crosstalkSources=None):
         self.log.info("Not performing any crosstalk correction")

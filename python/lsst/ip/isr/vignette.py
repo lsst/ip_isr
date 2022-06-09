@@ -70,6 +70,7 @@ class VignetteTask(Task):
     """Define a simple circular vignette pattern and optionally update mask
     plane.
     """
+
     ConfigClass = VignetteConfig
     _DefaultName = "isrVignette"
 

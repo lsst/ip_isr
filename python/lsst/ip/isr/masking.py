@@ -26,6 +26,9 @@ from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 
 
+__all__ = ['MaskingConfig', 'MaskingTask']
+
+
 class MaskingConfig(Config):
     doSpecificMasking = Field(
         dtype=bool,
@@ -36,7 +39,10 @@ class MaskingConfig(Config):
 
 class MaskingTask(Task):
     """Perform extra masking for detector issues such as ghosts and glints.
+
+    This is a dummy task that needs a camera-specific implementation.
     """
+
     ConfigClass = MaskingConfig
     _DefaultName = "isrMasking"
 
@@ -54,4 +60,4 @@ class MaskingTask(Task):
             This task is currently not implemented, and should be
             retargeted by a camera specific version.
         """
-        return
+        pass

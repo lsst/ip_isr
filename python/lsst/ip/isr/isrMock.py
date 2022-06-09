@@ -49,6 +49,7 @@ class IsrMockConfig(pexConfig.Config):
     signals are combined to create real data. The camera used is the
     test camera defined by the afwUtils code.
     """
+
     # Detector parameters. "Exposure" parameters.
     isLsstLike = pexConfig.Field(
         dtype=bool,
@@ -259,6 +260,7 @@ class IsrMock(pipeBase.Task):
     `lsst.afw.cameraGeom.testUtils` to avoid making the test data
     dependent on any of the actual obs package formats.
     """
+
     ConfigClass = IsrMockConfig
     _DefaultName = "isrMock"
 
@@ -705,7 +707,7 @@ class IsrMock(pipeBase.Task):
 
         Parameters
         ----------
-        amp : `~lsst.afw.ampInfo.AmpInfoRecord`
+        amp : `~lsst.afw.cameraGeom.Amplifier`
             Amplifier to operate on. Needed for amp<->exp coordinate
             transforms.
         ampData : `lsst.afw.image.ImageF`
@@ -737,7 +739,7 @@ class IsrMock(pipeBase.Task):
 
         Parameters
         ----------
-        amp : `lsst.afw.ampInfo.AmpInfoRecord`
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier to operate on. Needed for amp<->exp coordinate
             transforms.
         ampData : `lsst.afw.image.ImageF`
@@ -771,6 +773,7 @@ class IsrMock(pipeBase.Task):
 class RawMock(IsrMock):
     """Generate a raw exposure suitable for ISR.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.isTrimmed = False
@@ -787,6 +790,7 @@ class RawMock(IsrMock):
 class TrimmedRawMock(RawMock):
     """Generate a trimmed raw exposure.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.isTrimmed = True
@@ -796,6 +800,7 @@ class TrimmedRawMock(RawMock):
 class CalibratedRawMock(RawMock):
     """Generate a trimmed raw exposure.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.isTrimmed = True
@@ -817,6 +822,7 @@ class CalibratedRawMock(RawMock):
 class RawDictMock(RawMock):
     """Generate a raw exposure dict suitable for ISR.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateAmpDict = True
@@ -825,6 +831,7 @@ class RawDictMock(RawMock):
 class MasterMock(IsrMock):
     """Parent class for those that make master calibrations.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.isTrimmed = True
@@ -843,6 +850,7 @@ class MasterMock(IsrMock):
 class BiasMock(MasterMock):
     """Simulated master bias calibration.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doAddBias = True
@@ -852,6 +860,7 @@ class BiasMock(MasterMock):
 class DarkMock(MasterMock):
     """Simulated master dark calibration.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doAddDark = True
@@ -869,6 +878,7 @@ class FlatMock(MasterMock):
 class FringeMock(MasterMock):
     """Simulated master fringe calibration.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doAddFringe = True
@@ -877,6 +887,7 @@ class FringeMock(MasterMock):
 class UntrimmedFringeMock(FringeMock):
     """Simulated untrimmed master fringe calibration.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.isTrimmed = False
@@ -885,6 +896,7 @@ class UntrimmedFringeMock(FringeMock):
 class BfKernelMock(IsrMock):
     """Simulated brighter-fatter kernel.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateImage = False
@@ -911,6 +923,7 @@ class DefectMock(IsrMock):
 class CrosstalkCoeffMock(IsrMock):
     """Simulated crosstalk coefficient matrix.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateImage = False
@@ -924,6 +937,7 @@ class CrosstalkCoeffMock(IsrMock):
 class TransmissionMock(IsrMock):
     """Simulated transmission curve.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateImage = False
@@ -936,7 +950,17 @@ class TransmissionMock(IsrMock):
 
 class MockDataContainer(object):
     """Container for holding ISR mock objects.
+
+    Currently only supports get and put operations, which are most
+    likely to be called for data in ISR processing.
+
+    Parameters
+    ----------
+    kwargs : Any
+        If ``config`` is a key, it is used to define the mock
+        configuration.
     """
+
     dataId = "isrMock Fake Data"
     darkval = 2.  # e-/sec
     oscan = 250.  # DN
@@ -1018,7 +1042,14 @@ class MockDataContainer(object):
 
 class MockFringeContainer(object):
     """Container for mock fringe data.
+
+    Parameters
+    ----------
+    kwargs : Any
+        If ``config`` is a key, it is used to define the mock
+        configuration.
     """
+
     dataId = "isrMock Fake Data"
     darkval = 2.  # e-/sec
     oscan = 250.  # DN
