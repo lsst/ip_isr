@@ -310,14 +310,15 @@ class PhotonTransferCurveDataset(IsrCalib):
         covDimensionsProduct = len(np.array(list(dictionary['covariances'].values())[0]).ravel())
         nSignalPoints = int(covDimensionsProduct/(covMatrixSide*covMatrixSide))
 
-        # The values in 'dictionary' are masked arrays. The masks are a
-        # combination of the masking performed during cpPtcExtract
-        # and cpPtcSolve (stored in 'expIdMask')
-        # and the padding in the 'toTable' method of this class.
         for ampName in dictionary['ampNames']:
-            calib.ampNames.append(ampName)
-            mask_amp = ~np.isnan(np.array(dictionary['finalMeans'][ampName]))
+            covsAmp = np.array(dictionary['covariances'][ampName]).reshape((nSignalPoints, covMatrixSide,
+                                                                            covMatrixSide))
 
+            # masks for covariances padding in `toTable`
+            maskCovsAmp = np.array([~np.isnan(entry).all() for entry in covsAmp])
+            maskAmp = ~np.isnan(np.array(dictionary['finalMeans'][ampName]))
+
+            calib.ampNames.append(ampName)
             calib.inputExpIdPairs[ampName] = np.array(dictionary['inputExpIdPairs'][ampName]).tolist()
             calib.expIdMask[ampName] = np.array(dictionary['expIdMask'][ampName]).tolist()
             calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName]).tolist()
@@ -331,26 +332,25 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.ptcFitParsError[ampName] = np.array(dictionary['ptcFitParsError'][ampName]).tolist()
             calib.ptcFitChiSq[ampName] = np.array(dictionary['ptcFitChiSq'][ampName]).tolist()
             calib.ptcTurnoff[ampName] = np.array(dictionary['ptcTurnoff'][ampName]).tolist()
-            calib.covariances[ampName] = np.array(dictionary['covariances'][ampName]).reshape(
-                (nSignalPoints, covMatrixSide, covMatrixSide))[mask_amp].tolist()
+            calib.covariances[ampName] = covsAmp[maskCovsAmp].tolist()
             calib.covariancesModel[ampName] = np.array(
                 dictionary['covariancesModel'][ampName]).reshape(
-                    (nSignalPoints, covMatrixSide, covMatrixSide))[mask_amp].tolist()
+                    (nSignalPoints, covMatrixSide, covMatrixSide))[maskCovsAmp].tolist()
             calib.covariancesSqrtWeights[ampName] = np.array(
                 dictionary['covariancesSqrtWeights'][ampName]).reshape(
-                    (nSignalPoints, covMatrixSide, covMatrixSide))[mask_amp].tolist()
+                    (nSignalPoints, covMatrixSide, covMatrixSide))[maskCovsAmp].tolist()
             calib.aMatrix[ampName] = np.array(dictionary['aMatrix'][ampName]).reshape(
                 (covMatrixSide, covMatrixSide)).tolist()
             calib.bMatrix[ampName] = np.array(dictionary['bMatrix'][ampName]).reshape(
                 (covMatrixSide, covMatrixSide)).tolist()
             calib.covariancesModelNoB[ampName] = np.array(
                 dictionary['covariancesModelNoB'][ampName]).reshape(
-                    (nSignalPoints, covMatrixSide, covMatrixSide))[mask_amp].tolist()
+                    (nSignalPoints, covMatrixSide, covMatrixSide))[maskCovsAmp].tolist()
             calib.aMatrixNoB[ampName] = np.array(
                 dictionary['aMatrixNoB'][ampName]).reshape((covMatrixSide, covMatrixSide)).tolist()
-            calib.finalVars[ampName] = np.array(dictionary['finalVars'][ampName])[mask_amp].tolist()
-            calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName])[mask_amp].tolist()
-            calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName])[mask_amp].tolist()
+            calib.finalVars[ampName] = np.array(dictionary['finalVars'][ampName])[maskAmp].tolist()
+            calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName])[maskAmp].tolist()
+            calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName])[maskAmp].tolist()
             calib.photoCharge[ampName] = np.array(dictionary['photoCharge'][ampName]).tolist()
         calib.updateMetadata()
         return calib
