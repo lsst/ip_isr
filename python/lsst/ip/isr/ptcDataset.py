@@ -314,9 +314,17 @@ class PhotonTransferCurveDataset(IsrCalib):
             covsAmp = np.array(dictionary['covariances'][ampName]).reshape((nSignalPoints, covMatrixSide,
                                                                             covMatrixSide))
 
-            # Masks for covariances padding in `toTable`
-            maskCovsAmp = np.array([~np.isnan(entry).all() for entry in covsAmp])
-            maskAmp = ~np.isnan(np.array(dictionary['finalMeans'][ampName]))
+            # After cpPtcExtract runs in the PTC pipeline, the datasets
+            # created ('PARTIAL' and 'DUMMY') have a single measurement.
+            # Apply the maskign to the final ptcDataset, after running
+            # cpPtcSolve.
+            if len(covsAmp) > 1:
+                # Masks for covariances padding in `toTable`
+                maskCovsAmp = np.array([~np.isnan(entry).all() for entry in covsAmp])
+                maskAmp = ~np.isnan(np.array(dictionary['finalMeans'][ampName]))
+            else:
+                maskCovsAmp = np.array([True])
+                maskAmp = np.array([True])
 
             calib.ampNames.append(ampName)
             calib.inputExpIdPairs[ampName] = np.array(dictionary['inputExpIdPairs'][ampName]).tolist()
