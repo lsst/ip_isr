@@ -223,10 +223,10 @@ class BrighterFatterKernel(IsrCalib):
         calib.shape = (dictionary['metadata'].get('KERNEL_DX', 0),
                        dictionary['metadata'].get('KERNEL_DY', 0))
 
-        calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['rawMeans']}
-        calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawMeans']}
+        calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['rawXcorrs']}
+        calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawXcorrs']}
         calib.rawVariances = {amp: np.array(dictionary['rawVariances'][amp]) for amp in
-                              dictionary['rawVariances']}
+                              dictionary['rawXcorrs']}
 
         # Lengths for reshape:
         _, smallLength, nObs = calib.getLengths()
