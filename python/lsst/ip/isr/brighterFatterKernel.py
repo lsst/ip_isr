@@ -64,8 +64,9 @@ class BrighterFatterKernel(IsrCalib):
         self.level = level
 
         # Things inherited from the PTC
-        self.means = dict()
-        self.variances = dict()
+        self.expIdMask = dict()
+        self.rawMeans = dict()
+        self.rawVariances = dict()
         self.rawXcorrs = dict()
         self.badAmps = list()
         self.shape = (17, 17)
@@ -85,7 +86,7 @@ class BrighterFatterKernel(IsrCalib):
         if camera:
             self.initFromCamera(camera, detectorId=kwargs.get('detectorId', None))
 
-        self.requiredAttributes.update(['level', 'means', 'variances', 'rawXcorrs',
+        self.requiredAttributes.update(['level', 'expIdMask', 'rawMeans', 'rawVariances', 'rawXcorrs',
                                         'badAmps', 'gain', 'noise', 'meanXcorrs', 'valid',
                                         'ampKernels', 'detKernels'])
 
@@ -146,8 +147,9 @@ class BrighterFatterKernel(IsrCalib):
 
             for amp in detector:
                 ampName = amp.getName()
-                self.means[ampName] = []
-                self.variances[ampName] = []
+                self.expIdMask[ampName] = []
+                self.rawMeans[ampName] = []
+                self.rawVariances[ampName] = []
                 self.rawXcorrs[ampName] = []
                 self.gain[ampName] = amp.getGain()
                 self.noise[ampName] = amp.getReadNoise()
@@ -179,7 +181,7 @@ class BrighterFatterKernel(IsrCalib):
         kernelLength = self.shape[0] * self.shape[1]
         smallLength = int((self.shape[0] - 1)*(self.shape[1] - 1)/4)
         if self.level == 'AMP':
-            nObservations = set([len(self.means[amp]) for amp in self.means])
+            nObservations = set([len(self.rawMeans[amp]) for amp in self.rawMeans])
             if len(nObservations) != 1:
                 raise RuntimeError("Inconsistent number of observations found.")
             nObs = nObservations.pop()
@@ -221,8 +223,10 @@ class BrighterFatterKernel(IsrCalib):
         calib.shape = (dictionary['metadata'].get('KERNEL_DX', 0),
                        dictionary['metadata'].get('KERNEL_DY', 0))
 
-        calib.means = {amp: np.array(dictionary['means'][amp]) for amp in dictionary['means']}
-        calib.variances = {amp: np.array(dictionary['variances'][amp]) for amp in dictionary['variances']}
+        calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['rawMeans']}
+        calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawMeans']}
+        calib.rawVariances = {amp: np.array(dictionary['rawVariances'][amp]) for amp in
+                              dictionary['rawVariances']}
 
         # Lengths for reshape:
         _, smallLength, nObs = calib.getLengths()
@@ -269,8 +273,10 @@ class BrighterFatterKernel(IsrCalib):
         # Lengths for ravel:
         kernelLength, smallLength, nObs = self.getLengths()
 
-        outDict['means'] = {amp: np.array(self.means[amp]).tolist() for amp in self.means}
-        outDict['variances'] = {amp: np.array(self.variances[amp]).tolist() for amp in self.variances}
+        outDict['expIdMask'] = {amp: np.array(self.expIdMask[amp]).tolist() for amp in self.expIdMask}
+        outDict['rawMeans'] = {amp: np.array(self.rawMeans[amp]).tolist() for amp in self.rawMeans}
+        outDict['rawVariances'] = {amp: np.array(self.rawVariances[amp]).tolist() for amp in
+                                   self.rawVariances}
         outDict['rawXcorrs'] = {amp: np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist()
                                 for amp in self.rawXcorrs}
         outDict['badAmps'] = self.badAmps
@@ -314,8 +320,9 @@ class BrighterFatterKernel(IsrCalib):
 
         amps = ampTable['AMPLIFIER']
 
-        meanList = ampTable['MEANS']
-        varianceList = ampTable['VARIANCES']
+        expIdMaskList = ampTable['EXP_ID_MASK']
+        rawMeanList = ampTable['RAW_MEANS']
+        rawVarianceList = ampTable['RAW_VARIANCES']
 
         rawXcorrs = ampTable['RAW_XCORRS']
         gainList = ampTable['GAIN']
@@ -325,8 +332,9 @@ class BrighterFatterKernel(IsrCalib):
         ampKernels = ampTable['KERNEL']
         validList = ampTable['VALID']
 
-        inDict['means'] = {amp: mean for amp, mean in zip(amps, meanList)}
-        inDict['variances'] = {amp: var for amp, var in zip(amps, varianceList)}
+        inDict['expIdMask'] = {amp: mask for amp, mask in zip(amps, expIdMaskList)}
+        inDict['rawMeans'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
+        inDict['rawVariances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
         inDict['rawXcorrs'] = {amp: kernel for amp, kernel in zip(amps, rawXcorrs)}
         inDict['gain'] = {amp: gain for amp, gain in zip(amps, gainList)}
         inDict['noise'] = {amp: noise for amp, noise in zip(amps, noiseList)}
@@ -366,8 +374,9 @@ class BrighterFatterKernel(IsrCalib):
         kernelLength, smallLength, nObs = self.getLengths()
 
         ampList = []
-        meanList = []
-        varianceList = []
+        expIdMaskList = []
+        rawMeanList = []
+        rawVarianceList = []
         rawXcorrs = []
         gainList = []
         noiseList = []
@@ -377,10 +386,11 @@ class BrighterFatterKernel(IsrCalib):
         validList = []
 
         if self.level == 'AMP':
-            for amp in self.means.keys():
+            for amp in self.rawMeans.keys():
                 ampList.append(amp)
-                meanList.append(self.means[amp])
-                varianceList.append(self.variances[amp])
+                expIdMaskList.append(self.expIdMask[amp])
+                rawMeanList.append(self.rawMeans[amp])
+                rawVarianceList.append(self.rawVariances[amp])
                 rawXcorrs.append(np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist())
                 gainList.append(self.gain[amp])
                 noiseList.append(self.noise[amp])
@@ -390,8 +400,9 @@ class BrighterFatterKernel(IsrCalib):
                 validList.append(int(self.valid[amp] and not (amp in self.badAmps)))
 
         ampTable = Table({'AMPLIFIER': ampList,
-                          'MEANS': meanList,
-                          'VARIANCES': varianceList,
+                          'EXP_ID_MASK': expIdMaskList,
+                          'RAW_MEANS': rawMeanList,
+                          'RAW_VARIANCES': rawVarianceList,
                           'RAW_XCORRS': rawXcorrs,
                           'GAIN': gainList,
                           'NOISE': noiseList,
