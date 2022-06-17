@@ -55,6 +55,10 @@ class BrighterFatterKernel(IsrCalib):
     **kwargs :
         Parameters to pass to parent constructor.
 
+    Notes
+    -----
+    TODO: DM-35260
+        Document what is stored in the BFK calibration.
     """
     _OBSTYPE = 'bfk'
     _SCHEMA = 'Brighter-fatter kernel'
