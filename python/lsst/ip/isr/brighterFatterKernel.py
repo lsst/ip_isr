@@ -62,7 +62,7 @@ class BrighterFatterKernel(IsrCalib):
     """
     _OBSTYPE = 'bfk'
     _SCHEMA = 'Brighter-fatter kernel'
-    _VERSION = 1.0
+    _VERSION = 1.1
 
     def __init__(self, camera=None, level=None, **kwargs):
         self.level = level
@@ -213,12 +213,17 @@ class BrighterFatterKernel(IsrCalib):
         RuntimeError :
             Raised if the supplied dictionary is for a different
             calibration.
+            Raised if the version of the supplied dictionary is 1.0.
         """
         calib = cls()
 
         if calib._OBSTYPE != (found := dictionary['metadata']['OBSTYPE']):
             raise RuntimeError(f"Incorrect brighter-fatter kernel supplied.  Expected {calib._OBSTYPE}, "
                                f"found {found}")
+
+        if calib._VERSION == 1.0:
+            raise RuntimeError("Version 1.0 of brightter-fatter kernel not supported. Current version: "
+                               f"{dictionary['metadata']['VERSION']}")
 
         calib.setMetadata(dictionary['metadata'])
         calib.calibInfoFromDict(dictionary)
