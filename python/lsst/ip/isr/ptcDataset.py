@@ -154,7 +154,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.0
+    _VERSION = 1.1
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
 
@@ -440,6 +440,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['badAmps'] = []
         inDict['photoCharge'] = dict()
 
+        calibVersion = metadata['PTC_VERSION']
+        cls().log.warning(f"Previous version found for PTC dataset: {calibVersion}. "
+                          f"Setting 'ptcTurnoff' in all amps to last value in 'finalMeans'")
         for record in ptcTable:
             ampName = record['AMPLIFIER_NAME']
 
@@ -458,7 +461,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['ptcFitPars'][ampName] = record['PTC_FIT_PARS']
             inDict['ptcFitParsError'][ampName] = record['PTC_FIT_PARS_ERROR']
             inDict['ptcFitChiSq'][ampName] = record['PTC_FIT_CHI_SQ']
-            inDict['ptcTurnoff'][ampName] = record['PTC_TURNOFF']
             inDict['covariances'][ampName] = record['COVARIANCES']
             inDict['covariancesModel'][ampName] = record['COVARIANCES_MODEL']
             inDict['covariancesSqrtWeights'][ampName] = record['COVARIANCES_SQRT_WEIGHTS']
@@ -471,6 +473,11 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['finalMeans'][ampName] = record['FINAL_MEANS']
             inDict['badAmps'] = record['BAD_AMPS']
             inDict['photoCharge'][ampName] = record['PHOTO_CHARGE']
+            if calibVersion == 1.0:
+                mask = record['FINAL_MEANS'].mask
+                inDict['ptcTurnoff'][ampName] = record['FINAL_MEANS'][~mask][-1]
+            else:
+                inDict['ptcTurnoff'][ampName] = record['PTC_TURNOFF']
         return cls().fromDict(inDict)
 
     def toTable(self):
