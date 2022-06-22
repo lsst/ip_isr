@@ -150,6 +150,10 @@ class PhotonTransferCurveDataset(IsrCalib):
     -------
     `lsst.cp.pipe.ptc.PhotonTransferCurveDataset`
         Output dataset from MeasurePhotonTransferCurveTask.
+
+    Notes
+    -----
+    Version 1.1 adds the `ptcTurnoff` attribute.
     """
 
     _OBSTYPE = 'PTC'
@@ -441,8 +445,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['photoCharge'] = dict()
 
         calibVersion = metadata['PTC_VERSION']
-        cls().log.warning(f"Previous version found for PTC dataset: {calibVersion}. "
-                          f"Setting 'ptcTurnoff' in all amps to last value in 'finalMeans'")
+        if calibVersion == 1.0:
+            cls().log.warning(f"Previous version found for PTC dataset: {calibVersion}. "
+                              f"Setting 'ptcTurnoff' in all amps to last value in 'finalMeans'.")
         for record in ptcTable:
             ampName = record['AMPLIFIER_NAME']
 
