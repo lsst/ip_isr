@@ -59,6 +59,10 @@ class BrighterFatterKernel(IsrCalib):
     -----
     TODO: DM-35260
         Document what is stored in the BFK calibration.
+
+    Version 1.1 adds the `expIdMask` property, and substitutes
+    `means` and `variances` for `rawMeans` and `rawVariances`
+    from the PTC dataset.
     """
     _OBSTYPE = 'bfk'
     _SCHEMA = 'Brighter-fatter kernel'
@@ -220,11 +224,6 @@ class BrighterFatterKernel(IsrCalib):
         if calib._OBSTYPE != (found := dictionary['metadata']['OBSTYPE']):
             raise RuntimeError(f"Incorrect brighter-fatter kernel supplied.  Expected {calib._OBSTYPE}, "
                                f"found {found}")
-
-        if calib._VERSION == 1.0:
-            raise RuntimeError("Version 1.0 of brightter-fatter kernel not supported. Current version: "
-                               f"{dictionary['metadata']['VERSION']}")
-
         calib.setMetadata(dictionary['metadata'])
         calib.calibInfoFromDict(dictionary)
 
@@ -232,10 +231,25 @@ class BrighterFatterKernel(IsrCalib):
         calib.shape = (dictionary['metadata'].get('KERNEL_DX', 0),
                        dictionary['metadata'].get('KERNEL_DY', 0))
 
-        calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['expIdMask']}
-        calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawMeans']}
-        calib.rawVariances = {amp: np.array(dictionary['rawVariances'][amp]) for amp in
-                              dictionary['rawVariances']}
+        calibVersion = dictionary['metadata']['bfk_VERSION']
+        if calibVersion == 1.0:
+            cls().log.warning("Old Version of brightter-fatter kernel found. Current version: "
+                              f"{calib._VERSION}. The new attribute 'expIdMask' will be "
+                              "populated with 'True' values, and the new attributes 'rawMeans'"
+                              "and 'rawVariances' will be populated with the masked 'means'."
+                              "and 'variances' values."
+                              )
+            # use 'means', because 'expIdMask' does not exist.
+            calib.expIdMask = {amp: np.repeat(True, len(dictionary['means'][amp])) for amp in
+                               dictionary['means']}
+            calib.rawMeans = {amp: np.array(dictionary['means'][amp]) for amp in dictionary['means']}
+            calib.rawVariances = {amp: np.array(dictionary['variances'][amp]) for amp in
+                                  dictionary['variances']}
+        else:
+            calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['expIdMask']}
+            calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawMeans']}
+            calib.rawVariances = {amp: np.array(dictionary['rawVariances'][amp]) for amp in
+                                  dictionary['rawVariances']}
 
         # Lengths for reshape:
         _, smallLength, nObs = calib.getLengths()
