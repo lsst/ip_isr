@@ -52,9 +52,14 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
 
         for amp in self.detector:
             ampName = amp.getName()
-            self.bfk.means[ampName] = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
-            self.bfk.variances[ampName] = np.array(self.bfk.means[ampName], dtype=float)
-            self.bfk.rawXcorrs[ampName] = [covar for _ in self.bfk.means[ampName]]
+            if amp in self.bfk.badAmps:
+                self.bfk.expIdMask[ampName] = [False, False, False, False, False, False, False, False, False,
+                                               False]
+            else:
+                self.bfk.expIdMask[ampName] = [True, True, True, True, True, True, True, True, False, False]
+            self.bfk.rawMeans[ampName] = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
+            self.bfk.rawVariances[ampName] = np.array(self.bfk.rawMeans[ampName], dtype=float)
+            self.bfk.rawXcorrs[ampName] = [covar for _ in self.bfk.rawMeans[ampName]]
             self.bfk.gain[ampName] = 1.0
             self.bfk.noise[ampName] = 5.0
 

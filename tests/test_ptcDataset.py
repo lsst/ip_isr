@@ -98,11 +98,11 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.ptcTurnoff[ampName] = localDataset.rawMeans[ampName][-1]
 
                     localDataset.covariances[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
+                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0).tolist()
                     localDataset.covariancesModel[ampName] = np.full(
                         (nSignalPoints, nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
                     localDataset.covariancesSqrtWeights[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                           nSideCovMatrix), np.nan).tolist()
+                                                                           nSideCovMatrix), 10.0).tolist()
                     localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
                     localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan).tolist()
                     localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
