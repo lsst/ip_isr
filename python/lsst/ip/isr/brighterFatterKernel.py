@@ -233,7 +233,7 @@ class BrighterFatterKernel(IsrCalib):
 
         calibVersion = dictionary['metadata']['bfk_VERSION']
         if calibVersion == 1.0:
-            cls().log.warning("Old Version of brightter-fatter kernel found. Current version: "
+            calib.log.warning("Old Version of brighter-fatter kernel found. Current version: "
                               f"{calib._VERSION}. The new attribute 'expIdMask' will be "
                               "populated with 'True' values, and the new attributes 'rawMeans'"
                               "and 'rawVariances' will be populated with the masked 'means'."
