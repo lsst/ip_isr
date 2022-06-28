@@ -343,9 +343,32 @@ class BrighterFatterKernel(IsrCalib):
 
         amps = ampTable['AMPLIFIER']
 
-        expIdMaskList = ampTable['EXP_ID_MASK']
-        rawMeanList = ampTable['RAW_MEANS']
-        rawVarianceList = ampTable['RAW_VARIANCES']
+        # Determine version for expected values.  The ``fromDict``
+        # method can unpack either, but the appropriate fields need to
+        # be supplied.
+        calibVersion = metadata.get('bfk_VERSION', 1.0)
+
+        if calibVersion == 1.0:
+            # We expect to find ``means`` and ``variances`` for this
+            # case, and will construct an ``expIdMask`` from these
+            # parameters in the ``fromDict`` method.
+            rawMeanList = ampTable['MEANS']
+            rawVarianceList = ampTable['VARIANCES']
+
+            inDict['means'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
+            inDict['variances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
+        elif calibVersion == 1.1:
+            # This will have ``rawMeans`` and ``rawVariances``, which
+            # are filtered via the ``expIdMask`` fields.
+            expIdMaskList = ampTable['EXP_ID_MASK']
+            rawMeanList = ampTable['RAW_MEANS']
+            rawVarianceList = ampTable['RAW_VARIANCES']
+
+            inDict['expIdMask'] = {amp: mask for amp, mask in zip(amps, expIdMaskList)}
+            inDict['rawMeans'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
+            inDict['rawVariances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
+        else:
+            raise RuntimeError(f"Unknown version for brighter-fatter kernel: {calibVersion}")
 
         rawXcorrs = ampTable['RAW_XCORRS']
         gainList = ampTable['GAIN']
@@ -355,9 +378,6 @@ class BrighterFatterKernel(IsrCalib):
         ampKernels = ampTable['KERNEL']
         validList = ampTable['VALID']
 
-        inDict['expIdMask'] = {amp: mask for amp, mask in zip(amps, expIdMaskList)}
-        inDict['rawMeans'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
-        inDict['rawVariances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
         inDict['rawXcorrs'] = {amp: kernel for amp, kernel in zip(amps, rawXcorrs)}
         inDict['gain'] = {amp: gain for amp, gain in zip(amps, gainList)}
         inDict['noise'] = {amp: noise for amp, noise in zip(amps, noiseList)}
