@@ -245,11 +245,13 @@ class BrighterFatterKernel(IsrCalib):
             calib.rawMeans = {amp: np.array(dictionary['means'][amp]) for amp in dictionary['means']}
             calib.rawVariances = {amp: np.array(dictionary['variances'][amp]) for amp in
                                   dictionary['variances']}
-        else:
+        elif calibVersion == 1.1:
             calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['expIdMask']}
             calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawMeans']}
             calib.rawVariances = {amp: np.array(dictionary['rawVariances'][amp]) for amp in
                                   dictionary['rawVariances']}
+        else:
+            raise RuntimeError(f"Unknown version for brighter-fatter kernel: {calibVersion}")
 
         # Lengths for reshape:
         _, smallLength, nObs = calib.getLengths()
@@ -346,7 +348,7 @@ class BrighterFatterKernel(IsrCalib):
         # Determine version for expected values.  The ``fromDict``
         # method can unpack either, but the appropriate fields need to
         # be supplied.
-        calibVersion = metadata.get('bfk_VERSION', 1.0)
+        calibVersion = metadata['bfk_VERSION']
 
         if calibVersion == 1.0:
             # We expect to find ``means`` and ``variances`` for this
