@@ -233,7 +233,7 @@ class BrighterFatterKernel(IsrCalib):
 
         calibVersion = dictionary['metadata']['bfk_VERSION']
         if calibVersion == 1.0:
-            cls().log.warning("Old Version of brightter-fatter kernel found. Current version: "
+            calib.log.warning("Old Version of brighter-fatter kernel found. Current version: "
                               f"{calib._VERSION}. The new attribute 'expIdMask' will be "
                               "populated with 'True' values, and the new attributes 'rawMeans'"
                               "and 'rawVariances' will be populated with the masked 'means'."
@@ -245,11 +245,13 @@ class BrighterFatterKernel(IsrCalib):
             calib.rawMeans = {amp: np.array(dictionary['means'][amp]) for amp in dictionary['means']}
             calib.rawVariances = {amp: np.array(dictionary['variances'][amp]) for amp in
                                   dictionary['variances']}
-        else:
+        elif calibVersion == 1.1:
             calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['expIdMask']}
             calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawMeans']}
             calib.rawVariances = {amp: np.array(dictionary['rawVariances'][amp]) for amp in
                                   dictionary['rawVariances']}
+        else:
+            raise RuntimeError(f"Unknown version for brighter-fatter kernel: {calibVersion}")
 
         # Lengths for reshape:
         _, smallLength, nObs = calib.getLengths()
@@ -343,9 +345,32 @@ class BrighterFatterKernel(IsrCalib):
 
         amps = ampTable['AMPLIFIER']
 
-        expIdMaskList = ampTable['EXP_ID_MASK']
-        rawMeanList = ampTable['RAW_MEANS']
-        rawVarianceList = ampTable['RAW_VARIANCES']
+        # Determine version for expected values.  The ``fromDict``
+        # method can unpack either, but the appropriate fields need to
+        # be supplied.
+        calibVersion = metadata['bfk_VERSION']
+
+        if calibVersion == 1.0:
+            # We expect to find ``means`` and ``variances`` for this
+            # case, and will construct an ``expIdMask`` from these
+            # parameters in the ``fromDict`` method.
+            rawMeanList = ampTable['MEANS']
+            rawVarianceList = ampTable['VARIANCES']
+
+            inDict['means'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
+            inDict['variances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
+        elif calibVersion == 1.1:
+            # This will have ``rawMeans`` and ``rawVariances``, which
+            # are filtered via the ``expIdMask`` fields.
+            expIdMaskList = ampTable['EXP_ID_MASK']
+            rawMeanList = ampTable['RAW_MEANS']
+            rawVarianceList = ampTable['RAW_VARIANCES']
+
+            inDict['expIdMask'] = {amp: mask for amp, mask in zip(amps, expIdMaskList)}
+            inDict['rawMeans'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
+            inDict['rawVariances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
+        else:
+            raise RuntimeError(f"Unknown version for brighter-fatter kernel: {calibVersion}")
 
         rawXcorrs = ampTable['RAW_XCORRS']
         gainList = ampTable['GAIN']
@@ -355,9 +380,6 @@ class BrighterFatterKernel(IsrCalib):
         ampKernels = ampTable['KERNEL']
         validList = ampTable['VALID']
 
-        inDict['expIdMask'] = {amp: mask for amp, mask in zip(amps, expIdMaskList)}
-        inDict['rawMeans'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
-        inDict['rawVariances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
         inDict['rawXcorrs'] = {amp: kernel for amp, kernel in zip(amps, rawXcorrs)}
         inDict['gain'] = {amp: gain for amp, gain in zip(amps, gainList)}
         inDict['noise'] = {amp: noise for amp, noise in zip(amps, noiseList)}
