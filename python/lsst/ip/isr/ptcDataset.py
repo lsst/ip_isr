@@ -160,7 +160,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     _SCHEMA = 'Gen3 Photon Transfer Curve'
     _VERSION = 1.1
 
-    def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
+    def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, detector=None, **kwargs):
 
         self.ptcFitType = ptcFitType
         self.ampNames = ampNames
@@ -205,6 +205,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
                                         'photoCharge'])
+        if detector:
+            self.fromDetector(detector)
 
     def setAmpValues(self, ampName, inputExpIdPair=[(np.nan, np.nan)], expIdMask=[np.nan],
                      rawExpTime=[np.nan], rawMean=[np.nan], rawVar=[np.nan], photoCharge=[np.nan],
@@ -275,6 +277,9 @@ class PhotonTransferCurveDataset(IsrCalib):
             Other keyword parameters to set in the metadata.
         """
         kwargs['PTC_FIT_TYPE'] = self.ptcFitType
+        kwargs['DETECTOR'] = self._detectorId
+        kwargs['DETECTOR_NAME'] = self._detectorName
+        kwargs['DETECTOR_SERIAL'] = self._detectorSerial
 
         super().updateMetadata(setDate=setDate, **kwargs)
 
@@ -304,6 +309,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.ptcFitType = dictionary['ptcFitType']
         calib.covMatrixSide = dictionary['covMatrixSide']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
+        calib._detectorName = dictionary.get('DETECTOR_NAME')
+        calib._detectorSerial = dictionary.get('DETECTOR_SERIAL')
+        calib._detectorId = dictionary.get('DETECTOR')
+
         # The cov matrices are square
         covMatrixSide = calib.covMatrixSide
         # Number of final signal levels
@@ -586,6 +595,25 @@ class PhotonTransferCurveDataset(IsrCalib):
         tableList.append(catalog)
 
         return(tableList)
+
+    def fromDetector(self, detector):
+        """Read metadata parameters from a detector.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.detector`
+            Input detector with parameters to use.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.Linearizer`
+            The calibration constructed from the detector.
+        """
+        self._detectorName = detector.getName()
+        self._detectorSerial = detector.getSerial()
+        self._detectorId = detector.getId()
+
+        return self
 
     def getExpIdsUsed(self, ampName):
         """Get the exposures used, i.e. not discarded, for a given amp.
