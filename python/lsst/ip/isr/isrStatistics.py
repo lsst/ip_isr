@@ -118,7 +118,8 @@ class IsrStatisticsTask(pipeBase.Task):
             gains = ptc.gain
         elif detector is not None:
             gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
-
+        else:
+            raise RuntimeError("No source of gains provided.")
         if self.config.doCtiStatistics:
             ctiResults = self.measureCti(inputExp, overscanResults, gains)
 
@@ -159,8 +160,15 @@ class IsrStatisticsTask(pipeBase.Task):
         outputStats = {}
 
         detector = inputExp.getDetector()
-        image = inputExp.getImage()
+        image = inputExp.image
+
+        # Ensure we have the same number of overscans as amplifiers.
+        assert len(overscans) == len(detector.getAmplifiers())
+
         for ampIter, amp in enumerate(detector.getAmplifiers()):
+            # Ensure the detector hasn't been modified:
+            assert ampIter == amp.getId()
+
             ampStats = {}
             gain = gains[amp.getName()]
             readoutCorner = amp.getReadoutCorner()
@@ -170,10 +178,10 @@ class IsrStatisticsTask(pipeBase.Task):
                                                             self.statControl).getValue()
 
             # First and last image columns.
-            pixelA = afwMath.makeStatistics(dataRegion.getArray()[:, 0],
+            pixelA = afwMath.makeStatistics(dataRegion.array[:, 0],
                                             self.statType,
                                             self.statControl).getValue()
-            pixelZ = afwMath.makeStatistics(dataRegion.getArray()[:, -1],
+            pixelZ = afwMath.makeStatistics(dataRegion.array[:, -1],
                                             self.statType,
                                             self.statControl).getValue()
 
@@ -198,7 +206,7 @@ class IsrStatisticsTask(pipeBase.Task):
                 columns = []
                 values = []
                 for column in range(0, overscanImage.getWidth()):
-                    osMean = afwMath.makeStatistics(overscanImage.getImage().getArray()[:, column],
+                    osMean = afwMath.makeStatistics(overscanImage.image.array[:, column],
                                                     self.statType, self.statControl).getValue()
                     columns.append(column)
                     values.append(gain * osMean)

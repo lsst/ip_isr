@@ -1562,7 +1562,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredChargeCorrection.run(ccdExposure, overscans, deferredCharge)
+            self.deferredChargeCorrection.run(ccdExposure, deferredCharge)
             self.debugView(ccdExposure, "doDeferredCharge")
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
@@ -2217,13 +2217,13 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             overscanResults = self.overscan.run(ampImage.getImage(), overscanImage, amp)
 
             # If we trimmed columns, we need to restore them.
-            if dx0 != 0 and dx1 != 0:
+            if dx0 != 0 or dx1 != 0:
                 fullOverscan = ccdExposure.maskedImage[oscanBBox]
-                overscanVector = overscanResults.overscanFit.getArray()[:, 0]
+                overscanVector = overscanResults.overscanFit.array[:, 0]
                 overscanModel = afwImage.ImageF(fullOverscan.getDimensions())
-                overscanModel.getArray()[:, :] = 0.0
-                overscanModel.getArray()[:, 0:dx0] = overscanVector[:, numpy.newaxis]
-                overscanModel.getArray()[:, dx1:] = overscanVector[:, numpy.newaxis]
+                overscanModel.array[:, :] = 0.0
+                overscanModel.array[:, 0:dx0] = overscanVector[:, numpy.newaxis]
+                overscanModel.array[:, dx1:] = overscanVector[:, numpy.newaxis]
                 fullOverscanImage = fullOverscan.getImage()
                 fullOverscanImage -= overscanModel
                 overscanResults = pipeBase.Struct(imageFit=overscanResults.imageFit,

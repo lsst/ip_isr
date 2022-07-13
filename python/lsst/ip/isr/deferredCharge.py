@@ -71,6 +71,8 @@ class SerialTrap():
             raise ValueError('Emission time must be real-valued, not NaN')
         self.emission_time = emission_time
 
+        if int(pixel) != pixel:
+            raise ValueError('Fraction value for pixel not allowed.')
         self.pixel = int(pixel)
 
         self.trap_type = trap_type
@@ -185,6 +187,8 @@ class SerialTrap():
             return self.size/(1.+np.exp(-k*(pixel_signals-f0)))
         elif self.trap_type == 'spline':
             return self.interp(pixel_signals)
+        else:
+            raise RuntimeError(f"Invalid trap capture type: {self.trap_type}.")
 
 
 class DeferredChargeCalib(IsrCalib):
@@ -248,7 +252,7 @@ class DeferredChargeCalib(IsrCalib):
         calib = cls()
 
         if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
-            raise RuntimeError(f"Incorrect CTI supplied.  Expected {calib._OBSTYPE}, "
+            raise RuntimeError(f"Incorrect CTI supplied. Expected {calib._OBSTYPE}, "
                                f"found {dictionary['metadata']['OBSTYPE']}")
 
         calib.setMetadata(dictionary['metadata'])
@@ -503,13 +507,13 @@ class DeferredChargeTask(Task):
                 if self.config.zeroUnusedPixels:
                     # We don't apply overscan subtraction, so zero these
                     # out for now.
-                    ampImage[amp.getRawParallelOverscanBBox()].getArray()[:, :] = 0.0
-                    ampImage[amp.getRawSerialPrescanBBox()].getArray()[:, :] = 0.0
+                    ampImage[amp.getRawParallelOverscanBBox()].array[:, :] = 0.0
+                    ampImage[amp.getRawSerialPrescanBBox()].array[:, :] = 0.0
 
                 # The algorithm expects that the readout corner is in
                 # the lower left corner.  Flip it to be so:
 
-                ampData = self.flipData(ampImage.getArray(), amp)
+                ampData = self.flipData(ampImage.array, amp)
 
                 if ctiCalib.driftScale[ampName] > 0.0:
                     correctedAmpData = self.local_offset_inverse(ampData,
@@ -526,7 +530,7 @@ class DeferredChargeTask(Task):
 
                 # Undo flips here.  The method is symmetric.
                 correctedAmpData = self.flipData(correctedAmpData, amp)
-                image[amp.getBBox()].getArray()[:, :] = correctedAmpData[:, :]
+                image[amp.getBBox()].array[:, :] = correctedAmpData[:, :]
 
         return exposure
 
