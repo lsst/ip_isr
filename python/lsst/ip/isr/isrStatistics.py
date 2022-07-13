@@ -40,7 +40,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         default='MEANCLIP',
         doc="Statistic name to use to measure regions.",
     )
-    clip = pexConfig.Field(
+    nSigmaClip = pexConfig.Field(
         dtype=float,
         default=3.0,
         doc="Clipping threshold for background",
@@ -68,9 +68,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
     def __init__(self, statControl=None, **kwargs):
         super().__init__(**kwargs)
-        self.allowDebug = True
-
-        self.statControl = afwMath.StatisticsControl(self.config.clip, self.config.nIter,
+        self.statControl = afwMath.StatisticsControl(self.config.nSigmaClip, self.config.nIter,
                                                      afwImage.Mask.getPlaneBitMask(self.config.badMask))
         self.statType = afwMath.stringToStatisticsProperty(self.config.stat)
 
@@ -214,8 +212,8 @@ class IsrStatisticsTask(pipeBase.Task):
                 # We want these relative to the readout corner.  If that's
                 # on the right side, we need to swap them.
                 if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                    ampStats['OVERSCAN_COLUMNS'] = np.flip(columns).tolist()
-                    ampStats['OVERSCAN_VALUES'] = np.flip(values).tolist()
+                    ampStats['OVERSCAN_COLUMNS'] = reversed(columns)
+                    ampStats['OVERSCAN_VALUES'] = reversed(values)
                 else:
                     ampStats['OVERSCAN_COLUMNS'] = columns
                     ampStats['OVERSCAN_VALUES'] = values

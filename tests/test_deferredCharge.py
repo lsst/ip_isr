@@ -29,7 +29,7 @@ from lsst.ip.isr import DeferredChargeCalib, DeferredChargeTask, SerialTrap
 class SerialTrapTestCase(lsst.utils.tests.TestCase):
     def setUp(self):
         self.nx = 64
-        self.ny = 64
+        self.ny = 128
         self.prescan = 8
         self.trapSize = 10.0
         self.trapDecay = 3.0
@@ -51,12 +51,12 @@ class SerialTrapTestCase(lsst.utils.tests.TestCase):
         # trapPixel, and introduced to all rows.
         capturedCharge = trap.trap_charge(signals)
         self.assertEqual(capturedCharge.shape, (self.ny, self.nx + self.prescan))
-        self.assertEqual(np.sum(capturedCharge), 10.0 * (self.ny))
+        self.assertEqual(np.sum(capturedCharge), self.trapSize * (self.ny))
 
         # Released charge is the amount released after one decay.
         releasedCharge = trap.release_charge()
         self.assertEqual(releasedCharge.shape, (self.ny, self.nx + self.prescan))
-        self.assertAlmostEqual(np.sum(releasedCharge), 181.41996, 4)
+        self.assertAlmostEqual(np.sum(releasedCharge), 362.839922, 4)
 
     def testTrapsLogistic(self):
         trap = SerialTrap(self.trapSize, self.trapDecay,
@@ -72,18 +72,18 @@ class SerialTrapTestCase(lsst.utils.tests.TestCase):
         # trapPixel, and introduced to all rows.
         capturedCharge = trap.trap_charge(signals)
         self.assertEqual(capturedCharge.shape, (self.ny, self.nx + self.prescan))
-        self.assertAlmostEqual(np.sum(capturedCharge), 5.237321 * (self.ny), 4)
+        self.assertAlmostEqual(np.sum(capturedCharge), 5.23732154 * (self.ny), 4)
 
         # Released charge is the amount released after one decay.
         releasedCharge = trap.release_charge()
         self.assertEqual(releasedCharge.shape, (self.ny, self.nx + self.prescan))
-        self.assertAlmostEqual(np.sum(releasedCharge), 95.015467, 4)
+        self.assertAlmostEqual(np.sum(releasedCharge), 190.030934, 4)
 
 
 class DeferredChargeTestCase(lsst.utils.tests.TestCase):
     def setUp(self):
         self.nx = 64
-        self.ny = 64
+        self.ny = 128
         self.prescan = 8
         self.overscan = 16
         self.trapSize = 10.0
@@ -126,14 +126,14 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
         corrected = task.local_offset_inverse(image, self.calib.driftScale['amp0'],
                                               self.calib.decayTime['amp0'],
                                               num_previous_pixels=15)
-        # 64*64*100 + 16*64 * ~(1 - driftScale) ~= 77
-        self.assertAlmostEqual(np.sum(corrected), 410547.255925, 5)
+        # 64*64*100 + 16*64 * ~(1 - driftScale)
+        self.assertAlmostEqual(np.sum(corrected), 821094.5118501, 5)
 
         corrected = task.local_trap_inverse(corrected, self.calib.serialTraps['amp0'],
                                             self.calib.globalCti['amp0'],
                                             num_previous_pixels=6)
         # As above + ~320 deposited in prescan
-        self.assertAlmostEqual(np.sum(corrected), 410866.615852, 5)
+        self.assertAlmostEqual(np.sum(corrected), 821733.2317048, 5)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
