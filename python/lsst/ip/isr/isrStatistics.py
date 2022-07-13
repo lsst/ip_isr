@@ -28,7 +28,7 @@ from lsst.afw.cameraGeom import ReadoutCorner
 
 
 class IsrStatisticsTaskConfig(pexConfig.Config):
-    """Overscan correction options.
+    """Image statistics options.
     """
     doCtiStatistics = pexConfig.Field(
         dtype=bool,
@@ -82,9 +82,9 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Parameters
         ----------
-        inputExp : `~lsst.afw.image.Exposure`
+        inputExp : `lsst.afw.image.Exposure`
             The exposure to measure.
-        ptc : `~lsst.ip.isr.PtcDataset`, optional
+        ptc : `lsst.ip.isr.PtcDataset`, optional
             A PTC object containing gains to use.
         overscanResults : `list` [`lsst.pipe.base.Struct`], optional
             List of overscan results.  Expected fields are:
@@ -104,8 +104,13 @@ class IsrStatisticsTask(pipeBase.Task):
         Returns
         -------
         resultStruct : `lsst.pipe.base.Struct`
-            Expected to contain the measured statistics as a dict
-            contained in a field named ``results``.
+            Contains the measured statistics as a dict stored in a
+            field named ``results``.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the amplifier gains could not be found.
         """
         # Find gains.
         detector = inputExp.getDetector()
@@ -126,7 +131,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Parameters
         ----------
-        inputExp : `~lsst.afw.image.Exposure`
+        inputExp : `lsst.afw.image.Exposure`
             Exposure to measure.
         overscans : `list` [`lsst.pipe.base.Struct`]
             List of overscan results.  Expected fields are:

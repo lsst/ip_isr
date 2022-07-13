@@ -44,11 +44,20 @@ class SerialTrap():
     emission_time : `float`
         Trap emission time constant, in inverse transfers.
     pixel : `int`
-        Serial pixel location of the trap.
+        Serial pixel location of the trap, including the prescan.
     trap_type : `str`
-        Type of trap capture to use.
+        Type of trap capture to use.  Should be one of ``linear``,
+        ``logistic``, or ``spline``.
     coeffs : `list` [`float`]
-        Coefficients for the capture process.
+        Coefficients for the capture process.  Linear traps need one
+        coefficient, logistic traps need two, and spline based traps
+        need to have an even number of coefficients that can be split
+        into their spline locations and values.
+
+    Raises
+    ------
+    ValueError
+        Raised if the specified parameters are out of expected range.
     """
 
     def __init__(self, size, emission_time, pixel, trap_type, coeffs):
@@ -162,6 +171,11 @@ class SerialTrap():
         -------
         captured_charge : `list` [`float`]
             Amount of charge captured from each pixel.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the trap type is invalid.
         """
         if self.trap_type == 'linear':
             scaling = self.coeffs[0]
@@ -174,12 +188,10 @@ class SerialTrap():
 
 
 class DeferredChargeCalib(IsrCalib):
-    """Calibration containing deferred charge/CTI parameters.
+    r"""Calibration containing deferred charge/CTI parameters.
 
     Parameters
     ----------
-    detector : `lsst.afw.cameraGeom.Detector`, optional
-        Detector to use for metadata properties.
     **kwargs :
         Additional parameters to pass to parent constructor.
 
@@ -204,7 +216,7 @@ class DeferredChargeCalib(IsrCalib):
     _SCHEMA = 'Deferred Charge'
     _VERSION = 1.0
 
-    def __init__(self, detector=None, **kwargs):
+    def __init__(self, **kwargs):
         self.driftScale = {}
         self.decayTime = {}
         self.globalCti = {}
@@ -256,7 +268,7 @@ class DeferredChargeCalib(IsrCalib):
     def toDict(self):
         """Return a dictionary containing the calibration properties.
         The dictionary should be able to be round-tripped through
-        `fromDict`.
+        ``fromDict``.
 
         Returns
         -------
@@ -286,7 +298,7 @@ class DeferredChargeCalib(IsrCalib):
     def fromTable(cls, tableList):
         """Construct calibration from a list of tables.
 
-        This method uses the `fromDict` method to create the
+        This method uses the ``fromDict`` method to create the
         calibration, after constructing an appropriate dictionary from
         the input tables.
 
@@ -300,7 +312,7 @@ class DeferredChargeCalib(IsrCalib):
 
         Returns
         -------
-        calib : `lsst.ip.isr.CrosstalkCalib`
+        calib : `lsst.ip.isr.DeferredChargeCalib`
             The calibration defined in the tables.
         """
         ampTable = tableList[0]
@@ -420,12 +432,12 @@ class DeferredChargeConfig(Config):
     """
     nPixelOffsetCorrection = Field(
         dtype=int,
-        doc="Number of prior pixels to CZW DOC.",
+        doc="Number of prior pixels to use for local offset correction.",
         default=15,
     )
     nPixelTrapCorrection = Field(
         dtype=int,
-        doc="Number of prior pixels to CZW DOC.",
+        doc="Number of prior pixels to use for trap correction.",
         default=6,
     )
     useGains = Field(
@@ -450,28 +462,33 @@ class DeferredChargeTask(Task):
     ConfigClass = DeferredChargeConfig
     _DefaultName = 'isrDeferredCharge'
 
-    def run(self, exposure, overscans, ctiCalib, gains=None):
+    def run(self, exposure, ctiCalib, gains=None):
         """Correct deferred charge/CTI issues.
 
         Parameters
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to correct the deferred charge on.
-        gains : `dict` [`str`, `float`]
-            A dictionary, keyed by amplifier name, of the gains to
-            use.  If gains is None, the nominal gains in the amplifier
-            object are used
         ctiCalib : `lsst.ip.isr.DeferredChargeCalib`
             Calibration object containing the charge transfer
             inefficiency model.
+        gains : `dict` [`str`, `float`]
+            A dictionary, keyed by amplifier name, of the gains to
+            use.  If gains is None, the nominal gains in the amplifier
+            object are used.
 
         Returns
         -------
         exposure : `lsst.afw.image.Exposure`
             The corrected exposure.
         """
-        image = exposure.getMaskedImage().getImage()
+        image = exposure.getMaskedImage().image
         detector = exposure.getDetector()
+
+        # If gains were supplied, they should be used.  If useGains is
+        # true, but no external gains were supplied, use the nominal
+        # gains listed in the detector.  Finally, if useGains is
+        # false, fake a dictionary of unit gains for ``gainContext``.
         if self.config.useGains:
             if gains is None:
                 gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
@@ -547,7 +564,7 @@ class DeferredChargeTask(Task):
 
     @staticmethod
     def local_offset_inverse(inputArr, drift_scale, decay_time, num_previous_pixels=15):
-        """Remove CTI effects from local offsets.
+        r"""Remove CTI effects from local offsets.
 
         This implements equation 10 of Snyder+21.  For an image with
         CTI, s'(m, n), the correction factor is equal to the maximum
@@ -591,7 +608,7 @@ class DeferredChargeTask(Task):
 
     @staticmethod
     def local_trap_inverse(inputArr, trap, global_cti=0.0, num_previous_pixels=6):
-        """Apply localized trapping inverse operator to pixel signals.
+        r"""Apply localized trapping inverse operator to pixel signals.
 
         This implements equation 13 of Snyder+21.  For an image with
         CTI, s'(m, n), the correction factor is equal to the maximum
