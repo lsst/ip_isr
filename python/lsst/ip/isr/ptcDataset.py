@@ -494,7 +494,11 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['photoCharge'][ampName] = record['PHOTO_CHARGE']
             if calibVersion == 1.0:
                 mask = record['FINAL_MEANS'].mask
-                inDict['ptcTurnoff'][ampName] = record['FINAL_MEANS'][~mask][-1]
+                array = record['FINAL_MEANS'][~mask]
+                if len(array) > 0:
+                    inDict['ptcTurnoff'][ampName] = record['FINAL_MEANS'][~mask][-1]
+                else:
+                    inDict['ptcTurnoff'][ampName] = np.nan
             else:
                 inDict['ptcTurnoff'][ampName] = record['PTC_TURNOFF']
         return cls().fromDict(inDict)
