@@ -77,6 +77,9 @@ class SerialTrap():
         self.trap_type = trap_type
         self.coeffs = coeffs
 
+        if self.trap_type not in ('linear', 'logistic', 'spline'):
+            raise ValueError('Unknown trap type: %s', self.trap_type)
+
         if self.trap_type == 'spline':
             centers, values = np.split(np.array(self.coeffs), 2)
             self.interp = interp.interp1d(centers, values)
@@ -361,6 +364,21 @@ class DeferredChargeCalib(IsrCalib):
             ampTrap['trap_type'] = trap_type[index]
             ampTrap['coeffs'] = np.array(coeffs[index])[~np.isnan(coeffs[index])].tolist()
 
+            if ampTrap['trap_type'] == 'linear':
+                if len(ampTrap['coeffs']) < 1:
+                    raise ValueError("CTI Amplifier %s coefficients for trap has illegal length %d.",
+                                     amp, len(ampTrap['coeffs']))
+            elif ampTrap['trap_type'] == 'logistic':
+                if len(ampTrap['coeffs']) < 2:
+                    raise ValueError("CTI Amplifier %s coefficients for trap has illegal length %d.",
+                                     amp, len(ampTrap['coeffs']))
+            elif ampTrap['trap_type'] == 'spline':
+                if len(ampTrap['coeffs']) % 2 != 0:
+                    raise ValueError("CTI Amplifier %s coefficients for trap has illegal length %d.",
+                                     amp, len(ampTrap['coeffs']))
+            else:
+                raise ValueError('Unknown trap type: %s', ampTrap['trap_type'])
+
             inDict['serialTraps'][amp] = ampTrap
 
         return cls.fromDict(inDict)
@@ -506,10 +524,8 @@ class DeferredChargeTask(Task):
         if self.config.useGains:
             if gains is None:
                 gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
-        else:
-            gains = {amp.getName(): 1.0 for amp in detector.getAmplifiers()}
 
-        with gainContext(exposure, image, True, gains):
+        with gainContext(exposure, image, self.config.useGains, gains):
             for amp in detector.getAmplifiers():
                 ampName = amp.getName()
 
