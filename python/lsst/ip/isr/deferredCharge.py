@@ -21,7 +21,6 @@
 import numpy as np
 from astropy.table import Table
 
-# import lsst.afw.math as afwMath
 from lsst.afw.cameraGeom import ReadoutCorner
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
@@ -120,6 +119,11 @@ class SerialTrap():
             Number of columns to simulate.
         prescan_width : `int`
             Additional transfers due to prescan.
+
+        Raises
+        ------
+        ValueError
+            Raised if the trap falls outside of the image.
         """
         if self.pixel > nx+prescan_width:
             raise ValueError('Trap location {0} must be less than {1}'.format(self.pixel,
@@ -318,6 +322,12 @@ class DeferredChargeCalib(IsrCalib):
         -------
         calib : `lsst.ip.isr.DeferredChargeCalib`
             The calibration defined in the tables.
+
+        Raises
+        ------
+        ValueError
+            Raised if the trap type or trap coefficients are not
+            defined properly.
         """
         ampTable = tableList[0]
 

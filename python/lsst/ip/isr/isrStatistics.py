@@ -64,7 +64,7 @@ class IsrStatisticsTask(pipeBase.Task):
     useful for calibration production and detector stability.
     """
     ConfigClass = IsrStatisticsTaskConfig
-    _DefaultName = "isrStats"
+    _DefaultName = "isrStatistics"
 
     def __init__(self, statControl=None, **kwargs):
         super().__init__(**kwargs)
@@ -196,6 +196,8 @@ class IsrStatisticsTask(pipeBase.Task):
             if overscans[ampIter] is None:
                 # The amplifier is likely entirely bad, and needs to
                 # be skipped.
+                self.log.warn("No overscan information available for ISR statistics for amp %s.",
+                              amp.getName())
                 nCols = amp.getSerialOverscanBBox().getWidth()
                 ampStats['OVERSCAN_COLUMNS'] = np.full((nCols, ), np.nan)
                 ampStats['OVERSCAN_VALUES'] = np.full((nCols, ), np.nan)

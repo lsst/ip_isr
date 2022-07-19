@@ -126,7 +126,7 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
         corrected = task.local_offset_inverse(image, self.calib.driftScale['amp0'],
                                               self.calib.decayTime['amp0'],
                                               num_previous_pixels=15)
-        # 64*64*100 + 16*64 * ~(1 - driftScale)
+        # 64*128*100 + 16*64 * ~(1 - driftScale)
         self.assertAlmostEqual(np.sum(corrected), 821094.5118501, 5)
 
         corrected = task.local_trap_inverse(corrected, self.calib.serialTraps['amp0'],
