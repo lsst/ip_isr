@@ -161,7 +161,6 @@ class PhotonTransferCurveDataset(IsrCalib):
     _VERSION = 1.1
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
-
         self.ptcFitType = ptcFitType
         self.ampNames = ampNames
         self.covMatrixSide = covMatrixSide
@@ -205,6 +204,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
                                         'photoCharge'])
+
+        self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
 
     def setAmpValues(self, ampName, inputExpIdPair=[(np.nan, np.nan)], expIdMask=[np.nan],
                      rawExpTime=[np.nan], rawMean=[np.nan], rawVar=[np.nan], photoCharge=[np.nan],
@@ -262,7 +263,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.finalModelVars[ampName] = finalModelVar
         self.finalMeans[ampName] = finalMean
 
-    def updateMetadata(self, setDate=False, **kwargs):
+    def updateMetadata(self, **kwargs):
         """Update calibration metadata.
         This calls the base class's method after ensuring the required
         calibration keywords will be saved.
@@ -274,9 +275,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         kwargs :
             Other keyword parameters to set in the metadata.
         """
-        kwargs['PTC_FIT_TYPE'] = self.ptcFitType
-
-        super().updateMetadata(setDate=setDate, **kwargs)
+        super().updateMetadata(PTC_FIT_TYPE=self.ptcFitType, **kwargs)
 
     @classmethod
     def fromDict(cls, dictionary):
@@ -304,6 +303,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.ptcFitType = dictionary['ptcFitType']
         calib.covMatrixSide = dictionary['covMatrixSide']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
+
         # The cov matrices are square
         covMatrixSide = calib.covMatrixSide
         # Number of final signal levels
@@ -586,6 +586,22 @@ class PhotonTransferCurveDataset(IsrCalib):
         tableList.append(catalog)
 
         return(tableList)
+
+    def fromDetector(self, detector):
+        """Read metadata parameters from a detector.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.detector`
+            Input detector with parameters to use.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.Linearizer`
+            The calibration constructed from the detector.
+        """
+
+        pass
 
     def getExpIdsUsed(self, ampName):
         """Get the exposures used, i.e. not discarded, for a given amp.
