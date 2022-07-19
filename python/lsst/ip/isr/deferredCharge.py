@@ -236,6 +236,22 @@ class DeferredChargeCalib(IsrCalib):
         super().__init__(**kwargs)
         self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps'])
 
+    def fromDetector(self, detector):
+        """Read metadata parameters from a detector.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.detector`
+            Input detector with parameters to use.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.Linearizer`
+            The calibration constructed from the detector.
+        """
+
+        pass
+
     @classmethod
     def fromDict(cls, dictionary):
         """Construct a calibration from a dictionary of properties.
