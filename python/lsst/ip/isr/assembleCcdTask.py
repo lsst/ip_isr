@@ -44,7 +44,7 @@ class AssembleCcdConfig(pexConfig.Config):
 
 ## @addtogroup LSST_task_documentation
 ## @{
-## @page AssembleCcdTask
+## @page page_AssembleCcdTask AssembleCcdTask
 ## @ref AssembleCcdTask_ "AssembleCcdTask"
 ## @copybrief AssembleCcdTask
 ## @}
@@ -79,7 +79,7 @@ class AssembleCcdTask(pipeBase.Task):
 
     @section ip_isr_assemble_Initialize Task initialization
 
-    @copydoc \_\_init\_\_
+    @copydoc __init__
 
     @section ip_isr_assemble_IO Inputs/Outputs to the assembleCcd method
 
@@ -91,8 +91,7 @@ class AssembleCcdTask(pipeBase.Task):
 
     @section ip_isr_assemble_Debug Debug variables
 
-    The @link lsst.pipe.base.cmdLineTask.CmdLineTask command line task@endlink
-    interface supports a flag @c -d to import @b debug.py from your
+    The command line task interface supports a flag @c -d to import @b debug.py from your
     @c PYTHONPATH; see <a
     href="https://developer.lsst.io/stack/debug.html">Debugging Tasks with
     lsstDebug</a> for more about @b debug.py files.
