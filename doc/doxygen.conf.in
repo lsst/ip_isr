@@ -1,1 +1,1 @@
-EXAMPLE_PATH = examples python/lsst/ip/isr
+# Empty file needed by build system, see DM-35793.
