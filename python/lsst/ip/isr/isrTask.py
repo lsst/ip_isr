@@ -53,6 +53,8 @@ from .overscan import OverscanCorrectionTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
 from .ampOffset import AmpOffsetTask
+from .deferredCharge import DeferredChargeTask
+from .isrStatistics import IsrStatisticsTask
 from lsst.daf.butler import DimensionGraph
 
 
@@ -241,6 +243,13 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "physical_filter", "detector"],
         isCalibration=True,
     )
+    deferredChargeCalib = cT.PrerequisiteInput(
+        name="deferredCharge",
+        doc="Deferred charge/CTI correction dataset.",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
 
     outputExposure = cT.Output(
         name='postISRCCD',
@@ -264,6 +273,12 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         name="FlattenedThumb",
         doc="Output flat-corrected thumbnail image.",
         storageClass="Thumbnail",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+    outputStatistics = cT.Output(
+        name="isrStatistics",
+        doc="Output of additional statistics table.",
+        storageClass="StructuredDataDict",
         dimensions=["instrument", "exposure", "detector"],
     )
 
@@ -308,18 +323,24 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
                 self.prerequisiteInputs.remove("atmosphereTransmission")
         if config.doIlluminationCorrection is not True:
             self.prerequisiteInputs.remove("illumMaskedImage")
+        if config.doDeferredCharge is not True:
+            self.prerequisiteInputs.remove("deferredChargeCalib")
 
         if config.doWrite is not True:
             self.outputs.remove("outputExposure")
             self.outputs.remove("preInterpExposure")
             self.outputs.remove("outputFlattenedThumbnail")
             self.outputs.remove("outputOssThumbnail")
+            self.outputs.remove("outputStatistics")
+
         if config.doSaveInterpPixels is not True:
             self.outputs.remove("preInterpExposure")
         if config.qa.doThumbnailOss is not True:
             self.outputs.remove("outputOssThumbnail")
         if config.qa.doThumbnailFlattened is not True:
             self.outputs.remove("outputFlattenedThumbnail")
+        if config.doCalculateStatistics is not True:
+            self.outputs.remove("outputStatistics")
 
 
 class IsrTaskConfig(pipeBase.PipelineTaskConfig,
@@ -561,6 +582,17 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         dtype=bool,
         doc="Reverse order of overscan and bias correction.",
         default=False
+    )
+
+    # Deferred charge correction.
+    doDeferredCharge = pexConfig.Field(
+        dtype=bool,
+        doc="Apply deferred charge correction?",
+        default=False,
+    )
+    deferredChargeCorrection = pexConfig.ConfigurableField(
+        target=DeferredChargeTask,
+        doc="Deferred charge correction task.",
     )
 
     # Variance construction
@@ -928,6 +960,17 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Only perform illumination correction for these filters."
     )
 
+    # Calculate additional statistics?
+    doCalculateStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Should additional ISR statistics be calculated?",
+        default=False,
+    )
+    isrStats = pexConfig.ConfigurableField(
+        target=IsrStatisticsTask,
+        doc="Task to calculate additional statistics.",
+    )
+
     # Write the outputs to disk. If ISR is run as a subtask, this may not
     # be needed.
     doWrite = pexConfig.Field(
@@ -993,6 +1036,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         self.makeSubtask("overscan")
         self.makeSubtask("vignette")
         self.makeSubtask("ampOffset")
+        self.makeSubtask("deferredChargeCorrection")
+        self.makeSubtask("isrStats")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
         inputs = butlerQC.get(inputRefs)
@@ -1279,7 +1324,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
-            isGen3=False,
+            deferredCharge=None, isGen3=False,
             ):
         """Perform instrument signature removal on an exposure.
 
@@ -1373,6 +1418,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 Thumbnail image of the exposure after overscan subtraction.
             - ``flattenedThumb`` : `numpy.ndarray`
                 Thumbnail image of the exposure after flat-field correction.
+            - ``outputStatistics`` : ``
+                Values of the additional statistics calculated.
 
         Raises
         ------
@@ -1448,6 +1495,8 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters
                 and illumMaskedImage is None):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
+        if (self.config.doDeferredCharge and deferredCharge is None):
+            raise RuntimeError("Must supply a deferred charge calibration if config.doDeferredCharge=True.")
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1510,6 +1559,11 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                 overscans.append(overscanResults if overscanResults is not None else None)
             else:
                 self.log.info("Skipped OSCAN for %s.", amp.getName())
+
+        if self.config.doDeferredCharge:
+            self.log.info("Applying deferred charge/CTI correction.")
+            self.deferredChargeCorrection.run(ccdExposure, deferredCharge)
+            self.debugView(ccdExposure, "doDeferredCharge")
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
@@ -1767,6 +1821,12 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                    qaStats.getValue(afwMath.STDEVCLIP))
 
+        # calculate additional statistics.
+        outputStatistics = None
+        if self.config.doCalculateStatistics:
+            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
+                                                 ptc=ptc).results
+
         self.debugView(ccdExposure, "postISRCCD")
 
         return pipeBase.Struct(
@@ -1778,6 +1838,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             outputExposure=ccdExposure,
             outputOssThumbnail=ossThumb,
             outputFlattenedThumbnail=flattenedThumb,
+            outputStatistics=outputStatistics,
         )
 
     @timeMethod
@@ -2154,6 +2215,21 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
 
             overscanResults = self.overscan.run(ampImage.getImage(), overscanImage, amp)
+
+            # If we trimmed columns, we need to restore them.
+            if dx0 != 0 or dx1 != 0:
+                fullOverscan = ccdExposure.maskedImage[oscanBBox]
+                overscanVector = overscanResults.overscanFit.array[:, 0]
+                overscanModel = afwImage.ImageF(fullOverscan.getDimensions())
+                overscanModel.array[:, :] = 0.0
+                overscanModel.array[:, 0:dx0] = overscanVector[:, numpy.newaxis]
+                overscanModel.array[:, dx1:] = overscanVector[:, numpy.newaxis]
+                fullOverscanImage = fullOverscan.getImage()
+                fullOverscanImage -= overscanModel
+                overscanResults = pipeBase.Struct(imageFit=overscanResults.imageFit,
+                                                  overscanFit=overscanModel,
+                                                  overscanImage=fullOverscan,
+                                                  edgeMask=overscanResults.edgeMask)
 
             # Measure average overscan levels and record them in the metadata.
             levelStat = afwMath.MEDIAN
