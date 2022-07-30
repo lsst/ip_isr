@@ -34,8 +34,6 @@ from lsstDebug import getDebugFrame
 
 from lsst.afw.cameraGeom import NullLinearityType, ReadoutCorner
 from lsst.afw.display import getDisplay
-from lsst.daf.persistence import ButlerDataRef
-from lsst.daf.persistence.butler import NoResults
 from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.utils.timer import timeMethod
 
@@ -58,7 +56,7 @@ from .isrStatistics import IsrStatisticsTask
 from lsst.daf.butler import DimensionGraph
 
 
-__all__ = ["IsrTask", "IsrTaskConfig", "RunIsrTask", "RunIsrConfig"]
+__all__ = ["IsrTask", "IsrTaskConfig"]
 
 
 def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
@@ -993,7 +991,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             self.maskListToInterpolate.append("UNMASKEDNAN")
 
 
-class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
+class IsrTask(pipeBase.PipelineTask):
     """Apply common instrument signature correction algorithms to a raw frame.
 
     The process for correcting imaging data is very similar from
@@ -1003,13 +1001,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
     method, `run()`, are a raw exposure to be corrected and the
     calibration data products. The raw input is a single chip sized
     mosaic of all amps including overscans and other non-science
-    pixels.  The method `runDataRef()` identifies and defines the
-    calibration data products, and is intended for use by a
-    `lsst.pipe.base.cmdLineTask.CmdLineTask` and takes as input only a
-    `daf.persistence.butlerSubset.ButlerDataRef`.  This task may be
-    subclassed for different camera, although the most camera specific
-    methods have been split into subtasks that can be redirected
-    appropriately.
+    pixels.
 
     The __init__ method sets up the subtasks for ISR processing, using
     the defaults from `lsst.ip.isr`.
@@ -1047,8 +1039,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         except Exception as e:
             raise ValueError("Failure to find valid detectorNum value for Dataset %s: %s." %
                              (inputRefs, e))
-
-        inputs['isGen3'] = True
 
         detector = inputs['ccdExposure'].getDetector()
 
@@ -1138,185 +1128,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
 
-    def readIsrData(self, dataRef, rawExposure):
-        """Retrieve necessary frames for instrument signature removal.
-
-        Pre-fetching all required ISR data products limits the IO
-        required by the ISR. Any conflict between the calibration data
-        available and that needed for ISR is also detected prior to
-        doing processing, allowing it to fail quickly.
-
-        Parameters
-        ----------
-        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
-            Butler reference of the detector data to be processed
-        rawExposure : `afw.image.Exposure`
-            The raw exposure that will later be corrected with the
-            retrieved calibration data; should not be modified in this
-            method.
-
-        Returns
-        -------
-        result : `lsst.pipe.base.Struct`
-            Result struct with components (which may be `None`):
-            - ``bias``: bias calibration frame (`afw.image.Exposure`)
-            - ``linearizer``: functor for linearization
-                (`ip.isr.linearize.LinearizeBase`)
-            - ``crosstalkSources``: list of possible crosstalk sources (`list`)
-            - ``dark``: dark calibration frame (`afw.image.Exposure`)
-            - ``flat``: flat calibration frame (`afw.image.Exposure`)
-            - ``bfKernel``: Brighter-Fatter kernel (`numpy.ndarray`)
-            - ``defects``: list of defects (`lsst.ip.isr.Defects`)
-            - ``fringes``: `lsst.pipe.base.Struct` with components:
-              - ``fringes``: fringe calibration frame (`afw.image.Exposure`)
-              - ``seed``: random seed derived from the ccdExposureId for random
-                  number generator (`uint32`).
-            - ``opticsTransmission``: `lsst.afw.image.TransmissionCurve`
-                A ``TransmissionCurve`` that represents the throughput of the
-                optics, to be evaluated in focal-plane coordinates.
-            - ``filterTransmission`` : `lsst.afw.image.TransmissionCurve`
-                A ``TransmissionCurve`` that represents the throughput of the
-                filter itself, to be evaluated in focal-plane coordinates.
-            - ``sensorTransmission`` : `lsst.afw.image.TransmissionCurve`
-                A ``TransmissionCurve`` that represents the throughput of the
-                sensor itself, to be evaluated in post-assembly trimmed
-                detector coordinates.
-            - ``atmosphereTransmission`` : `lsst.afw.image.TransmissionCurve`
-                A ``TransmissionCurve`` that represents the throughput of the
-                atmosphere, assumed to be spatially constant.
-            - ``strayLightData`` : `object`
-                An opaque object containing calibration information for
-                stray-light correction.  If `None`, no correction will be
-                performed.
-            - ``illumMaskedImage`` : illumination correction image
-                (`lsst.afw.image.MaskedImage`)
-
-        Raises
-        ------
-        NotImplementedError :
-            Raised if a per-amplifier brighter-fatter kernel is requested by
-            the configuration.
-        """
-        try:
-            dateObs = rawExposure.getInfo().getVisitInfo().getDate()
-            dateObs = dateObs.toPython().isoformat()
-        except RuntimeError:
-            self.log.warning("Unable to identify dateObs for rawExposure.")
-            dateObs = None
-
-        ccd = rawExposure.getDetector()
-        filterLabel = rawExposure.getFilter()
-        physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
-        rawExposure.mask.addMaskPlane("UNMASKEDNAN")  # needed to match pre DM-15862 processing.
-        biasExposure = (self.getIsrExposure(dataRef, self.config.biasDataProductName)
-                        if self.config.doBias else None)
-        # immediate=True required for functors and linearizers are functors
-        # see ticket DM-6515
-        linearizer = (dataRef.get("linearizer", immediate=True)
-                      if self.doLinearize(ccd) else None)
-        if linearizer is not None and not isinstance(linearizer, numpy.ndarray):
-            linearizer.log = self.log
-        if isinstance(linearizer, numpy.ndarray):
-            linearizer = linearize.Linearizer(table=linearizer, detector=ccd)
-
-        crosstalkCalib = None
-        if self.config.doCrosstalk:
-            try:
-                crosstalkCalib = dataRef.get("crosstalk", immediate=True)
-            except NoResults:
-                coeffVector = (self.config.crosstalk.crosstalkValues
-                               if self.config.crosstalk.useConfigCoefficients else None)
-                crosstalkCalib = CrosstalkCalib().fromDetector(ccd, coeffVector=coeffVector)
-        crosstalkSources = (self.crosstalk.prepCrosstalk(dataRef, crosstalkCalib)
-                            if self.config.doCrosstalk else None)
-
-        darkExposure = (self.getIsrExposure(dataRef, self.config.darkDataProductName)
-                        if self.config.doDark else None)
-        flatExposure = (self.getIsrExposure(dataRef, self.config.flatDataProductName,
-                                            dateObs=dateObs)
-                        if self.config.doFlat else None)
-
-        brighterFatterKernel = None
-        brighterFatterGains = None
-        if self.config.doBrighterFatter is True:
-            try:
-                # Use the new-style cp_pipe version of the kernel if it exists
-                # If using a new-style kernel, always use the self-consistent
-                # gains, i.e. the ones inside the kernel object itself
-                brighterFatterKernel = dataRef.get("brighterFatterKernel")
-                brighterFatterGains = brighterFatterKernel.gain
-                self.log.info("New style brighter-fatter kernel (brighterFatterKernel) loaded")
-            except NoResults:
-                try:  # Fall back to the old-style numpy-ndarray style kernel if necessary.
-                    brighterFatterKernel = dataRef.get("bfKernel")
-                    self.log.info("Old style brighter-fatter kernel (bfKernel) loaded")
-                except NoResults:
-                    brighterFatterKernel = None
-            if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
-                # If the kernel is not an ndarray, it's the cp_pipe version
-                # so extract the kernel for this detector, or raise an error
-                if self.config.brighterFatterLevel == 'DETECTOR':
-                    if brighterFatterKernel.detKernels:
-                        brighterFatterKernel = brighterFatterKernel.detKernels[ccd.getName()]
-                    else:
-                        raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
-                else:
-                    # TODO DM-15631 for implementing this
-                    raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
-
-        defectList = (dataRef.get("defects")
-                      if self.config.doDefect else None)
-        expId = rawExposure.info.id
-        fringeStruct = (self.fringe.readFringes(dataRef, expId=expId, assembler=self.assembleCcd
-                                                if self.config.doAssembleIsrExposures else None)
-                        if self.config.doFringe and self.fringe.checkFilter(rawExposure)
-                        else pipeBase.Struct(fringes=None))
-
-        if self.config.doAttachTransmissionCurve:
-            opticsTransmission = (dataRef.get("transmission_optics")
-                                  if self.config.doUseOpticsTransmission else None)
-            filterTransmission = (dataRef.get("transmission_filter")
-                                  if self.config.doUseFilterTransmission else None)
-            sensorTransmission = (dataRef.get("transmission_sensor")
-                                  if self.config.doUseSensorTransmission else None)
-            atmosphereTransmission = (dataRef.get("transmission_atmosphere")
-                                      if self.config.doUseAtmosphereTransmission else None)
-        else:
-            opticsTransmission = None
-            filterTransmission = None
-            sensorTransmission = None
-            atmosphereTransmission = None
-
-        if self.config.doStrayLight:
-            strayLightData = self.strayLight.readIsrData(dataRef, rawExposure)
-        else:
-            strayLightData = None
-
-        illumMaskedImage = (self.getIsrExposure(dataRef,
-                            self.config.illuminationCorrectionDataProductName).getMaskedImage()
-                            if (self.config.doIlluminationCorrection
-                                and physicalFilter in self.config.illumFilters)
-                            else None)
-
-        # Struct should include only kwargs to run()
-        return pipeBase.Struct(bias=biasExposure,
-                               linearizer=linearizer,
-                               crosstalk=crosstalkCalib,
-                               crosstalkSources=crosstalkSources,
-                               dark=darkExposure,
-                               flat=flatExposure,
-                               bfKernel=brighterFatterKernel,
-                               bfGains=brighterFatterGains,
-                               defects=defectList,
-                               fringes=fringeStruct,
-                               opticsTransmission=opticsTransmission,
-                               filterTransmission=filterTransmission,
-                               sensorTransmission=sensorTransmission,
-                               atmosphereTransmission=atmosphereTransmission,
-                               strayLightData=strayLightData,
-                               illumMaskedImage=illumMaskedImage
-                               )
-
     @timeMethod
     def run(self, ccdExposure, *, camera=None, bias=None, linearizer=None,
             crosstalk=None, crosstalkSources=None,
@@ -1324,7 +1135,7 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
-            deferredCharge=None, isGen3=False,
+            deferredCharge=None,
             ):
         """Perform instrument signature removal on an exposure.
 
@@ -1398,8 +1209,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             atmosphere, assumed to be spatially constant.
         detectorNum : `int`, optional
             The integer number for the detector to process.
-        isGen3 : bool, optional
-            Flag this call to run() as using the Gen3 butler environment.
         strayLightData : `object`, optional
             Opaque object containing calibration information for stray-light
             correction.  If `None`, no correction will be performed.
@@ -1451,18 +1260,10 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
 
         """
 
-        if isGen3 is True:
-            # Gen3 currently cannot automatically do configuration overrides.
-            # DM-15257 looks to discuss this issue.
-            # Configure input exposures;
-
-            ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
-            bias = self.ensureExposure(bias, camera, detectorNum)
-            dark = self.ensureExposure(dark, camera, detectorNum)
-            flat = self.ensureExposure(flat, camera, detectorNum)
-        else:
-            if isinstance(ccdExposure, ButlerDataRef):
-                return self.runDataRef(ccdExposure)
+        ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
+        bias = self.ensureExposure(bias, camera, detectorNum)
+        dark = self.ensureExposure(dark, camera, detectorNum)
+        flat = self.ensureExposure(flat, camera, detectorNum)
 
         ccd = ccdExposure.getDetector()
         filterLabel = ccdExposure.getFilter()
@@ -1840,106 +1641,6 @@ class IsrTask(pipeBase.PipelineTask, pipeBase.CmdLineTask):
             outputFlattenedThumbnail=flattenedThumb,
             outputStatistics=outputStatistics,
         )
-
-    @timeMethod
-    def runDataRef(self, sensorRef):
-        """Perform instrument signature removal on a ButlerDataRef of a Sensor.
-
-        This method contains the `CmdLineTask` interface to the ISR
-        processing.  All IO is handled here, freeing the `run()` method
-        to manage only pixel-level calculations.  The steps performed
-        are:
-        - Read in necessary detrending/isr/calibration data.
-        - Process raw exposure in `run()`.
-        - Persist the ISR-corrected exposure as "postISRCCD" if
-          config.doWrite=True.
-
-        Parameters
-        ----------
-        sensorRef : `daf.persistence.butlerSubset.ButlerDataRef`
-            DataRef of the detector data to be processed
-
-        Returns
-        -------
-        result : `lsst.pipe.base.Struct`
-            Result struct with component:
-            - ``exposure`` : `afw.image.Exposure`
-                The fully ISR corrected exposure.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if a configuration option is set to True, but the
-            required calibration data does not exist.
-
-        """
-        self.log.info("Performing ISR on sensor %s.", sensorRef.dataId)
-
-        ccdExposure = sensorRef.get(self.config.datasetType)
-
-        camera = sensorRef.get("camera")
-        isrData = self.readIsrData(sensorRef, ccdExposure)
-
-        result = self.run(ccdExposure, camera=camera, **isrData.getDict())
-
-        if self.config.doWrite:
-            sensorRef.put(result.exposure, "postISRCCD")
-            if result.preInterpExposure is not None:
-                sensorRef.put(result.preInterpExposure, "postISRCCD_uninterpolated")
-        if result.ossThumb is not None:
-            isrQa.writeThumbnail(sensorRef, result.ossThumb, "ossThumb")
-        if result.flattenedThumb is not None:
-            isrQa.writeThumbnail(sensorRef, result.flattenedThumb, "flattenedThumb")
-
-        return result
-
-    def getIsrExposure(self, dataRef, datasetType, dateObs=None, immediate=True):
-        """Retrieve a calibration dataset for removing instrument signature.
-
-        Parameters
-        ----------
-
-        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
-            DataRef of the detector data to find calibration datasets
-            for.
-        datasetType : `str`
-            Type of dataset to retrieve (e.g. 'bias', 'flat', etc).
-        dateObs : `str`, optional
-            Date of the observation.  Used to correct butler failures
-            when using fallback filters.
-        immediate : `Bool`
-            If True, disable butler proxies to enable error handling
-            within this routine.
-
-        Returns
-        -------
-        exposure : `lsst.afw.image.Exposure`
-            Requested calibration frame.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if no matching calibration frame can be found.
-        """
-        try:
-            exp = dataRef.get(datasetType, immediate=immediate)
-        except Exception as exc1:
-            if not self.config.fallbackFilterName:
-                raise RuntimeError("Unable to retrieve %s for %s: %s." % (datasetType, dataRef.dataId, exc1))
-            try:
-                if self.config.useFallbackDate and dateObs:
-                    exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName,
-                                      dateObs=dateObs, immediate=immediate)
-                else:
-                    exp = dataRef.get(datasetType, filter=self.config.fallbackFilterName, immediate=immediate)
-            except Exception as exc2:
-                raise RuntimeError("Unable to retrieve %s for %s, even with fallback filter %s: %s AND %s." %
-                                   (datasetType, dataRef.dataId, self.config.fallbackFilterName, exc1, exc2))
-            self.log.warning("Using fallback calibration from filter %s.", self.config.fallbackFilterName)
-
-        if self.config.doAssembleIsrExposures:
-            exp = self.assembleCcd.assembleCcd(exp)
-        return exp
 
     def ensureExposure(self, inputExp, camera=None, detectorNum=None):
         """Ensure that the data returned by Butler is a fully constructed exp.
@@ -2826,43 +2527,3 @@ class FakeAmp(object):
 
     def getSuspectLevel(self):
         return float("NaN")
-
-
-class RunIsrConfig(pexConfig.Config):
-    isr = pexConfig.ConfigurableField(target=IsrTask, doc="Instrument signature removal")
-
-
-class RunIsrTask(pipeBase.CmdLineTask):
-    """Task to wrap the default IsrTask to allow it to be retargeted.
-
-    The standard IsrTask can be called directly from a command line
-    program, but doing so removes the ability of the task to be
-    retargeted.  As most cameras override some set of the IsrTask
-    methods, this would remove those data-specific methods in the
-    output post-ISR images.  This wrapping class fixes the issue,
-    allowing identical post-ISR images to be generated by both the
-    processCcd and isrTask code.
-    """
-    ConfigClass = RunIsrConfig
-    _DefaultName = "runIsr"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.makeSubtask("isr")
-
-    def runDataRef(self, dataRef):
-        """
-        Parameters
-        ----------
-        dataRef : `lsst.daf.persistence.ButlerDataRef`
-            data reference of the detector data to be processed
-
-        Returns
-        -------
-        result : `pipeBase.Struct`
-            Result struct with component:
-
-            - exposure : `lsst.afw.image.Exposure`
-                Post-ISR processed exposure.
-        """
-        return self.isr.runDataRef(dataRef)

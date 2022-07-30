@@ -109,22 +109,6 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
             self.assertIsNotNone(results.sensorTransmission)
             self.assertIsNotNone(results.atmosphereTransmission)
 
-    def test_readIsrData_noTrans(self):
-        """Test that all necessary calibration frames are retrieved.
-        """
-        self.config.doAttachTransmissionCurve = False
-        self.task = IsrTask(config=self.config)
-        results = self.task.readIsrData(self.dataRef, self.inputExp)
-        self.validateIsrData(results)
-
-    def test_readIsrData_withTrans(self):
-        """Test that all necessary calibration frames are retrieved.
-        """
-        self.config.doAttachTransmissionCurve = True
-        self.task = IsrTask(config=self.config)
-        results = self.task.readIsrData(self.dataRef, self.inputExp)
-        self.validateIsrData(results)
-
     def test_ensureExposure(self):
         """Test that an exposure has a usable instance class.
         """
@@ -355,17 +339,6 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
 
         statAfter = computeImageMedianAndStd(self.inputExp.image[self.amp.getRawDataBBox()])
         self.assertLess(statAfter[0], statBefore[0])
-
-    def test_runDataRef(self):
-        """Expect a dataRef to be handled correctly.
-        """
-        self.config.doLinearize = False
-        self.config.doWrite = False
-        self.task = IsrTask(config=self.config)
-        results = self.task.runDataRef(self.dataRef)
-
-        self.assertIsInstance(results, Struct)
-        self.assertIsInstance(results.exposure, afwImage.Exposure)
 
     def test_run_allTrue(self):
         """Expect successful run with expected outputs when all non-exclusive
