@@ -80,42 +80,6 @@ class FringeTask(Task):
     ConfigClass = FringeConfig
     _DefaultName = 'isrFringe'
 
-    def readFringes(self, dataRef, expId=None, assembler=None):
-        """Read the fringe frame(s), and pack data into a Struct
-
-        The current implementation assumes only a single fringe frame and
-        will have to be updated to support multi-mode fringe subtraction.
-
-        This implementation could be optimised by persisting the fringe
-        positions and fluxes.
-
-        Parameters
-        ----------
-        dataRef : `daf.butler.butlerSubset.ButlerDataRef`
-            Butler reference for the exposure that will have fringing
-            removed.
-        expId : `int`, optional
-            Exposure id to be fringe corrected, used to set RNG seed.
-        assembler : `lsst.ip.isr.AssembleCcdTask`, optional
-            An instance of AssembleCcdTask (for assembling fringe
-            frames).
-
-        Returns
-        -------
-        fringeData : `pipeBase.Struct`
-            Struct containing fringe data:
-            - ``fringes`` : `lsst.afw.image.Exposure` or `list` thereof
-                Calibration fringe files containing master fringe frames.
-            - ``seed`` : `int`, optional
-                Seed for random number generation.
-        """
-        try:
-            fringe = dataRef.get("fringe", immediate=True)
-        except Exception as e:
-            raise RuntimeError("Unable to retrieve fringe for %s: %s" % (dataRef.dataId, e))
-
-        return self.loadFringes(fringe, expId=expId, assembler=assembler)
-
     def loadFringes(self, fringeExp, expId=None, assembler=None):
         """Pack the fringe data into a Struct.
 
@@ -211,38 +175,6 @@ class FringeTask(Task):
         if display:
             afwDisplay.Display(frame=getFrame()).mtv(exposure, title="Fringe subtracted")
         return solution, rms
-
-    @timeMethod
-    def runDataRef(self, exposure, dataRef, assembler=None):
-        """Remove fringes from the provided science exposure.
-
-        Retrieve fringes from butler dataRef provided and remove from
-        provided science exposure. Fringes are only subtracted if the
-        science exposure has a filter listed in the configuration.
-
-        Parameters
-        ----------
-        exposure : `lsst.afw.image.Exposure`
-            Science exposure from which to remove fringes.
-        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
-            Butler reference to the exposure.  Used to find
-            appropriate fringe data.
-        assembler : `lsst.ip.isr.AssembleCcdTask`, optional
-            An instance of AssembleCcdTask (for assembling fringe
-            frames).
-
-        Returns
-        -------
-        solution : `np.array`
-            Fringe solution amplitudes for each input fringe frame.
-        rms : `float`
-            RMS error for the fit solution for this exposure.
-        """
-        if not self.checkFilter(exposure):
-            self.log.info("Filter not found in FringeTaskConfig.filters. Skipping fringe correction.")
-            return
-        fringeStruct = self.readFringes(dataRef, assembler=assembler)
-        return self.run(exposure, **fringeStruct.getDict())
 
     def checkFilter(self, exposure):
         """Check whether we should fringe-subtract the science exposure.
