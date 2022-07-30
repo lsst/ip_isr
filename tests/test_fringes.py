@@ -26,7 +26,7 @@ import numpy as np
 import lsst.utils.tests
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
-import lsst.pipe.base as pipeBase
+
 from lsst.ip.isr.fringe import FringeTask
 
 import lsst.ip.isr.isrMock as isrMock
@@ -38,21 +38,6 @@ except NameError:
 else:
     import lsst.afw.display as afwDisplay
     afwDisplay.setDefaultMaskTransparency(75)
-
-
-class FringeDataRef(object):
-    """Quacks like a ButlerDataRef, so we can provide an in-memory fringe
-    frame.
-    """
-    def __init__(self, fringe):
-        self.fringe = fringe
-        self.dataId = {'test': True}
-
-    def get(self, name="fringe", immediate=False):
-        if name == "fringe":
-            return self.fringe
-        if name == "ccdExposureId":
-            return 1000
 
 
 def createFringe(width, height, xFreq, xOffset, yFreq, yOffset):
@@ -222,8 +207,8 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         task = FringeTask(name="multiFringe", config=self.config)
         self.checkFringe(task, exp, fringeList, stddevMax=1.0e-2)
 
-    def testRunDataRef(self, pedestal=0.0, stddevMax=1.0e-4):
-        """Test the .runDataRef method for complete test converage.
+    def testRun(self, pedestal=0.0, stddevMax=1.0e-4):
+        """Test the .run method for complete test converage.
 
         Paramters
         ---------
@@ -245,21 +230,11 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         eMi *= scale
 
         task = FringeTask(name="fringe", config=self.config)
-        dataRef = FringeDataRef(fringe)
-        task.runDataRef(exp, dataRef)
+        task.run(exp, fringe)
 
         mi = exp.getMaskedImage()
         mi -= afwMath.makeStatistics(mi, afwMath.MEAN).getValue()
         self.assertLess(afwMath.makeStatistics(mi, afwMath.STDEV).getValue(), stddevMax)
-
-    def test_readFringes(self):
-        """Test that fringes can be successfully accessed from the butler.
-        """
-        task = FringeTask()
-        dataRef = isrMock.DataRefMock()
-
-        result = task.readFringes(dataRef, assembler=None)
-        self.assertIsInstance(result, pipeBase.Struct)
 
     def test_multiFringes(self):
         """Test that multi-fringe results are handled correctly by the task.
@@ -271,12 +246,13 @@ class FringeTestCase(lsst.utils.tests.TestCase):
         config.fringeScale = [750.0, 240.0, 220.0]
         config.fringeX0 = [100.0, 150.0, 200.0]
         config.fringeY0 = [0.0, 200.0, 0.0]
-        dataRef = isrMock.FringeDataRefMock(config=config)
 
-        exp = dataRef.get("raw")
+        fringeContainer = isrMock.MockFringeContainer(config=config)
+        exp = fringeContainer.get("raw")
         exp.setFilter(afwImage.FilterLabel(physical='FILTER'))
         medianBefore = np.nanmedian(exp.getImage().getArray())
-        fringes = task.readFringes(dataRef, assembler=None)
+        fringe = fringeContainer.get("fringe")
+        fringes = task.loadFringes(fringe)
 
         solution, rms = task.run(exp, **fringes.getDict())
         medianAfter = np.nanmedian(exp.getImage().getArray())

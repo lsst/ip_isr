@@ -79,7 +79,6 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         self.config = IsrTaskConfig()
         self.config.qa = IsrQaConfig()
         self.task = IsrTask(config=self.config)
-        self.dataRef = isrMock.DataRefMock()
         self.camera = isrMock.IsrMock().getCamera()
 
         self.inputExp = isrMock.TrimmedRawMock().run()
@@ -223,7 +222,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.mockConfig = isrMock.IsrMockConfig()
         self.mockConfig.isTrimmed = False
         self.doGenerateImage = True
-        self.dataRef = isrMock.DataRefMock(config=self.mockConfig)
+        self.dataContainer = isrMock.MockDataContainer(config=self.mockConfig)
         self.camera = isrMock.IsrMock(config=self.mockConfig).getCamera()
 
         self.inputExp = isrMock.RawMock(config=self.mockConfig).run()
@@ -287,16 +286,16 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.task = IsrTask(config=self.config)
         results = self.task.run(self.inputExp,
                                 camera=self.camera,
-                                bias=self.dataRef.get("bias"),
-                                dark=self.dataRef.get("dark"),
-                                flat=self.dataRef.get("flat"),
-                                bfKernel=self.dataRef.get("bfKernel"),
-                                defects=self.dataRef.get("defects"),
-                                fringes=Struct(fringes=self.dataRef.get("fringe"), seed=1234),
-                                opticsTransmission=self.dataRef.get("transmission_"),
-                                filterTransmission=self.dataRef.get("transmission_"),
-                                sensorTransmission=self.dataRef.get("transmission_"),
-                                atmosphereTransmission=self.dataRef.get("transmission_")
+                                bias=self.dataContainer.get("bias"),
+                                dark=self.dataContainer.get("dark"),
+                                flat=self.dataContainer.get("flat"),
+                                bfKernel=self.dataContainer.get("bfKernel"),
+                                defects=self.dataContainer.get("defects"),
+                                fringes=Struct(fringes=self.dataContainer.get("fringe"), seed=1234),
+                                opticsTransmission=self.dataContainer.get("transmission_"),
+                                filterTransmission=self.dataContainer.get("transmission_"),
+                                sensorTransmission=self.dataContainer.get("transmission_"),
+                                atmosphereTransmission=self.dataContainer.get("transmission_")
                                 )
 
         self.assertIsInstance(results, Struct)
