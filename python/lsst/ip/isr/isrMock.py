@@ -38,7 +38,7 @@ __all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock
            "CalibratedRawMock", "MasterMock",
            "BiasMock", "DarkMock", "FlatMock", "FringeMock", "UntrimmedFringeMock",
            "BfKernelMock", "DefectMock", "CrosstalkCoeffMock", "TransmissionMock",
-           "DataRefMock"]
+           "MockDataContainer", "MockFringeContainer"]
 
 
 class IsrMockConfig(pexConfig.Config):
@@ -932,12 +932,8 @@ class TransmissionMock(IsrMock):
         self.config.doTransmissionCurve = True
 
 
-class DataRefMock(object):
-    """Simulated gen2 butler data ref.
-
-    Currently only supports get and put operations, which are most
-    likely to be called for data in ISR processing.
-
+class MockDataContainer(object):
+    """Container for holding ISR mock objects.
     """
     dataId = "isrMock Fake Data"
     darkval = 2.  # e-/sec
@@ -1017,25 +1013,9 @@ class DataRefMock(object):
         else:
             raise RuntimeError("ISR DataRefMock cannot return %s.", dataType)
 
-    def put(self, exposure, filename):
-        """Write an exposure to a FITS file.
 
-        Parameters
-        ----------
-        exposure : `lsst.afw.image.Exposure`
-            Image data to write out.
-        filename : `str`
-            Base name of the output file.
-        """
-        exposure.writeFits(filename+".fits")
-
-
-class FringeDataRefMock(object):
-    """Simulated gen2 butler data ref.
-
-    Currently only supports get and put operations, which are most
-    likely to be called for data in ISR processing.
-
+class MockFringeContainer(object):
+    """Container for mock fringe data.
     """
     dataId = "isrMock Fake Data"
     darkval = 2.  # e-/sec
@@ -1101,15 +1081,3 @@ class FringeDataRefMock(object):
             return None
         else:
             return None
-
-    def put(self, exposure, filename):
-        """Write an exposure to a FITS file.
-
-        Parameters
-        ----------
-        exposure : `lsst.afw.image.Exposure`
-            Image data to write out.
-        filename : `str`
-            Base name of the output file.
-        """
-        exposure.writeFits(filename+".fits")
