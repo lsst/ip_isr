@@ -1843,111 +1843,20 @@ class IsrTask(pipeBase.PipelineTask):
 
         See Also
         --------
-        lsst.ip.isr.isrFunctions.overscanCorrection
+        lsst.ip.isr.overscan.OverscanTask
+
         """
         if amp.getRawHorizontalOverscanBBox().isEmpty():
             self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
             return None
 
-        statControl = afwMath.StatisticsControl()
-        statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
+        # Perform overscan correction on subregions.
+        overscanResults = self.overscan.run(ccdExposure, amp)
 
-        # Determine the bounding boxes
-        dataBBox = amp.getRawDataBBox()
-        oscanBBox = amp.getRawHorizontalOverscanBBox()
-        dx0 = 0
-        dx1 = 0
-
-        prescanBBox = amp.getRawPrescanBBox()
-        if (oscanBBox.getBeginX() > prescanBBox.getBeginX()):  # amp is at the right
-            dx0 += self.config.overscanNumLeadingColumnsToSkip
-            dx1 -= self.config.overscanNumTrailingColumnsToSkip
-        else:
-            dx0 += self.config.overscanNumTrailingColumnsToSkip
-            dx1 -= self.config.overscanNumLeadingColumnsToSkip
-
-        # Determine if we need to work on subregions of the amplifier
-        # and overscan.
-        imageBBoxes = []
-        overscanBBoxes = []
-
-        if ((self.config.overscanBiasJump
-             and self.config.overscanBiasJumpLocation)
-            and (ccdExposure.getMetadata().exists(self.config.overscanBiasJumpKeyword)
-                 and ccdExposure.getMetadata().getScalar(self.config.overscanBiasJumpKeyword) in
-                 self.config.overscanBiasJumpDevices)):
-            if amp.getReadoutCorner() in (ReadoutCorner.LL, ReadoutCorner.LR):
-                yLower = self.config.overscanBiasJumpLocation
-                yUpper = dataBBox.getHeight() - yLower
-            else:
-                yUpper = self.config.overscanBiasJumpLocation
-                yLower = dataBBox.getHeight() - yUpper
-
-            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
-                                               lsst.geom.Extent2I(dataBBox.getWidth(), yLower)))
-            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, 0),
-                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                     yLower)))
-
-            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin() + lsst.geom.Extent2I(0, yLower),
-                                               lsst.geom.Extent2I(dataBBox.getWidth(), yUpper)))
-            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, yLower),
-                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                     yUpper)))
-        else:
-            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
-                                               lsst.geom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
-            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, 0),
-                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                     oscanBBox.getHeight())))
-
-        # Perform overscan correction on subregions, ensuring saturated
-        # pixels are masked.
-        for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
-            ampImage = ccdExposure.maskedImage[imageBBox]
-            overscanImage = ccdExposure.maskedImage[overscanBBox]
-
-            overscanArray = overscanImage.image.array
-            median = numpy.ma.median(numpy.ma.masked_where(overscanImage.mask.array, overscanArray))
-            bad = numpy.where(numpy.abs(overscanArray - median) > self.config.overscanMaxDev)
-            overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("SAT")
-
-            statControl = afwMath.StatisticsControl()
-            statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
-
-            overscanResults = self.overscan.run(ampImage.getImage(), overscanImage, amp)
-
-            # If we trimmed columns, we need to restore them.
-            if dx0 != 0 or dx1 != 0:
-                fullOverscan = ccdExposure.maskedImage[oscanBBox]
-                overscanVector = overscanResults.overscanFit.array[:, 0]
-                overscanModel = afwImage.ImageF(fullOverscan.getDimensions())
-                overscanModel.array[:, :] = 0.0
-                overscanModel.array[:, 0:dx0] = overscanVector[:, numpy.newaxis]
-                overscanModel.array[:, dx1:] = overscanVector[:, numpy.newaxis]
-                fullOverscanImage = fullOverscan.getImage()
-                fullOverscanImage -= overscanModel
-                overscanResults = pipeBase.Struct(imageFit=overscanResults.imageFit,
-                                                  overscanFit=overscanModel,
-                                                  overscanImage=fullOverscan,
-                                                  edgeMask=overscanResults.edgeMask)
-
-            # Measure average overscan levels and record them in the metadata.
-            levelStat = afwMath.MEDIAN
-            sigmaStat = afwMath.STDEVCLIP
-
-            sctrl = afwMath.StatisticsControl(self.config.qa.flatness.clipSigma,
-                                              self.config.qa.flatness.nIter)
-            metadata = ccdExposure.getMetadata()
-            ampNum = amp.getName()
-            # if self.config.overscanFitType in ("MEDIAN", "MEAN", "MEANCLIP"):
-            if isinstance(overscanResults.overscanFit, float):
-                metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = overscanResults.overscanFit
-                metadata[f"ISR_OSCAN_SIGMA{ampNum}"] = 0.0
-            else:
-                stats = afwMath.makeStatistics(overscanResults.overscanFit, levelStat | sigmaStat, sctrl)
-                metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = stats.getValue(levelStat)
-                metadata[f"ISR_OSCAN_SIGMA%{ampNum}"] = stats.getValue(sigmaStat)
+        metadata = ccdExposure.getMetadata()
+        ampNum = amp.getName()
+        metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = overscanResults.overscanMean
+        metadata[f"ISR_OSCAN_SIGMA{ampNum}"] = overscanResults.overscanSigma
 
         return overscanResults
 
