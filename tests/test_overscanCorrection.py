@@ -26,16 +26,33 @@ import numpy as np
 import lsst.utils.tests
 import lsst.geom
 import lsst.afw.image as afwImage
+import lsst.afw.cameraGeom as cameraGeom
 import lsst.ip.isr as ipIsr
+import lsst.pipe.base as pipeBase
+
+
+def computeImageMedianAndStd(image):
+    """Function to calculate median and std of image data.
+
+    Parameters
+    ----------
+    image : `lsst.afw.image.Image`
+        Image to measure statistics on.
+
+    Returns
+    -------
+    median : `float`
+        Image median.
+    std : `float`
+        Image stddev.
+    """
+    median = np.nanmedian(image.getArray())
+    std = np.nanstd(image.getArray())
+
+    return (median, std)
 
 
 class IsrTestCases(lsst.utils.tests.TestCase):
-
-    def setUp(self):
-        self.overscanKeyword = "BIASSEC"
-
-    def tearDown(self):
-        del self.overscanKeyword
 
     def updateConfigFromKwargs(self, config, **kwargs):
         """Common config from keywords.
@@ -48,24 +65,54 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         if order:
             config.overscan.order = order
 
-    def checkOverscanCorrectionY(self, **kwargs):
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                               lsst.geom.Point2I(9, 12))
-        maskedImage = afwImage.MaskedImageF(bbox)
+    def makeExposure(self, isTransposed=False):
+        # Define the camera geometry we'll use.
+        cameraBuilder = cameraGeom.Camera.Builder("Fake Camera")
+        detectorBuilder = cameraBuilder.add("Fake amp", 0)
+
+        ampBuilder = cameraGeom.Amplifier.Builder()
+
+        dataBBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                   lsst.geom.Extent2I(10, 10))
+
+        if isTransposed is True:
+            fullBBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                       lsst.geom.Point2I(9, 12))
+            overscanBBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 10),
+                                           lsst.geom.Point2I(9, 12))
+        else:
+            fullBBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                       lsst.geom.Point2I(12, 9))
+
+            overscanBBox = lsst.geom.Box2I(lsst.geom.Point2I(10, 0),
+                                           lsst.geom.Point2I(12, 9))
+
+        ampBuilder.setRawBBox(fullBBox)
+        ampBuilder.setRawSerialOverscanBBox(overscanBBox)
+        ampBuilder.setRawDataBBox(dataBBox)
+
+        detectorBuilder.append(ampBuilder)
+        camera = cameraBuilder.finish()
+        detector = camera[0]
+
+        # Define image data.
+        maskedImage = afwImage.MaskedImageF(fullBBox)
         maskedImage.set(10, 0x0, 1)
 
-        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
-        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
-
-        # these should be functionally equivalent
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 10),
-                               lsst.geom.Point2I(9, 12))
-        biassec = '[1:10,11:13]'
-        overscan = afwImage.MaskedImageF(maskedImage, bbox)
+        overscan = afwImage.MaskedImageF(maskedImage, overscanBBox)
         overscan.set(2, 0x0, 1)
+
         exposure = afwImage.ExposureF(maskedImage, None)
-        metadata = exposure.getMetadata()
-        metadata.setString(self.overscanKeyword, biassec)
+        exposure.setDetector(detector)
+        return exposure
+
+    def checkOverscanCorrectionY(self, **kwargs):
+        exposure = self.makeExposure(isTransposed=True)
+        detector = exposure.getDetector()
+
+        # These subimages are needed below.
+        overscan = exposure[detector.getAmplifiers()[0].getRawSerialOverscanBBox()]
+        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
 
         config = ipIsr.IsrTask.ConfigClass()
         self.updateConfigFromKwargs(config, **kwargs)
@@ -79,7 +126,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             config.overscan.numSigmaClip = 2.7
 
         isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(dataImage.getImage(), overscan.getImage())
+        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=True)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -93,30 +140,17 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
     def checkOverscanCorrectionX(self, **kwargs):
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                               lsst.geom.Point2I(12, 9))
-        maskedImage = afwImage.MaskedImageF(bbox)
-        maskedImage.set(10, 0x0, 1)
+        exposure = self.makeExposure(isTransposed=False)
+        detector = exposure.getDetector()
 
-        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
-        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
-
-        # these should be functionally equivalent
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(10, 0),
-                               lsst.geom.Point2I(12, 9))
-        biassec = '[11:13,1:10]'
-        overscan = afwImage.MaskedImageF(maskedImage, bbox)
-        overscan.set(2, 0x0, 1)
-
-        exposure = afwImage.ExposureF(maskedImage, None)
-        metadata = exposure.getMetadata()
-        metadata.setString(self.overscanKeyword, biassec)
+        # These subimages are needed below.
+        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
 
         config = ipIsr.IsrTask.ConfigClass()
         self.updateConfigFromKwargs(config, **kwargs)
 
         isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(dataImage, overscan.getImage())
+        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=False)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -129,42 +163,53 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
     def checkOverscanCorrectionSineWave(self, **kwargs):
         """vertical sine wave along long direction"""
+        # Define the camera geometry we'll use.
+        cameraBuilder = cameraGeom.Camera.Builder("Fake Camera")
+        detectorBuilder = cameraBuilder.add("Fake amp", 0)
 
-        # Full image: (500,100)
-        longAxis = 500
-        shortAxis = 100
-        overscanWidth = 30
+        ampBuilder = cameraGeom.Amplifier.Builder()
 
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                               lsst.geom.Point2I(shortAxis-1, longAxis-1))
-        maskedImage = afwImage.MaskedImageF(bbox)
-        maskedImage.set(50.0, 0x0, 1)
+        dataBBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                   lsst.geom.Extent2I(70, 500))
+
+        fullBBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                   lsst.geom.Extent2I(100, 500))
+
+        overscanBBox = lsst.geom.Box2I(lsst.geom.Point2I(70, 0),
+                                       lsst.geom.Extent2I(30, 500))
+
+        ampBuilder.setRawBBox(fullBBox)
+        ampBuilder.setRawSerialOverscanBBox(overscanBBox)
+        ampBuilder.setRawDataBBox(dataBBox)
+
+        detectorBuilder.append(ampBuilder)
+        camera = cameraBuilder.finish()
+        detector = camera[0]
+
+        # Define image data.
+        maskedImage = afwImage.MaskedImageF(fullBBox)
+        maskedImage.set(50, 0x0, 1)
+
+        overscan = afwImage.MaskedImageF(maskedImage, overscanBBox)
+        overscan.set(0, 0x0, 1)
+
+        exposure = afwImage.ExposureF(maskedImage, None)
+        exposure.setDetector(detector)
 
         # vertical sine wave along long direction
-        x = np.linspace(0, 2*3.14159, longAxis)
-        a, w = 15, 50*3.14159
+        x = np.linspace(0, 2*3.14159, 500)
+        a, w = 15, 5*3.14159
         sineWave = 20 + a*np.sin(w*x)
         sineWave = sineWave.astype(int)
 
-        fullImage = np.repeat(sineWave, shortAxis).reshape((longAxis, shortAxis))
+        fullImage = np.repeat(sineWave, 100).reshape((500, 100))
         maskedImage.image.array += fullImage
 
-        # data part of the full image: (500,70)
-        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(shortAxis-overscanWidth,
-                                  longAxis))
-        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
-        # these should be functionally equivalent
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(shortAxis-overscanWidth, 0),
-                               lsst.geom.Point2I(shortAxis-1, longAxis-1))
-        biassec = '[1:500,71:100]'
-        overscan = afwImage.MaskedImageF(maskedImage, bbox)
-        overscan.image.array -= 50.0  # subtract initial pedestal
+        config = ipIsr.IsrTask.ConfigClass()
+        self.updateConfigFromKwargs(config, **kwargs)
 
-        exposure = afwImage.ExposureF(maskedImage, None)
-        metadata = exposure.getMetadata()
-        metadata.setString(self.overscanKeyword, biassec)
-
-        ipIsr.overscanCorrection(dataImage, overscan.getImage(), **kwargs)
+        isrTask = ipIsr.IsrTask(config=config)
+        isrTask.overscan.run(exposure, detector.getAmplifiers()[0])
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -178,7 +223,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
     def test_MedianPerRowOverscanCorrection(self):
         self.checkOverscanCorrectionY(fitType="MEDIAN_PER_ROW")
-        self.checkOverscanCorrectionY(fitType="MEDIAN_PER_ROW")
+        self.checkOverscanCorrectionX(fitType="MEDIAN_PER_ROW")
         self.checkOverscanCorrectionSineWave(fitType="MEDIAN_PER_ROW")
 
     def test_MedianOverscanCorrection(self):
@@ -186,18 +231,15 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         self.checkOverscanCorrectionX(fitType="MEDIAN")
 
     def checkPolyOverscanCorrectionX(self, **kwargs):
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                               lsst.geom.Point2I(12, 9))
-        maskedImage = afwImage.MaskedImageF(bbox)
-        maskedImage.set(10, 0x0, 1)
+        exposure = self.makeExposure(isTransposed=False)
+        detector = exposure.getDetector()
 
-        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
-        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
-        # these should be functionally equivalent
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(10, 0),
-                               lsst.geom.Point2I(12, 9))
-        overscan = afwImage.MaskedImageF(maskedImage, bbox)
-        overscan.set(2, 0x0, 1)
+        # These subimages are needed below.
+        overscan = exposure[detector.getAmplifiers()[0].getRawSerialOverscanBBox()]
+        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
+
+        bbox = detector.getAmplifiers()[0].getRawSerialOverscanBBox()
+        overscan.getMaskedImage().set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[1]):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.image[j, i, afwImage.LOCAL] = 2+i+off
@@ -206,7 +248,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         self.updateConfigFromKwargs(config, **kwargs)
 
         isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(dataImage, overscan.getImage())
+        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=False)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -222,28 +264,25 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - j)
 
     def checkPolyOverscanCorrectionY(self, **kwargs):
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                               lsst.geom.Point2I(9, 12))
-        maskedImage = afwImage.MaskedImageF(bbox)
-        maskedImage.set(10, 0x0, 1)
+        exposure = self.makeExposure(isTransposed=True)
+        detector = exposure.getDetector()
 
-        dataBox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(10, 10))
-        dataImage = afwImage.MaskedImageF(maskedImage, dataBox)
+        # These subimages are needed below.
+        overscan = exposure[detector.getAmplifiers()[0].getRawSerialOverscanBBox()]
+        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
 
-        # these should be functionally equivalent
-        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 10),
-                               lsst.geom.Point2I(9, 12))
-        overscan = afwImage.MaskedImageF(maskedImage, bbox)
-        overscan.set(2, 0x0, 1)
+        bbox = detector.getAmplifiers()[0].getRawSerialOverscanBBox()
+        overscan.getMaskedImage().set(2, 0x0, 1)
         for i in range(bbox.getDimensions()[0]):
             for j, off in enumerate([-0.5, 0.0, 0.5]):
                 overscan.image[i, j, afwImage.LOCAL] = 2+i+off
+        # maskedImage.getMaskedImage().set(10, 0x0, 1)
 
         config = ipIsr.IsrTask.ConfigClass()
         self.updateConfigFromKwargs(config, **kwargs)
 
         isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(dataImage, overscan.getImage())
+        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=True)
 
         height = maskedImage.getHeight()
         width = maskedImage.getWidth()
@@ -258,15 +297,71 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 else:
                     self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - i)
 
-    def testPolyOverscanCorrection(self):
+    def test_PolyOverscanCorrection(self):
         for fitType in ("POLY", "CHEB", "LEG"):
-            self.checkPolyOverscanCorrectionX(fitType=fitType)
-            self.checkPolyOverscanCorrectionY(fitType=fitType)
+            self.checkPolyOverscanCorrectionX(fitType=fitType, order=5)
+            self.checkPolyOverscanCorrectionY(fitType=fitType, order=5)
 
-    def testSplineOverscanCorrection(self):
+    def test_SplineOverscanCorrection(self):
         for fitType in ("NATURAL_SPLINE", "CUBIC_SPLINE", "AKIMA_SPLINE"):
             self.checkPolyOverscanCorrectionX(fitType=fitType, order=5)
             self.checkPolyOverscanCorrectionY(fitType=fitType, order=5)
+
+    def test_overscanCorrection(self):
+        """Expect that this should reduce the image variance with a full fit.
+        The default fitType of MEDIAN will reduce the median value.
+
+        This needs to operate on a RawMock() to have overscan data to use.
+
+        The output types may be different when fitType != MEDIAN.
+        """
+        exposure = self.makeExposure(isTransposed=False)
+        detector = exposure.getDetector()
+        amp = detector.getAmplifiers()[0]
+
+        statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
+
+        config = ipIsr.IsrTask.ConfigClass()
+        isrTask = ipIsr.IsrTask(config=config)
+        oscanResults = isrTask.overscan.run(exposure, amp)
+
+        self.assertIsInstance(oscanResults, pipeBase.Struct)
+        self.assertIsInstance(oscanResults.imageFit, float)
+        self.assertIsInstance(oscanResults.overscanFit, float)
+        self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+
+        statAfter = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
+        self.assertLess(statAfter[0], statBefore[0])
+
+    def test_overscanCorrection_isNotInt(self):
+        """Expect smaller median/smaller std after.
+        Expect exception if overscan fit type isn't known.
+        """
+        exposure = self.makeExposure(isTransposed=False)
+        detector = exposure.getDetector()
+        amp = detector.getAmplifiers()[0]
+
+        for fitType in ('MEAN', 'MEDIAN', 'MEDIAN_PER_ROW', 'MEANCLIP', 'POLY', 'CHEB',
+                        'NATURAL_SPLINE', 'CUBIC_SPLINE'):
+            if fitType in ('NATURAL_SPLINE', 'CUBIC_SPLINE'):
+                order = 3
+            else:
+                order = 1
+                config = ipIsr.IsrTask.ConfigClass()
+                config.overscan.order = order
+                config.overscan.fitType = fitType
+                isrTask = ipIsr.IsrTask(config=config)
+
+            response = isrTask.overscan.run(exposure, amp)
+
+            self.assertIsInstance(response, pipeBase.Struct,
+                                  msg=f"overscanCorrection overscanIsNotInt Bad response: {fitType}")
+            self.assertIsNotNone(response.imageFit,
+                                 msg=f"overscanCorrection overscanIsNotInt Bad imageFit: {fitType}")
+            self.assertIsNotNone(response.overscanFit,
+                                 msg=f"overscanCorrection overscanIsNotInt Bad overscanFit: {fitType}")
+            self.assertIsInstance(response.overscanImage, afwImage.ExposureF,
+                                  msg=f"overscanCorrection overscanIsNotInt Bad overscanImage: {fitType}")
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
