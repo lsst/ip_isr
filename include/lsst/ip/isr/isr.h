@@ -22,14 +22,10 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
-/**
-  * \file
-  *
-  * \ingroup isr
-  *
-  * \brief Implementation of the templated Instrument Signature Removal
-  * stage of the nightly LSST Image Processing Pipeline.
-  */
+/*
+ * Implementation of the templated Instrument Signature Removal
+ * stage of the nightly LSST Image Processing Pipeline.
+ */
 
 #ifndef LSST_IP_ISR_ISR_H
 #define LSST_IP_ISR_ISR_H
@@ -44,14 +40,13 @@
 #include "lsst/afw/image.h"
 #include "lsst/pex/exceptions/Exception.h"
 
-/** \brief Remove all non-astronomical counts from the Chunk Exposure's pixels.
-  *
-  */
-
 namespace lsst {
 namespace ip {
 namespace isr {
 
+    /**
+     * Remove all non-astronomical counts from the Chunk Exposure's pixels.
+     */
     template <typename ImageT, typename MaskT=lsst::afw::image::MaskPixel>
     class CountMaskedPixels {
     public:
