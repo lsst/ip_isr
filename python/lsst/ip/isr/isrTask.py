@@ -32,7 +32,7 @@ import lsst.pipe.base.connectionTypes as cT
 from contextlib import contextmanager
 from lsstDebug import getDebugFrame
 
-from lsst.afw.cameraGeom import NullLinearityType, ReadoutCorner
+from lsst.afw.cameraGeom import NullLinearityType
 from lsst.afw.display import getDisplay
 from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.utils.timer import timeMethod
@@ -461,85 +461,6 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     overscan = pexConfig.ConfigurableField(
         target=OverscanCorrectionTask,
         doc="Overscan subtraction task for image segments.",
-    )
-    overscanFitType = pexConfig.ChoiceField(
-        dtype=str,
-        doc="The method for fitting the overscan bias level.",
-        default='MEDIAN',
-        allowed={
-            "POLY": "Fit ordinary polynomial to the longest axis of the overscan region",
-            "CHEB": "Fit Chebyshev polynomial to the longest axis of the overscan region",
-            "LEG": "Fit Legendre polynomial to the longest axis of the overscan region",
-            "NATURAL_SPLINE": "Fit natural spline to the longest axis of the overscan region",
-            "CUBIC_SPLINE": "Fit cubic spline to the longest axis of the overscan region",
-            "AKIMA_SPLINE": "Fit Akima spline to the longest axis of the overscan region",
-            "MEAN": "Correct using the mean of the overscan region",
-            "MEANCLIP": "Correct using a clipped mean of the overscan region",
-            "MEDIAN": "Correct using the median of the overscan region",
-            "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
-        },
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    overscanOrder = pexConfig.Field(
-        dtype=int,
-        doc=("Order of polynomial or to fit if overscan fit type is a polynomial, "
-             "or number of spline knots if overscan fit type is a spline."),
-        default=1,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    overscanNumSigmaClip = pexConfig.Field(
-        dtype=float,
-        doc="Rejection threshold (sigma) for collapsing overscan before fit",
-        default=3.0,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    overscanIsInt = pexConfig.Field(
-        dtype=bool,
-        doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN"
-            " and overscan.FitType=MEDIAN_PER_ROW.",
-        default=True,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    # These options do not get deprecated, as they define how we slice up the
-    # image data.
-    overscanNumLeadingColumnsToSkip = pexConfig.Field(
-        dtype=int,
-        doc="Number of columns to skip in overscan, i.e. those closest to amplifier",
-        default=0,
-    )
-    overscanNumTrailingColumnsToSkip = pexConfig.Field(
-        dtype=int,
-        doc="Number of columns to skip in overscan, i.e. those farthest from amplifier",
-        default=0,
-    )
-    overscanMaxDev = pexConfig.Field(
-        dtype=float,
-        doc="Maximum deviation from the median for overscan",
-        default=1000.0, check=lambda x: x > 0
-    )
-    overscanBiasJump = pexConfig.Field(
-        dtype=bool,
-        doc="Fit the overscan in a piecewise-fashion to correct for bias jumps?",
-        default=False,
-    )
-    overscanBiasJumpKeyword = pexConfig.Field(
-        dtype=str,
-        doc="Header keyword containing information about devices.",
-        default="NO_SUCH_KEY",
-    )
-    overscanBiasJumpDevices = pexConfig.ListField(
-        dtype=str,
-        doc="List of devices that need piecewise overscan correction.",
-        default=(),
-    )
-    overscanBiasJumpLocation = pexConfig.Field(
-        dtype=int,
-        doc="Location of bias jump along y-axis.",
-        default=0,
     )
 
     # Amplifier to CCD assembly configuration
@@ -1326,30 +1247,18 @@ class IsrTask(pipeBase.PipelineTask):
                     self.log.debug("Corrected overscan for amplifier %s.", amp.getName())
                     if overscanResults is not None and \
                        self.config.qa is not None and self.config.qa.saveStats is True:
-                        if isinstance(overscanResults.overscanFit, float):
-                            qaMedian = overscanResults.overscanFit
-                            qaStdev = float("NaN")
-                        else:
-                            qaStats = afwMath.makeStatistics(overscanResults.overscanFit,
-                                                             afwMath.MEDIAN | afwMath.STDEVCLIP)
-                            qaMedian = qaStats.getValue(afwMath.MEDIAN)
-                            qaStdev = qaStats.getValue(afwMath.STDEVCLIP)
 
-                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = qaMedian
-                        self.metadata[f"FIT STDEV {amp.getName()}"] = qaStdev
+                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = overscanResults.overscanMean
+                        self.metadata[f"FIT STDEV {amp.getName()}"] = overscanResults.overscanSigma
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",
-                                       amp.getName(), qaMedian, qaStdev)
+                                       amp.getName(), overscanResults.overscanMean,
+                                       overscanResults.overscanSigma)
 
-                        # Residuals after overscan correction
-                        qaStatsAfter = afwMath.makeStatistics(overscanResults.overscanImage,
-                                                              afwMath.MEDIAN | afwMath.STDEVCLIP)
-                        qaMedianAfter = qaStatsAfter.getValue(afwMath.MEDIAN)
-                        qaStdevAfter = qaStatsAfter.getValue(afwMath.STDEVCLIP)
-
-                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = qaMedianAfter
-                        self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = qaStdevAfter
+                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = overscanResults.residualMean
+                        self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = overscanResults.residualSigma
                         self.log.debug("  Overscan stats for amplifer %s after correction: %f +/- %f",
-                                       amp.getName(), qaMedianAfter, qaStdevAfter)
+                                       amp.getName(), overscanResults.residualMean,
+                                       overscanResults.residualSigma)
 
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
@@ -1923,7 +1832,8 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doEmpiricalReadNoise and overscanImage is not None:
             stats = afwMath.StatisticsControl()
             stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
-            readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
+            readNoise = afwMath.makeStatistics(overscanImage.getImage(),
+                                               afwMath.STDEVCLIP, stats).getValue()
             self.log.info("Calculated empirical read noise for amp %s: %f.",
                           amp.getName(), readNoise)
         elif self.config.usePtcReadNoise:

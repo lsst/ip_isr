@@ -453,7 +453,6 @@ class OverscanCorrectionTask(pipeBase.Task):
         overscanValue = afwMath.makeStatistics(calcImage, fitType, self.statControl).getValue()
 
         return pipeBase.Struct(overscanValue=overscanValue,
-                               maskArray=None,
                                isTransposed=False)
 
     # Vector correction utilities
@@ -475,27 +474,6 @@ class OverscanCorrectionTask(pipeBase.Task):
         else:
             calcImage = image.getArray()
         return calcImage
-
-    @staticmethod
-    def transpose(imageArray):
-        """Transpose input numpy array if necessary.
-
-        Parameters
-        ----------
-        imageArray : `numpy.ndarray`
-            Image data to transpose.
-
-        Returns
-        -------
-        imageArray : `numpy.ndarray`
-            Transposed image data.
-        isTransposed : `bool`
-            Indicates whether the input data was transposed.
-        """
-        if np.argmin(imageArray.shape) == 0:
-            return np.transpose(imageArray), True
-        else:
-            return imageArray, False
 
     def maskOutliers(self, imageArray):
         """Mask  outliers in  a  row  of overscan  data  from  a robust  sigma
