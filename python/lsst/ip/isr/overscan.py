@@ -140,12 +140,13 @@ class OverscanCorrectionTask(pipeBase.Task):
 
         Parameters
         ----------
-        ampImage : `lsst.afw.image.Image`
-            Image data that will have the overscan removed.
-        overscanImage : `lsst.afw.image.Image`
-            Overscan data that the overscan is measured from.
-        amp : `lsst.afw.cameraGeom.Amplifier`, optional
+        exposure : `lsst.afw.image.Exposure`
+            Image data that will have the overscan corrections applied.
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier to use for debugging purposes.
+        isTransposed : `bool`, optional
+            Is the image transposed, such that serial and parallel
+            overscan regions are reversed?  Default is False.
 
         Returns
         -------
@@ -442,14 +443,12 @@ class OverscanCorrectionTask(pipeBase.Task):
         results : `lsst.pipe.base.Struct`
             Overscan result with entries:
             - ``overscanValue``: Overscan value to subtract (`float`)
-            - ``maskArray``: Placeholder for a mask array (`list`)
             - ``isTransposed``: Orientation of the overscan (`bool`)
         """
         if self.config.fitType == 'MEDIAN':
             calcImage = self.integerConvert(image)
         else:
             calcImage = image
-
         fitType = afwMath.stringToStatisticsProperty(self.config.fitType)
         overscanValue = afwMath.makeStatistics(calcImage, fitType, self.statControl).getValue()
 
@@ -668,6 +667,8 @@ class OverscanCorrectionTask(pipeBase.Task):
         ----------
         image : `lsst.afw.image.MaskedImage`
             Image containing the overscan data.
+        isTransposed : `bool`
+            If true, the image has been transposed.
 
         Returns
         -------
@@ -732,6 +733,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                 # Otherwise we can just use things as normal.
                 overscanVector = evaler(indices, coeffs)
                 maskArray = self.maskExtrapolated(collapsed)
+
         endTime = time.perf_counter()
         self.log.info(f"Overscan measurement took {endTime - startTime}s for {self.config.fitType}")
         return pipeBase.Struct(overscanValue=np.array(overscanVector),

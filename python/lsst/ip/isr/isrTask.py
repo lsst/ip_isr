@@ -1738,7 +1738,7 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         ccdExposure : `lsst.afw.image.Exposure`
             Input exposure to be masked.
-        amp : `lsst.afw.table.AmpInfoCatalog`
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Catalog of parameters defining the amplifier on this
             exposure to mask.
         defects : `lsst.ip.isr.Defects`
@@ -1813,8 +1813,8 @@ class IsrTask(pipeBase.PipelineTask):
         region.  The overscan can also be optionally segmented to
         allow for discontinuous overscan responses to be fit
         separately.  The actual overscan subtraction is performed by
-        the `lsst.ip.isr.isrFunctions.overscanCorrection` function,
-        which is called here after the amplifier is preprocessed.
+        the `lsst.ip.isr.overscan.OverscanTask`, which is called here
+        after the amplifier is preprocessed.
 
         Parameters
         ----------
@@ -1835,6 +1835,13 @@ class IsrTask(pipeBase.PipelineTask):
                 Image of the overscan region with the overscan
                 correction applied. This quantity is used to estimate
                 the amplifier read noise empirically.
+            - ``edgeMask`` : `lsst.afw.image.Mask`
+                Mask of the suspect pixels.
+            - ``overscanMean`` : `float`
+                Median overscan fit value.
+            - ``overscanSigma`` : `float`
+                Clipped standard deviation of the overscan after
+                correction.
 
         Raises
         ------
@@ -1871,13 +1878,12 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         ampExposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        amp : `lsst.afw.table.AmpInfoRecord` or `FakeAmp`
+        amp : `lsst.afw.cameraGeom.Amplifier` or `FakeAmp`
             Amplifier detector data.
         overscanImage : `lsst.afw.image.MaskedImage`, optional.
             Image of overscan, required only for empirical read noise.
         ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
             PTC dataset containing the gains and read noise.
-
 
         Raises
         ------
@@ -2045,7 +2051,7 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.  Only the amplifier DataSec is processed.
-        amp : `lsst.afw.table.AmpInfoCatalog`
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier detector data.
 
         See Also
@@ -2094,7 +2100,7 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.  Only the amplifier DataSec is processed.
-        amp : `lsst.afw.table.AmpInfoCatalog`
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier detector data.
 
         See Also
