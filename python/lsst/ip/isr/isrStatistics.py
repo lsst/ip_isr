@@ -164,9 +164,6 @@ class IsrStatisticsTask(pipeBase.Task):
         assert len(overscans) == len(detector.getAmplifiers())
 
         for ampIter, amp in enumerate(detector.getAmplifiers()):
-            # Ensure the detector hasn't been modified:
-            assert ampIter == amp.getId()
-
             ampStats = {}
             gain = gains[amp.getName()]
             readoutCorner = amp.getReadoutCorner()
@@ -214,8 +211,8 @@ class IsrStatisticsTask(pipeBase.Task):
                 # We want these relative to the readout corner.  If that's
                 # on the right side, we need to swap them.
                 if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                    ampStats['OVERSCAN_COLUMNS'] = reversed(columns)
-                    ampStats['OVERSCAN_VALUES'] = reversed(values)
+                    ampStats['OVERSCAN_COLUMNS'] = list(reversed(columns))
+                    ampStats['OVERSCAN_VALUES'] = list(reversed(values))
                 else:
                     ampStats['OVERSCAN_COLUMNS'] = columns
                     ampStats['OVERSCAN_VALUES'] = values
