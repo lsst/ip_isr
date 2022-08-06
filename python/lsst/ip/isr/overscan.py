@@ -23,6 +23,7 @@ import numpy as np
 import time
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
+import lsst.geom as geom
 import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
@@ -74,6 +75,39 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
         default=True,
     )
 
+    doParallelOverscan = pexConfig.Field(
+        dtype=bool,
+        doc="Correct using parallel overscan after serial overscan correction?",
+        default=False,
+    )
+
+    leadingColumnsToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of leading columns to skip in serial overscan correction.",
+        default=0,
+    )
+    trailingColumnsToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of trailing columns to skip in serial overscan correction.",
+        default=0,
+    )
+    leadingRowsToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of leading rows to skip in parallel overscan correction.",
+        default=0,
+    )
+    trailingRowsToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of trailing rows to skip in parallel overscan correction.",
+        default=0,
+    )
+
+    maxDeviation = pexConfig.Field(
+        dtype=float,
+        doc="Maximum deviation from median (in ADU) to mask in overscan correction.",
+        default=1000.0, check=lambda x: x > 0,
+    )
+
 
 class OverscanCorrectionTask(pipeBase.Task):
     """Correction task for overscan.
@@ -101,17 +135,18 @@ class OverscanCorrectionTask(pipeBase.Task):
             self.statControl.setNumSigmaClip(self.config.numSigmaClip)
             self.statControl.setAndMask(afwImage.Mask.getPlaneBitMask(self.config.maskPlanes))
 
-    def run(self, ampImage, overscanImage, amp=None):
+    def run(self, exposure, amp, isTransposed=False):
         """Measure and remove an overscan from an amplifier image.
 
         Parameters
         ----------
-        ampImage : `lsst.afw.image.Image`
-            Image data that will have the overscan removed.
-        overscanImage : `lsst.afw.image.Image`
-            Overscan data that the overscan is measured from.
-        amp : `lsst.afw.cameraGeom.Amplifier`, optional
+        exposure : `lsst.afw.image.Exposure`
+            Image data that will have the overscan corrections applied.
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier to use for debugging purposes.
+        isTransposed : `bool`, optional
+            Is the image transposed, such that serial and parallel
+            overscan regions are reversed?  Default is False.
 
         Returns
         -------
@@ -134,55 +169,231 @@ class OverscanCorrectionTask(pipeBase.Task):
         ------
         RuntimeError
             Raised if an invalid overscan type is set.
-
         """
+        # Do Serial overscan first.
+        serialOverscanBBox = amp.getRawSerialOverscanBBox()
+        imageBBox = amp.getRawDataBBox()
+
+        if self.config.doParallelOverscan:
+            # We need to extend the serial overscan BBox to the full
+            # size of the detector.
+            parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+            imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
+
+            serialOverscanBBox = geom.Box2I(geom.Point2I(serialOverscanBBox.getMinX(),
+                                                         imageBBox.getMinY()),
+                                            geom.Extent2I(serialOverscanBBox.getWidth(),
+                                                          imageBBox.getHeight()))
+        serialResults = self.correctOverscan(exposure, amp,
+                                             imageBBox, serialOverscanBBox, isTransposed=isTransposed)
+        overscanMean = serialResults.overscanMean
+        overscanSigma = serialResults.overscanSigma
+        residualMean = serialResults.overscanMeanResidual
+        residualSigma = serialResults.overscanSigmaResidual
+
+        # Do Parallel Overscan
+        if self.config.doParallelOverscan:
+            # This does not need any extensions, as we'll only
+            # subtract it from the data region.
+            parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+            imageBBox = amp.getRawDataBBox()
+
+            parallelResults = self.correctOverscan(exposure, amp,
+                                                   imageBBox, parallelOverscanBBox,
+                                                   isTransposed=not isTransposed)
+
+            overscanMean = (overscanMean, parallelResults.overscanMean)
+            overscanSigma = (overscanSigma, parallelResults.overscanSigma)
+            residualMean = (residualMean, parallelResults.overscanMeanResidual)
+            residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
+
+        return pipeBase.Struct(imageFit=serialResults.ampOverscanModel,
+                               overscanFit=serialResults.overscanOverscanModel,
+                               overscanImage=serialResults.overscanImage,
+
+                               overscanMean=overscanMean,
+                               overscanSigma=overscanSigma,
+                               residualMean=residualMean,
+                               residualSigma=residualSigma)
+
+    def correctOverscan(self, exposure, amp, imageBBox, overscanBBox, isTransposed=True):
+        """
+        """
+        overscanBox = self.trimOverscan(exposure, amp, overscanBBox,
+                                        self.config.leadingColumnsToSkip,
+                                        self.config.trailingColumnsToSkip,
+                                        transpose=isTransposed)
+        overscanImage = exposure[overscanBox].getMaskedImage()
+        overscanArray = overscanImage.image.array
+
+        # Mask pixels.
+        maskVal = overscanImage.mask.getPlaneBitMask(self.config.maskPlanes)
+        overscanMask = ~((overscanImage.mask.array & maskVal) == 0)
+
+        median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
+        bad = np.where(np.abs(overscanArray - median) > self.config.maxDeviation)
+        overscanMask[bad] = overscanImage.mask.getPlaneBitMask("SAT")
+
+        # Do overscan fit.
+        # CZW: Handle transposed correctly.
+        overscanResults = self.fitOverscan(overscanImage, isTransposed=isTransposed)
+
+        # Correct image region (and possibly parallel-overscan region).
+        ampImage = exposure[imageBBox]
+        ampOverscanModel = self.broadcastFitToImage(overscanResults.overscanValue,
+                                                    ampImage.image.array,
+                                                    transpose=isTransposed)
+        ampImage.image.array -= ampOverscanModel
+
+        # Correct overscan region (and possibly doubly-overscaned
+        # region).
+        overscanImage = exposure[overscanBBox]
+        # CZW: Transposed?
+        overscanOverscanModel = self.broadcastFitToImage(overscanResults.overscanValue,
+                                                         overscanImage.image.array)
+        overscanImage.image.array -= overscanOverscanModel
+
+        self.debugView(overscanImage, overscanResults.overscanValue, amp)
+
+        # Find residual fit statistics.
+        stats = afwMath.makeStatistics(overscanImage.getMaskedImage(),
+                                       afwMath.MEDIAN | afwMath.STDEVCLIP, self.statControl)
+        residualMean = stats.getValue(afwMath.MEDIAN)
+        residualSigma = stats.getValue(afwMath.STDEVCLIP)
+
+        return pipeBase.Struct(ampOverscanModel=ampOverscanModel,
+                               overscanOverscanModel=overscanOverscanModel,
+                               overscanImage=overscanImage,
+                               overscanValue=overscanResults.overscanValue,
+
+                               overscanMean=overscanResults.overscanMean,
+                               overscanSigma=overscanResults.overscanSigma,
+                               overscanMeanResidual=residualMean,
+                               overscanSigmaResidual=residualSigma
+                               )
+
+    def broadcastFitToImage(self, overscanValue, imageArray, transpose=False):
+        """Broadcast 0 or 1 dimension fit to appropriate shape.
+
+        Parameters
+        ----------
+        overscanValue : `np.ndarray`, (Nrows, ) or scalar
+            Overscan fit to broadcast.
+        imageArray : `np.ndarray`, (Nrows, Ncols)
+            Image array that we want to match.
+        transpose : `bool`, optional
+            Switch order to broadcast along the other axis.
+
+        Returns
+        -------
+        overscanModel : `np.ndarray`, (Nrows, Ncols) or scalar
+            Expanded overscan fit.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if no axis has the appropriate dimension.
+        """
+        if isinstance(overscanValue, np.ndarray):
+            overscanModel = np.zeros_like(imageArray)
+
+            if transpose is False:
+                if imageArray.shape[0] == overscanValue.shape[0]:
+                    overscanModel[:, :] = overscanValue[:, np.newaxis]
+                elif imageArray.shape[1] == overscanValue.shape[0]:
+                    overscanModel[:, :] = overscanValue[np.newaxis, :]
+                elif imageArray.shape[0] == overscanValue.shape[1]:
+                    overscanModel[:, :] = overscanValue[np.newaxis, :]
+                else:
+                    raise RuntimeError(f"Could not broadcast {overscanValue.shape} to "
+                                       f"match {imageArray.shape}")
+            else:
+                if imageArray.shape[1] == overscanValue.shape[0]:
+                    overscanModel[:, :] = overscanValue[np.newaxis, :]
+                elif imageArray.shape[0] == overscanValue.shape[0]:
+                    overscanModel[:, :] = overscanValue[:, np.newaxis]
+                elif imageArray.shape[1] == overscanValue.shape[1]:
+                    overscanModel[:, :] = overscanValue[:, np.newaxis]
+                else:
+                    raise RuntimeError(f"Could not broadcast {overscanValue.shape} to "
+                                       f"match {imageArray.shape}")
+        else:
+            overscanModel = overscanValue
+
+        return overscanModel
+
+    def trimOverscan(self, exposure, amp, bbox, skipLeading, skipTrailing, transpose=False):
+        """Trim overscan region to remove edges.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure containing data.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            Amplifier containing geometry information.
+        bbox : `lsst.geom.Box2I`
+            Bounding box of the overscan region.
+        skipLeading : `int`
+            Number of leading (towards data region) rows/columns to skip.
+        skipTrailing : `int`
+            Number of trailing (away from data region) rows/columns to skip.
+        transpose : `bool`, optional
+            Operate on the transposed array.
+
+        Returns
+        -------
+        overscanArray : `numpy.array`, (N, M)
+            Data array to fit.
+        overscanMask : `numpy.array`, (N, M)
+            Data mask.
+        """
+        dx0, dy0, dx1, dy1 = (0, 0, 0, 0)
+        dataBBox = amp.getRawDataBBox()
+        if transpose:
+            if dataBBox.getBeginY() < bbox.getBeginY():
+                dy0 += skipLeading
+                dy1 -= skipTrailing
+            else:
+                dy0 += skipTrailing
+                dy1 -= skipLeading
+        else:
+            if dataBBox.getBeginX() < bbox.getBeginX():
+                dx0 += skipLeading
+                dx1 -= skipTrailing
+            else:
+                dx0 += skipTrailing
+                dx1 -= skipLeading
+
+        overscanBBox = geom.Box2I(bbox.getBegin() + geom.Extent2I(dx0, dy0),
+                                  geom.Extent2I(bbox.getWidth() - dx0 + dx1,
+                                                bbox.getHeight() - dy0 + dy1))
+        return overscanBBox
+
+    def fitOverscan(self, overscanImage, isTransposed=False):
         if self.config.fitType in ('MEAN', 'MEANCLIP', 'MEDIAN'):
+            # Transposition has no effect here.
             overscanResult = self.measureConstantOverscan(overscanImage)
             overscanValue = overscanResult.overscanValue
-            offImage = overscanValue
-            overscanModel = overscanValue
-            maskSuspect = None
+            overscanMean = overscanValue
+            overscanSigma = 0.0
         elif self.config.fitType in ('MEDIAN_PER_ROW', 'POLY', 'CHEB', 'LEG',
                                      'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
-            overscanResult = self.measureVectorOverscan(overscanImage)
+            # Force transposes as needed
+            overscanResult = self.measureVectorOverscan(overscanImage, isTransposed)
             overscanValue = overscanResult.overscanValue
-            maskArray = overscanResult.maskArray
-            isTransposed = overscanResult.isTransposed
 
-            offImage = afwImage.ImageF(ampImage.getDimensions())
-            offArray = offImage.getArray()
-            overscanModel = afwImage.ImageF(overscanImage.getDimensions())
-            overscanArray = overscanModel.getArray()
-
-            if hasattr(ampImage, 'getMask'):
-                maskSuspect = afwImage.Mask(ampImage.getDimensions())
-            else:
-                maskSuspect = None
-
-            if isTransposed:
-                offArray[:, :] = overscanValue[np.newaxis, :]
-                overscanArray[:, :] = overscanValue[np.newaxis, :]
-                if maskSuspect:
-                    maskSuspect.getArray()[:, maskArray] |= ampImage.getMask().getPlaneBitMask("SUSPECT")
-            else:
-                offArray[:, :] = overscanValue[:, np.newaxis]
-                overscanArray[:, :] = overscanValue[:, np.newaxis]
-                if maskSuspect:
-                    maskSuspect.getArray()[maskArray, :] |= ampImage.getMask().getPlaneBitMask("SUSPECT")
+            stats = afwMath.makeStatistics(overscanResult.overscanValue,
+                                           afwMath.MEDIAN | afwMath.STDEVCLIP, self.statControl)
+            overscanMean = stats.getValue(afwMath.MEDIAN)
+            overscanSigma = stats.getValue(afwMath.STDEVCLIP)
         else:
-            raise RuntimeError('%s : %s an invalid overscan type' %
-                               ("overscanCorrection", self.config.fitType))
+            raise ValueError('%s : %s an invalid overscan type' %
+                             ("overscanCorrection", self.config.fitType))
 
-        self.debugView(overscanImage, overscanValue, amp)
-
-        ampImage -= offImage
-        if maskSuspect:
-            ampImage.getMask().getArray()[:, :] |= maskSuspect.getArray()[:, :]
-        overscanImage -= overscanModel
-        return pipeBase.Struct(imageFit=offImage,
-                               overscanFit=overscanModel,
-                               overscanImage=overscanImage,
-                               edgeMask=maskSuspect)
+        return pipeBase.Struct(overscanValue=overscanValue,
+                               overscanMean=overscanMean,
+                               overscanSigma=overscanSigma,
+                               )
 
     @staticmethod
     def integerConvert(image):
@@ -232,19 +443,16 @@ class OverscanCorrectionTask(pipeBase.Task):
         results : `lsst.pipe.base.Struct`
             Overscan result with entries:
             - ``overscanValue``: Overscan value to subtract (`float`)
-            - ``maskArray``: Placeholder for a mask array (`list`)
             - ``isTransposed``: Orientation of the overscan (`bool`)
         """
         if self.config.fitType == 'MEDIAN':
             calcImage = self.integerConvert(image)
         else:
             calcImage = image
-
         fitType = afwMath.stringToStatisticsProperty(self.config.fitType)
         overscanValue = afwMath.makeStatistics(calcImage, fitType, self.statControl).getValue()
 
         return pipeBase.Struct(overscanValue=overscanValue,
-                               maskArray=None,
                                isTransposed=False)
 
     # Vector correction utilities
@@ -266,27 +474,6 @@ class OverscanCorrectionTask(pipeBase.Task):
         else:
             calcImage = image.getArray()
         return calcImage
-
-    @staticmethod
-    def transpose(imageArray):
-        """Transpose input numpy array if necessary.
-
-        Parameters
-        ----------
-        imageArray : `numpy.ndarray`
-            Image data to transpose.
-
-        Returns
-        -------
-        imageArray : `numpy.ndarray`
-            Transposed image data.
-        isTransposed : `bool`
-            Indicates whether the input data was transposed.
-        """
-        if np.argmin(imageArray.shape) == 0:
-            return np.transpose(imageArray), True
-        else:
-            return imageArray, False
 
     def maskOutliers(self, imageArray):
         """Mask  outliers in  a  row  of overscan  data  from  a robust  sigma
@@ -451,13 +638,15 @@ class OverscanCorrectionTask(pipeBase.Task):
                 maskArray[-high:] = True
         return maskArray
 
-    def measureVectorOverscan(self, image):
+    def measureVectorOverscan(self, image, isTransposed=False):
         """Calculate the 1-d vector overscan from the input overscan image.
 
         Parameters
         ----------
         image : `lsst.afw.image.MaskedImage`
             Image containing the overscan data.
+        isTransposed : `bool`
+            If true, the image has been transposed.
 
         Returns
         -------
@@ -475,7 +664,8 @@ class OverscanCorrectionTask(pipeBase.Task):
         calcImage = self.getImageArray(image)
 
         # operate on numpy-arrays from here
-        calcImage, isTransposed = self.transpose(calcImage)
+        if isTransposed:
+            calcImage = np.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
 
         startTime = time.perf_counter()
@@ -521,6 +711,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                 # Otherwise we can just use things as normal.
                 overscanVector = evaler(indices, coeffs)
                 maskArray = self.maskExtrapolated(collapsed)
+
         endTime = time.perf_counter()
         self.log.info(f"Overscan measurement took {endTime - startTime}s for {self.config.fitType}")
         return pipeBase.Struct(overscanValue=np.array(overscanVector),
@@ -546,7 +737,8 @@ class OverscanCorrectionTask(pipeBase.Task):
             return
 
         calcImage = self.getImageArray(image)
-        calcImage, isTransposed = self.transpose(calcImage)
+        # CZW: Check that this is ok
+        calcImage = np.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
         collapsed = self.collapseArray(masked)
 

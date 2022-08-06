@@ -33,7 +33,6 @@ from lsst.meas.algorithms.detection import SourceDetectionTask
 
 from contextlib import contextmanager
 
-from .overscan import OverscanCorrectionTask, OverscanCorrectionTaskConfig
 from .defects import Defects
 
 
@@ -439,84 +438,6 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale, trimToFit=
                            (maskedImage.getBBox(afwImage.LOCAL), illumMaskedImage.getBBox(afwImage.LOCAL)))
 
     maskedImage.scaledDivides(1.0/illumScale, illumMaskedImage)
-
-
-def overscanCorrection(ampMaskedImage, overscanImage, fitType='MEDIAN', order=1, collapseRej=3.0,
-                       statControl=None, overscanIsInt=True):
-    """Apply overscan correction in place.
-
-    Parameters
-    ----------
-    ampMaskedImage : `lsst.afw.image.MaskedImage`
-        Image of amplifier to correct; modified.
-    overscanImage : `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage`
-        Image of overscan; modified.
-    fitType : `str`
-        Type of fit for overscan correction. May be one of:
-
-        - ``MEAN``: use mean of overscan.
-        - ``MEANCLIP``: use clipped mean of overscan.
-        - ``MEDIAN``: use median of overscan.
-        - ``MEDIAN_PER_ROW``: use median per row of overscan.
-        - ``POLY``: fit with ordinary polynomial.
-        - ``CHEB``: fit with Chebyshev polynomial.
-        - ``LEG``: fit with Legendre polynomial.
-        - ``NATURAL_SPLINE``: fit with natural spline.
-        - ``CUBIC_SPLINE``: fit with cubic spline.
-        - ``AKIMA_SPLINE``: fit with Akima spline.
-
-    order : `int`
-        Polynomial order or number of spline knots; ignored unless
-        ``fitType`` indicates a polynomial or spline.
-    statControl : `lsst.afw.math.StatisticsControl`
-        Statistics control object.  In particular, we pay attention to
-        ``numSigmaClip``.
-    overscanIsInt : `bool`
-        Treat the overscan region as consisting of integers, even if it's been
-        converted to float.  E.g. handle ties properly.
-
-    Returns
-    -------
-    result : `lsst.pipe.base.Struct`
-        Result struct with components:
-
-        - ``imageFit``: Value(s) removed from image (scalar or
-            `lsst.afw.image.Image`)
-        - ``overscanFit``: Value(s) removed from overscan (scalar or
-            `lsst.afw.image.Image`)
-        - ``overscanImage``: Overscan corrected overscan region
-            (`lsst.afw.image.Image`)
-    Raises
-    ------
-    RuntimeError
-        Raised if ``fitType`` is not an allowed value.
-
-    Notes
-    -----
-    The ``ampMaskedImage`` and ``overscanImage`` are modified, with the fit
-    subtracted. Note that the ``overscanImage`` should not be a subimage of
-    the ``ampMaskedImage``, to avoid being subtracted twice.
-
-    Debug plots are available for the SPLINE fitTypes by setting the
-    `debug.display` for `name` == "lsst.ip.isr.isrFunctions".  These
-    plots show the scatter plot of the overscan data (collapsed along
-    the perpendicular dimension) as a function of position on the CCD
-    (normalized between +/-1).
-    """
-    ampImage = ampMaskedImage.getImage()
-
-    config = OverscanCorrectionTaskConfig()
-    if fitType:
-        config.fitType = fitType
-    if order:
-        config.order = order
-    if collapseRej:
-        config.numSigmaClip = collapseRej
-    if overscanIsInt:
-        config.overscanIsInt = True
-
-    overscanTask = OverscanCorrectionTask(config=config)
-    return overscanTask.run(ampImage, overscanImage)
 
 
 def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, gains=None):

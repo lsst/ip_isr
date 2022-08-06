@@ -27,7 +27,27 @@ import lsst.afw.image as afwImage
 import lsst.utils.tests
 import lsst.ip.isr as ipIsr
 import lsst.ip.isr.isrMock as isrMock
-import lsst.pipe.base as pipeBase
+
+
+def computeImageMedianAndStd(image):
+    """Function to calculate median and std of image data.
+
+    Parameters
+    ----------
+    image : `lsst.afw.image.Image`
+        Image to measure statistics on.
+
+    Returns
+    -------
+    median : `float`
+        Image median.
+    std : `float`
+        Image stddev.
+    """
+    median = np.nanmedian(image.getArray())
+    std = np.nanstd(image.getArray())
+
+    return (median, std)
 
 
 def countMaskedPixels(maskedImage, maskPlane):
@@ -50,27 +70,6 @@ def countMaskedPixels(maskedImage, maskPlane):
     numBit = np.sum(isBit)
 
     return numBit
-
-
-def computeImageMedianAndStd(image):
-    """Function to calculate median and std of image data.
-
-    Parameters
-    ----------
-    image : `lsst.afw.image.Image`
-        Image to measure statistics on.
-
-    Returns
-    -------
-    median : `float`
-        Image median.
-    std : `float`
-        Image stddev.
-    """
-    median = np.nanmedian(image.getArray())
-    std = np.nanstd(image.getArray())
-
-    return (median, std)
 
 
 class IsrFunctionsCases(lsst.utils.tests.TestCase):
@@ -253,78 +252,6 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         flatMi = flatMi[1:-1, 1:-1, afwImage.LOCAL]
         with self.assertRaises(RuntimeError):
             ipIsr.illuminationCorrection(self.mi, flatMi, 1.0, trimToFit=False)
-
-    def test_overscanCorrection_isInt(self):
-        """Expect smaller median/smaller std after.
-        Expect exception if overscan fit type isn't known.
-        """
-        inputExp = isrMock.RawMock().run()
-
-        amp = inputExp.getDetector()[0]
-        ampI = inputExp.maskedImage[amp.getRawDataBBox()]
-        overscanI = inputExp.maskedImage[amp.getRawHorizontalOverscanBBox()]
-
-        for fitType in ('MEAN', 'MEDIAN', 'MEDIAN_PER_ROW', 'MEANCLIP', 'POLY', 'CHEB',
-                        'NATURAL_SPLINE', 'CUBIC_SPLINE', 'UNKNOWN'):
-            if fitType in ('NATURAL_SPLINE', 'CUBIC_SPLINE'):
-                order = 3
-            else:
-                order = 1
-
-            if fitType == 'UNKNOWN':
-                with self.assertRaises(ValueError,
-                                       msg=f"overscanCorrection overscanIsInt fitType: {fitType}"):
-                    ipIsr.overscanCorrection(ampI, overscanI, fitType=fitType,
-                                             order=order, collapseRej=3.0,
-                                             statControl=None, overscanIsInt=True)
-            else:
-                response = ipIsr.overscanCorrection(ampI, overscanI, fitType=fitType,
-                                                    order=order, collapseRej=3.0,
-                                                    statControl=None, overscanIsInt=True)
-            self.assertIsInstance(response, pipeBase.Struct,
-                                  msg=f"overscanCorrection overscanIsInt Bad response: {fitType}")
-            self.assertIsNotNone(response.imageFit,
-                                 msg=f"overscanCorrection overscanIsInt Bad imageFit: {fitType}")
-            self.assertIsNotNone(response.overscanFit,
-                                 msg=f"overscanCorrection overscanIsInt Bad overscanFit: {fitType}")
-            self.assertIsInstance(response.overscanImage, afwImage.MaskedImageF,
-                                  msg=f"overscanCorrection overscanIsInt Bad overscanImage: {fitType}")
-
-    def test_overscanCorrection_isNotInt(self):
-        """Expect smaller median/smaller std after.
-        Expect exception if overscan fit type isn't known.
-        """
-        inputExp = isrMock.RawMock().run()
-
-        amp = inputExp.getDetector()[0]
-        ampI = inputExp.maskedImage[amp.getRawDataBBox()]
-        overscanI = inputExp.maskedImage[amp.getRawHorizontalOverscanBBox()]
-
-        for fitType in ('MEAN', 'MEDIAN', 'MEDIAN_PER_ROW', 'MEANCLIP', 'POLY', 'CHEB',
-                        'NATURAL_SPLINE', 'CUBIC_SPLINE', 'UNKNOWN'):
-            if fitType in ('NATURAL_SPLINE', 'CUBIC_SPLINE'):
-                order = 3
-            else:
-                order = 1
-
-            if fitType == 'UNKNOWN':
-                with self.assertRaises(ValueError,
-                                       msg=f"overscanCorrection overscanIsNotInt fitType: {fitType}"):
-                    ipIsr.overscanCorrection(ampI, overscanI, fitType=fitType,
-                                             order=order, collapseRej=3.0,
-                                             statControl=None, overscanIsInt=False)
-            else:
-                response = ipIsr.overscanCorrection(ampI, overscanI, fitType=fitType,
-                                                    order=order, collapseRej=3.0,
-                                                    statControl=None, overscanIsInt=False)
-            self.assertIsInstance(response, pipeBase.Struct,
-                                  msg=f"overscanCorrection overscanIsNotInt Bad response: {fitType}")
-            self.assertIsNotNone(response.imageFit,
-                                 msg=f"overscanCorrection overscanIsNotInt Bad imageFit: {fitType}")
-            self.assertIsNotNone(response.overscanFit,
-                                 msg=f"overscanCorrection overscanIsNotInt Bad overscanFit: {fitType}")
-            self.assertIsInstance(response.overscanImage, afwImage.MaskedImageF,
-                                  msg=f"overscanCorrection overscanIsNotInt Bad overscanImage: {fitType}")
 
     def test_brighterFatterCorrection(self):
         """Expect smoother image/smaller std before.

@@ -32,7 +32,7 @@ import lsst.pipe.base.connectionTypes as cT
 from contextlib import contextmanager
 from lsstDebug import getDebugFrame
 
-from lsst.afw.cameraGeom import NullLinearityType, ReadoutCorner
+from lsst.afw.cameraGeom import NullLinearityType
 from lsst.afw.display import getDisplay
 from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.utils.timer import timeMethod
@@ -461,85 +461,6 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     overscan = pexConfig.ConfigurableField(
         target=OverscanCorrectionTask,
         doc="Overscan subtraction task for image segments.",
-    )
-    overscanFitType = pexConfig.ChoiceField(
-        dtype=str,
-        doc="The method for fitting the overscan bias level.",
-        default='MEDIAN',
-        allowed={
-            "POLY": "Fit ordinary polynomial to the longest axis of the overscan region",
-            "CHEB": "Fit Chebyshev polynomial to the longest axis of the overscan region",
-            "LEG": "Fit Legendre polynomial to the longest axis of the overscan region",
-            "NATURAL_SPLINE": "Fit natural spline to the longest axis of the overscan region",
-            "CUBIC_SPLINE": "Fit cubic spline to the longest axis of the overscan region",
-            "AKIMA_SPLINE": "Fit Akima spline to the longest axis of the overscan region",
-            "MEAN": "Correct using the mean of the overscan region",
-            "MEANCLIP": "Correct using a clipped mean of the overscan region",
-            "MEDIAN": "Correct using the median of the overscan region",
-            "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
-        },
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    overscanOrder = pexConfig.Field(
-        dtype=int,
-        doc=("Order of polynomial or to fit if overscan fit type is a polynomial, "
-             "or number of spline knots if overscan fit type is a spline."),
-        default=1,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    overscanNumSigmaClip = pexConfig.Field(
-        dtype=float,
-        doc="Rejection threshold (sigma) for collapsing overscan before fit",
-        default=3.0,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    overscanIsInt = pexConfig.Field(
-        dtype=bool,
-        doc="Treat overscan as an integer image for purposes of overscan.FitType=MEDIAN"
-            " and overscan.FitType=MEDIAN_PER_ROW.",
-        default=True,
-        deprecated=("Please configure overscan via the OverscanCorrectionConfig interface."
-                    " This option will no longer be used, and will be removed after v20.")
-    )
-    # These options do not get deprecated, as they define how we slice up the
-    # image data.
-    overscanNumLeadingColumnsToSkip = pexConfig.Field(
-        dtype=int,
-        doc="Number of columns to skip in overscan, i.e. those closest to amplifier",
-        default=0,
-    )
-    overscanNumTrailingColumnsToSkip = pexConfig.Field(
-        dtype=int,
-        doc="Number of columns to skip in overscan, i.e. those farthest from amplifier",
-        default=0,
-    )
-    overscanMaxDev = pexConfig.Field(
-        dtype=float,
-        doc="Maximum deviation from the median for overscan",
-        default=1000.0, check=lambda x: x > 0
-    )
-    overscanBiasJump = pexConfig.Field(
-        dtype=bool,
-        doc="Fit the overscan in a piecewise-fashion to correct for bias jumps?",
-        default=False,
-    )
-    overscanBiasJumpKeyword = pexConfig.Field(
-        dtype=str,
-        doc="Header keyword containing information about devices.",
-        default="NO_SUCH_KEY",
-    )
-    overscanBiasJumpDevices = pexConfig.ListField(
-        dtype=str,
-        doc="List of devices that need piecewise overscan correction.",
-        default=(),
-    )
-    overscanBiasJumpLocation = pexConfig.Field(
-        dtype=int,
-        doc="Location of bias jump along y-axis.",
-        default=0,
     )
 
     # Amplifier to CCD assembly configuration
@@ -1326,30 +1247,18 @@ class IsrTask(pipeBase.PipelineTask):
                     self.log.debug("Corrected overscan for amplifier %s.", amp.getName())
                     if overscanResults is not None and \
                        self.config.qa is not None and self.config.qa.saveStats is True:
-                        if isinstance(overscanResults.overscanFit, float):
-                            qaMedian = overscanResults.overscanFit
-                            qaStdev = float("NaN")
-                        else:
-                            qaStats = afwMath.makeStatistics(overscanResults.overscanFit,
-                                                             afwMath.MEDIAN | afwMath.STDEVCLIP)
-                            qaMedian = qaStats.getValue(afwMath.MEDIAN)
-                            qaStdev = qaStats.getValue(afwMath.STDEVCLIP)
 
-                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = qaMedian
-                        self.metadata[f"FIT STDEV {amp.getName()}"] = qaStdev
+                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = overscanResults.overscanMean
+                        self.metadata[f"FIT STDEV {amp.getName()}"] = overscanResults.overscanSigma
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",
-                                       amp.getName(), qaMedian, qaStdev)
+                                       amp.getName(), overscanResults.overscanMean,
+                                       overscanResults.overscanSigma)
 
-                        # Residuals after overscan correction
-                        qaStatsAfter = afwMath.makeStatistics(overscanResults.overscanImage,
-                                                              afwMath.MEDIAN | afwMath.STDEVCLIP)
-                        qaMedianAfter = qaStatsAfter.getValue(afwMath.MEDIAN)
-                        qaStdevAfter = qaStatsAfter.getValue(afwMath.STDEVCLIP)
-
-                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = qaMedianAfter
-                        self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = qaStdevAfter
+                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = overscanResults.residualMean
+                        self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = overscanResults.residualSigma
                         self.log.debug("  Overscan stats for amplifer %s after correction: %f +/- %f",
-                                       amp.getName(), qaMedianAfter, qaStdevAfter)
+                                       amp.getName(), overscanResults.residualMean,
+                                       overscanResults.residualSigma)
 
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
@@ -1738,7 +1647,7 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         ccdExposure : `lsst.afw.image.Exposure`
             Input exposure to be masked.
-        amp : `lsst.afw.table.AmpInfoCatalog`
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Catalog of parameters defining the amplifier on this
             exposure to mask.
         defects : `lsst.ip.isr.Defects`
@@ -1813,8 +1722,8 @@ class IsrTask(pipeBase.PipelineTask):
         region.  The overscan can also be optionally segmented to
         allow for discontinuous overscan responses to be fit
         separately.  The actual overscan subtraction is performed by
-        the `lsst.ip.isr.isrFunctions.overscanCorrection` function,
-        which is called here after the amplifier is preprocessed.
+        the `lsst.ip.isr.overscan.OverscanTask`, which is called here
+        after the amplifier is preprocessed.
 
         Parameters
         ----------
@@ -1835,6 +1744,13 @@ class IsrTask(pipeBase.PipelineTask):
                 Image of the overscan region with the overscan
                 correction applied. This quantity is used to estimate
                 the amplifier read noise empirically.
+            - ``edgeMask`` : `lsst.afw.image.Mask`
+                Mask of the suspect pixels.
+            - ``overscanMean`` : `float`
+                Median overscan fit value.
+            - ``overscanSigma`` : `float`
+                Clipped standard deviation of the overscan after
+                correction.
 
         Raises
         ------
@@ -1843,111 +1759,20 @@ class IsrTask(pipeBase.PipelineTask):
 
         See Also
         --------
-        lsst.ip.isr.isrFunctions.overscanCorrection
+        lsst.ip.isr.overscan.OverscanTask
+
         """
         if amp.getRawHorizontalOverscanBBox().isEmpty():
             self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
             return None
 
-        statControl = afwMath.StatisticsControl()
-        statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
+        # Perform overscan correction on subregions.
+        overscanResults = self.overscan.run(ccdExposure, amp)
 
-        # Determine the bounding boxes
-        dataBBox = amp.getRawDataBBox()
-        oscanBBox = amp.getRawHorizontalOverscanBBox()
-        dx0 = 0
-        dx1 = 0
-
-        prescanBBox = amp.getRawPrescanBBox()
-        if (oscanBBox.getBeginX() > prescanBBox.getBeginX()):  # amp is at the right
-            dx0 += self.config.overscanNumLeadingColumnsToSkip
-            dx1 -= self.config.overscanNumTrailingColumnsToSkip
-        else:
-            dx0 += self.config.overscanNumTrailingColumnsToSkip
-            dx1 -= self.config.overscanNumLeadingColumnsToSkip
-
-        # Determine if we need to work on subregions of the amplifier
-        # and overscan.
-        imageBBoxes = []
-        overscanBBoxes = []
-
-        if ((self.config.overscanBiasJump
-             and self.config.overscanBiasJumpLocation)
-            and (ccdExposure.getMetadata().exists(self.config.overscanBiasJumpKeyword)
-                 and ccdExposure.getMetadata().getScalar(self.config.overscanBiasJumpKeyword) in
-                 self.config.overscanBiasJumpDevices)):
-            if amp.getReadoutCorner() in (ReadoutCorner.LL, ReadoutCorner.LR):
-                yLower = self.config.overscanBiasJumpLocation
-                yUpper = dataBBox.getHeight() - yLower
-            else:
-                yUpper = self.config.overscanBiasJumpLocation
-                yLower = dataBBox.getHeight() - yUpper
-
-            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
-                                               lsst.geom.Extent2I(dataBBox.getWidth(), yLower)))
-            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, 0),
-                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                     yLower)))
-
-            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin() + lsst.geom.Extent2I(0, yLower),
-                                               lsst.geom.Extent2I(dataBBox.getWidth(), yUpper)))
-            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, yLower),
-                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                     yUpper)))
-        else:
-            imageBBoxes.append(lsst.geom.Box2I(dataBBox.getBegin(),
-                                               lsst.geom.Extent2I(dataBBox.getWidth(), dataBBox.getHeight())))
-            overscanBBoxes.append(lsst.geom.Box2I(oscanBBox.getBegin() + lsst.geom.Extent2I(dx0, 0),
-                                                  lsst.geom.Extent2I(oscanBBox.getWidth() - dx0 + dx1,
-                                                                     oscanBBox.getHeight())))
-
-        # Perform overscan correction on subregions, ensuring saturated
-        # pixels are masked.
-        for imageBBox, overscanBBox in zip(imageBBoxes, overscanBBoxes):
-            ampImage = ccdExposure.maskedImage[imageBBox]
-            overscanImage = ccdExposure.maskedImage[overscanBBox]
-
-            overscanArray = overscanImage.image.array
-            median = numpy.ma.median(numpy.ma.masked_where(overscanImage.mask.array, overscanArray))
-            bad = numpy.where(numpy.abs(overscanArray - median) > self.config.overscanMaxDev)
-            overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("SAT")
-
-            statControl = afwMath.StatisticsControl()
-            statControl.setAndMask(ccdExposure.mask.getPlaneBitMask("SAT"))
-
-            overscanResults = self.overscan.run(ampImage.getImage(), overscanImage, amp)
-
-            # If we trimmed columns, we need to restore them.
-            if dx0 != 0 or dx1 != 0:
-                fullOverscan = ccdExposure.maskedImage[oscanBBox]
-                overscanVector = overscanResults.overscanFit.array[:, 0]
-                overscanModel = afwImage.ImageF(fullOverscan.getDimensions())
-                overscanModel.array[:, :] = 0.0
-                overscanModel.array[:, 0:dx0] = overscanVector[:, numpy.newaxis]
-                overscanModel.array[:, dx1:] = overscanVector[:, numpy.newaxis]
-                fullOverscanImage = fullOverscan.getImage()
-                fullOverscanImage -= overscanModel
-                overscanResults = pipeBase.Struct(imageFit=overscanResults.imageFit,
-                                                  overscanFit=overscanModel,
-                                                  overscanImage=fullOverscan,
-                                                  edgeMask=overscanResults.edgeMask)
-
-            # Measure average overscan levels and record them in the metadata.
-            levelStat = afwMath.MEDIAN
-            sigmaStat = afwMath.STDEVCLIP
-
-            sctrl = afwMath.StatisticsControl(self.config.qa.flatness.clipSigma,
-                                              self.config.qa.flatness.nIter)
-            metadata = ccdExposure.getMetadata()
-            ampNum = amp.getName()
-            # if self.config.overscanFitType in ("MEDIAN", "MEAN", "MEANCLIP"):
-            if isinstance(overscanResults.overscanFit, float):
-                metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = overscanResults.overscanFit
-                metadata[f"ISR_OSCAN_SIGMA{ampNum}"] = 0.0
-            else:
-                stats = afwMath.makeStatistics(overscanResults.overscanFit, levelStat | sigmaStat, sctrl)
-                metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = stats.getValue(levelStat)
-                metadata[f"ISR_OSCAN_SIGMA%{ampNum}"] = stats.getValue(sigmaStat)
+        metadata = ccdExposure.getMetadata()
+        ampNum = amp.getName()
+        metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = overscanResults.overscanMean
+        metadata[f"ISR_OSCAN_SIGMA{ampNum}"] = overscanResults.overscanSigma
 
         return overscanResults
 
@@ -1962,13 +1787,12 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         ampExposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        amp : `lsst.afw.table.AmpInfoRecord` or `FakeAmp`
+        amp : `lsst.afw.cameraGeom.Amplifier` or `FakeAmp`
             Amplifier detector data.
         overscanImage : `lsst.afw.image.MaskedImage`, optional.
             Image of overscan, required only for empirical read noise.
         ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
             PTC dataset containing the gains and read noise.
-
 
         Raises
         ------
@@ -2008,7 +1832,8 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doEmpiricalReadNoise and overscanImage is not None:
             stats = afwMath.StatisticsControl()
             stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
-            readNoise = afwMath.makeStatistics(overscanImage, afwMath.STDEVCLIP, stats).getValue()
+            readNoise = afwMath.makeStatistics(overscanImage.getImage(),
+                                               afwMath.STDEVCLIP, stats).getValue()
             self.log.info("Calculated empirical read noise for amp %s: %f.",
                           amp.getName(), readNoise)
         elif self.config.usePtcReadNoise:
@@ -2136,7 +1961,7 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.  Only the amplifier DataSec is processed.
-        amp : `lsst.afw.table.AmpInfoCatalog`
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier detector data.
 
         See Also
@@ -2185,7 +2010,7 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.  Only the amplifier DataSec is processed.
-        amp : `lsst.afw.table.AmpInfoCatalog`
+        amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier detector data.
 
         See Also
