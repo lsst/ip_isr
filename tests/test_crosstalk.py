@@ -32,7 +32,7 @@ import lsst.afw.table
 import lsst.afw.cameraGeom as cameraGeom
 
 from lsst.pipe.base import Struct
-from lsst.ip.isr import IsrTask, CrosstalkCalib, CrosstalkTask, NullCrosstalkTask
+from lsst.ip.isr import IsrTask, CrosstalkCalib, NullCrosstalkTask
 
 try:
     display
@@ -239,15 +239,6 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(), coeffVector=coeff)
         isr.crosstalk.run(self.exposure, crosstalk=calib)
         self.checkSubtracted(self.exposure)
-
-    def test_prepCrosstalk(self):
-        """Test that prep crosstalk does not error when given a dataRef with no
-        crosstalkSources to find.
-        """
-        dataRef = Struct(dataId={'fake': 1})
-        task = CrosstalkTask()
-        result = task.prepCrosstalk(dataRef)
-        self.assertIsNone(result)
 
     def test_nullCrosstalkTask(self):
         """Test that the null crosstalk task does not create an error.

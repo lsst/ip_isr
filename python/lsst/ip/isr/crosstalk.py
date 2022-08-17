@@ -670,23 +670,6 @@ class CrosstalkTask(Task):
     ConfigClass = CrosstalkConfig
     _DefaultName = 'isrCrosstalk'
 
-    def prepCrosstalk(self, dataRef, crosstalk=None):
-        """Placeholder for crosstalk preparation method, e.g., for
-        inter-detector crosstalk.
-
-        Parameters
-        ----------
-        dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
-            Butler reference of the detector data to be processed.
-        crosstalk : `~lsst.ip.isr.CrosstalkConfig`
-            Crosstalk calibration that will be used.
-
-        See also
-        --------
-        lsst.obs.decam.crosstalk.DecamCrosstalkTask.prepCrosstalk
-        """
-        return
-
     def run(self, exposure, crosstalk=None,
             crosstalkSources=None, isTrimmed=False, camera=None):
         """Apply intra-detector crosstalk correction
