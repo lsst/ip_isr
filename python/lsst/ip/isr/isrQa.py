@@ -19,8 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-import os
-import errno
 
 import lsst.afw.display.rgb as afwRGB
 import lsst.afw.math as afwMath
@@ -156,33 +154,3 @@ def makeThumbnail(exposure, isrQaConfig=None):
         rgbImage = asinhMap.makeRgbImage(binnedImage)
 
         return rgbImage
-
-
-def writeThumbnail(dataRef, thumb, dataset):
-    """Write snapshot thumbnail to disk.
-
-    Parameters
-    ----------
-    dataRef : `daf.persistence.butlerSubset.ButlerDataRef`
-        Butler dataref to use to construct the output filename.
-    thumb : `numpy.ndarray`
-        Binned and scaled image to be written as a PNG.
-    dataset : `str`
-        String containing the dataset for this thumbnail.
-
-    Raises
-    ------
-    OSError
-        Raised if the output directory cannot be created and does not
-        exist.
-    """
-    filename = dataRef.get(dataset + "_filename")[0]
-    directory = os.path.dirname(filename)
-    if not os.path.exists(directory):
-        try:
-            os.makedirs(directory)
-        except OSError as e:
-            # Don't fail if directory exists due to race condition.
-            if e.errno != errno.EEXIST:
-                raise e
-    afwRGB.writeRGB(filename, thumb)
