@@ -31,7 +31,6 @@ import lsst.afw.image
 import lsst.afw.table
 import lsst.afw.cameraGeom as cameraGeom
 
-from lsst.pipe.base import Struct
 from lsst.ip.isr import IsrTask, CrosstalkCalib, NullCrosstalkTask
 
 try:
@@ -223,14 +222,6 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
 
         Checks both MeasureCrosstalkTask and the CrosstalkTask.
         """
-        # make exposure available to NullIsrTask
-        # without NullIsrTask's `self` hiding this test class's `self`
-        exposure = self.exposure
-
-        class NullIsrTask(IsrTask):
-            def runDataRef(self, dataRef):
-                return Struct(exposure=exposure)
-
         coeff = np.array(self.crosstalk).transpose()
         config = IsrTask.ConfigClass()
         config.crosstalk.minPixelToMask = self.value - 1
