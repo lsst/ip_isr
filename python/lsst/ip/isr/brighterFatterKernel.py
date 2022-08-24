@@ -48,6 +48,7 @@ class BrighterFatterKernel(IsrCalib):
 
     Parameters
     ----------
+    camera : ``
     level : `str`
         Level the kernels will be generated for.
     log : `logging.Logger`, optional
@@ -57,12 +58,41 @@ class BrighterFatterKernel(IsrCalib):
 
     Notes
     -----
-    TODO (DM-35260)
-        Document what is stored in the BFK calibration.
-
     Version 1.1 adds the `expIdMask` property, and substitutes
     `means` and `variances` for `rawMeans` and `rawVariances`
     from the PTC dataset.
+
+    expIdMask : `dict`, [`str`,`numpy.ndarray`]
+        Dictionary keyed by amp names containing the mask produced after
+        outlier rejection.
+    rawMeans : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the unmasked average of the
+        means of the exposures in each flat pair.
+    rawVariances : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the variance of the
+        difference image of the exposures in each flat pair.
+        Corresponds to rawVars of PTC.
+    rawXcorrs : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing an array of measured
+        covariances per mean flux.
+        Corresponds to covariances of PTC.
+    badAmps : `list`
+        List of bad amplifiers names.
+    shape : `tuple`
+        Tuple of the shape of the BFK kernels.
+    gain : `dict`, [`str`,`float`]
+        Dictionary keyed by amp names containing the fitted gains.
+    noise : `dict`, [`str`,`float`]
+        Dictionary keyed by amp names containing the fitted noise.
+    meanXcorrs : `dict`, [`str`,`numpy.ndarray`]
+        Dictionary keyed by amp names containing the averaged
+        cross-correlations.
+    valid : `dict`, [`str`,`bool`]
+        Dictionary keyed by amp names containing validity of data.
+    ampKernels : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the BF kernels.
+    detKernels : `dict`
+        Dictionary keyed by detector names containing the BF kernels.
     """
     _OBSTYPE = 'bfk'
     _SCHEMA = 'Brighter-fatter kernel'
