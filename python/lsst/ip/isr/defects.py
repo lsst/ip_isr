@@ -49,9 +49,9 @@ class Defects(IsrCalib):
 
     Parameters
     ----------
-    defectList : iterable of `lsst.meas.algorithms.Defect`
-                 or `lsst.geom.BoxI`, optional
-        Collections of defects to apply to the image.
+    defectList : iterable, optional
+        Collections of defects to apply to the image. Can be an iterable of
+        `lsst.meas.algorithms.Defect` or `lsst.geom.BoxI`.
     metadata : `lsst.daf.base.PropertyList`, optional
         Metadata to associate with the defects.  Will be copied and
         overwrite existing metadata, if any. If not supplied the existing
@@ -347,7 +347,7 @@ class Defects(IsrCalib):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the supplied dictionary is for a different
             calibration.
         """

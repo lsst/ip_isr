@@ -149,7 +149,7 @@ class IsrStatisticsTask(pipeBase.Task):
                 correction applied (`lsst.afw.image.Image`). This
                 quantity is used to estimate the amplifier read noise
                 empirically.
-        gains : `dict` [`str` `float]
+        gains : `dict` [`str` `float`]
             Dictionary of per-amplifier gains, indexed by amplifier name.
 
         Returns

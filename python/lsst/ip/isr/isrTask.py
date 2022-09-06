@@ -1060,6 +1060,7 @@ class IsrTask(pipeBase.PipelineTask):
         """Perform instrument signature removal on an exposure.
 
         Steps included in the ISR processing, in order performed, are:
+
         - saturation and suspect pixel masking
         - overscan subtraction
         - CCD assembly of individual amplifiers
@@ -1111,9 +1112,12 @@ class IsrTask(pipeBase.PipelineTask):
         fringes : `lsst.pipe.base.Struct`, optional
             Struct containing the fringe correction data, with
             elements:
-            - ``fringes``: fringe calibration frame (`afw.image.Exposure`)
-            - ``seed``: random seed derived from the ccdExposureId for random
-                number generator (`uint32`)
+
+            ``fringes``
+                fringe calibration frame (`lsst.afw.image.Exposure`)
+            ``seed``
+                random seed derived from the ``ccdExposureId`` for random
+                number generator (`numpy.uint32`)
         opticsTransmission: `lsst.afw.image.TransmissionCurve`, optional
             A ``TransmissionCurve`` that represents the throughput of the,
             optics, to be evaluated in focal-plane coordinates.
@@ -1139,45 +1143,48 @@ class IsrTask(pipeBase.PipelineTask):
         -------
         result : `lsst.pipe.base.Struct`
             Result struct with component:
-            - ``exposure`` : `afw.image.Exposure`
+
+            ``exposure``
                 The fully ISR corrected exposure.
-            - ``outputExposure`` : `afw.image.Exposure`
-                An alias for `exposure`
-            - ``ossThumb`` : `numpy.ndarray`
+                (`lsst.afw.image.Exposure`)
+            ``outputExposure``
+                An alias for ``exposure``. (`lsst.afw.image.Exposure`)
+            ``ossThumb``
                 Thumbnail image of the exposure after overscan subtraction.
-            - ``flattenedThumb`` : `numpy.ndarray`
+                (`numpy.ndarray`)
+            ``flattenedThumb``
                 Thumbnail image of the exposure after flat-field correction.
-            - ``outputStatistics`` : ``
+                (`numpy.ndarray`)
+            ``outputStatistics``
                 Values of the additional statistics calculated.
 
         Raises
         ------
         RuntimeError
-            Raised if a configuration option is set to True, but the
+            Raised if a configuration option is set to `True`, but the
             required calibration data has not been specified.
 
         Notes
         -----
         The current processed exposure can be viewed by setting the
-        appropriate lsstDebug entries in the `debug.display`
+        appropriate `lsstDebug` entries in the ``debug.display``
         dictionary.  The names of these entries correspond to some of
-        the IsrTaskConfig Boolean options, with the value denoting the
+        the `IsrTaskConfig` Boolean options, with the value denoting the
         frame to use.  The exposure is shown inside the matching
         option check and after the processing of that step has
         finished.  The steps with debug points are:
 
-        doAssembleCcd
-        doBias
-        doCrosstalk
-        doBrighterFatter
-        doDark
-        doFringe
-        doStrayLight
-        doFlat
+        * doAssembleCcd
+        * doBias
+        * doCrosstalk
+        * doBrighterFatter
+        * doDark
+        * doFringe
+        * doStrayLight
+        * doFlat
 
-        In addition, setting the "postISRCCD" entry displays the
+        In addition, setting the ``postISRCCD`` entry displays the
         exposure after all ISR processing has finished.
-
         """
 
         ccdExposure = self.ensureExposure(ccdExposure, camera, detectorNum)
@@ -1559,9 +1566,11 @@ class IsrTask(pipeBase.PipelineTask):
 
         Parameters
         ----------
-        inputExp : `lsst.afw.image.Exposure`, `lsst.afw.image.DecoratedImageU`,
-                   or `lsst.afw.image.ImageF`
+        inputExp : `lsst.afw.image` image-type.
             The input data structure obtained from Butler.
+            Can be  `lsst.afw.image.Exposure`,
+            `lsst.afw.image.DecoratedImageU`,
+            or `lsst.afw.image.ImageF`
         camera : `lsst.afw.cameraGeom.camera`, optional
             The camera associated with the image.  Used to find the appropriate
             detector if detector is not already set.
@@ -1735,21 +1744,25 @@ class IsrTask(pipeBase.PipelineTask):
         -------
         overscanResults : `lsst.pipe.base.Struct`
             Result struct with components:
-            - ``imageFit`` : scalar or `lsst.afw.image.Image`
+
+            ``imageFit``
                 Value or fit subtracted from the amplifier image data.
-            - ``overscanFit`` : scalar or `lsst.afw.image.Image`
+                (scalar or `lsst.afw.image.Image`)
+            ``overscanFit``
                 Value or fit subtracted from the overscan image data.
-            - ``overscanImage`` : `lsst.afw.image.Image`
+                (scalar or `lsst.afw.image.Image`)
+            ``overscanImage``
                 Image of the overscan region with the overscan
                 correction applied. This quantity is used to estimate
                 the amplifier read noise empirically.
-            - ``edgeMask`` : `lsst.afw.image.Mask`
-                Mask of the suspect pixels.
-            - ``overscanMean`` : `float`
-                Median overscan fit value.
-            - ``overscanSigma`` : `float`
+                (`lsst.afw.image.Image`)
+            ``edgeMask``
+                Mask of the suspect pixels. (`lsst.afw.image.Mask`)
+            ``overscanMean``
+                Median overscan fit value. (`float`)
+            ``overscanSigma``
                 Clipped standard deviation of the overscan after
-                correction.
+                correction. (`float`)
 
         Raises
         ------
@@ -2045,9 +2058,9 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `lsst.ip.isr.Defects` or `list` of
-                         `lsst.afw.image.DefectBase`.
-            List of defects to mask.
+        defectBaseList : defect-type
+            List of defects to mask. Can be of type  `lsst.ip.isr.Defects`
+            or `list` of `lsst.afw.image.DefectBase`.
 
         Notes
         -----
@@ -2103,9 +2116,9 @@ class IsrTask(pipeBase.PipelineTask):
         ----------
         exposure : `lsst.afw.image.Exposure`
             Exposure to process.
-        defectBaseList : `lsst.ip.isr.Defects` or `list` of
-                         `lsst.afw.image.DefectBase`.
-            List of defects to mask and interpolate.
+        defectBaseList : defects-like
+            List of defects to mask and interpolate. Can be
+            `lsst.ip.isr.Defects` or `list` of `lsst.afw.image.DefectBase`.
 
         See Also
         --------

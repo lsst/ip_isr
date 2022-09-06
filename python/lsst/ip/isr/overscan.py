@@ -277,16 +277,16 @@ class OverscanCorrectionTask(pipeBase.Task):
 
         Parameters
         ----------
-        overscanValue : `np.ndarray`, (Nrows, ) or scalar
+        overscanValue : `numpy.ndarray`, (Nrows, ) or scalar
             Overscan fit to broadcast.
-        imageArray : `np.ndarray`, (Nrows, Ncols)
+        imageArray : `numpy.ndarray`, (Nrows, Ncols)
             Image array that we want to match.
         transpose : `bool`, optional
             Switch order to broadcast along the other axis.
 
         Returns
         -------
-        overscanModel : `np.ndarray`, (Nrows, Ncols) or scalar
+        overscanModel : `numpy.ndarray`, (Nrows, Ncols) or scalar
             Expanded overscan fit.
 
         Raises
@@ -652,14 +652,16 @@ class OverscanCorrectionTask(pipeBase.Task):
         -------
         results : `lsst.pipe.base.Struct`
             Overscan result with entries:
-            - ``overscanValue``: Overscan value to subtract (`float`)
-            - ``maskArray`` : `list` [ `bool` ]
+
+            ``overscanValue``
+                Overscan value to subtract (`float`)
+            ``maskArray``
                 List of rows that should be masked as ``SUSPECT`` when the
-                overscan solution is applied.
-            - ``isTransposed`` : `bool`
+                overscan solution is applied. (`list` [ `bool` ])
+            ``isTransposed``
                Indicates if the overscan data was transposed during
                calcuation, noting along which axis the overscan should be
-               subtracted.
+               subtracted. (`bool`)
         """
         calcImage = self.getImageArray(image)
 

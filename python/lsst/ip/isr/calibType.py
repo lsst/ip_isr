@@ -191,20 +191,20 @@ class IsrCalib(abc.ABC):
         Parameters
         ----------
         camera : `lsst.afw.cameraGeom.Camera`, optional
-            Reference camera to use to set _instrument field.
+            Reference camera to use to set ``_instrument`` field.
         detector : `lsst.afw.cameraGeom.Detector`, optional
-            Reference detector to use to set _detector* fields.
+            Reference detector to use to set ``_detector*`` fields.
         filterName : `str`, optional
             Filter name to assign to this calibration.
         setCalibId : `bool`, optional
-            Construct the _calibId field from other fields.
+            Construct the ``_calibId`` field from other fields.
         setCalibInfo : `bool`, optional
             Set calibration parameters from metadata.
         setDate : `bool`, optional
-            Ensure the metadata CALIBDATE fields are set to the current
+            Ensure the metadata ``CALIBDATE`` fields are set to the current
             datetime.
         kwargs : `dict` or `collections.abc.Mapping`, optional
-            Set of key=value pairs to assign to the metadata.
+            Set of ``key=value`` pairs to assign to the metadata.
         """
         mdOriginal = self.getMetadata()
         mdSupplemental = dict()
@@ -280,9 +280,8 @@ class IsrCalib(abc.ABC):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the dictionary does not match the expected OBSTYPE.
-
         """
 
         def search(haystack, needles):
@@ -339,7 +338,7 @@ class IsrCalib(abc.ABC):
 
         Raises
         ------
-        ValueError :
+        ValueError
             Raised if the resulting calibClass is the base
             `lsst.ip.isr.IsrClass` (which does not implement the
             content methods).
@@ -369,7 +368,7 @@ class IsrCalib(abc.ABC):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the filename does not end in ".ecsv" or ".yaml".
         """
         if filename.endswith((".ecsv", ".ECSV")):
@@ -396,6 +395,7 @@ class IsrCalib(abc.ABC):
                 ``"auto"`` : Determine filetype from filename.
                 ``"yaml"`` : Write as yaml.
                 ``"ecsv"`` : Write as ecsv.
+
         Returns
         -------
         used : `str`
@@ -404,7 +404,7 @@ class IsrCalib(abc.ABC):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if filename does not end in a known extension, or
             if all information cannot be written.
 
@@ -488,7 +488,6 @@ class IsrCalib(abc.ABC):
         -------
         used : `str`
             The name of the file used to write the data.
-
         """
         tableList = self.toTable()
         with warnings.catch_warnings():
@@ -511,6 +510,7 @@ class IsrCalib(abc.ABC):
         Raises
         ------
         NotImplementedError
+            Raised if not implemented by a subclass.
             This needs to be implemented by subclasses for each
             calibration type.
         """
@@ -530,13 +530,13 @@ class IsrCalib(abc.ABC):
             Set of key=value options.
 
         Returns
-        ------
+        -------
         calib : `lsst.ip.isr.CalibType`
             Constructed calibration.
 
         Raises
         ------
-        NotImplementedError :
+        NotImplementedError
             Raised if not implemented.
         """
         raise NotImplementedError("Must be implemented by subclass.")
@@ -554,7 +554,7 @@ class IsrCalib(abc.ABC):
 
         Raises
         ------
-        NotImplementedError :
+        NotImplementedError
             Raised if not implemented.
         """
         raise NotImplementedError("Must be implemented by subclass.")
@@ -573,13 +573,13 @@ class IsrCalib(abc.ABC):
             Set of key=value options.
 
         Returns
-        ------
+        -------
         calib : `lsst.ip.isr.CalibType`
             Constructed calibration.
 
         Raises
         ------
-        NotImplementedError :
+        NotImplementedError
             Raised if not implemented.
         """
         raise NotImplementedError("Must be implemented by subclass.")
@@ -597,7 +597,7 @@ class IsrCalib(abc.ABC):
 
         Raises
         ------
-        NotImplementedError :
+        NotImplementedError
             Raised if not implemented.
         """
         raise NotImplementedError("Must be implemented by subclass.")
@@ -632,7 +632,7 @@ class IsrCalib(abc.ABC):
 
         Raises
         ------
-        NotImplementedError :
+        NotImplementedError
             Raised if not implemented.
         """
         raise NotImplementedError("Must be implemented by subclass.")
@@ -680,8 +680,8 @@ class IsrProvenance(IsrCalib):
 
         Parameters
         ----------
-        setDate : `bool, optional
-            Update the CALIBDATE fields in the metadata to the current
+        setDate : `bool`, optional
+            Update the ``CALIBDATE`` fields in the metadata to the current
             time. Defaults to False.
         kwargs : `dict` or `collections.abc.Mapping`, optional
             Other keyword parameters to set in the metadata.
@@ -803,7 +803,6 @@ class IsrProvenance(IsrCalib):
         -------
         tableList : `list` [`lsst.afw.table.Table`]
             List of tables containing the provenance information
-
         """
         tableList = []
         self.updateMetadata(setDate=True, setCalibInfo=True)

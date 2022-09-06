@@ -102,10 +102,12 @@ class FringeTask(Task):
         -------
         fringeData : `pipeBase.Struct`
             Struct containing fringe data:
-            - ``fringes`` : `lsst.afw.image.Exposure` or `list` thereof
+
+            ``fringes``
                 Calibration fringe files containing master fringe frames.
-            - ``seed`` : `int`, optional
-                Seed for random number generation.
+                ( : `lsst.afw.image.Exposure` or `list` thereof)
+            ``seed``
+                Seed for random number generation. (`int`, optional)
         """
         if assembler is not None:
             fringeExp = assembler.assembleCcd(fringeExp)
@@ -436,7 +438,7 @@ class FringeTask(Task):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the number of fringe frames does not match the
             number of measured amplitudes.
         """

@@ -39,15 +39,17 @@ from .calibType import IsrCalib
 class Linearizer(IsrCalib):
     """Parameter set for linearization.
 
-    These parameters are included in cameraGeom.Amplifier, but
+    These parameters are included in `lsst.afw.cameraGeom.Amplifier`, but
     should be accessible externally to allow for testing.
 
     Parameters
     ----------
     table : `numpy.array`, optional
         Lookup table; a 2-dimensional array of floats:
-            - one row for each row index (value of coef[0] in the amplifier)
-            - one column for each image value
+
+        - one row for each row index (value of coef[0] in the amplifier)
+        - one column for each image value
+
         To avoid copying the table the last index should vary fastest
         (numpy default "C" order)
     detector : `lsst.afw.cameraGeom.Detector`, optional
@@ -59,7 +61,7 @@ class Linearizer(IsrCalib):
 
     Raises
     ------
-    RuntimeError :
+    RuntimeError
         Raised if the supplied table is not 2D, or if the table has fewer
         columns than rows (indicating that the indices are swapped).
 
@@ -398,7 +400,7 @@ class Linearizer(IsrCalib):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if there is a mismatch in linearity parameters, and
             the cameraGeom parameters are not being overridden.
         """
@@ -493,7 +495,7 @@ class Linearizer(IsrCalib):
 class LinearizeBase(metaclass=abc.ABCMeta):
     """Abstract base class functor for correcting non-linearity.
 
-    Subclasses must define __call__ and set class variable
+    Subclasses must define ``__call__`` and set class variable
     LinearityType to a string that will be used for linearity type in
     the cameraGeom.Amplifier.linearityType field.
 
@@ -514,17 +516,18 @@ class LinearizeBase(metaclass=abc.ABCMeta):
             Image to be corrected
         kwargs : `dict`
             Dictionary of parameter keywords:
-            ``"coeffs"``
+
+            ``coeffs``
                 Coefficient vector (`list` or `numpy.array`).
-            ``"table"``
+            ``table``
                 Lookup table data (`numpy.array`).
-            ``"log"``
+            ``log``
                 Logger to handle messages (`logging.Logger`).
 
         Returns
         -------
         output : `bool`
-            If true, a correction was applied successfully.
+            If `True`, a correction was applied successfully.
 
         Raises
         ------
@@ -566,11 +569,12 @@ class LinearizeLookupTable(LinearizeBase):
             Image to be corrected
         kwargs : `dict`
             Dictionary of parameter keywords:
-            ``"coeffs"``
+
+            ``coeffs``
                 Columnation vector (`list` or `numpy.array`).
-            ``"table"``
+            ``table``
                 Lookup table data (`numpy.array`).
-            ``"log"``
+            ``log``
                 Logger to handle messages (`logging.Logger`).
 
         Returns
@@ -613,17 +617,20 @@ class LinearizeLookupTable(LinearizeBase):
 class LinearizePolynomial(LinearizeBase):
     """Correct non-linearity with a polynomial mode.
 
-    corrImage = uncorrImage + sum_i c_i uncorrImage^(2 + i)
+    .. code-block::
 
-    where c_i are the linearity coefficients for each amplifier.
+        corrImage = uncorrImage + sum_i c_i uncorrImage^(2 + i)
+
+    where ``c_i`` are the linearity coefficients for each amplifier.
     Lower order coefficients are not included as they duplicate other
     calibration parameters:
-        ``"k0"``
-            A coefficient multiplied by uncorrImage**0 is equivalent to
-            bias level.  Irrelevant for correcting non-linearity.
-        ``"k1"``
-            A coefficient multiplied by uncorrImage**1 is proportional
-            to the gain.  Not necessary for correcting non-linearity.
+
+    ``k0``
+        A coefficient multiplied by ``uncorrImage**0`` is equivalent to
+        bias level.  Irrelevant for correcting non-linearity.
+    ``k1``
+        A coefficient multiplied by ``uncorrImage**1`` is proportional
+        to the gain.  Not necessary for correcting non-linearity.
     """
     LinearityType = "Polynomial"
 
@@ -636,12 +643,13 @@ class LinearizePolynomial(LinearizeBase):
             Image to be corrected
         kwargs : `dict`
             Dictionary of parameter keywords:
-            ``"coeffs"``
+
+            ``coeffs``
                 Coefficient vector (`list` or `numpy.array`).
                 If the order of the polynomial is n, this list
                 should have a length of n-1 ("k0" and "k1" are
                 not needed for the correction).
-            ``"log"``
+            ``log``
                 Logger to handle messages (`logging.Logger`).
 
         Returns
@@ -683,9 +691,10 @@ class LinearizeSquared(LinearizeBase):
             Image to be corrected
         kwargs : `dict`
             Dictionary of parameter keywords:
-            ``"coeffs"``
+
+            ``coeffs``
                 Coefficient vector (`list` or `numpy.array`).
-            ``"log"``
+            ``log``
                 Logger to handle messages (`logging.Logger`).
 
         Returns
@@ -729,9 +738,10 @@ class LinearizeSpline(LinearizeBase):
             Image to be corrected
         kwargs : `dict`
             Dictionary of parameter keywords:
-            ``"coeffs"``
+
+            ``coeffs``
                 Coefficient vector (`list` or `numpy.array`).
-            ``"log"``
+            ``log``
                 Logger to handle messages (`logging.Logger`).
 
         Returns
@@ -767,9 +777,10 @@ class LinearizeProportional(LinearizeBase):
             Image to be corrected
         kwargs : `dict`
             Dictionary of parameter keywords:
-            ``"coeffs"``
+
+            ``coeffs``
                 Coefficient vector (`list` or `numpy.array`).
-            ``"log"``
+            ``log``
                 Logger to handle messages (`logging.Logger`).
 
         Returns
@@ -796,9 +807,10 @@ class LinearizeNone(LinearizeBase):
             Image to be corrected
         kwargs : `dict`
             Dictionary of parameter keywords:
-            ``"coeffs"``
+
+            ``coeffs``
                 Coefficient vector (`list` or `numpy.array`).
-            ``"log"``
+            ``log``
                 Logger to handle messages (`logging.Logger`).
 
         Returns

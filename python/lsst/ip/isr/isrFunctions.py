@@ -263,11 +263,12 @@ def trimToMatchCalibBBox(rawMaskedImage, calibMaskedImage):
     Returns
     -------
     replacementMaskedImage : `lsst.afw.image.MaskedImage`
-        ``rawMaskedImage`` trimmed to the appropriate size
+        ``rawMaskedImage`` trimmed to the appropriate size.
+
     Raises
     ------
     RuntimeError
-       Rasied if ``rawMaskedImage`` cannot be symmetrically trimmed to
+       Raised if ``rawMaskedImage`` cannot be symmetrically trimmed to
        match ``calibMaskedImage``.
     """
     nx, ny = rawMaskedImage.getBBox().getDimensions() - calibMaskedImage.getBBox().getDimensions()
@@ -396,7 +397,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
         Flat scale computation method.  Allowed values are 'MEAN',
         'MEDIAN', or 'USER'.
     userScale : scalar, optional
-        Scale to use if ``scalingType``='USER'.
+        Scale to use if ``scalingType='USER'``.
     invert : `Bool`, optional
         If True, unflatten an already flattened image.
     trimToFit : `Bool`, optional

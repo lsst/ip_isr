@@ -388,22 +388,24 @@ class IsrMock(pipeBase.Task):
         Notes
         -----
         This method currently constructs a "raw" data image by:
-            * Generating a simulated sky with noise
-            * Adding a single Gaussian "star"
-            * Adding the fringe signal
-            * Multiplying the frame by the simulated flat
-            * Adding dark current (and noise)
-            * Adding a bias offset (and noise)
-            * Adding an overscan gradient parallel to the pixel y-axis
-            * Simulating crosstalk by adding a scaled version of each
-              amplifier to each other amplifier.
+
+        * Generating a simulated sky with noise
+        * Adding a single Gaussian "star"
+        * Adding the fringe signal
+        * Multiplying the frame by the simulated flat
+        * Adding dark current (and noise)
+        * Adding a bias offset (and noise)
+        * Adding an overscan gradient parallel to the pixel y-axis
+        * Simulating crosstalk by adding a scaled version of each
+          amplifier to each other amplifier.
 
         The exposure with image data constructed this way is in one of
         three formats.
-            * A single image, with overscan and prescan regions retained
-            * A single image, with overscan and prescan regions trimmed
-            * A `dict`, containing the amplifer data indexed by the
-              amplifier name.
+
+        * A single image, with overscan and prescan regions retained
+        * A single image, with overscan and prescan regions trimmed
+        * A `dict`, containing the amplifer data indexed by the
+          amplifier name.
 
         The nonlinearity, CTE, and brighter fatter are currently not
         implemented.

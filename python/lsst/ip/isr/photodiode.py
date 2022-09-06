@@ -97,7 +97,7 @@ class PhotodiodeCalib(IsrCalib):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the supplied dictionary is for a different
             calibration type.
         """
@@ -224,7 +224,7 @@ class PhotodiodeCalib(IsrCalib):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the integration method is not known.
         """
         if self.integrationMethod == 'DIRECT_SUM':
