@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+__all__ = ["IsrTask", "IsrTaskConfig"]
+
 import math
 import numpy
 
@@ -54,9 +56,6 @@ from .ampOffset import AmpOffsetTask
 from .deferredCharge import DeferredChargeTask
 from .isrStatistics import IsrStatisticsTask
 from lsst.daf.butler import DimensionGraph
-
-
-__all__ = ["IsrTask", "IsrTaskConfig"]
 
 
 def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):

@@ -19,6 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+__all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock",
+           "CalibratedRawMock", "MasterMock",
+           "BiasMock", "DarkMock", "FlatMock", "FringeMock", "UntrimmedFringeMock",
+           "BfKernelMock", "DefectMock", "CrosstalkCoeffMock", "TransmissionMock",
+           "MockDataContainer", "MockFringeContainer"]
+
 import copy
 import numpy as np
 import tempfile
@@ -33,12 +39,6 @@ import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from .crosstalk import CrosstalkCalib
 from .defects import Defects
-
-__all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock",
-           "CalibratedRawMock", "MasterMock",
-           "BiasMock", "DarkMock", "FlatMock", "FringeMock", "UntrimmedFringeMock",
-           "BfKernelMock", "DefectMock", "CrosstalkCoeffMock", "TransmissionMock",
-           "MockDataContainer", "MockFringeContainer"]
 
 
 class IsrMockConfig(pexConfig.Config):

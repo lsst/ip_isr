@@ -19,6 +19,11 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+
+__all__ = ["Linearizer",
+           "LinearizeBase", "LinearizeLookupTable", "LinearizeSquared",
+           "LinearizeProportional", "LinearizePolynomial", "LinearizeSpline", "LinearizeNone"]
+
 import abc
 import numpy as np
 
@@ -29,10 +34,6 @@ from lsst.pipe.base import Struct
 from lsst.geom import Box2I, Point2I, Extent2I
 from .applyLookupTable import applyLookupTable
 from .calibType import IsrCalib
-
-__all__ = ["Linearizer",
-           "LinearizeBase", "LinearizeLookupTable", "LinearizeSquared",
-           "LinearizeProportional", "LinearizePolynomial", "LinearizeSpline", "LinearizeNone"]
 
 
 class Linearizer(IsrCalib):

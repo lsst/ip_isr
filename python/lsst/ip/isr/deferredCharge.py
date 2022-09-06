@@ -18,6 +18,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+__all__ = ('DeferredChargeConfig', 'DeferredChargeTask', 'SerialTrap', 'DeferredChargeCalib')
+
 import numpy as np
 from astropy.table import Table
 
@@ -28,9 +31,6 @@ from .isrFunctions import gainContext
 from .calibType import IsrCalib
 
 import scipy.interpolate as interp
-
-
-__all__ = ('DeferredChargeConfig', 'DeferredChargeTask', 'SerialTrap', 'DeferredChargeCalib')
 
 
 class SerialTrap():

@@ -20,6 +20,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # import os
 
+__all__ = ["AmpOffsetConfig", "AmpOffsetTask"]
+
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsst.meas.algorithms import (SubtractBackgroundTask, SourceDetectionTask)

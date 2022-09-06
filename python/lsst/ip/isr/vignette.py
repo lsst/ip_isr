@@ -18,6 +18,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+__all__ = ('VignetteConfig', 'VignetteTask', 'setValidPolygonCcdIntersect',
+           'maskVignettedRegion')
+
 import logging
 import numpy as np
 
@@ -27,10 +31,6 @@ import lsst.afw.geom as afwGeom
 
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
-
-
-__all__ = ('VignetteConfig', 'VignetteTask', 'setValidPolygonCcdIntersect',
-           'maskVignettedRegion')
 
 
 class VignetteConfig(Config):

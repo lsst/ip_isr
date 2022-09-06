@@ -21,13 +21,13 @@
 """
 Photodiode storage class.
 """
+
+__all__ = ["PhotodiodeCalib"]
+
 import numpy as np
 from astropy.table import Table
 
 from lsst.ip.isr import IsrCalib
-
-
-__all__ = ["PhotodiodeCalib"]
 
 
 class PhotodiodeCalib(IsrCalib):

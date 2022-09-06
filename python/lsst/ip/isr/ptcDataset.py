@@ -22,12 +22,13 @@
 """
 Define dataset class for MeasurePhotonTransferCurve task
 """
+
+__all__ = ['PhotonTransferCurveDataset']
+
 import numpy as np
 from astropy.table import Table
 
 from lsst.ip.isr import IsrCalib
-
-__all__ = ['PhotonTransferCurveDataset']
 
 
 class PhotonTransferCurveDataset(IsrCalib):

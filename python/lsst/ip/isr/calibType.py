@@ -18,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+__all__ = ["IsrCalib", "IsrProvenance"]
+
 import abc
 import datetime
 import logging
@@ -32,9 +34,6 @@ from astropy.io import fits
 from lsst.daf.base import PropertyList
 from lsst.utils.introspection import get_full_type_name
 from lsst.utils import doImport
-
-
-__all__ = ["IsrCalib", "IsrProvenance"]
 
 
 class IsrCalib(abc.ABC):

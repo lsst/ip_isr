@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+__all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask"]
+
 import numpy as np
 import time
 import lsst.afw.math as afwMath
@@ -28,8 +30,6 @@ import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
 from .isr import fitOverscanImage
-
-__all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask"]
 
 
 class OverscanCorrectionTaskConfig(pexConfig.Config):

@@ -22,6 +22,10 @@
 """
 Apply intra-detector crosstalk corrections
 """
+
+__all__ = ["CrosstalkCalib", "CrosstalkConfig", "CrosstalkTask",
+           "NullCrosstalkTask"]
+
 import numpy as np
 from astropy.table import Table
 
@@ -32,10 +36,6 @@ from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
 from lsst.ip.isr import IsrCalib
-
-
-__all__ = ["CrosstalkCalib", "CrosstalkConfig", "CrosstalkTask",
-           "NullCrosstalkTask"]
 
 
 class CrosstalkCalib(IsrCalib):
