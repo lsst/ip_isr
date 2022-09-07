@@ -21,11 +21,12 @@
 """
 PhotodiodeCorrection storage class.
 """
+
+__all__ = ["PhotodiodeCorrection"]
+
 import numpy as np
 from astropy.table import Table
 from .calibType import IsrCalib
-
-__all__ = ["PhotodiodeCorrection"]
 
 
 class PhotodiodeCorrection(IsrCalib):
@@ -38,8 +39,10 @@ class PhotodiodeCorrection(IsrCalib):
     ----------
     table : `numpy.array`, optional
         Lookup table; a 2-dimensional array of floats:
-            - one row for each row index (value of coef[0] in the amplifier)
-            - one column for each image value
+
+        - one row for each row index (value of coef[0] in the amplifier)
+        - one column for each image value.
+
         To avoid copying the table the last index should vary fastest
         (numpy default "C" order)
     log : `logging.Logger`, optional
@@ -49,7 +52,7 @@ class PhotodiodeCorrection(IsrCalib):
 
     Raises
     ------
-    RuntimeError :
+    RuntimeError
         Raised if the supplied table is not 2D, or if the table has fewer
         columns than rows (indicating that the indices are swapped).
 
@@ -109,7 +112,7 @@ class PhotodiodeCorrection(IsrCalib):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the supplied dictionary is for a different
             calibration type.
         """

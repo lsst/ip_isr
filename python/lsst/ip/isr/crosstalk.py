@@ -22,6 +22,10 @@
 """
 Apply intra-detector crosstalk corrections
 """
+
+__all__ = ["CrosstalkCalib", "CrosstalkConfig", "CrosstalkTask",
+           "NullCrosstalkTask"]
+
 import numpy as np
 from astropy.table import Table
 
@@ -32,10 +36,6 @@ from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
 from lsst.ip.isr import IsrCalib
-
-
-__all__ = ["CrosstalkCalib", "CrosstalkConfig", "CrosstalkTask",
-           "NullCrosstalkTask"]
 
 
 class CrosstalkCalib(IsrCalib):
@@ -63,21 +63,21 @@ class CrosstalkCalib(IsrCalib):
     crosstalkShape : `tuple` [`int`, `int`]
         A tuple containing the shape of the ``coeffs`` matrix.  This
         should be equivalent to (``nAmp``, ``nAmp``).
-    coeffs : `np.ndarray`
+    coeffs : `numpy.ndarray`
         A matrix containing the crosstalk coefficients.  coeff[i][j]
         contains the coefficients to calculate the contribution
         amplifier_j has on amplifier_i (each row[i] contains the
         corrections for detector_i).
-    coeffErr : `np.ndarray`, optional
+    coeffErr : `numpy.ndarray`, optional
         A matrix (as defined by ``coeffs``) containing the standard
         distribution of the crosstalk measurements.
-    coeffNum : `np.ndarray`, optional
+    coeffNum : `numpy.ndarray`, optional
         A matrix containing the number of pixel pairs used to measure
         the ``coeffs`` and ``coeffErr``.
-    coeffValid : `np.ndarray`, optional
+    coeffValid : `numpy.ndarray`, optional
         A matrix of Boolean values indicating if the coefficient is
         valid, defined as abs(coeff) > coeffErr / sqrt(coeffNum).
-    interChip : `dict` [`np.ndarray`]
+    interChip : `dict` [`numpy.ndarray`]
         A dictionary keyed by detectorName containing ``coeffs``
         matrices used to correct for inter-chip crosstalk with a
         source on the detector indicated.
@@ -196,7 +196,7 @@ class CrosstalkCalib(IsrCalib):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the supplied dictionary is for a different
             calibration.
         """

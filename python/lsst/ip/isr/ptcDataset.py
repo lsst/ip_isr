@@ -22,16 +22,18 @@
 """
 Define dataset class for MeasurePhotonTransferCurve task
 """
+
+__all__ = ['PhotonTransferCurveDataset']
+
 import numpy as np
 from astropy.table import Table
 
 from lsst.ip.isr import IsrCalib
 
-__all__ = ['PhotonTransferCurveDataset']
-
 
 class PhotonTransferCurveDataset(IsrCalib):
     """A simple class to hold the output data from the PTC task.
+
     The dataset is made up of a dictionary for each item, keyed by the
     amplifiers' names, which much be supplied at construction time.
     New items cannot be added to the class to save accidentally saving to the
@@ -50,20 +52,18 @@ class PhotonTransferCurveDataset(IsrCalib):
     ----------
     ampNames : `list`
         List with the names of the amplifiers of the detector at hand.
-
     ptcFitType : `str`
         Type of model fitted to the PTC: "POLYNOMIAL", "EXPAPPROXIMATION",
         or "FULLCOVARIANCE".
-
     covMatrixSide : `int`
         Maximum lag of covariances (size of square covariance matrices).
-
     kwargs : `dict`, optional
         Other keyword arguments to pass to the parent init.
 
     Notes
     -----
     The stored attributes are:
+
     badAmps : `list`
         List with bad amplifiers names.
     inputExpIdPairs : `dict`, [`str`, `list`]
@@ -146,13 +146,6 @@ class PhotonTransferCurveDataset(IsrCalib):
          Dictionary keyed by amp names containing the integrated photocharge
          for linearity calibration.
 
-    Returns
-    -------
-    `lsst.cp.pipe.ptc.PhotonTransferCurveDataset`
-        Output dataset from MeasurePhotonTransferCurveTask.
-
-    Notes
-    -----
     Version 1.1 adds the `ptcTurnoff` attribute.
     """
 
@@ -267,6 +260,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         """Update calibration metadata.
         This calls the base class's method after ensuring the required
         calibration keywords will be saved.
+
         Parameters
         ----------
         setDate : `bool`, optional
@@ -281,17 +275,20 @@ class PhotonTransferCurveDataset(IsrCalib):
     def fromDict(cls, dictionary):
         """Construct a calibration from a dictionary of properties.
         Must be implemented by the specific calibration subclasses.
+
         Parameters
         ----------
         dictionary : `dict`
             Dictionary of properties.
+
         Returns
         -------
-        calib : `lsst.ip.isr.CalibType`
+        calib : `lsst.ip.isr.PhotonTransferCurveDataset`
             Constructed calibration.
+
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the supplied dictionary is for a different
             calibration.
         """
@@ -367,6 +364,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         """Return a dictionary containing the calibration properties.
         The dictionary should be able to be round-tripped through
         `fromDict`.
+
         Returns
         -------
         dictionary : `dict`
@@ -415,13 +413,15 @@ class PhotonTransferCurveDataset(IsrCalib):
         This method uses the `fromDict` method to create the
         calibration, after constructing an appropriate dictionary from
         the input tables.
+
         Parameters
         ----------
         tableList : `list` [`lsst.afw.table.Table`]
             List of tables to use to construct the datasetPtc.
+
         Returns
         -------
-        calib : `lsst.cp.pipe.`
+        calib : `lsst.ip.isr.PhotonTransferCurveDataset`
             The calibration defined in the tables.
         """
         ptcTable = tableList[0]
@@ -509,6 +509,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         The list of tables should create an identical calibration
         after being passed to this class's fromTable method.
+
         Returns
         -------
         tableList : `list` [`astropy.table.Table`]
@@ -597,7 +598,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         Returns
         -------
-        calib : `lsst.ip.isr.Linearizer`
+        calib : `lsst.ip.isr.PhotonTransferCurveDataset`
             The calibration constructed from the detector.
         """
 

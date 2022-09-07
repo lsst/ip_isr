@@ -18,6 +18,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+__all__ = ('DeferredChargeConfig', 'DeferredChargeTask', 'SerialTrap', 'DeferredChargeCalib')
+
 import numpy as np
 from astropy.table import Table
 
@@ -28,9 +31,6 @@ from .isrFunctions import gainContext
 from .calibType import IsrCalib
 
 import scipy.interpolate as interp
-
-
-__all__ = ('DeferredChargeConfig', 'DeferredChargeTask', 'SerialTrap', 'DeferredChargeCalib')
 
 
 class SerialTrap():
@@ -268,7 +268,7 @@ class DeferredChargeCalib(IsrCalib):
 
         Raises
         ------
-        RuntimeError :
+        RuntimeError
             Raised if the supplied dictionary is for a different
             calibration.
         """
@@ -582,14 +582,14 @@ class DeferredChargeTask(Task):
 
         Parameters
         ----------
-        ampData : `np.ndarray`, (nx, ny)
+        ampData : `numpy.ndarray`, (nx, ny)
             Image data to flip.
         amp : `lsst.afw.cameraGeom.Amplifier`
             Amplifier to get readout corner information.
 
         Returns
         -------
-        ampData : `np.ndarray`, (nx, ny)
+        ampData : `numpy.ndarray`, (nx, ny)
             Flipped image data.
         """
         X_FLIP = {ReadoutCorner.LL: False,
@@ -615,11 +615,14 @@ class DeferredChargeTask(Task):
         This implements equation 10 of Snyder+21.  For an image with
         CTI, s'(m, n), the correction factor is equal to the maximum
         value of the set of:
+
+        .. code-block::
+
             {A_L s'(m, n - j) exp(-j t / \tau_L)}_j=0^jmax
 
         Parameters
         ----------
-        inputArr : `np.ndarray`, (nx, ny)
+        inputArr : `numpy.ndarray`, (nx, ny)
             Input image data to correct.
         drift_scale : `float`
             Drift scale (Snyder+21 A_L value) to use in correction.
@@ -633,7 +636,7 @@ class DeferredChargeTask(Task):
 
         Returns
         -------
-        outputArr : `np.ndarray`, (nx, ny)
+        outputArr : `numpy.ndarray`, (nx, ny)
             Corrected image data.
         """
         r = np.exp(-1/decay_time)
@@ -659,11 +662,14 @@ class DeferredChargeTask(Task):
         This implements equation 13 of Snyder+21.  For an image with
         CTI, s'(m, n), the correction factor is equal to the maximum
         value of the set of:
+
+        .. code-block::
+
             {A_L s'(m, n - j) exp(-j t / \tau_L)}_j=0^jmax
 
         Parameters
         ----------
-        inputArr : `np.ndarray`, (nx, ny)
+        inputArr : `numpy.ndarray`, (nx, ny)
             Input image data to correct.
         trap : `lsst.ip.isr.SerialTrap`
             Serial trap describing the capture and release of charge.
@@ -674,7 +680,7 @@ class DeferredChargeTask(Task):
 
         Returns
         -------
-        outputArr : `np.ndarray`, (nx, ny)
+        outputArr : `numpy.ndarray`, (nx, ny)
             Corrected image data.
 
         """

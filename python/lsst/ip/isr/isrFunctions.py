@@ -19,6 +19,31 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+
+__all__ = [
+    "applyGains",
+    "attachTransmissionCurve",
+    "biasCorrection",
+    "brighterFatterCorrection",
+    "checkFilter",
+    "createPsf",
+    "darkCorrection",
+    "flatCorrection",
+    "gainContext",
+    "getPhysicalFilter",
+    "growMasks",
+    "illuminationCorrection",
+    "interpolateDefectList",
+    "interpolateFromMask",
+    "makeThresholdMask",
+    "saturationCorrection",
+    "setBadRegions",
+    "transposeMaskedImage",
+    "trimToMatchCalibBBox",
+    "updateVariance",
+    "widenSaturationTrails",
+]
+
 import math
 import numpy
 
@@ -238,11 +263,12 @@ def trimToMatchCalibBBox(rawMaskedImage, calibMaskedImage):
     Returns
     -------
     replacementMaskedImage : `lsst.afw.image.MaskedImage`
-        ``rawMaskedImage`` trimmed to the appropriate size
+        ``rawMaskedImage`` trimmed to the appropriate size.
+
     Raises
     ------
     RuntimeError
-       Rasied if ``rawMaskedImage`` cannot be symmetrically trimmed to
+       Raised if ``rawMaskedImage`` cannot be symmetrically trimmed to
        match ``calibMaskedImage``.
     """
     nx, ny = rawMaskedImage.getBBox().getDimensions() - calibMaskedImage.getBBox().getDimensions()
@@ -371,7 +397,7 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
         Flat scale computation method.  Allowed values are 'MEAN',
         'MEDIAN', or 'USER'.
     userScale : scalar, optional
-        Scale to use if ``scalingType``='USER'.
+        Scale to use if ``scalingType='USER'``.
     invert : `Bool`, optional
         If True, unflatten an already flattened image.
     trimToFit : `Bool`, optional

@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+__all__ = ["AssembleCcdTask"]
+
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
 import lsst.afw.display as afwDisplay
@@ -26,8 +28,6 @@ import lsst.afw.image as afwImage
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsstDebug import getDebugFrame
-
-__all__ = ["AssembleCcdTask"]
 
 
 class AssembleCcdConfig(pexConfig.Config):

@@ -20,6 +20,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+__all__ = ["IsrQaFlatnessConfig", "IsrQaConfig", "makeThumbnail"]
+
 import lsst.afw.display.rgb as afwRGB
 import lsst.afw.math as afwMath
 import lsst.pex.config as pexConfig

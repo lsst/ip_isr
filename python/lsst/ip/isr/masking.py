@@ -20,6 +20,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # import os
 
+__all__ = ["MaskingConfig", "MaskingTask"]
+
 from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 

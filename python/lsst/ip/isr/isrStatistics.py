@@ -18,6 +18,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+__all__ = ["IsrStatisticsTaskConfig", "IsrStatisticsTask"]
+
 import numpy as np
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
@@ -146,7 +149,7 @@ class IsrStatisticsTask(pipeBase.Task):
                 correction applied (`lsst.afw.image.Image`). This
                 quantity is used to estimate the amplifier read noise
                 empirically.
-        gains : `dict` [`str` `float]
+        gains : `dict` [`str` `float`]
             Dictionary of per-amplifier gains, indexed by amplifier name.
 
         Returns
