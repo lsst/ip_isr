@@ -1839,7 +1839,17 @@ class IsrTask(pipeBase.PipelineTask):
             gain = patchedGain
 
         if self.config.doEmpiricalReadNoise and overscanImage is None:
-            raise RuntimeError("Overscan is none for EmpiricalReadNoise.")
+            badPixels = isrFunctions.countMaskedPixels(ampExposure.getMaskedImage(),
+                                                       [self.config.saturatedMaskName,
+                                                        self.config.suspectMaskName,
+                                                        "BAD", "NO_DATA"])
+            allPixels = ampExposure.getWidth() * ampExposure.getHeight()
+            if allPixels == badPixels:
+                # If the image is bad, do not raise.
+                self.log.info("Skipping empirical read noise for amp %s.  No good pixels.",
+                              amp.getName())
+            else:
+                raise RuntimeError("Overscan is none for EmpiricalReadNoise.")
 
         if self.config.doEmpiricalReadNoise and overscanImage is not None:
             stats = afwMath.StatisticsControl()
