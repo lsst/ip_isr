@@ -23,6 +23,7 @@
 import unittest
 import numpy as np
 
+import lsst.geom as geom
 import lsst.afw.image as afwImage
 import lsst.utils.tests
 import lsst.ip.isr as ipIsr
@@ -48,28 +49,6 @@ def computeImageMedianAndStd(image):
     std = np.nanstd(image.getArray())
 
     return (median, std)
-
-
-def countMaskedPixels(maskedImage, maskPlane):
-    """Function to count the number of masked pixels of a given type.
-
-    Parameters
-    ----------
-    maskedImage : `lsst.afw.image.MaskedImage`
-        Image to measure the mask on.
-    maskPlane : `str`
-        Name of the mask plane to count
-
-    Returns
-    -------
-    nMask : `int`
-        Number of masked pixels.
-    """
-    bitMask = maskedImage.getMask().getPlaneBitMask(maskPlane)
-    isBit = maskedImage.getMask().getArray() & bitMask > 0
-    numBit = np.sum(isBit)
-
-    return numBit
 
 
 class IsrFunctionsCases(lsst.utils.tests.TestCase):
@@ -103,7 +82,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                     else:
                         if 'INTRP' not in self.mi.getMask().getMaskPlaneDict():
                             self.mi.getMask().addMaskPlane('INTRP')
-                    numBit = countMaskedPixels(self.mi, "INTRP")
+                    numBit = ipIsr.countMaskedPixels(self.mi, "INTRP")
                     self.assertEqual(numBit, 0)
 
     def test_transposeDefectList(self):
@@ -134,7 +113,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
             interpMaskedImage = ipIsr.interpolateFromMask(self.mi, 2.0,
                                                           growSaturatedFootprints=growFootprints,
                                                           maskNameList=['SAT'])
-            numBit = countMaskedPixels(interpMaskedImage, "INTRP")
+            numBit = ipIsr.countMaskedPixels(interpMaskedImage, "INTRP")
             self.assertEqual(numBit, 40800, msg=f"interpolateFromMask with growFootprints={growFootprints}")
 
     def test_saturationCorrectionInterpolate(self):
@@ -143,7 +122,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         corrMaskedImage = ipIsr.saturationCorrection(self.mi, 200, 2.0,
                                                      growFootprints=2, interpolate=True,
                                                      maskName='SAT')
-        numBit = countMaskedPixels(corrMaskedImage, "SAT")
+        numBit = ipIsr.countMaskedPixels(corrMaskedImage, "SAT")
         self.assertEqual(numBit, 40800)
 
     def test_saturationCorrectionNoInterpolate(self):
@@ -152,7 +131,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         corrMaskedImage = ipIsr.saturationCorrection(self.mi, 200, 2.0,
                                                      growFootprints=2, interpolate=False,
                                                      maskName='SAT')
-        numBit = countMaskedPixels(corrMaskedImage, "SAT")
+        numBit = ipIsr.countMaskedPixels(corrMaskedImage, "SAT")
         self.assertEqual(numBit, 40800)
 
     def test_trimToMatchCalibBBox(self):
@@ -277,10 +256,10 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
     def test_widenSaturationTrails(self):
         """Expect more mask pixels with SAT set after.
         """
-        numBitBefore = countMaskedPixels(self.mi, "SAT")
+        numBitBefore = ipIsr.countMaskedPixels(self.mi, "SAT")
 
         ipIsr.widenSaturationTrails(self.mi.getMask())
-        numBitAfter = countMaskedPixels(self.mi, "SAT")
+        numBitAfter = ipIsr.countMaskedPixels(self.mi, "SAT")
 
         self.assertGreaterEqual(numBitAfter, numBitBefore)
 
@@ -321,6 +300,38 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                                                  atmosphereTransmission=curve)
         # DM-19707: ip_isr functionality not fully tested by unit tests
         self.assertIsNotNone(combined)
+
+    def test_countMaskedPixels(self):
+        mockImageConfig = isrMock.IsrMock.ConfigClass()
+
+        # flatDrop is not really relevant as we replace the data
+        # but good to note it in case we change how this image is made
+        mockImageConfig.flatDrop = 0.99999
+        mockImageConfig.isTrimmed = True
+
+        flatExp = isrMock.FlatMock(config=mockImageConfig).run()
+        (shapeY, shapeX) = flatExp.getDimensions()
+
+        rng = np.random.RandomState(0)
+        flatMean = 1000
+        flatWidth = np.sqrt(flatMean)
+        flatData = rng.normal(flatMean, flatWidth, (shapeX, shapeY))
+        flatExp.image.array[:] = flatData
+
+        exp = flatExp.clone()
+        mi = exp.maskedImage
+        self.assertEqual(ipIsr.countMaskedPixels(mi, 'NO_DATA'), 0)
+        self.assertEqual(ipIsr.countMaskedPixels(mi, 'BAD'), 0)
+
+        NODATABIT = mi.mask.getPlaneBitMask("NO_DATA")
+        noDataBox = geom.Box2I(geom.Point2I(31, 49), geom.Extent2I(3, 6))
+        mi.mask[noDataBox] |= NODATABIT
+
+        self.assertEqual(ipIsr.countMaskedPixels(mi, 'NO_DATA'), noDataBox.getArea())
+        self.assertEqual(ipIsr.countMaskedPixels(mi, 'BAD'), 0)
+
+        mi.mask[noDataBox] ^= NODATABIT  # XOR to reset what we did
+        self.assertEqual(ipIsr.countMaskedPixels(mi, 'NO_DATA'), 0)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
