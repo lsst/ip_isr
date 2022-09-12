@@ -48,7 +48,8 @@ class BrighterFatterKernel(IsrCalib):
 
     Parameters
     ----------
-    camera : ``
+    camera : `lsst.afw.cameraGeom.Camera`
+        Camera describing detector geometry.
     level : `str`
         Level the kernels will be generated for.
     log : `logging.Logger`, optional
