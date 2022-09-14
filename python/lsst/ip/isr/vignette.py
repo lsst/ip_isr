@@ -180,21 +180,17 @@ def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=No
         return
 
     fullyIlluminated = True
-    for corner in exposure.getBBox().getCorners():
-        if not polygon.contains(geom.Point2D(corner)):
-            fullyIlluminated = False
+    if not all(polygon.contains(exposure.getBBox().getCorners())):
+        fullyIlluminated = False
     log.info("Exposure is fully illuminated? %s", fullyIlluminated)
 
     if not fullyIlluminated:
         # Scan pixels.
         mask = exposure.getMask()
-        numPixels = mask.getBBox().getArea()
-        xx, yy = np.meshgrid(np.arange(0, mask.getWidth(), dtype=int),
-                             np.arange(0, mask.getHeight(), dtype=int))
+        xx, yy = np.meshgrid(np.arange(0, mask.getWidth(), dtype=float),
+                             np.arange(0, mask.getHeight(), dtype=float))
 
-        vignMask = np.array([not polygon.contains(geom.Point2D(x, y)) for x, y in
-                             zip(xx.reshape(numPixels), yy.reshape(numPixels))])
-        vignMask = vignMask.reshape(mask.getHeight(), mask.getWidth())
+        vignMask = ~(polygon.contains(xx, yy))
 
         bitMask = mask.getPlaneBitMask(maskPlane)
         maskArray = mask.getArray()
