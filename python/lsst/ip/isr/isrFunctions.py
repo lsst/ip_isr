@@ -26,6 +26,7 @@ __all__ = [
     "biasCorrection",
     "brighterFatterCorrection",
     "checkFilter",
+    "countMaskedPixels",
     "createPsf",
     "darkCorrection",
     "flatCorrection",
@@ -896,3 +897,23 @@ def getPhysicalFilter(filterLabel, log):
             log.warning("filterLabel has no physicalLabel attribute.  Setting physicalFilter to \"Unknown\".")
             physicalFilter = "Unknown"
     return physicalFilter
+
+
+def countMaskedPixels(maskedIm, maskPlane):
+    """Count the number of pixels in a given mask plane.
+
+    Parameters
+    ----------
+    maskedIm : `~lsst.afw.image.MaskedImage`
+        Masked image to examine.
+    maskPlane : `str`
+        Name of the mask plane to examine.
+
+    Returns
+    -------
+    nPix : `int`
+        Number of pixels in the requested mask plane.
+    """
+    maskBit = maskedIm.mask.getPlaneBitMask(maskPlane)
+    nPix = numpy.where(numpy.bitwise_and(maskedIm.mask.array, maskBit))[0].flatten().size
+    return nPix
