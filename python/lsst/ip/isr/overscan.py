@@ -22,7 +22,6 @@
 __all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask"]
 
 import numpy as np
-import time
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.geom as geom
@@ -670,8 +669,6 @@ class OverscanCorrectionTask(pipeBase.Task):
             calcImage = np.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
 
-        startTime = time.perf_counter()
-
         if self.config.fitType == 'MEDIAN_PER_ROW':
             mi = afwImage.MaskedImageI(image.getBBox())
             masked = masked.astype(int)
@@ -714,8 +711,6 @@ class OverscanCorrectionTask(pipeBase.Task):
                 overscanVector = evaler(indices, coeffs)
                 maskArray = self.maskExtrapolated(collapsed)
 
-        endTime = time.perf_counter()
-        self.log.info(f"Overscan measurement took {endTime - startTime}s for {self.config.fitType}")
         return pipeBase.Struct(overscanValue=np.array(overscanVector),
                                maskArray=maskArray,
                                isTransposed=isTransposed)
