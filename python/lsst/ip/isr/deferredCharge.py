@@ -81,7 +81,12 @@ class SerialTrap():
             raise ValueError('Unknown trap type: %s', self.trap_type)
 
         if self.trap_type == 'spline':
-            centers, values = np.split(np.array(self.coeffs), 2)
+            centers, values = np.split(np.array(self.coeffs, dtype=np.float), 2)
+            # Ensure all NaN values are stripped out
+            values = values[~np.isnan(centers)]
+            centers = centers[~np.isnan(centers)]
+            centers = centers[~np.isnan(values)]
+            values = values[~np.isnan(values)]
             self.interp = interp.interp1d(centers, values)
 
         self._trap_array = None
@@ -378,7 +383,25 @@ class DeferredChargeCalib(IsrCalib):
             ampTrap['emissionTime'] = emissionTimes[index]
             ampTrap['pixel'] = pixels[index]
             ampTrap['trap_type'] = trap_type[index]
-            ampTrap['coeffs'] = np.array(coeffs[index])[~np.isnan(coeffs[index])].tolist()
+
+            # Unpad any trailing NaN values: find the continuous array
+            # of NaNs at the end of the coefficients, and remove them.
+            inCoeffs = coeffs[index]
+            breakIndex = 1
+            nanValues = np.where(np.isnan(inCoeffs))[0]
+            if nanValues is not None:
+                coeffLength = len(inCoeffs)
+                while breakIndex < coeffLength:
+                    if coeffLength - breakIndex in nanValues:
+                        breakIndex += 1
+                    else:
+                        break
+            breakIndex -= 1  # Remove the fixed offset.
+            if breakIndex != 0:
+                outCoeffs = inCoeffs[0: coeffLength - breakIndex]
+            else:
+                outCoeffs = inCoeffs
+            ampTrap['coeffs'] = outCoeffs.tolist()
 
             if ampTrap['trap_type'] == 'linear':
                 if len(ampTrap['coeffs']) < 1:
