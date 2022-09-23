@@ -333,6 +333,17 @@ class BrighterFatterKernel(IsrCalib):
         outDict['rawMeans'] = {amp: np.array(self.rawMeans[amp]).tolist() for amp in self.rawMeans}
         outDict['rawVariances'] = {amp: np.array(self.rawVariances[amp]).tolist() for amp in
                                    self.rawVariances}
+
+        for amp in self.rawXcorrs.keys():
+            # Check to see if we need to repack the data.
+            correlationShape = np.array(self.rawXcorrs[amp]).shape
+            if nObs != correlationShape[0]:
+                if correlationShape[0] == np.sum(self.expIdMask[amp]):
+                    # Repack data.
+                    self.repackCorrelations(amp, correlationShape)
+                else:
+                    raise ValueError("Could not coerce rawXcorrs into appropriate shape.")
+
         outDict['rawXcorrs'] = {amp: np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist()
                                 for amp in self.rawXcorrs}
         outDict['badAmps'] = self.badAmps
@@ -467,6 +478,15 @@ class BrighterFatterKernel(IsrCalib):
                 expIdMaskList.append(self.expIdMask[amp])
                 rawMeanList.append(self.rawMeans[amp])
                 rawVarianceList.append(self.rawVariances[amp])
+
+                correlationShape = np.array(self.rawXcorrs[amp]).shape
+                if nObs != correlationShape[0]:
+                    if correlationShape[0] == np.sum(self.expIdMask[amp]):
+                        # Repack data.
+                        self.repackCorrelations(amp, correlationShape)
+                    else:
+                        raise ValueError("Could not coerce rawXcorrs into appropriate shape.")
+
                 rawXcorrs.append(np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist())
                 gainList.append(self.gain[amp])
                 noiseList.append(self.noise[amp])
@@ -503,6 +523,27 @@ class BrighterFatterKernel(IsrCalib):
             tableList.append(detTable)
 
         return tableList
+
+    def repackCorrelations(self, amp, correlationShape):
+        """If the correlations were masked, they need to be repacked into the
+        correct shape.
+
+        Parameters
+        ----------
+        amp : `str`
+            Amplifier needing repacked.
+        correlationShape : `tuple` [`int`], (3, )
+            Shape the correlations are expected to take.
+        """
+        repackedCorrelations = []
+        idx = 0
+        for maskValue in self.expIdMask[amp]:
+            if maskValue:
+                repackedCorrelations.append(self.rawXcorrs[amp][idx])
+                idx += 1
+            else:
+                repackedCorrelations.append(np.full((correlationShape[1], correlationShape[2]), np.nan))
+        self.rawXcorrs[amp] = repackedCorrelations
 
     # Implementation methods
     def makeDetectorKernelFromAmpwiseKernels(self, detectorName, ampsToExclude=[]):
