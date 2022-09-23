@@ -342,7 +342,9 @@ class BrighterFatterKernel(IsrCalib):
                     # Repack data.
                     self.repackCorrelations(amp, correlationShape)
                 else:
-                    raise ValueError("Could not coerce rawXcorrs into appropriate shape.")
+                    raise ValueError("Could not coerce rawXcorrs into appropriate shape "
+                                     "(have %d correlations, but expect to see %d.",
+                                     correlationShape[0], np.sum(self.expIdMask[amp]))
 
         outDict['rawXcorrs'] = {amp: np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist()
                                 for amp in self.rawXcorrs}
@@ -485,7 +487,9 @@ class BrighterFatterKernel(IsrCalib):
                         # Repack data.
                         self.repackCorrelations(amp, correlationShape)
                     else:
-                        raise ValueError("Could not coerce rawXcorrs into appropriate shape.")
+                        raise ValueError("Could not coerce rawXcorrs into appropriate shape "
+                                         "(have %d correlations, but expect to see %d.",
+                                         correlationShape[0], np.sum(self.expIdMask[amp]))
 
                 rawXcorrs.append(np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist())
                 gainList.append(self.gain[amp])
