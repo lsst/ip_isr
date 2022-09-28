@@ -29,6 +29,7 @@ import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
 from .isr import fitOverscanImage
+from .isrFunctions import makeThresholdMask, countMaskedPixels
 
 
 class OverscanCorrectionTaskConfig(pexConfig.Config):
@@ -78,6 +79,16 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
         dtype=bool,
         doc="Correct using parallel overscan after serial overscan correction?",
         default=False,
+    )
+    parallelOverscanMaskThreshold = pexConfig.RangeField(
+        dtype=float,
+        doc="Minimum fraction of pixels in parallel overscan region necessary "
+        "for parallel overcan correction.",
+        default=0.1,
+        min=0.0,
+        max=1.0,
+        inclusiveMin=True,
+        inclusiveMax=True,
     )
 
     leadingColumnsToSkip = pexConfig.Field(
@@ -197,14 +208,25 @@ class OverscanCorrectionTask(pipeBase.Task):
             parallelOverscanBBox = amp.getRawParallelOverscanBBox()
             imageBBox = amp.getRawDataBBox()
 
-            parallelResults = self.correctOverscan(exposure, amp,
-                                                   imageBBox, parallelOverscanBBox,
-                                                   isTransposed=not isTransposed)
+            maskIm = exposure.getMaskedImage()
+            maskIm = maskIm.Factory(maskIm, parallelOverscanBBox)
+            makeThresholdMask(maskIm, threshold=self.config.numSigmaClip, growFootprints=0)
+            maskPix = countMaskedPixels(maskIm, self.config.maskPlanes)
+            xSize, ySize = parallelOverscanBBox.getDimensions()
+            if maskPix > xSize*ySize*self.config.parallelOverscanMaskThreshold:
+                self.log.warning('Fraction of masked pixels for parallel overscan calculation larger'
+                                 ' than %f of total pixels (i.e. %f masked pixels) on amp %s.',
+                                 self.config.parallelOverscanMaskThreshold, maskPix, amp.getName())
+                self.log.warning('Not doing parallel overscan correction.')
+            else:
+                parallelResults = self.correctOverscan(exposure, amp,
+                                                       imageBBox, parallelOverscanBBox,
+                                                       isTransposed=not isTransposed)
 
-            overscanMean = (overscanMean, parallelResults.overscanMean)
-            overscanSigma = (overscanSigma, parallelResults.overscanSigma)
-            residualMean = (residualMean, parallelResults.overscanMeanResidual)
-            residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
+                overscanMean = (overscanMean, parallelResults.overscanMean)
+                overscanSigma = (overscanSigma, parallelResults.overscanSigma)
+                residualMean = (residualMean, parallelResults.overscanMeanResidual)
+                residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
 
         return pipeBase.Struct(imageFit=serialResults.ampOverscanModel,
                                overscanFit=serialResults.overscanOverscanModel,
