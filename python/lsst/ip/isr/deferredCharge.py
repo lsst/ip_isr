@@ -595,7 +595,7 @@ class DeferredChargeTask(Task):
 
                 # Undo flips here.  The method is symmetric.
                 correctedAmpData = self.flipData(correctedAmpData, amp)
-                image[amp.getBBox()].array[:, :] = correctedAmpData[:, :]
+                image[amp.getRawBBox()].array[:, :] = correctedAmpData[:, :]
 
         return exposure
 
@@ -624,9 +624,9 @@ class DeferredChargeTask(Task):
                   ReadoutCorner.UL: True,
                   ReadoutCorner.UR: True}
 
-        if X_FLIP(amp.getReadoutCorner()):
+        if X_FLIP[amp.getReadoutCorner()]:
             ampData = np.fliplr(ampData)
-        if Y_FLIP(amp.getReadoutCorner()):
+        if Y_FLIP[amp.getReadoutCorner()]:
             ampData = np.flipud(ampData)
 
         return ampData
