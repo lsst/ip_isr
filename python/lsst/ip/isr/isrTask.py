@@ -241,7 +241,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         isCalibration=True,
     )
     deferredChargeCalib = cT.PrerequisiteInput(
-        name="deferredCharge",
+        name="cpCtiCalib",
         doc="Deferred charge/CTI correction dataset.",
         storageClass="IsrCalib",
         dimensions=["instrument", "detector"],
@@ -1055,7 +1055,7 @@ class IsrTask(pipeBase.PipelineTask):
             fringes=pipeBase.Struct(fringes=None), opticsTransmission=None, filterTransmission=None,
             sensorTransmission=None, atmosphereTransmission=None,
             detectorNum=None, strayLightData=None, illumMaskedImage=None,
-            deferredCharge=None,
+            deferredChargeCalib=None,
             ):
         """Perform instrument signature removal on an exposure.
 
@@ -1223,7 +1223,7 @@ class IsrTask(pipeBase.PipelineTask):
         if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters
                 and illumMaskedImage is None):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
-        if (self.config.doDeferredCharge and deferredCharge is None):
+        if (self.config.doDeferredCharge and deferredChargeCalib is None):
             raise RuntimeError("Must supply a deferred charge calibration if config.doDeferredCharge=True.")
 
         # Begin ISR processing.
@@ -1278,7 +1278,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredChargeCorrection.run(ccdExposure, deferredCharge)
+            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
             self.debugView(ccdExposure, "doDeferredCharge")
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
