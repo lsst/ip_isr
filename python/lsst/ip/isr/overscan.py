@@ -167,13 +167,20 @@ class OverscanCorrectionTask(pipeBase.Task):
                 Value or fit subtracted from the amplifier image data
                 (scalar or `lsst.afw.image.Image`).
             ``overscanFit``
-                Value or fit subtracted from the overscan image data
-                (scalar or `lsst.afw.image.Image`).
+                Value or fit subtracted from the serial overscan image
+                data (scalar or `lsst.afw.image.Image`).
             ``overscanImage``
-                Image of the overscan region with the overscan
-                correction applied (`lsst.afw.image.Image`). This
-                quantity is used to estimate the amplifier read noise
-                empirically.
+                Image of the serial overscan region with the serial
+                overscan correction applied
+                (`lsst.afw.image.Image`). This quantity is used to
+                estimate the amplifier read noise empirically.
+            ``parallelOverscanFit``
+                Value or fit subtracted from the parallel overscan
+                image data (scalar, `lsst.afw.image.Image`, or None).
+            ``parallelOverscanImage``
+                Image of the parallel overscan region with the
+                parallel overscan correction applied
+                (`lsst.afw.image.Image` or None).
 
         Raises
         ------
@@ -202,6 +209,7 @@ class OverscanCorrectionTask(pipeBase.Task):
         residualSigma = serialResults.overscanSigmaResidual
 
         # Do Parallel Overscan
+        parallelResults = None
         if self.config.doParallelOverscan:
             # This does not need any extensions, as we'll only
             # subtract it from the data region.
@@ -227,11 +235,15 @@ class OverscanCorrectionTask(pipeBase.Task):
                 overscanSigma = (overscanSigma, parallelResults.overscanSigma)
                 residualMean = (residualMean, parallelResults.overscanMeanResidual)
                 residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
+        parallelOverscanFit = parallelResults.overscanOverscanModel if parallelResults else None
+        parallelOverscanImage = parallelResults.overscanImage if parallelResults else None
 
         return pipeBase.Struct(imageFit=serialResults.ampOverscanModel,
                                overscanFit=serialResults.overscanOverscanModel,
                                overscanImage=serialResults.overscanImage,
 
+                               parallelOverscanFit=parallelOverscanFit,
+                               parallelOverscanImage=parallelOverscanImage,
                                overscanMean=overscanMean,
                                overscanSigma=overscanSigma,
                                residualMean=residualMean,
