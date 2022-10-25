@@ -61,7 +61,7 @@ class FreqDomainMetricsTask(pipeBase.Task):
 
 
     """
-
+    _DefaultName = "freqdomainmetrics"
     ConfigClass = FreqDomainMetricsConfig
 
     def __init__(self, **kwargs):
@@ -80,7 +80,7 @@ class FreqDomainMetricsTask(pipeBase.Task):
             )
 
         output_data = {}
-        for amplifier in det:
+        for amplifier in exposure.detector:
             box = amplifier.getBBox()
             name: str = amplifier.getName()
             input_arr = exposure.image.subset(box).array
@@ -93,7 +93,7 @@ class FreqDomainMetricsTask(pipeBase.Task):
     def _do_fft_calc(self, inp_arr: np.ndarray) -> Union[np.ndarray, Tuple[np.ndarray]]:
         # Note: for now, all possibilities use the 2D window. In future,
         # we may add a combination where a 1D window function would be appropriate
-        wdw = self._calc_wdw(inp_arr)
+        wdw = self._calc_wdw(inp_arr.shape)
         d = inp_arr * wdw
 
         if self.config.transformDimsType == "1DSLICE":
@@ -122,3 +122,5 @@ class FreqDomainMetricsTask(pipeBase.Task):
                 return wdwfunc(x)
             case (*dims,):
                 return np.outer(*(wdwfunc(_) for _ in dims))
+
+        raise RuntimeError("invalid case!")
