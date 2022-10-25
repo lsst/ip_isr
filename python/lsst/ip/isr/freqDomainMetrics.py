@@ -17,7 +17,7 @@ class FreqDomainMetricsConfig(pexConfig.Config):
         dtype=bool,
         default=False,
     )
-    windowType = pexConfig.Field(
+    windowType = pexConfig.ChoiceField(
         doc="type of window function to use",
         dtype=str,
         default="HAMMING",
