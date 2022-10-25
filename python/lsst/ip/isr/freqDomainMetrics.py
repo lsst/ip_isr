@@ -12,12 +12,12 @@ from itertools import permutations
 class FreqDomainMetricsConfig(pexConfig.Config):
     """Options for the calculation of frequency domain metrics of post-ISR images"""
 
-    windowRadial = pexConfig.Field(
+    windowRadial = pexConfig.field(
         doc="construct radial type window rather than separable",
         dtype=bool,
         default=False,
     )
-    windowType = pexConfig.Field(
+    windowType = pexConfig.field(
         doc="type of window function to use",
         dtype=str,
         default="HAMMING",
