@@ -12,12 +12,12 @@ from itertools import permutations
 class FreqDomainMetricsConfig(pexConfig.Config):
     """Options for the calculation of frequency domain metrics of post-ISR images"""
 
-    windowRadial = pexConfig.field(
+    windowRadial = pexConfig.Field(
         doc="construct radial type window rather than separable",
         dtype=bool,
         default=False,
     )
-    windowType = pexConfig.field(
+    windowType = pexConfig.Field(
         doc="type of window function to use",
         dtype=str,
         default="HAMMING",
@@ -27,7 +27,7 @@ class FreqDomainMetricsConfig(pexConfig.Config):
             "GAUSSIAN": "a Gaussian window",
         },
     )
-    transformDimsType = pexConfig.field(
+    transformDimsType = pexConfig.ChoiceField(
         doc="the type of Fourier Transform data to calculate",
         dtype=str,
         default="1DSLICE",
@@ -37,13 +37,13 @@ class FreqDomainMetricsConfig(pexConfig.Config):
         },
     )
 
-    doMeanSubtract = pexConfig.field(
+    doMeanSubtract = pexConfig.Field(
         doc="subtract the mean before transform (to get canonical DC component value",
         dtype=bool,
         default=True,
     )
 
-    useProjSliceTheorem = pexConfig.field(
+    useProjSliceTheorem = pexConfig.Field(
         doc="use the projection slice theorem to calculate sliced transform",
         dtype=bool,
         default=False,
