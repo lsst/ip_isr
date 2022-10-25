@@ -1,3 +1,5 @@
+__all__ = ["FreqDomainMetricsConfig", "FreqDomainMetricsTask"]
+
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from lsst.afw.image import Exposure
