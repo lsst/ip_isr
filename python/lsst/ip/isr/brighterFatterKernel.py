@@ -580,7 +580,7 @@ class BrighterFatterKernel(IsrCalib):
         ----------
         ampName : `str`
             Amplifier name used as an index in the calibration
-            ``ampKernel` dictionary that will be promoted.
+            ``ampKernel`` dictionary that will be promoted.
         detectorName : `str`
             Name of the detector to build a kernel for.  This supplies
             the key that the new kernel will be indexed in the
