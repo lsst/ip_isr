@@ -1,4 +1,4 @@
-.. lsst-task-topic:: lsst.ip.isr.FringeTask
+.. lsst-task-topic:: lsst.ip.isr.fringe.FringeTask
 
 ##########
 FringeTask
@@ -6,7 +6,7 @@ FringeTask
 
 ``FringeTask`` removes the fringing signal that is evident in long wavelength data.
 
-.. _lsst.ip.isr.FringeTask-processing-summary:
+.. _lsst.ip.isr.fringe.FringeTask-processing-summary:
 
 Processing summary
 ==================
@@ -19,35 +19,34 @@ Processing summary
 #. Those positions are measured similarly on the fringe frame.
 #. An iterative clipping least squares process is run to find the best fitting scale factor to minimize
 
-.. math::
-y = science - scale * fringe
+.. math:: y = science - scale * fringe
 
 #. This scaled fringe signal is subtracted from the science image.
 #. This process can be repeated if multiple fringe frames exist.
 
 
-.. _lsst.ip.isr.FringeTask-api:
+.. _lsst.ip.isr.fringe.FringeTask-api:
 
 Python API summary
 ==================
 
-.. lsst-task-api-summary:: lsst.ip.isr.FringeTask
+.. lsst-task-api-summary:: lsst.ip.isr.fringe.FringeTask
 
-.. _lsst.ip.isr.FringeTask-subtasks:
+.. _lsst.ip.isr.fringe.FringeTask-subtasks:
 
 Retargetable subtasks
 =====================
 
-.. lsst-task-config-subtasks:: lsst.ip.isr.FringeTask
+.. lsst-task-config-subtasks:: lsst.ip.isr.fringe.FringeTask
 
-.. _lsst.ip.isr.FringeTask-configs:
+.. _lsst.ip.isr.fringe.FringeTask-configs:
 
 Configuration fields
 ====================
 
-.. lsst-task-config-fields:: lsst.ip.isr.FringeTask
+.. lsst-task-config-fields:: lsst.ip.isr.fringe.FringeTask
 
-.. _lsst.ip.isr.FringeTask-debug:
+.. _lsst.ip.isr.fringe.FringeTask-debug:
 
 Debugging
 =========

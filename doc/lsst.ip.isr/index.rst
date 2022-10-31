@@ -20,9 +20,6 @@ Using lsst.ip.isr
 
 ``lsst.ip.isr`` is generally used as the initial step of pipeline processing, performing the initial image processing for ``lsst.drp.pipe``, ``lsst.ap.pipe``, and ``lsst.cp.pipe``.  This module also contains the definitions for calibration products that are not just a simple image.  The final major component is a set of tasks designed to simulate raw data and calibration products, to allow for the functions and methods to be properly tested with known inputs.
 
-   calibration-types
-   isrmock-reference
-
 .. _lsst.ip.isr-contributing:
 
 Contributing
@@ -64,19 +61,19 @@ Tasks
    :root: lsst.ip.isr
    :toctree: tasks
 
+.. _lsst.ip.isr-configs:
+
+Configurations
+--------------
+.. lsst-configs::
+   :root: lsst.ip.isr
+   :toctree: configs
+
 .. _lsst.ip.isr-pyapi:
 
 Python API reference
 ====================
 
 .. automodapi:: lsst.ip.isr
-   :no-main-docstr:
-   :no-inheritance-diagram:
-
-.. automodapi:: lsst.ip.isr.ampOffset
-   :no-main-docstr:
-   :no-inheritance-diagram:
-
-.. automodapi:: lsst.ip.isr.vignette
    :no-main-docstr:
    :no-inheritance-diagram:

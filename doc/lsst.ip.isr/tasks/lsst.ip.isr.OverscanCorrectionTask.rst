@@ -1,4 +1,4 @@
-.. lsst-task-topic:: lsst.ip.isr.OverscanCorrectionTask
+.. lsst-task-topic:: lsst.ip.isr.overscan.OverscanCorrectionTask
 
 ######################
 OverscanCorrectionTask
@@ -6,7 +6,7 @@ OverscanCorrectionTask
 
 ``OverscanCorrectionTask`` calculates and subtracts the overscan from the input exposure.
 
-.. _lsst.ip.isr.OverscanCorrectionTask-processing-summary:
+.. _lsst.ip.isr.overscan.OverscanCorrectionTask-processing-summary:
 
 Processing summary
 ==================
@@ -17,28 +17,28 @@ Processing summary
 #. Subtracts that model from both the image and overscan arrays,
 #. Optionally masks suspect pixels.
 
-.. _lsst.ip.isr.OverscanCorrectionTask-api:
+.. _lsst.ip.isr.overscan.OverscanCorrectionTask-api:
 
 Python API summary
 ==================
 
-.. lsst-task-api-summary:: lsst.ip.isr.OverscanCorrectionTask
+.. lsst-task-api-summary:: lsst.ip.isr.overscan.OverscanCorrectionTask
 
-.. _lsst.ip.isr.OverscanCorrectionTask-subtasks:
+.. _lsst.ip.isr.overscan.OverscanCorrectionTask-subtasks:
 
 Retargetable subtasks
 =====================
 
-.. lsst-task-config-subtasks:: lsst.ip.isr.OverscanCorrectionTask
+.. lsst-task-config-subtasks:: lsst.ip.isr.overscan.OverscanCorrectionTask
 
-.. _lsst.ip.isr.OverscanCorrectionTask-configs:
+.. _lsst.ip.isr.overscan.OverscanCorrectionTask-configs:
 
 Configuration fields
 ====================
 
-.. lsst-task-config-fields:: lsst.ip.isr.OverscanCorrectionTask
+.. lsst-task-config-fields:: lsst.ip.isr.overscan.OverscanCorrectionTask
 
-.. _lsst.ip.isr.OverscanCorrectionTask-debug:
+.. _lsst.ip.isr.overscan.OverscanCorrectionTask-debug:
 
 Debugging
 =========
