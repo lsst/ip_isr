@@ -52,29 +52,83 @@ getFrame.frame = 0
 class FringeStatisticsConfig(Config):
     """Options for measuring fringes on an exposure"""
 
-    badMaskPlanes = ListField(dtype=str, default=["SAT"], doc="Ignore pixels with these masks")
-    stat = Field(dtype=int, default=int(afwMath.MEDIAN), doc="Statistic to use")
-    clip = Field(dtype=float, default=3.0, doc="Sigma clip threshold")
-    iterations = Field(dtype=int, default=3, doc="Number of fitting iterations")
-    rngSeedOffset = Field(dtype=int, default=0,
-                          doc="Offset to the random number generator seed (full seed includes exposure ID)")
+    badMaskPlanes = ListField(
+        dtype=str,
+        default=["SAT"],
+        doc="Ignore pixels with these masks"
+    )
+    stat = Field(
+        dtype=int,
+        default=int(afwMath.MEDIAN),
+        doc="Statistic to use"
+    )
+    clip = Field(
+        dtype=float,
+        default=3.0,
+        doc="Sigma clip threshold"
+    )
+    iterations = Field(
+        dtype=int,
+        default=3,
+        doc="Number of fitting iterations"
+    )
+    rngSeedOffset = Field(
+        dtype=int,
+        default=0,
+        doc="Offset to the random number generator seed (full seed includes exposure ID)"
+    )
 
 
 class FringeConfig(Config):
     """Fringe subtraction options"""
 
     # These are always physical_filter names.
-    filters = ListField(dtype=str, default=[], doc="Only fringe-subtract these filters")
-    useFilterAliases = Field(dtype=bool, default=False, doc="Search filter aliases during check.",
-                             deprecated=("Removed with no replacement (FilterLabel has no aliases)."
-                                         "Will be removed after v22."))
-    num = Field(dtype=int, default=30000, doc="Number of fringe measurements")
-    small = Field(dtype=int, default=3, doc="Half-size of small (fringe) measurements (pixels)")
-    large = Field(dtype=int, default=30, doc="Half-size of large (background) measurements (pixels)")
-    iterations = Field(dtype=int, default=20, doc="Number of fitting iterations")
-    clip = Field(dtype=float, default=3.0, doc="Sigma clip threshold")
-    stats = ConfigField(dtype=FringeStatisticsConfig, doc="Statistics for measuring fringes")
-    pedestal = Field(dtype=bool, default=False, doc="Remove fringe pedestal?")
+    filters = ListField(
+        dtype=str,
+        default=[],
+        doc="Only fringe-subtract these filters"
+    )
+    useFilterAliases = Field(
+        dtype=bool,
+        default=False,
+        doc="Search filter aliases during check.",
+        deprecated=("Removed with no replacement (FilterLabel has no aliases)."
+                    "Will be removed after v22.")
+    )
+    num = Field(
+        dtype=int,
+        default=30000,
+        doc="Number of fringe measurements"
+    )
+    small = Field(
+        dtype=int,
+        default=3,
+        doc="Half-size of small (fringe) measurements (pixels)"
+    )
+    large = Field(
+        dtype=int,
+        default=30,
+        doc="Half-size of large (background) measurements (pixels)"
+    )
+    iterations = Field(
+        dtype=int,
+        default=20,
+        doc="Number of fitting iterations"
+    )
+    clip = Field(
+        dtype=float,
+        default=3.0,
+        doc="Sigma clip threshold"
+    )
+    stats = ConfigField(
+        dtype=FringeStatisticsConfig,
+        doc="Statistics for measuring fringes"
+    )
+    pedestal = Field(
+        dtype=bool,
+        default=False,
+        doc="Remove fringe pedestal?"
+    )
 
 
 class FringeTask(Task):
