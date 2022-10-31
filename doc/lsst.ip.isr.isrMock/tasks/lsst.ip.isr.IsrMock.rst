@@ -1,4 +1,4 @@
-.. lsst-task-topic:: lsst.ip.isr.IsrMock
+.. lsst-task-topic:: lsst.ip.isr.isrMock.IsrMock
 
 #######
 IsrMock
@@ -6,7 +6,7 @@ IsrMock
 
 ``IsrMock`` creates a variety of simulated images and calibration products, for use in testing.
 
-.. _lsst.ip.isr.IsrMock-processing-summary:
+.. _lsst.ip.isr.isrMock.IsrMock-processing-summary:
 
 Processing summary
 ==================
@@ -24,25 +24,25 @@ Processing summary
 
 The output exposure can be returned as a trimmed (overscan and prescan removed) single image, an untrimmed single image, or a dictionary containing each amplifier as a separate image indexed by the amplifier name.  This allows testing of the various methods of assembly.
 
-.. _lsst.ip.isr.IsrMock-api:
+.. _lsst.ip.isr.isrMock.IsrMock-api:
 
 Python API summary
 ==================
 
-.. lsst-task-api-summary:: lsst.ip.isr.IsrMock
+.. lsst-task-api-summary:: lsst.ip.isr.isrMock.IsrMock
 
-.. _lsst.ip.isr.IsrMock-subtasks:
+.. _lsst.ip.isr.isrMock.IsrMock-subtasks:
 
 Retargetable subtasks
 =====================
 
-.. lsst-task-config-subtasks:: lsst.ip.isr.IsrMock
+.. lsst-task-config-subtasks:: lsst.ip.isr.isrMock.IsrMock
 
-.. _lsst.ip.isr.IsrMock-configs:
+.. _lsst.ip.isr.isrMock.IsrMock-configs:
 
 Configuration fields
 ====================
 
-.. lsst-task-config-fields:: lsst.ip.isr.IsrMock
+.. lsst-task-config-fields:: lsst.ip.isr.isrMock.IsrMock
 
-.. _lsst.ip.isr.IsrMock-debug:
+.. _lsst.ip.isr.isrMock.IsrMock-debug:

@@ -1,4 +1,4 @@
-.. lsst-task-topic:: lsst.ip.isr.AssembleCcdTask
+.. lsst-task-topic:: lsst.ip.isr.assembleCcdTask.AssembleCcdTask
 
 ###############
 AssembleCcdTask
@@ -6,7 +6,7 @@ AssembleCcdTask
 
 ``AssembleCcdTask`` constructs a full detector image from individual segments.  The end result can either be untrimmed (all overscan and prescan regions are retained), or trimmed (these sections are removed, producing an image of only the imaging region).
 
-.. _lsst.ip.isr.AssembleCcdTask-processing-summary:
+.. _lsst.ip.isr.assembleCcdTask.AssembleCcdTask-processing-summary:
 
 Processing summary
 ==================
@@ -18,28 +18,28 @@ Processing summary
 #. The WCS, filter, and visit info are also transferred from the input exposure to the output.
 
 
-.. _lsst.ip.isr.AssembleCcdTask-api:
+.. _lsst.ip.isr.assembleCcdTask.AssembleCcdTask-api:
 
 Python API summary
 ==================
 
-.. lsst-task-api-summary:: lsst.ip.isr.AssembleCcdTask
+.. lsst-task-api-summary:: lsst.ip.isr.assembleCcdTask.AssembleCcdTask
 
-.. _lsst.ip.isr.AssembleCcdTask-subtasks:
+.. _lsst.ip.isr.assembleCcdTask.AssembleCcdTask-subtasks:
 
 Retargetable subtasks
 =====================
 
-.. lsst-task-config-subtasks:: lsst.ip.isr.AssembleCcdTask
+.. lsst-task-config-subtasks:: lsst.ip.isr.assembleCcdTask.AssembleCcdTask
 
-.. _lsst.ip.isr.AssembleCcdTask-configs:
+.. _lsst.ip.isr.assembleCcdTask.AssembleCcdTask-configs:
 
 Configuration fields
 ====================
 
-.. lsst-task-config-fields:: lsst.ip.isr.AssembleCcdTask
+.. lsst-task-config-fields:: lsst.ip.isr.assembleCcdTask.AssembleCcdTask
 
-.. _lsst.ip.isr.AssembleCcdTask-debug:
+.. _lsst.ip.isr.assembleCcdTask.AssembleCcdTask-debug:
 
 Debugging
 =========
