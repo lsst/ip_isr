@@ -43,35 +43,66 @@ class IntermediateTransmissionCurve(IsrCalib):
     _VERSION = 1.0
 
     def __init__(self, filename=None):
-        super().__init__()
-        if filename:
-            self.readText(filename)
-
-        self.requiredAttributes.update([''])
-        # self.setTransmissionCurveRepresentation()
+        self.data = None
+        self.transmissionCurve = None
         self.isSpatiallyConstant = True
+        super().__init__()
+
+        # Because we are not persisting this calib as itself, we
+        # should skip adding any other attributes.
+        self.requiredAttributes.update(['isSpatiallyConstant'])
+
 
     @classmethod
     def fromTable(cls, tableList):
-        """
+        """Construct intermediate transmission curve from a list of input
+        tables.  Only the first table is used.
+
+        Parameters
+        ----------
+        tableList : `list` [`astropy.table.Table`]
+            List containing input tables.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.IntermediateTransmissionCurve`
+            The final calibration.
         """
         calib = cls()
 
         metadata = tableList[0].meta
         calib.setMetadata(metadata)
         calib.updateMetadata()
-        calib.data = tableList[0]
 
+        calib.data = tableList[0]
         calib.setTransmissionCurveRepresentation()
         return calib
 
     def setTransmissionCurveRepresentation(self):
         """Construct transmission curve representation from the data that was
         read.
+
+        Raises
+        ------
+        RuntimeError
+            This is raised if no table data exists in the calibration,
+            if there are array length mismatches, or if the wavelength
+            sampling for multi-amp tables differ.
         """
+        if self.data is None:
+            raise RuntimeError("No table data was found to convert to a transmission curve!")
+
+        throughputKey = None
+        if 'wavelength' not in self.data.columns:
+            raise RuntimeError("Expected column [wavelength] not found.")
+        if 'efficiency' in self.data.columns:
+            throughputKey = 'efficiency'
+        elif 'throughput' in self.data.columns:
+            throughputKey = 'throughput'
+        else:
+            raise RuntimeError("Expected columns [throughput|efficiency] not found.")
+
         doAverageCurves = False
-        if 'wavelength' not in self.data.columns or 'throughput' not in self.data.columns:
-            raise RuntimeError("Expected columns not found.")
         if 'amp_name' in self.data.columns:
             doAverageCurves = True
 
@@ -81,7 +112,7 @@ class IntermediateTransmissionCurve(IsrCalib):
         throughput = None
 
         if doAverageCurves:
-            curveStack = []
+            curveStack = None
             amplifierNames = set(self.data['amp_name'])
             comparisonIndices = np.where(self.data['amp_name'] == next(iter(amplifierNames)))
             wavelengths = self.data[comparisonIndices]['wavelength']
@@ -94,23 +125,54 @@ class IntermediateTransmissionCurve(IsrCalib):
                     raise RuntimeError("Mismatch in wavelength samples.")
 
                 if curveStack is not None:
-                    curveStack = np.column_curveStack((curveStack, self.data[indices]['efficiency']))
+                    curveStack = np.column_stack((curveStack, self.data[indices][throughputKey]))
                 else:
-                    curveStack = self.data[indices]['efficiency']
+                    curveStack = self.data[indices][throughputKey]
             throughput = np.mean(curveStack, 1)
+
+            # This averaging operation has stripped units.
+            throughput = throughput * self.data[throughputKey].unit
         else:
             wavelengths = self.data['wavelength']
-            throughput = self.data['throughput']
+            throughput = self.data[throughputKey]
 
         # Convert units:
+        # import pdb; pdb.set_trace()
         with cds.enable():
-            wavelengths = wavelengths.to(u.Angstrom)  # These need to be in Angstroms, for consistency.
-            throughput = throughput.to(u.dimensionless_unscaled)  # These need to be fractions, not percent.
-        tt = throughput.to_value().astype(np.float64)
-        ww = wavelengths.to_value().astype(np.float64)
-        self.transmissionCurve = TransmissionCurve.makeSpatiallyConstant(tt, ww,
-                                                                         throughputAtMin=0.0,
-                                                                         throughputAtMax=0.0)
+            # These need to be in Angstroms, for consistency.
+            wavelengths = wavelengths.to(u.Angstrom).to_value()
+            if throughput.unit != u.dimensionless_unscaled:
+                # These need to be fractions, not percent.
+                throughput = throughput.to(u.dimensionless_unscaled).to_value()
+
+        self.transmissionCurve = TransmissionCurve.makeSpatiallyConstant(
+            throughput.astype(np.float64),
+            wavelengths.astype(np.float64),
+            throughputAtMin=0.0,
+            throughputAtMax=0.0
+        )
 
     def writeFits(self, outputFilename):
+        """Write the transmission curve data to a file.
+
+        Parameters
+        ----------
+        outputFilename : `str`
+            Destination filename.
+
+        Returns
+        -------
+        outputFilename : `str`
+            The output filename actually used.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if no transmission curve can be created.
+        """
+        if self.transmissionCurve is None and self.data is None:
+            raise RuntimeError("No transmission curve data found.")
+        if self.transmissionCurve is None:
+            self.setTransmissionCurveRepresentation()
+
         return self.transmissionCurve.writeFits(outputFilename)
