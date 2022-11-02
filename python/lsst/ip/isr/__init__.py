@@ -43,3 +43,4 @@ from .photodiode import *
 from .photodiodeCorrection import *
 from .deferredCharge import *
 from .isrStatistics import *
+from .transmissionCurve import *
