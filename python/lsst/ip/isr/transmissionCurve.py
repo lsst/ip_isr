@@ -19,7 +19,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["IntermediateTransmissionCurve"]
+__all__ = ["IntermediateTransmissionCurve",
+           "IntermediateOpticsTransmissionCurve",
+           "IntermediateFilterTransmissionCurve",
+           "IntermediateSensorTransmissionCurve",
+           "IntermediateAtmosphereTransmissionCurve",
+           "IntermediateSystemTransmissionCurve",
+]
 
 import numpy as np
 from astropy import units as u
@@ -38,7 +44,7 @@ class IntermediateTransmissionCurve(IsrCalib):
         Filename of a transmission curve dataset.
     """
 
-    _OBSTYPE = "TRANSMISSION CURVE"
+    _OBSTYPE = "transmission_curve"
     _SCHEMA = ""
     _VERSION = 1.0
 
@@ -52,6 +58,11 @@ class IntermediateTransmissionCurve(IsrCalib):
         # should skip adding any other attributes.
         self.requiredAttributes.update(['isSpatiallyConstant'])
 
+    def setMetadata(self, metadata):
+        # Inherits from lsst.ip.isr.IsrCalib.setMetadata.
+        super().setMetadata(metadata)
+        if 'OBSTYPE' in metadata:
+            _OBSTYPE = metadata['OBSTYPE']
 
     @classmethod
     def fromTable(cls, tableList):
@@ -141,7 +152,8 @@ class IntermediateTransmissionCurve(IsrCalib):
         with cds.enable():
             # These need to be in Angstroms, for consistency.
             wavelengths = wavelengths.to(u.Angstrom).to_value()
-            if throughput.unit != u.dimensionless_unscaled:
+            # This is ugly.  Fix.
+            if throughput.unit != u.dimensionless_unscaled and throughput.unit != u.UnrecognizedUnit('-'):
                 # These need to be fractions, not percent.
                 throughput = throughput.to(u.dimensionless_unscaled).to_value()
 
@@ -151,6 +163,13 @@ class IntermediateTransmissionCurve(IsrCalib):
             throughputAtMin=0.0,
             throughputAtMax=0.0
         )
+
+    def getTransmissionCurve(self):
+        if self.transmissionCurve is None and self.data is None:
+            raise RuntimeError("No transmission curve data found.")
+        if self.transmissionCurve is None:
+            self.setTransmissionCurveRepresentation()
+        return self.transmissionCurve
 
     def writeFits(self, outputFilename):
         """Write the transmission curve data to a file.
@@ -176,3 +195,23 @@ class IntermediateTransmissionCurve(IsrCalib):
             self.setTransmissionCurveRepresentation()
 
         return self.transmissionCurve.writeFits(outputFilename)
+
+
+class IntermediateSensorTransmissionCurve(IntermediateTransmissionCurve):
+    _OBSTYPE = 'transmission_sensor'
+
+
+class IntermediateFilterTransmissionCurve(IntermediateTransmissionCurve):
+    _OBSTYPE = 'transmission_filter'
+
+
+class IntermediateOpticsTransmissionCurve(IntermediateTransmissionCurve):
+    _OBSTYPE = 'transmission_optics'
+
+
+class IntermediateAtmosphereTransmissionCurve(IntermediateTransmissionCurve):
+    _OBSTYPE = 'transmission_atmosphere'
+
+
+class IntermediateSystemTransmissionCurve(IntermediateTransmissionCurve):
+    _OBSTYPE = 'transmission_system'
