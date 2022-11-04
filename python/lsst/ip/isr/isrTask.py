@@ -55,6 +55,7 @@ from .vignette import VignetteTask
 from .ampOffset import AmpOffsetTask
 from .deferredCharge import DeferredChargeTask
 from .isrStatistics import IsrStatisticsTask
+from .freqDomainMetrics import FreqDomainMetricsTask
 from lsst.daf.butler import DimensionGraph
 
 
@@ -277,6 +278,10 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         doc="Output of additional statistics table.",
         storageClass="StructuredDataDict",
         dimensions=["instrument", "exposure", "detector"],
+    )
+
+    outputFreqDomainMetrics = cT.Output(
+
     )
 
     def __init__(self, *, config=None):
@@ -887,6 +892,17 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     isrStats = pexConfig.ConfigurableField(
         target=IsrStatisticsTask,
         doc="Task to calculate additional statistics.",
+    )
+
+    doFreqDomainMetrics = pexConfig.Field(
+        dtype=bool,
+        doc="Should frequency domain metrics be calculated?",
+        default=False,
+    )
+
+    freqDomainMetrics = pexConfig.ConfigurableField(
+        target = FreqDomainMetricsTask,
+        doc="Task to calculate frequency domain metrics",
     )
 
     # Write the outputs to disk. If ISR is run as a subtask, this may not
