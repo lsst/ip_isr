@@ -27,7 +27,7 @@ import lsst.geom
 import lsst.utils.tests
 
 from lsst.afw.image import TransmissionCurve
-from lsst.ip.isr import IntermediateTransmissionCurve, IsrCalib
+from lsst.ip.isr import IntermediateTransmissionCurve
 
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -68,7 +68,7 @@ class TransmissionCurveCases(lsst.utils.tests.TestCase):
 
     def test_output(self):
         filename1 = tempfile.mktemp()
-        usedName = self.curve1.writeFits(filename1)
+        self.curve1.writeFits(filename1)
 
         reread = TransmissionCurve.readFits(filename1)
         self.assertTransmissionCurvesEqual(reread, self.curve1.transmissionCurve)

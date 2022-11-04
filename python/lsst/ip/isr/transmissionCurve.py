@@ -24,8 +24,7 @@ __all__ = ["IntermediateTransmissionCurve",
            "IntermediateFilterTransmissionCurve",
            "IntermediateSensorTransmissionCurve",
            "IntermediateAtmosphereTransmissionCurve",
-           "IntermediateSystemTransmissionCurve",
-]
+           "IntermediateSystemTransmissionCurve", ]
 
 import numpy as np
 from astropy import units as u
@@ -61,8 +60,6 @@ class IntermediateTransmissionCurve(IsrCalib):
     def setMetadata(self, metadata):
         # Inherits from lsst.ip.isr.IsrCalib.setMetadata.
         super().setMetadata(metadata)
-        if 'OBSTYPE' in metadata:
-            _OBSTYPE = metadata['OBSTYPE']
 
     @classmethod
     def fromTable(cls, tableList):
