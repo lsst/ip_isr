@@ -55,7 +55,8 @@ class FreqDomainMetricsConfig(pexConfig.Config):
         default="1DSLICE",
         allowed={
             "1DSLICE": "calculate the full 2D transform but retain only 1D axis-wise slices through it",
-            "2D": "calculate and retain the full 2D transform",
+#Note: for now disallowing 2D until we have a more sensible serialization
+#            "2D": "calculate and retain the full 2D transform",
         },
     )
 
@@ -70,6 +71,11 @@ class FreqDomainMetricsConfig(pexConfig.Config):
         dtype=bool,
         default=False,
     )
+
+    doCommonModePSD = pexConfig.Field(
+        doc="calculate the common mode PSD of all amplifier channels in addition to individual amps",
+        dtype=bool,
+        default=True)
 
 
 class FreqDomainMetricsTask(pipeBase.Task):
@@ -110,8 +116,34 @@ class FreqDomainMetricsTask(pipeBase.Task):
                 input_arr -= np.mean(input_arr)
             output_data[name] = self._do_fft_calc(input_arr)
 
+        if self.config.doCommonModePSD:
+            cmpsd = self.calcCommonModePSD(output_data, exposure.detector)
+            output_data["cmPSD"] = cmpsd
+            
         return output_data
 
+    def calcCommonModePSD(self, data: dict, detector) -> np.ndarray:
+        cmodepsd = None
+        for amplifier in detector:
+            name: str = amplifier.getName()
+            thisdat = data[name]
+            if not cmodepsd:
+                cmodepsd = thisdat
+            else:
+                match thisdat:
+                    case (*1dslcs,):
+                        cmodepsd = tuple(a + b for a,b in zip(cmodepsd, 1dslcs))
+                    case np.ndarray():
+                        cmodepsd += thisdat
+
+        match cmodepsd:
+            case(*1dslcs,):
+                return tuple(np.abs(_) for _ in 1dslcs)
+            case np.ndarray():
+                return np.abs(cmodepsd)
+            
+                
+    
     def _do_fft_calc(self, inp_arr: np.ndarray) -> Union[np.ndarray, Tuple[np.ndarray]]:
         # Note: for now, all possibilities use the 2D window. In future,
         # we may add a combination where a 1D window function would be appropriate
@@ -144,5 +176,4 @@ class FreqDomainMetricsTask(pipeBase.Task):
                 return wdwfunc(x)
             case (*dims,):
                 return np.outer(*(wdwfunc(_) for _ in dims))
-
         raise RuntimeError("invalid case!")
