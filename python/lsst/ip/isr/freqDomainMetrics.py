@@ -139,14 +139,14 @@ class FreqDomainMetricsTask(pipeBase.Task):
                 cmodepsd = thisdat
             else:
                 match thisdat:
-                    case (*1dslcs,):
-                        cmodepsd = tuple(a + b for a,b in zip(cmodepsd, 1dslcs))
+                    case (*slc1ds,):
+                        cmodepsd = tuple(a + b for a,b in zip(cmodepsd, slc1ds))
                     case np.ndarray():
                         cmodepsd += thisdat
 
         match cmodepsd:
-            case(*1dslcs,):
-                return tuple(np.abs(_) for _ in 1dslcs)
+            case(*slc1ds,):
+                return tuple(np.abs(_) for _ in slc1ds)
             case np.ndarray():
                 return np.abs(cmodepsd)
             

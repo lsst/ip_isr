@@ -971,6 +971,7 @@ class IsrTask(pipeBase.PipelineTask):
         self.makeSubtask("ampOffset")
         self.makeSubtask("deferredChargeCorrection")
         self.makeSubtask("isrStats")
+        self.makeSubtask("freqDomainMetrics")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
         inputs = butlerQC.get(inputRefs)
@@ -1567,7 +1568,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         freqDomainMetrics = None
         if self.config.doFreqDomainMetrics:
-            freqDomainMetrics = self.freqDomainMetrics.run(ccdExposure).results
+            freqDomainMetrics = self.freqDomainMetrics.run(ccdExposure)
 
         self.debugView(ccdExposure, "postISRCCD")
 
@@ -1575,12 +1576,12 @@ class IsrTask(pipeBase.PipelineTask):
             exposure=ccdExposure,
             ossThumb=ossThumb,
             flattenedThumb=flattenedThumb,
-
             preInterpExposure=preInterpExp,
             outputExposure=ccdExposure,
             outputOssThumbnail=ossThumb,
             outputFlattenedThumbnail=flattenedThumb,
             outputStatistics=outputStatistics,
+            freqDomainMetrics=freqDomainMetrics
         )
 
     def ensureExposure(self, inputExp, camera=None, detectorNum=None):
