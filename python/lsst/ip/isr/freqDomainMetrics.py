@@ -77,6 +77,11 @@ class FreqDomainMetricsConfig(pexConfig.Config):
         dtype=bool,
         default=True)
 
+    saveRawFTs = pexConfig.Field(
+        doc="save the raw FT calculations (i.e. as well as the common mode PSD or other metrics",
+        dtype=bool,
+        default=True)
+    
 
 class FreqDomainMetricsTask(pipeBase.Task):
     """Task which calculates frequency domain metrics in post ISR images.
@@ -107,19 +112,22 @@ class FreqDomainMetricsTask(pipeBase.Task):
                 "require a detector definition to calculate per-amplifier frequency domain metrics!"
             )
 
-        output_data = {}
+        raw_ft_data = {}
         for amplifier in exposure.detector:
             box = amplifier.getBBox()
             name: str = amplifier.getName()
             input_arr = exposure.image.subset(box).array
             if self.config.doMeanSubtract:
                 input_arr -= np.mean(input_arr)
-            output_data[name] = self._do_fft_calc(input_arr)
+            raw_ft_data[name] = self._do_fft_calc(input_arr)
 
+        output_data = {}
         if self.config.doCommonModePSD:
-            cmpsd = self.calcCommonModePSD(output_data, exposure.detector)
+            cmpsd = self.calcCommonModePSD(raw_ft_data, exposure.detector)
             output_data["cmPSD"] = cmpsd
-            
+
+        if self.config.saveRawFTs:
+            output_data |= raw_ft_data
         return output_data
 
     def calcCommonModePSD(self, data: dict, detector) -> np.ndarray:

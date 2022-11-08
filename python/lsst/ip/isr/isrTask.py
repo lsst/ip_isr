@@ -281,7 +281,10 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     )
 
     outputFreqDomainMetrics = cT.Output(
-
+        name="freqDomainMetrics",
+        doc="Output of frequency domain information.",
+        storageClass="StructuredDataDict",
+        dimensions=["instrument", "exposure", "detector"],
     )
 
     def __init__(self, *, config=None):
@@ -343,6 +346,8 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.outputs.remove("outputFlattenedThumbnail")
         if config.doCalculateStatistics is not True:
             self.outputs.remove("outputStatistics")
+        if config.doFreqDomainMetrics is not True:
+            self.outputs.remove("freqDomainMetrics")
 
 
 class IsrTaskConfig(pipeBase.PipelineTaskConfig,
@@ -1558,6 +1563,11 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doCalculateStatistics:
             outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
                                                  ptc=ptc).results
+
+
+        freqDomainMetrics = None
+        if self.config.doFreqDomainMetrics:
+            freqDomainMetrics = self.freqDomainMetrics.run(ccdExposure).results
 
         self.debugView(ccdExposure, "postISRCCD")
 
