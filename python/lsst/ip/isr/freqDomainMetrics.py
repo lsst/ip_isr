@@ -46,7 +46,7 @@ class FreqDomainMetricsConfig(pexConfig.Config):
         allowed={
             "HAMMING": "A Hamming type window",
             "HANN": "a Hann type window",
-            "GAUSSIAN": "a Gaussian window",
+            "NONE": "no (or flattop with all data) window"
         },
     )
     transformDimsType = pexConfig.ChoiceField(
@@ -161,14 +161,14 @@ class FreqDomainMetricsTask(pipeBase.Task):
         if self.config.transformDimsType == "1DSLICE":
             if self.config.useProjSliceTheorem:
                 projs = (np.sum(d, axis=_) for _ in range(len(d.shape)))
-                return tuple(np.fft.rfft(_) for _ in projs)
+                return tuple(np.fft.fft(_) for _ in projs)
             else:
-                trans = np.fft.rfft2(d)
+                trans = np.fft.fft2(d)
                 baseslc = [0] + [slice(None, None, None)] * (len(trans.shape) - 1)
                 return tuple((trans[_] for _ in permutations(baseslc, 2)))
         else:
             # For now, the only other case is the 2D case.
-            return np.fft.rfft2(d)
+            return np.fft.fft2(d)
 
     def _calc_wdw(self, shp: tuple) -> np.ndarray:
         if self.config.windowRadial:
@@ -176,7 +176,7 @@ class FreqDomainMetricsTask(pipeBase.Task):
 
         # Note that the below should never fail because the value bounds should be
         # enforced by some kind of pexConfig machinery
-        funclookup = {"HAMMING": hamming, "HANN": hann, "GAUSSIAN": gaussian}
+        funclookup = {"HAMMING": hamming, "HANN": hann, "GAUSSIAN": gaussian, "NONE": lambda s: s}
         wdwfunc: Callable = funclookup[self.config.windowType]
 
         match shp:
