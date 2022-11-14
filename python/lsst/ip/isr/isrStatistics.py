@@ -38,6 +38,27 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Measure CTI statistics from image and overscans?",
         default=False,
     )
+    doBandingStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure image banding metric?",
+        default=False,
+    )
+    bandingKernelSize = pexConfig.Field(
+        dtype=int,
+        doc="Width of box for boxcar smoothing.",
+        default=3,
+    )
+    bandingFraction = pexConfig.Field(
+        dtype=float,
+        doc="Fraction of values to exclude from both high and low samples.",
+        default=0.1,
+    )
+    bandingUseHalfDetector = pexConfig.Field(
+        dtype=float,
+        doc="Use only the first half set of amplifiers.",
+        default=True,
+    )
+
     stat = pexConfig.Field(
         dtype=str,
         default='MEANCLIP',
@@ -121,11 +142,18 @@ class IsrStatisticsTask(pipeBase.Task):
             gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
         else:
             raise RuntimeError("No source of gains provided.")
+
+        ctiResults = None
         if self.config.doCtiStatistics:
             ctiResults = self.measureCti(inputExp, overscanResults, gains)
 
+        bandingResults = None
+        if self.config.doBandingStatistics:
+            bandingResults = self.measureBanding(inputExp, overscanResults)
+
         return pipeBase.Struct(
-            results={'CTI': ctiResults, },
+            results={'CTI': ctiResults, 'BANDING':
+                     bandingResults},
         )
 
     def measureCti(self, inputExp, overscans, gains):
@@ -221,5 +249,58 @@ class IsrStatisticsTask(pipeBase.Task):
                     ampStats['OVERSCAN_VALUES'] = values
 
             outputStats[amp.getName()] = ampStats
+
+        return outputStats
+
+    def measureBanding(self, inputExp, overscans):
+        """Task to measure banding statistics.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        overscans : `list` [`lsst.pipe.base.Struct`]
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        detector = inputExp.getDetector()
+        kernel = np.full(self.config.bandingKernelSize, 1.0 / self.config.bandingKernelSize)
+
+        outputStats['AMP_BANDING'] = []
+        for amp, overscanData in zip(detector.getAmplifiers(), overscans):
+            overscanFit = np.array(overscanData.overscanFit)
+            overscanArray = overscanData.overscanImage.image.array
+            rawOverscan = np.mean(overscanArray + overscanFit, axis=1)
+
+            smoothedOverscan = np.convolve(rawOverscan, kernel, mode='valid')
+
+            low, high = np.quantile(smoothedOverscan, [self.config.bandingFraction,
+                                                       1.0 - self.config.bandingFraction])
+            outputStats['AMP_BANDING'].append(float(high - low))
+
+        if self.config.bandingUseHalfDetector:
+            fullLength = len(outputStats['AMP_BANDING'])
+            outputStats['DET_BANDING'] = float(np.median(outputStats['AMP_BANDING'][0:fullLength//2]))
+        else:
+            outputStats['DET_BANDING'] = float(np.median(outputStats['AMP_BANDING']))
 
         return outputStats
