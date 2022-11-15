@@ -149,7 +149,7 @@ class IntermediateTransmissionCurve(IsrCalib):
         with cds.enable():
             # These need to be in Angstroms, for consistency.
             wavelengths = wavelengths.to(u.Angstrom).to_value()
-            # This is ugly.  Fix.
+
             if throughput.unit != u.dimensionless_unscaled and throughput.unit != u.UnrecognizedUnit('-'):
                 # These need to be fractions, not percent.
                 throughput = throughput.to(u.dimensionless_unscaled).to_value()
