@@ -38,6 +38,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Measure CTI statistics from image and overscans?",
         default=False,
     )
+
     doBandingStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure image banding metric?",
@@ -57,6 +58,12 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         dtype=float,
         doc="Use only the first half set of amplifiers.",
         default=True,
+    )
+
+    doSliceStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure slice metric.",
+        default=False,
     )
 
     stat = pexConfig.Field(
@@ -151,9 +158,15 @@ class IsrStatisticsTask(pipeBase.Task):
         if self.config.doBandingStatistics:
             bandingResults = self.measureBanding(inputExp, overscanResults)
 
+        sliceResults = None
+        if self.config.doSliceStatistics:
+            sliceResults = self.measureSliceStatistics(inputExp, overscanResults)
+
         return pipeBase.Struct(
-            results={'CTI': ctiResults, 'BANDING':
-                     bandingResults},
+            results={'CTI': ctiResults,
+                     'BANDING': bandingResults,
+                     'SLICE': sliceResults,
+            },
         )
 
     def measureCti(self, inputExp, overscans, gains):
@@ -302,5 +315,49 @@ class IsrStatisticsTask(pipeBase.Task):
             outputStats['DET_BANDING'] = float(np.median(outputStats['AMP_BANDING'][0:fullLength//2]))
         else:
             outputStats['DET_BANDING'] = float(np.median(outputStats['AMP_BANDING']))
+
+        return outputStats
+
+    def measureSliceStatistics(self, inputExp, overscans):
+        """Task to measure metrics from image slicing.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        overscans : `list` [`lsst.pipe.base.Struct`]
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        detector = inputExp.getDetector()
+
+        outputStats['AMP_VSLICE'] = {}
+        outputStats['AMP_HSLICE'] = {}
+        for amp in detector.getAmplifiers():
+            ampArray = inputExp.image[amp.getBBox()].array
+            horizontalSlice = np.mean(ampArray, axis=0)
+            verticalSlice = np.mean(ampArray, axis=1)
+            outputStats['AMP_HSLICE'][amp.getName()] = horizontalSlice.tolist()
+            outputStats['AMP_VSLICE'][amp.getName()] = verticalSlice.tolist()
+            # import pdb; pdb.set_trace()
 
         return outputStats
