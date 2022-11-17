@@ -22,6 +22,9 @@
 __all__ = ["IsrStatisticsTaskConfig", "IsrStatisticsTask"]
 
 import numpy as np
+
+from scipy.signal.windows import hamming, hann, gaussian
+
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.pipe.base as pipeBase
@@ -48,11 +51,13 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         dtype=int,
         doc="Width of box for boxcar smoothing.",
         default=3,
+        check=lambda x: x == 0 or x % 2 != 0,
     )
     bandingFraction = pexConfig.Field(
         dtype=float,
         doc="Fraction of values to exclude from both high and low samples.",
         default=0.1,
+        check=lambda x: x >= 0.0 and x < 0.5,
     )
     bandingUseHalfDetector = pexConfig.Field(
         dtype=float,
@@ -60,10 +65,32 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         default=True,
     )
 
-    doSliceStatistics = pexConfig.Field(
+    doProjectionStatistics = pexConfig.Field(
         dtype=bool,
-        doc="Measure slice metric.",
+        doc="Measure projection metric.",
         default=False,
+    )
+    projectionKernelSize = pexConfig.Field(
+        dtype=int,
+        doc="Width of box for boxcar smoothing.",
+        default=0,
+        check=lambda x: x == 0 or x % 2 != 0,
+    )
+    doProjectionFFT = pexConfig.Field(
+        dtype=bool,
+        doc="Generate FFTs from the image projections.",
+        default=False,
+    )
+    projectionFFTWindow = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Type of windowing to use prior to calculating FFT.",
+        default="HAMMING",
+        allowed={
+            "HAMMING": "Hamming window.",
+            "HANN": "Hann window.",
+            "GAUSSIAN": "Gaussian window.",
+            "NONE": "No window."
+        }
     )
 
     stat = pexConfig.Field(
@@ -158,15 +185,15 @@ class IsrStatisticsTask(pipeBase.Task):
         if self.config.doBandingStatistics:
             bandingResults = self.measureBanding(inputExp, overscanResults)
 
-        sliceResults = None
-        if self.config.doSliceStatistics:
-            sliceResults = self.measureSliceStatistics(inputExp, overscanResults)
+        projectionResults = None
+        if self.config.doProjectionStatistics:
+            projectionResults = self.measureProjectionStatistics(inputExp, overscanResults)
 
         return pipeBase.Struct(
             results={'CTI': ctiResults,
                      'BANDING': bandingResults,
-                     'SLICE': sliceResults,
-            },
+                     'PROJECTION': projectionResults,
+                     },
         )
 
     def measureCti(self, inputExp, overscans, gains):
@@ -265,6 +292,26 @@ class IsrStatisticsTask(pipeBase.Task):
 
         return outputStats
 
+    @staticmethod
+    def makeKernel(kernelSize):
+        """Make a boxcar smoothing kernel.
+
+        Parameters
+        ----------
+        kernelSize : `int`
+            Length of the kernel in pixels.
+
+        Returns
+        -------
+        kernel : `np.array`
+            Kernel for boxcar smoothing.
+        """
+        if kernelSize > 0:
+            kernel = np.full(kernelSize, 1.0 / kernelSize)
+        else:
+            kernel = np.array([1.0])
+        return kernel
+
     def measureBanding(self, inputExp, overscans):
         """Task to measure banding statistics.
 
@@ -296,7 +343,7 @@ class IsrStatisticsTask(pipeBase.Task):
         outputStats = {}
 
         detector = inputExp.getDetector()
-        kernel = np.full(self.config.bandingKernelSize, 1.0 / self.config.bandingKernelSize)
+        kernel = self.makeKernel(self.config.bandingKernelSize)
 
         outputStats['AMP_BANDING'] = []
         for amp, overscanData in zip(detector.getAmplifiers(), overscans):
@@ -318,7 +365,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         return outputStats
 
-    def measureSliceStatistics(self, inputExp, overscans):
+    def measureProjectionStatistics(self, inputExp, overscans):
         """Task to measure metrics from image slicing.
 
         Parameters
@@ -349,15 +396,48 @@ class IsrStatisticsTask(pipeBase.Task):
         outputStats = {}
 
         detector = inputExp.getDetector()
+        kernel = self.makeKernel(self.config.projectionKernelSize)
 
-        outputStats['AMP_VSLICE'] = {}
-        outputStats['AMP_HSLICE'] = {}
+        outputStats['AMP_VPROJECTION'] = {}
+        outputStats['AMP_HPROJECTION'] = {}
+        convolveMode = 'valid'
+        if self.config.doProjectionFFT:
+            outputStats['AMP_VFFT'] = {}
+            outputStats['AMP_HFFT'] = {}
+            convolveMode = 'same'
+
         for amp in detector.getAmplifiers():
             ampArray = inputExp.image[amp.getBBox()].array
-            horizontalSlice = np.mean(ampArray, axis=0)
-            verticalSlice = np.mean(ampArray, axis=1)
-            outputStats['AMP_HSLICE'][amp.getName()] = horizontalSlice.tolist()
-            outputStats['AMP_VSLICE'][amp.getName()] = verticalSlice.tolist()
-            # import pdb; pdb.set_trace()
+
+            horizontalProjection = np.mean(ampArray, axis=0)
+            verticalProjection = np.mean(ampArray, axis=1)
+
+            horizontalProjection = np.convolve(horizontalProjection, kernel, mode=convolveMode)
+            verticalProjection = np.convolve(verticalProjection, kernel, mode=convolveMode)
+
+            outputStats['AMP_HPROJECTION'][amp.getName()] = horizontalProjection.tolist()
+            outputStats['AMP_VPROJECTION'][amp.getName()] = verticalProjection.tolist()
+
+            if self.config.doProjectionFFT:
+                horizontalWindow = np.ones_like(horizontalProjection)
+                verticalWindow = np.ones_like(verticalProjection)
+                if self.config.projectionFFTWindow == "NONE":
+                    pass
+                elif self.config.projectionFFTWindow == "HAMMING":
+                    horizontalWindow = hamming(len(horizontalProjection))
+                    verticalWindow = hamming(len(verticalProjection))
+                elif self.config.projectionFFTWindow == "HANN":
+                    horizontalWindow = hann(len(horizontalProjection))
+                    verticalWindow = hann(len(verticalProjection))
+                elif self.config.projectionFFTWindow == "GAUSSIAN":
+                    horizontalWindow = gaussian(len(horizontalProjection))
+                    verticalWindow = gaussian(len(verticalProjection))
+                else:
+                    raise RuntimeError(f"Invalid window function specified: {self.config.projectionFFTWindow}")
+
+                outputStats['AMP_HFFT'][amp.getName()] = np.fft.rfft(np.multiply(horizontalProjection,
+                                                                                 horizontalWindow)).tolist()
+                outputStats['AMP_VFFT'][amp.getName()] = np.fft.rfft(np.multiply(verticalProjection,
+                                                                                 verticalWindow)).tolist()
 
         return outputStats
