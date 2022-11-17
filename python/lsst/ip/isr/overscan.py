@@ -218,7 +218,15 @@ class OverscanCorrectionTask(pipeBase.Task):
 
             maskIm = exposure.getMaskedImage()
             maskIm = maskIm.Factory(maskIm, parallelOverscanBBox)
-            makeThresholdMask(maskIm, threshold=self.config.numSigmaClip, growFootprints=0)
+
+            # The serial overscan correction has removed the majority
+            # of the signal in the parallel overscan region, so the
+            # mean should be close to zero.  The noise in both should
+            # be similar, so we can use the noise from the serial
+            # overscan region to set the threshold for bleed
+            # detection.
+            thresholdLevel = self.config.numSigmaClip * serialResults.overscanSigmaResidual
+            makeThresholdMask(maskIm, threshold=thresholdLevel, growFootprints=0)
             maskPix = countMaskedPixels(maskIm, self.config.maskPlanes)
             xSize, ySize = parallelOverscanBBox.getDimensions()
             if maskPix > xSize*ySize*self.config.parallelOverscanMaskThreshold:
