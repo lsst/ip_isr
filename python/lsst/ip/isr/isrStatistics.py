@@ -402,8 +402,10 @@ class IsrStatisticsTask(pipeBase.Task):
         outputStats['AMP_HPROJECTION'] = {}
         convolveMode = 'valid'
         if self.config.doProjectionFFT:
-            outputStats['AMP_VFFT'] = {}
-            outputStats['AMP_HFFT'] = {}
+            outputStats['AMP_VFFT_REAL'] = {}
+            outputStats['AMP_VFFT_IMAG'] = {}
+            outputStats['AMP_HFFT_REAL'] = {}
+            outputStats['AMP_HFFT_IMAG'] = {}
             convolveMode = 'same'
 
         for amp in detector.getAmplifiers():
@@ -433,11 +435,13 @@ class IsrStatisticsTask(pipeBase.Task):
                     horizontalWindow = gaussian(len(horizontalProjection))
                     verticalWindow = gaussian(len(verticalProjection))
                 else:
-                    raise RuntimeError(f"Invalid window function specified: {self.config.projectionFFTWindow}")
+                    raise RuntimeError(f"Invalid window function: {self.config.projectionFFTWindow}")
 
-                outputStats['AMP_HFFT'][amp.getName()] = np.fft.rfft(np.multiply(horizontalProjection,
-                                                                                 horizontalWindow)).tolist()
-                outputStats['AMP_VFFT'][amp.getName()] = np.fft.rfft(np.multiply(verticalProjection,
-                                                                                 verticalWindow)).tolist()
+                horizontalFFT = np.fft.rfft(np.multiply(horizontalProjection, horizontalWindow))
+                verticalFFT = np.fft.rfft(np.multiply(verticalProjection, verticalWindow))
+                outputStats['AMP_HFFT_REAL'][amp.getName()] = np.real(horizontalFFT).tolist()
+                outputStats['AMP_HFFT_IMAG'][amp.getName()] = np.imag(horizontalFFT).tolist()
+                outputStats['AMP_VFFT_REAL'][amp.getName()] = np.real(verticalFFT).tolist()
+                outputStats['AMP_VFFT_IMAG'][amp.getName()] = np.imag(verticalFFT).tolist()
 
         return outputStats
