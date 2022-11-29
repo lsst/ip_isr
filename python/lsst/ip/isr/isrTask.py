@@ -377,6 +377,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         dtype=isrQa.IsrQaConfig,
         doc="QA related configuration options.",
     )
+    doHeaderProvenance = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Write calibration identifiers into output exposure header?",
+    )
 
     # Image conversion configuration
     doConvertIntToFloat = pexConfig.Field(
@@ -1045,6 +1050,20 @@ class IsrTask(pipeBase.PipelineTask):
             if 'strayLightData' not in inputs:
                 inputs['strayLightData'] = None
 
+        if self.config.doHeaderProvenance:
+            # Add calibration provenanace info to header.
+            exposureMetadata = inputs['ccdExposure'].getMetadata()
+            for inputName in sorted(inputs.keys()):
+                reference = getattr(inputRefs, inputName, None)
+                if reference is not None:
+                    runKey = f"LSST CALIB RUN {inputName.upper()}"
+                    runValue = reference.run
+                    idKey = f"LSST CALIB UUID {inputName.upper()}"
+                    idValue = str(reference.id)
+
+                    exposureMetadata.set(runKey, runValue)
+                    exposureMetadata.set(idKey, idValue)
+
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
 
@@ -1225,6 +1244,41 @@ class IsrTask(pipeBase.PipelineTask):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
         if (self.config.doDeferredCharge and deferredChargeCalib is None):
             raise RuntimeError("Must supply a deferred charge calibration if config.doDeferredCharge=True.")
+
+        if self.config.doHeaderProvenance:
+            # Inputs have been validated, so we can add their date
+            # information to the output header.
+            exposureMetadata = ccdExposure.getMetadata()
+            if self.config.doBias:
+                exposureMetadata.set("LSST CALIB DATE BIAS", self.extractCalibDate(bias))
+            if self.config.doBrighterFatter:
+                exposureMetadata.set("LSST CALIB DATE BFK", self.extractCalibDate(bfKernel))
+            if self.config.doCrosstalk:
+                exposureMetadata.set("LSST CALIB DATE CROSSTALK", self.extractCalibDate(crosstalk))
+            if self.config.doDark:
+                exposureMetadata.set("LSST CALIB DATE DARK", self.extractCalibDate(dark))
+            if self.config.doDefect:
+                exposureMetadata.set("LSST CALIB DATE DEFECTS", self.extractCalibDate(defects))
+            if self.config.doDeferredCharge:
+                exposureMetadata.set("LSST CALIB DATE CTI", self.extractCalibDate(deferredChargeCalib))
+            if self.config.doFlat:
+                exposureMetadata.set("LSST CALIB DATE FLAT", self.extractCalibDate(flat))
+            if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
+                exposureMetadata.set("LSST CALIB DATE FRINGE", self.extractCalibDate(fringes.fringes))
+            if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
+                exposureMetadata.set("LSST CALIB DATE ILLUMINATION", self.extractCalibDate(illumMaskedImage))
+            if self.doLinearize(ccd):
+                exposureMetadata.set("LSST CALIB DATE LINEARIZER", self.extractCalibDate(linearizer))
+            if self.config.usePtcGains or self.config.usePtcReadNoise:
+                exposureMetadata.set("LSST CALIB DATE PTC", self.extractCalibDate(ptc))
+            if self.config.doStrayLight:
+                exposureMetadata.set("LSST CALIB DATE STRAYLIGHT", self.extractCalibDate(strayLightData))
+            if self.config.doAttachTransmissionCurve:
+                exposureMetadata.set("LSST CALIB DATE OPTICS_TR", self.extractCalibDate(opticsTransmission))
+                exposureMetadata.set("LSST CALIB DATE FILTER_TR", self.extractCalibDate(filterTransmission))
+                exposureMetadata.set("LSST CALIB DATE SENSOR_TR", self.extractCalibDate(sensorTransmission))
+                exposureMetadata.set("LSST CALIB DATE ATMOSP_TR",
+                                     self.extractCalibDate(atmosphereTransmission))
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1610,6 +1664,31 @@ class IsrTask(pipeBase.PipelineTask):
             inputExp.setDetector(camera[detectorNum])
 
         return inputExp
+
+    @staticmethod
+    def extractCalibDate(calib):
+        """Extract common calibration metadata values that will be written to
+        output header.
+
+        Parameters
+        ----------
+        calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
+            Calibration to pull date information from.
+
+        Returns
+        -------
+        dateString : `str`
+            Calibration creation date string to add to header.
+        """
+        if hasattr(calib, "getMetadata"):
+            if 'CALIB_CREATION_DATE' in calib.getMetadata():
+                return " ".join((calib.getMetadata().get("CALIB_CREATION_DATE", "Unknown"),
+                                 calib.getMetadata().get("CALIB_CREATION_TIME", "Unknown")))
+            else:
+                return " ".join((calib.getMetadata().get("CALIB_CREATE_DATE", "Unknown"),
+                                 calib.getMetadata().get("CALIB_CREATE_TIME", "Unknown")))
+        else:
+            return "Unknown Unknown"
 
     def convertIntToFloat(self, exposure):
         """Convert exposure image from uint16 to float.
