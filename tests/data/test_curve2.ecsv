@@ -1,0 +1,51 @@
+# %ECSV 0.9
+# ---
+# datatype:
+# - {name: wavelength, unit: Angstrom, datatype: float32}
+# - {name: throughput, unit: '%', datatype: float32}
+# meta: !!omap
+# - {MODE: DETECTOR}
+# - {TYPE: transmission_curve}
+# - {CALIBDATE: '2022-10-05T00:00:00'}
+# - {INSTRUME: LATISS}
+# - {OBSTYPE: transmission_filter}
+# - {CALIBCLS: lsst.ip.isr.IntermediateTransmissionCurve}
+# - {DETECTOR: 0}
+# - {SOURCE: LSST_SDSS_Filters.xlsx}
+# - {FILTER: SDSSg_65mm~empty}
+# - {CALIB_ID: 'raftName=RXX detectorName=RXX_S00 detector=0 calibDate=2022-10-05T00:00:00 ccd=0 ccdnum=0 filter=SDSSg_65mm~empty'}
+# - {DATE: '2022-10-21T17:13:58.984473'}
+# - {CALIB_CREATION_DATE: '2022-10-21'}
+# - {CALIB_CREATION_TIME: '17:13:58'}
+# - __serialized_columns__:
+#     throughput:
+#       __class__: astropy.units.quantity.Quantity
+#       unit: !astropy.units.Unit {unit: '%'}
+#       value: !astropy.table.SerializedColumn {name: throughput}
+#     wavelength:
+#       __class__: astropy.units.quantity.Quantity
+#       unit: !astropy.units.Unit {unit: Angstrom}
+#       value: !astropy.table.SerializedColumn {name: wavelength}
+# schema: astropy-2.0
+wavelength throughput
+4400 98.58
+4410 98.33
+4420 98.28
+4430 98.345
+4440 98.53
+4450 98.515
+4460 98.39
+4470 98.385
+4480 98.445
+4490 98.7
+4500 98.67
+4510 98.42
+4520 97.975
+4530 97.58
+4540 97.525
+4550 97.79
+4560 98.265
+4570 98.525
+4580 98.52
+4590 98.545
+4600 98.53
