@@ -1055,14 +1055,14 @@ class IsrTask(pipeBase.PipelineTask):
             exposureMetadata = inputs['ccdExposure'].getMetadata()
             for inputName in sorted(inputs.keys()):
                 reference = getattr(inputRefs, inputName, None)
-                if reference is not None:
+                if reference is not None and hasattr(reference, "run"):
                     runKey = f"LSST CALIB RUN {inputName.upper()}"
                     runValue = reference.run
                     idKey = f"LSST CALIB UUID {inputName.upper()}"
                     idValue = str(reference.id)
 
-                    exposureMetadata.set(runKey, runValue)
-                    exposureMetadata.set(idKey, idValue)
+                    exposureMetadata[runKey] = runValue
+                    exposureMetadata[idKey] = idValue
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
@@ -1250,35 +1250,34 @@ class IsrTask(pipeBase.PipelineTask):
             # information to the output header.
             exposureMetadata = ccdExposure.getMetadata()
             if self.config.doBias:
-                exposureMetadata.set("LSST CALIB DATE BIAS", self.extractCalibDate(bias))
+                exposureMetadata["LSST CALIB DATE BIAS"] = self.extractCalibDate(bias)
             if self.config.doBrighterFatter:
-                exposureMetadata.set("LSST CALIB DATE BFK", self.extractCalibDate(bfKernel))
+                exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
             if self.config.doCrosstalk:
-                exposureMetadata.set("LSST CALIB DATE CROSSTALK", self.extractCalibDate(crosstalk))
+                exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
             if self.config.doDark:
-                exposureMetadata.set("LSST CALIB DATE DARK", self.extractCalibDate(dark))
+                exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
             if self.config.doDefect:
-                exposureMetadata.set("LSST CALIB DATE DEFECTS", self.extractCalibDate(defects))
+                exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
             if self.config.doDeferredCharge:
-                exposureMetadata.set("LSST CALIB DATE CTI", self.extractCalibDate(deferredChargeCalib))
+                exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
             if self.config.doFlat:
-                exposureMetadata.set("LSST CALIB DATE FLAT", self.extractCalibDate(flat))
+                exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
             if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
-                exposureMetadata.set("LSST CALIB DATE FRINGE", self.extractCalibDate(fringes.fringes))
+                exposureMetadata["LSST CALIB DATE FRINGE"] = self.extractCalibDate(fringes.fringes)
             if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
-                exposureMetadata.set("LSST CALIB DATE ILLUMINATION", self.extractCalibDate(illumMaskedImage))
+                exposureMetadata["LSST CALIB DATE ILLUMINATION"] = self.extractCalibDate(illumMaskedImage)
             if self.doLinearize(ccd):
-                exposureMetadata.set("LSST CALIB DATE LINEARIZER", self.extractCalibDate(linearizer))
+                exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
             if self.config.usePtcGains or self.config.usePtcReadNoise:
-                exposureMetadata.set("LSST CALIB DATE PTC", self.extractCalibDate(ptc))
+                exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
             if self.config.doStrayLight:
-                exposureMetadata.set("LSST CALIB DATE STRAYLIGHT", self.extractCalibDate(strayLightData))
+                exposureMetadata["LSST CALIB DATE STRAYLIGHT"] = self.extractCalibDate(strayLightData)
             if self.config.doAttachTransmissionCurve:
-                exposureMetadata.set("LSST CALIB DATE OPTICS_TR", self.extractCalibDate(opticsTransmission))
-                exposureMetadata.set("LSST CALIB DATE FILTER_TR", self.extractCalibDate(filterTransmission))
-                exposureMetadata.set("LSST CALIB DATE SENSOR_TR", self.extractCalibDate(sensorTransmission))
-                exposureMetadata.set("LSST CALIB DATE ATMOSP_TR",
-                                     self.extractCalibDate(atmosphereTransmission))
+                exposureMetadata["LSST CALIB DATE OPTICS_TR"] = self.extractCalibDate(opticsTransmission)
+                exposureMetadata["LSST CALIB DATE FILTER_TR"] = self.extractCalibDate(filterTransmission)
+                exposureMetadata["LSST CALIB DATE SENSOR_TR"] = self.extractCalibDate(sensorTransmission)
+                exposureMetadata["LSST CALIB DATE ATMOSP_TR"] = self.extractCalibDate(atmosphereTransmission)
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
