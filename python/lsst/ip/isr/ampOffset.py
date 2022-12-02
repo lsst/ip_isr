@@ -27,9 +27,6 @@ import lsst.pipe.base as pipeBase
 from lsst.meas.algorithms import (SubtractBackgroundTask, SourceDetectionTask)
 
 
-__all__ = ['AmpOffsetConfig', 'AmpOffsetTask']
-
-
 class AmpOffsetConfig(pexConfig.Config):
     """Configuration parameters for AmpOffsetTask.
     """

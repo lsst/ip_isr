@@ -31,9 +31,6 @@ from .isrFunctions import checkFilter
 from .calibType import IsrCalib
 
 
-__all__ = ['StrayLightConfig', 'StrayLightTask', 'StrayLightData']
-
-
 class StrayLightConfig(Config):
     doRotatorAngleCorrection = Field(
         dtype=bool,
