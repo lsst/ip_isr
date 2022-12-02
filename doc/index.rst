@@ -10,3 +10,4 @@ ip_isr documentation preview
    :maxdepth: 1
 
    lsst.ip.isr/index
+   lsst.ip.isr.isrMock/index

@@ -100,6 +100,7 @@ class Linearizer(IsrCalib):
     tableData : `numpy.array`, optional
         Lookup table data for the linearity correction.
     """
+
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
     _VERSION = 1.1
@@ -143,7 +144,7 @@ class Linearizer(IsrCalib):
         setDate : `bool`, optional
             Update the CALIBDATE fields in the metadata to the current
             time. Defaults to False.
-        kwargs :
+        kwargs : Any
             Other keyword parameters to set in the metadata.
         """
         kwargs['HAS_LINEARITY'] = self.hasLinearity
@@ -200,7 +201,6 @@ class Linearizer(IsrCalib):
             Raised if the supplied dictionary is for a different
             calibration.
         """
-
         calib = cls()
 
         if calib._OBSTYPE != dictionary['metadata']['OBSTYPE']:
@@ -340,7 +340,6 @@ class Linearizer(IsrCalib):
             List of tables containing the linearity calibration
             information.
         """
-
         tableList = []
         self.updateMetadata()
         catalog = Table([{'AMPLIFIER_NAME': ampName,
@@ -455,7 +454,7 @@ class Linearizer(IsrCalib):
         ----------
         image : `~lsst.afw.image.image`
             Image to correct.
-        detector : `~lsst.afw.cameraGeom.detector`
+        detector : `~lsst.afw.cameraGeom.detector`, optional
             Detector to use for linearity parameters if not already
             populated.
         log : `~logging.Logger`, optional
@@ -504,6 +503,7 @@ class LinearizeBase(metaclass=abc.ABCMeta):
 
     corrected_value = uncorrected_value + f(uncorrected_value)
     """
+
     LinearityType = None  # linearity type, a string used for AmpInfoCatalogs
 
     @abc.abstractmethod
@@ -558,6 +558,7 @@ class LinearizeLookupTable(LinearizeBase):
             the nearest index is used instead of truncating to the
             next smaller index
     """
+
     LinearityType = "LookupTable"
 
     def __call__(self, image, **kwargs):
@@ -632,6 +633,7 @@ class LinearizePolynomial(LinearizeBase):
         A coefficient multiplied by ``uncorrImage**1`` is proportional
         to the gain.  Not necessary for correcting non-linearity.
     """
+
     LinearityType = "Polynomial"
 
     def __call__(self, image, **kwargs):
@@ -680,6 +682,7 @@ class LinearizeSquared(LinearizeBase):
 
     where c0 is linearity coefficient 0 for each amplifier.
     """
+
     LinearityType = "Squared"
 
     def __call__(self, image, **kwargs):
@@ -727,6 +730,7 @@ class LinearizeSpline(LinearizeBase):
     to be subtracted from the observed flux.
 
     """
+
     LinearityType = "Spline"
 
     def __call__(self, image, **kwargs):
@@ -766,6 +770,7 @@ class LinearizeSpline(LinearizeBase):
 class LinearizeProportional(LinearizeBase):
     """Do not correct non-linearity.
     """
+
     LinearityType = "Proportional"
 
     def __call__(self, image, **kwargs):
@@ -796,6 +801,7 @@ class LinearizeProportional(LinearizeBase):
 class LinearizeNone(LinearizeBase):
     """Do not correct non-linearity.
     """
+
     LinearityType = "None"
 
     def __call__(self, image, **kwargs):

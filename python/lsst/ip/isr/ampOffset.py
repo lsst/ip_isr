@@ -30,6 +30,7 @@ from lsst.meas.algorithms import (SubtractBackgroundTask, SourceDetectionTask)
 class AmpOffsetConfig(pexConfig.Config):
     """Configuration parameters for AmpOffsetTask.
     """
+
     ampEdgeInset = pexConfig.Field(
         doc="Number of pixels the amp edge strip is inset from the amp edge. A thin strip of pixels running "
         "parallel to the edge of the amp is used to characterize the average flux level at the amp edge.",
@@ -81,6 +82,7 @@ class AmpOffsetConfig(pexConfig.Config):
 class AmpOffsetTask(pipeBase.Task):
     """Calculate and apply amp offset corrections to an exposure.
     """
+
     ConfigClass = AmpOffsetConfig
     _DefaultName = "isrAmpOffset"
 

@@ -258,6 +258,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     def updateMetadata(self, **kwargs):
         """Update calibration metadata.
+
         This calls the base class's method after ensuring the required
         calibration keywords will be saved.
 
@@ -274,6 +275,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     @classmethod
     def fromDict(cls, dictionary):
         """Construct a calibration from a dictionary of properties.
+
         Must be implemented by the specific calibration subclasses.
 
         Parameters
@@ -362,6 +364,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     def toDict(self):
         """Return a dictionary containing the calibration properties.
+
         The dictionary should be able to be round-tripped through
         `fromDict`.
 
@@ -410,6 +413,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     @classmethod
     def fromTable(cls, tableList):
         """Construct calibration from a list of tables.
+
         This method uses the `fromDict` method to create the
         calibration, after constructing an appropriate dictionary from
         the input tables.
@@ -606,7 +610,19 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     def getExpIdsUsed(self, ampName):
         """Get the exposures used, i.e. not discarded, for a given amp.
+
         If no mask has been created yet, all exposures are returned.
+
+        Parameters
+        ----------
+        ampName : `str`
+            Name of the amplifier to retrieve exposure IDs for.
+
+        Returns
+        -------
+        results : `list` [`tuple` [`int`, `int`]]
+            A list of tuples, with each tuple containing the pair of
+            exposure IDs used.
         """
         if len(self.expIdMask[ampName]) == 0:
             return self.inputExpIdPairs[ampName]
@@ -620,4 +636,11 @@ class PhotonTransferCurveDataset(IsrCalib):
         return [(exp1, exp2) for ((exp1, exp2), m) in zip(pairs, mask) if bool(m) is True]
 
     def getGoodAmps(self):
+        """Get a list of good amplifiers.
+
+        Returns
+        -------
+        results : `list` [`str`]
+            List of good amplifiers.
+        """
         return [amp for amp in self.ampNames if amp not in self.badAmps]

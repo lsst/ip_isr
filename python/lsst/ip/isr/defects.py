@@ -75,7 +75,6 @@ class Defects(IsrCalib):
         The collection of Defect objects.
     """
 
-    """The calibration type used for ingest."""
     _OBSTYPE = "defects"
     _SCHEMA = ''
     _VERSION = 2.0
@@ -265,7 +264,7 @@ class Defects(IsrCalib):
         ----------
         maskedImage : `lsst.afw.image.MaskedImage`
             Image to process.  Only the mask plane is updated.
-        maskName : str, optional
+        maskName : `str`, optional
             Mask plane name to use.
         """
         # mask bad pixels
@@ -466,12 +465,12 @@ class Defects(IsrCalib):
         ----------
         values : `numbers.Number` or `list` or `np.array`
             Input values.
-        n : `int`
+        n : `int`, optional
             Number of values to retrieve.
 
         Returns
         -------
-        vals : `list` or `np.array` or `numbers.Number`
+        values : `list` or `np.array` or `numbers.Number`
             Single value from supplied list if ``n`` is 1, or `list`
             containing first ``n`` values from supplied values.
 
@@ -595,7 +594,6 @@ class Defects(IsrCalib):
         ----------
         filename : `str`
             Name of text file containing the defect information.
-
         normalize_on_init : `bool`, optional
             If `True`, normalization is applied to the defects listed in the
             table to remove duplicates, eliminate overlaps, etc. Otherwise
