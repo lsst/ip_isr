@@ -26,9 +26,6 @@ from lsst.pex.config import Config, Field
 from lsst.pipe.base import Task
 
 
-__all__ = ['MaskingConfig', 'MaskingTask']
-
-
 class MaskingConfig(Config):
     doSpecificMasking = Field(
         dtype=bool,

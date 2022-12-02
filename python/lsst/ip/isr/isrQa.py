@@ -27,9 +27,6 @@ import lsst.afw.math as afwMath
 import lsst.pex.config as pexConfig
 
 
-__all__ = ['IsrQaFlatnessConfig', 'IsrQaConfig', 'makeThumbnail']
-
-
 class IsrQaFlatnessConfig(pexConfig.Config):
     meshX = pexConfig.Field(
         dtype=int,

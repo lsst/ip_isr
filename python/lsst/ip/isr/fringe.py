@@ -34,9 +34,6 @@ from lsst.utils.timer import timeMethod
 from .isrFunctions import checkFilter
 
 
-__all__ = ['FringeStatisticsConfig', 'FringeConfig', 'FringeTask']
-
-
 afwDisplay.setDefaultMaskTransparency(75)
 
 
