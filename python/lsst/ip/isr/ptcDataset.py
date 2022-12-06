@@ -151,8 +151,6 @@ class PhotonTransferCurveDataset(IsrCalib):
     `lsst.cp.pipe.ptc.PhotonTransferCurveDataset`
         Output dataset from MeasurePhotonTransferCurveTask.
 
-    Notes
-    -----
     Version 1.1 adds the `ptcTurnoff` attribute.
     """
 
