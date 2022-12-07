@@ -146,13 +146,6 @@ class PhotonTransferCurveDataset(IsrCalib):
          Dictionary keyed by amp names containing the integrated photocharge
          for linearity calibration.
 
-    Returns
-    -------
-    `lsst.cp.pipe.ptc.PhotonTransferCurveDataset`
-        Output dataset from MeasurePhotonTransferCurveTask.
-
-    Notes
-    -----
     Version 1.1 adds the `ptcTurnoff` attribute.
     """
 
