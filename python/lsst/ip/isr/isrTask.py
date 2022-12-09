@@ -1913,19 +1913,19 @@ class IsrTask(pipeBase.PipelineTask):
             metadata[f"{keyBase} SERIAL MEDIAN {ampName}"] = overscanResults.overscanMedian[0]
             metadata[f"{keyBase} SERIAL STDEV {ampName}"] = overscanResults.overscanSigma[0]
 
-            metadata[f"{keyBase} PAR MEAN {ampName}"] = overscanResults.overscanMean[1]
-            metadata[f"{keyBase} PAR MEDIAN {ampName}"] = overscanResults.overscanMedian[1]
-            metadata[f"{keyBase} PAR STDEV {ampName}"] = overscanResults.overscanSigma[1]
+            metadata[f"{keyBase} PARALLEL MEAN {ampName}"] = overscanResults.overscanMean[1]
+            metadata[f"{keyBase} PARALLEL MEDIAN {ampName}"] = overscanResults.overscanMedian[1]
+            metadata[f"{keyBase} PARALLEL STDEV {ampName}"] = overscanResults.overscanSigma[1]
 
             metadata[f"{keyBase} RESIDUAL SERIAL MEAN {ampName}"] = overscanResults.residualMean[0]
             metadata[f"{keyBase} RESIDUAL SERIAL MEDIAN {ampName}"] = overscanResults.residualMedian[0]
             metadata[f"{keyBase} RESIDUAL SERIAL STDEV {ampName}"] = overscanResults.residualSigma[0]
 
-            metadata[f"{keyBase} RESIDUAL PAR MEAN {ampName}"] = overscanResults.residualMean[1]
-            metadata[f"{keyBase} RESIDUAL PAR MEDIAN {ampName}"] = overscanResults.residualMedian[1]
-            metadata[f"{keyBase} RESIDUAL PAR STDEV {ampName}"] = overscanResults.residualSigma[1]
+            metadata[f"{keyBase} RESIDUAL PARALLEL MEAN {ampName}"] = overscanResults.residualMean[1]
+            metadata[f"{keyBase} RESIDUAL PARALLEL MEDIAN {ampName}"] = overscanResults.residualMedian[1]
+            metadata[f"{keyBase} RESIDUAL PARALLEL STDEV {ampName}"] = overscanResults.residualSigma[1]
         else:
-            self.log.warning("Unknown length of overscan values; none added to header.")
+            self.log.warning("Unexpected type for overscan values; none added to header.")
 
         return overscanResults
 
