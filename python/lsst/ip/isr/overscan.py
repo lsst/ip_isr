@@ -204,8 +204,10 @@ class OverscanCorrectionTask(pipeBase.Task):
         serialResults = self.correctOverscan(exposure, amp,
                                              imageBBox, serialOverscanBBox, isTransposed=isTransposed)
         overscanMean = serialResults.overscanMean
+        overscanMedian = serialResults.overscanMedian
         overscanSigma = serialResults.overscanSigma
         residualMean = serialResults.overscanMeanResidual
+        residualMedian = serialResults.overscanMedianResidual
         residualSigma = serialResults.overscanSigmaResidual
 
         # Do Parallel Overscan
@@ -240,8 +242,10 @@ class OverscanCorrectionTask(pipeBase.Task):
                                                        isTransposed=not isTransposed)
 
                 overscanMean = (overscanMean, parallelResults.overscanMean)
+                overscanMedian = (overscanMedian, parallelResults.overscanMedian)
                 overscanSigma = (overscanSigma, parallelResults.overscanSigma)
                 residualMean = (residualMean, parallelResults.overscanMeanResidual)
+                residualMedian = (residualMedian, parallelResults.overscanMedianResidual)
                 residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
         parallelOverscanFit = parallelResults.overscanOverscanModel if parallelResults else None
         parallelOverscanImage = parallelResults.overscanImage if parallelResults else None
@@ -253,8 +257,10 @@ class OverscanCorrectionTask(pipeBase.Task):
                                parallelOverscanFit=parallelOverscanFit,
                                parallelOverscanImage=parallelOverscanImage,
                                overscanMean=overscanMean,
+                               overscanMedian=overscanMedian,
                                overscanSigma=overscanSigma,
                                residualMean=residualMean,
+                               residualMedian=residualMedian,
                                residualSigma=residualSigma)
 
     def correctOverscan(self, exposure, amp, imageBBox, overscanBBox, isTransposed=True):
@@ -298,8 +304,9 @@ class OverscanCorrectionTask(pipeBase.Task):
 
         # Find residual fit statistics.
         stats = afwMath.makeStatistics(overscanImage.getMaskedImage(),
-                                       afwMath.MEDIAN | afwMath.STDEVCLIP, self.statControl)
-        residualMean = stats.getValue(afwMath.MEDIAN)
+                                       afwMath.MEAN | afwMath.MEDIAN | afwMath.STDEVCLIP, self.statControl)
+        residualMean = stats.getValue(afwMath.MEAN)
+        residualMedian = stats.getValue(afwMath.MEDIAN)
         residualSigma = stats.getValue(afwMath.STDEVCLIP)
 
         return pipeBase.Struct(ampOverscanModel=ampOverscanModel,
@@ -308,8 +315,10 @@ class OverscanCorrectionTask(pipeBase.Task):
                                overscanValue=overscanResults.overscanValue,
 
                                overscanMean=overscanResults.overscanMean,
+                               overscanMedian=overscanResults.overscanMedian,
                                overscanSigma=overscanResults.overscanSigma,
                                overscanMeanResidual=residualMean,
+                               overscanMedianResidual=residualMedian,
                                overscanSigmaResidual=residualSigma
                                )
 
@@ -416,6 +425,7 @@ class OverscanCorrectionTask(pipeBase.Task):
             overscanResult = self.measureConstantOverscan(overscanImage)
             overscanValue = overscanResult.overscanValue
             overscanMean = overscanValue
+            overscanMedian = overscanValue
             overscanSigma = 0.0
         elif self.config.fitType in ('MEDIAN_PER_ROW', 'POLY', 'CHEB', 'LEG',
                                      'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
@@ -424,8 +434,10 @@ class OverscanCorrectionTask(pipeBase.Task):
             overscanValue = overscanResult.overscanValue
 
             stats = afwMath.makeStatistics(overscanResult.overscanValue,
-                                           afwMath.MEDIAN | afwMath.STDEVCLIP, self.statControl)
-            overscanMean = stats.getValue(afwMath.MEDIAN)
+                                           afwMath.MEAN | afwMath.MEDIAN | afwMath.STDEVCLIP,
+                                           self.statControl)
+            overscanMean = stats.getValue(afwMath.MEAN)
+            overscanMedian = stats.getValue(afwMath.MEDIAN)
             overscanSigma = stats.getValue(afwMath.STDEVCLIP)
         else:
             raise ValueError('%s : %s an invalid overscan type' %
@@ -433,6 +445,7 @@ class OverscanCorrectionTask(pipeBase.Task):
 
         return pipeBase.Struct(overscanValue=overscanValue,
                                overscanMean=overscanMean,
+                               overscanMedian=overscanMedian,
                                overscanSigma=overscanSigma,
                                )
 

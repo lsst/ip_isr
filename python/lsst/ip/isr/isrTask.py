@@ -883,6 +883,12 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Only perform illumination correction for these filters."
     )
 
+    # Calculate image quality statistics?
+    doStandardStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Should standard image quality statistics be calculated?",
+        default=True,
+    )
     # Calculate additional statistics?
     doCalculateStatistics = pexConfig.Field(
         dtype=bool,
@@ -1590,6 +1596,34 @@ class IsrTask(pipeBase.PipelineTask):
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                    qaStats.getValue(afwMath.STDEVCLIP))
 
+        # Calculate standard image quality statistics
+        if self.config.doStandardStatistics:
+            metadata = ccdExposure.getMetadata()
+            for amp in ccd:
+                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                ampName = amp.getName()
+                metadata[f"LSST ISR MASK SAT {ampName}"] = isrFunctions.countMaskedPixels(
+                    ampExposure.getMaskedImage(),
+                    [self.config.saturatedMaskName]
+                )
+                metadata[f"LSST ISR MASK BAD {ampName}"] = isrFunctions.countMaskedPixels(
+                    ampExposure.getMaskedImage(),
+                    ["BAD"]
+                )
+                qaStats = afwMath.makeStatistics(ampExposure.getImage(),
+                                                 afwMath.MEAN | afwMath.MEDIAN | afwMath.STDEVCLIP)
+
+                metadata[f"LSST ISR FINAL MEAN {ampName}"] = qaStats.getValue(afwMath.MEAN)
+                metadata[f"LSST ISR FINAL MEDIAN {ampName}"] = qaStats.getValue(afwMath.MEDIAN)
+                metadata[f"LSST ISR FINAL STDEV {ampName}"] = qaStats.getValue(afwMath.STDEVCLIP)
+
+                if self.config.doOverscan:
+                    k1 = f"LSST ISR FINAL MEDIAN {ampName}"
+                    k2 = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
+                    metadata[f"LSST ISR LEVEL {ampName}"] = metadata[k1] - metadata[k2]
+                else:
+                    metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
+
         # calculate additional statistics.
         outputStatistics = None
         if self.config.doCalculateStatistics:
@@ -1860,9 +1894,38 @@ class IsrTask(pipeBase.PipelineTask):
         overscanResults = self.overscan.run(ccdExposure, amp)
 
         metadata = ccdExposure.getMetadata()
-        ampNum = amp.getName()
-        metadata[f"ISR_OSCAN_LEVEL{ampNum}"] = overscanResults.overscanMean
-        metadata[f"ISR_OSCAN_SIGMA{ampNum}"] = overscanResults.overscanSigma
+        ampName = amp.getName()
+
+        keyBase = "LSST ISR OVERSCAN"
+        # Updated quantities
+        if isinstance(overscanResults.overscanMean, float):
+            # Serial overscan correction only:
+            metadata[f"{keyBase} SERIAL MEAN {ampName}"] = overscanResults.overscanMean
+            metadata[f"{keyBase} SERIAL MEDIAN {ampName}"] = overscanResults.overscanMedian
+            metadata[f"{keyBase} SERIAL STDEV {ampName}"] = overscanResults.overscanSigma
+
+            metadata[f"{keyBase} RESIDUAL SERIAL MEAN {ampName}"] = overscanResults.residualMean
+            metadata[f"{keyBase} RESIDUAL SERIAL MEDIAN {ampName}"] = overscanResults.residualMedian
+            metadata[f"{keyBase} RESIDUAL SERIAL STDEV {ampName}"] = overscanResults.residualSigma
+        elif isinstance(overscanResults.overscanMean, tuple):
+            # Both serial and parallel overscan have run:
+            metadata[f"{keyBase} SERIAL MEAN {ampName}"] = overscanResults.overscanMean[0]
+            metadata[f"{keyBase} SERIAL MEDIAN {ampName}"] = overscanResults.overscanMedian[0]
+            metadata[f"{keyBase} SERIAL STDEV {ampName}"] = overscanResults.overscanSigma[0]
+
+            metadata[f"{keyBase} PARALLEL MEAN {ampName}"] = overscanResults.overscanMean[1]
+            metadata[f"{keyBase} PARALLEL MEDIAN {ampName}"] = overscanResults.overscanMedian[1]
+            metadata[f"{keyBase} PARALLEL STDEV {ampName}"] = overscanResults.overscanSigma[1]
+
+            metadata[f"{keyBase} RESIDUAL SERIAL MEAN {ampName}"] = overscanResults.residualMean[0]
+            metadata[f"{keyBase} RESIDUAL SERIAL MEDIAN {ampName}"] = overscanResults.residualMedian[0]
+            metadata[f"{keyBase} RESIDUAL SERIAL STDEV {ampName}"] = overscanResults.residualSigma[0]
+
+            metadata[f"{keyBase} RESIDUAL PARALLEL MEAN {ampName}"] = overscanResults.residualMean[1]
+            metadata[f"{keyBase} RESIDUAL PARALLEL MEDIAN {ampName}"] = overscanResults.residualMedian[1]
+            metadata[f"{keyBase} RESIDUAL PARALLEL STDEV {ampName}"] = overscanResults.residualSigma[1]
+        else:
+            self.log.warning("Unexpected type for overscan values; none added to header.")
 
         return overscanResults
 
