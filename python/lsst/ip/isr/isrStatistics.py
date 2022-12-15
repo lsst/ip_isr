@@ -49,15 +49,21 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
     )
     bandingKernelSize = pexConfig.Field(
         dtype=int,
-        doc="Width of box for boxcar smoothing.",
+        doc="Width of box for boxcar smoothing for banding metric.",
         default=3,
         check=lambda x: x == 0 or x % 2 != 0,
     )
-    bandingFraction = pexConfig.Field(
+    bandingFractionLow = pexConfig.Field(
         dtype=float,
-        doc="Fraction of values to exclude from both high and low samples.",
+        doc="Fraction of values to exclude from low samples.",
         default=0.1,
-        check=lambda x: x >= 0.0 and x < 0.5,
+        check=lambda x: x >= 0.0 and x <= 1.0
+    )
+    bandingFractionHigh = pexConfig.Field(
+        dtype=float,
+        doc="Fraction of values to exclude from high samples.",
+        default=0.9,
+        check=lambda x: x >= 0.0 and x <= 1.0,
     )
     bandingUseHalfDetector = pexConfig.Field(
         dtype=float,
@@ -67,21 +73,21 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
 
     doProjectionStatistics = pexConfig.Field(
         dtype=bool,
-        doc="Measure projection metric.",
+        doc="Measure projection metric?",
         default=False,
     )
     projectionKernelSize = pexConfig.Field(
         dtype=int,
-        doc="Width of box for boxcar smoothing.",
+        doc="Width of box for boxcar smoothing of projections.",
         default=0,
         check=lambda x: x == 0 or x % 2 != 0,
     )
-    doProjectionFFT = pexConfig.Field(
+    doProjectionFft = pexConfig.Field(
         dtype=bool,
-        doc="Generate FFTs from the image projections.",
+        doc="Generate FFTs from the image projections?",
         default=False,
     )
-    projectionFFTWindow = pexConfig.ChoiceField(
+    projectionFftWindow = pexConfig.ChoiceField(
         dtype=str,
         doc="Type of windowing to use prior to calculating FFT.",
         default="HAMMING",
@@ -299,7 +305,7 @@ class IsrStatisticsTask(pipeBase.Task):
         Parameters
         ----------
         kernelSize : `int`
-            Length of the kernel in pixels.
+            Size of the kernel in pixels.
 
         Returns
         -------
@@ -353,15 +359,15 @@ class IsrStatisticsTask(pipeBase.Task):
 
             smoothedOverscan = np.convolve(rawOverscan, kernel, mode='valid')
 
-            low, high = np.quantile(smoothedOverscan, [self.config.bandingFraction,
-                                                       1.0 - self.config.bandingFraction])
+            low, high = np.quantile(smoothedOverscan, [self.config.bandingFractionLow,
+                                                       self.config.bandingFractionHigh])
             outputStats['AMP_BANDING'].append(float(high - low))
 
         if self.config.bandingUseHalfDetector:
             fullLength = len(outputStats['AMP_BANDING'])
-            outputStats['DET_BANDING'] = float(np.median(outputStats['AMP_BANDING'][0:fullLength//2]))
+            outputStats['DET_BANDING'] = float(np.nanmedian(outputStats['AMP_BANDING'][0:fullLength//2]))
         else:
-            outputStats['DET_BANDING'] = float(np.median(outputStats['AMP_BANDING']))
+            outputStats['DET_BANDING'] = float(np.nanmedian(outputStats['AMP_BANDING']))
 
         return outputStats
 
@@ -401,7 +407,7 @@ class IsrStatisticsTask(pipeBase.Task):
         outputStats['AMP_VPROJECTION'] = {}
         outputStats['AMP_HPROJECTION'] = {}
         convolveMode = 'valid'
-        if self.config.doProjectionFFT:
+        if self.config.doProjectionFft:
             outputStats['AMP_VFFT_REAL'] = {}
             outputStats['AMP_VFFT_IMAG'] = {}
             outputStats['AMP_HFFT_REAL'] = {}
@@ -420,22 +426,22 @@ class IsrStatisticsTask(pipeBase.Task):
             outputStats['AMP_HPROJECTION'][amp.getName()] = horizontalProjection.tolist()
             outputStats['AMP_VPROJECTION'][amp.getName()] = verticalProjection.tolist()
 
-            if self.config.doProjectionFFT:
+            if self.config.doProjectionFft:
                 horizontalWindow = np.ones_like(horizontalProjection)
                 verticalWindow = np.ones_like(verticalProjection)
-                if self.config.projectionFFTWindow == "NONE":
+                if self.config.projectionFftWindow == "NONE":
                     pass
-                elif self.config.projectionFFTWindow == "HAMMING":
+                elif self.config.projectionFftWindow == "HAMMING":
                     horizontalWindow = hamming(len(horizontalProjection))
                     verticalWindow = hamming(len(verticalProjection))
-                elif self.config.projectionFFTWindow == "HANN":
+                elif self.config.projectionFftWindow == "HANN":
                     horizontalWindow = hann(len(horizontalProjection))
                     verticalWindow = hann(len(verticalProjection))
-                elif self.config.projectionFFTWindow == "GAUSSIAN":
+                elif self.config.projectionFftWindow == "GAUSSIAN":
                     horizontalWindow = gaussian(len(horizontalProjection))
                     verticalWindow = gaussian(len(verticalProjection))
                 else:
-                    raise RuntimeError(f"Invalid window function: {self.config.projectionFFTWindow}")
+                    raise RuntimeError(f"Invalid window function: {self.config.projectionFftWindow}")
 
                 horizontalFFT = np.fft.rfft(np.multiply(horizontalProjection, horizontalWindow))
                 verticalFFT = np.fft.rfft(np.multiply(verticalProjection, verticalWindow))
