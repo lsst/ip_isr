@@ -1617,9 +1617,9 @@ class IsrTask(pipeBase.PipelineTask):
                 metadata[f"LSST ISR FINAL MEDIAN {ampName}"] = qaStats.getValue(afwMath.MEDIAN)
                 metadata[f"LSST ISR FINAL STDEV {ampName}"] = qaStats.getValue(afwMath.STDEVCLIP)
 
-                if self.config.doOverscan:
-                    k1 = f"LSST ISR FINAL MEDIAN {ampName}"
-                    k2 = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
+                k1 = f"LSST ISR FINAL MEDIAN {ampName}"
+                k2 = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
+                if self.config.doOverscan and k1 in metadata and k2 in metadata:
                     metadata[f"LSST ISR LEVEL {ampName}"] = metadata[k1] - metadata[k2]
                 else:
                     metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
