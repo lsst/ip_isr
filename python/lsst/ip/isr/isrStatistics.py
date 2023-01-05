@@ -22,6 +22,9 @@
 __all__ = ["IsrStatisticsTaskConfig", "IsrStatisticsTask"]
 
 import numpy as np
+
+from scipy.signal.windows import hamming, hann, gaussian
+
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.pipe.base as pipeBase
@@ -38,6 +41,64 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Measure CTI statistics from image and overscans?",
         default=False,
     )
+
+    doBandingStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure image banding metric?",
+        default=False,
+    )
+    bandingKernelSize = pexConfig.Field(
+        dtype=int,
+        doc="Width of box for boxcar smoothing for banding metric.",
+        default=3,
+        check=lambda x: x == 0 or x % 2 != 0,
+    )
+    bandingFractionLow = pexConfig.Field(
+        dtype=float,
+        doc="Fraction of values to exclude from low samples.",
+        default=0.1,
+        check=lambda x: x >= 0.0 and x <= 1.0
+    )
+    bandingFractionHigh = pexConfig.Field(
+        dtype=float,
+        doc="Fraction of values to exclude from high samples.",
+        default=0.9,
+        check=lambda x: x >= 0.0 and x <= 1.0,
+    )
+    bandingUseHalfDetector = pexConfig.Field(
+        dtype=float,
+        doc="Use only the first half set of amplifiers.",
+        default=True,
+    )
+
+    doProjectionStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure projection metric?",
+        default=False,
+    )
+    projectionKernelSize = pexConfig.Field(
+        dtype=int,
+        doc="Width of box for boxcar smoothing of projections.",
+        default=0,
+        check=lambda x: x == 0 or x % 2 != 0,
+    )
+    doProjectionFft = pexConfig.Field(
+        dtype=bool,
+        doc="Generate FFTs from the image projections?",
+        default=False,
+    )
+    projectionFftWindow = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Type of windowing to use prior to calculating FFT.",
+        default="HAMMING",
+        allowed={
+            "HAMMING": "Hamming window.",
+            "HANN": "Hann window.",
+            "GAUSSIAN": "Gaussian window.",
+            "NONE": "No window."
+        }
+    )
+
     stat = pexConfig.Field(
         dtype=str,
         default='MEANCLIP',
@@ -121,11 +182,24 @@ class IsrStatisticsTask(pipeBase.Task):
             gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
         else:
             raise RuntimeError("No source of gains provided.")
+
+        ctiResults = None
         if self.config.doCtiStatistics:
             ctiResults = self.measureCti(inputExp, overscanResults, gains)
 
+        bandingResults = None
+        if self.config.doBandingStatistics:
+            bandingResults = self.measureBanding(inputExp, overscanResults)
+
+        projectionResults = None
+        if self.config.doProjectionStatistics:
+            projectionResults = self.measureProjectionStatistics(inputExp, overscanResults)
+
         return pipeBase.Struct(
-            results={'CTI': ctiResults, },
+            results={'CTI': ctiResults,
+                     'BANDING': bandingResults,
+                     'PROJECTION': projectionResults,
+                     },
         )
 
     def measureCti(self, inputExp, overscans, gains):
@@ -221,5 +295,159 @@ class IsrStatisticsTask(pipeBase.Task):
                     ampStats['OVERSCAN_VALUES'] = values
 
             outputStats[amp.getName()] = ampStats
+
+        return outputStats
+
+    @staticmethod
+    def makeKernel(kernelSize):
+        """Make a boxcar smoothing kernel.
+
+        Parameters
+        ----------
+        kernelSize : `int`
+            Size of the kernel in pixels.
+
+        Returns
+        -------
+        kernel : `np.array`
+            Kernel for boxcar smoothing.
+        """
+        if kernelSize > 0:
+            kernel = np.full(kernelSize, 1.0 / kernelSize)
+        else:
+            kernel = np.array([1.0])
+        return kernel
+
+    def measureBanding(self, inputExp, overscans):
+        """Task to measure banding statistics.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        overscans : `list` [`lsst.pipe.base.Struct`]
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        detector = inputExp.getDetector()
+        kernel = self.makeKernel(self.config.bandingKernelSize)
+
+        outputStats['AMP_BANDING'] = []
+        for amp, overscanData in zip(detector.getAmplifiers(), overscans):
+            overscanFit = np.array(overscanData.overscanFit)
+            overscanArray = overscanData.overscanImage.image.array
+            rawOverscan = np.mean(overscanArray + overscanFit, axis=1)
+
+            smoothedOverscan = np.convolve(rawOverscan, kernel, mode='valid')
+
+            low, high = np.quantile(smoothedOverscan, [self.config.bandingFractionLow,
+                                                       self.config.bandingFractionHigh])
+            outputStats['AMP_BANDING'].append(float(high - low))
+
+        if self.config.bandingUseHalfDetector:
+            fullLength = len(outputStats['AMP_BANDING'])
+            outputStats['DET_BANDING'] = float(np.nanmedian(outputStats['AMP_BANDING'][0:fullLength//2]))
+        else:
+            outputStats['DET_BANDING'] = float(np.nanmedian(outputStats['AMP_BANDING']))
+
+        return outputStats
+
+    def measureProjectionStatistics(self, inputExp, overscans):
+        """Task to measure metrics from image slicing.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        overscans : `list` [`lsst.pipe.base.Struct`]
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        detector = inputExp.getDetector()
+        kernel = self.makeKernel(self.config.projectionKernelSize)
+
+        outputStats['AMP_VPROJECTION'] = {}
+        outputStats['AMP_HPROJECTION'] = {}
+        convolveMode = 'valid'
+        if self.config.doProjectionFft:
+            outputStats['AMP_VFFT_REAL'] = {}
+            outputStats['AMP_VFFT_IMAG'] = {}
+            outputStats['AMP_HFFT_REAL'] = {}
+            outputStats['AMP_HFFT_IMAG'] = {}
+            convolveMode = 'same'
+
+        for amp in detector.getAmplifiers():
+            ampArray = inputExp.image[amp.getBBox()].array
+
+            horizontalProjection = np.mean(ampArray, axis=0)
+            verticalProjection = np.mean(ampArray, axis=1)
+
+            horizontalProjection = np.convolve(horizontalProjection, kernel, mode=convolveMode)
+            verticalProjection = np.convolve(verticalProjection, kernel, mode=convolveMode)
+
+            outputStats['AMP_HPROJECTION'][amp.getName()] = horizontalProjection.tolist()
+            outputStats['AMP_VPROJECTION'][amp.getName()] = verticalProjection.tolist()
+
+            if self.config.doProjectionFft:
+                horizontalWindow = np.ones_like(horizontalProjection)
+                verticalWindow = np.ones_like(verticalProjection)
+                if self.config.projectionFftWindow == "NONE":
+                    pass
+                elif self.config.projectionFftWindow == "HAMMING":
+                    horizontalWindow = hamming(len(horizontalProjection))
+                    verticalWindow = hamming(len(verticalProjection))
+                elif self.config.projectionFftWindow == "HANN":
+                    horizontalWindow = hann(len(horizontalProjection))
+                    verticalWindow = hann(len(verticalProjection))
+                elif self.config.projectionFftWindow == "GAUSSIAN":
+                    horizontalWindow = gaussian(len(horizontalProjection))
+                    verticalWindow = gaussian(len(verticalProjection))
+                else:
+                    raise RuntimeError(f"Invalid window function: {self.config.projectionFftWindow}")
+
+                horizontalFFT = np.fft.rfft(np.multiply(horizontalProjection, horizontalWindow))
+                verticalFFT = np.fft.rfft(np.multiply(verticalProjection, verticalWindow))
+                outputStats['AMP_HFFT_REAL'][amp.getName()] = np.real(horizontalFFT).tolist()
+                outputStats['AMP_HFFT_IMAG'][amp.getName()] = np.imag(horizontalFFT).tolist()
+                outputStats['AMP_VFFT_REAL'][amp.getName()] = np.real(verticalFFT).tolist()
+                outputStats['AMP_VFFT_IMAG'][amp.getName()] = np.imag(verticalFFT).tolist()
 
         return outputStats
