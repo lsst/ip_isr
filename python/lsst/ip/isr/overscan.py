@@ -298,9 +298,10 @@ class OverscanCorrectionTask(pipeBase.Task):
         # CZW: Transposed?
         overscanOverscanModel = self.broadcastFitToImage(overscanResults.overscanValue,
                                                          overscanImage.image.array)
+        self.debugView(overscanImage, overscanResults.overscanValue, amp, isTransposed=isTransposed)
         overscanImage.image.array -= overscanOverscanModel
 
-        self.debugView(overscanImage, overscanResults.overscanValue, amp)
+
 
         # Find residual fit statistics.
         stats = afwMath.makeStatistics(overscanImage.getMaskedImage(),
@@ -770,7 +771,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                                maskArray=maskArray,
                                isTransposed=isTransposed)
 
-    def debugView(self, image, model, amp=None):
+    def debugView(self, image, model, amp=None, isTransposed=True):
         """Debug display for the final overscan solution.
 
         Parameters
@@ -781,6 +782,8 @@ class OverscanCorrectionTask(pipeBase.Task):
             Overscan model determined for the image.
         amp : `lsst.afw.cameraGeom.Amplifier`, optional
             Amplifier to extract diagnostic information.
+        isTransposed : `bool`, optional
+            Does the data need to be transposed before display?
         """
         import lsstDebug
         if not lsstDebug.Info(__name__).display:
@@ -790,12 +793,14 @@ class OverscanCorrectionTask(pipeBase.Task):
 
         calcImage = self.getImageArray(image)
         # CZW: Check that this is ok
-        calcImage = np.transpose(calcImage)
+        if isTransposed:
+            calcImage = np.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
         collapsed = self.collapseArray(masked)
 
         num = len(collapsed)
         indices = 2.0 * np.arange(num)/float(num) - 1.0
+        indices = np.arange(num)
 
         if np.ma.is_masked(collapsed):
             collapsedMask = collapsed.mask
@@ -814,8 +819,9 @@ class OverscanCorrectionTask(pipeBase.Task):
         else:
             plotModel = np.zeros_like(indices)
             plotModel += model
+
         axes.plot(indices, plotModel, 'r-')
-        plot.xlabel("centered/scaled position along overscan region")
+        plot.xlabel("position along overscan region")
         plot.ylabel("pixel value/fit value")
         if amp:
             plot.title(f"{amp.getName()} DataX: "
