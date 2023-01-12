@@ -221,32 +221,24 @@ class OverscanCorrectionTask(pipeBase.Task):
             maskIm = exposure.getMaskedImage()
             maskIm = maskIm.Factory(maskIm, parallelOverscanBBox)
 
-            # The serial overscan correction has removed the majority
-            # of the signal in the parallel overscan region, so the
-            # mean should be close to zero.  The noise in both should
-            # be similar, so we can use the noise from the serial
-            # overscan region to set the threshold for bleed
-            # detection.
-            thresholdLevel = self.config.numSigmaClip * serialResults.overscanSigmaResidual
-            makeThresholdMask(maskIm, threshold=thresholdLevel, growFootprints=0)
-            maskPix = countMaskedPixels(maskIm, self.config.maskPlanes)
-            xSize, ySize = parallelOverscanBBox.getDimensions()
-            if maskPix > xSize*ySize*self.config.parallelOverscanMaskThreshold:
-                self.log.warning('Fraction of masked pixels for parallel overscan calculation larger'
-                                 ' than %f of total pixels (i.e. %f masked pixels) on amp %s.',
-                                 self.config.parallelOverscanMaskThreshold, maskPix, amp.getName())
-                self.log.warning('Not doing parallel overscan correction.')
-            else:
-                parallelResults = self.correctOverscan(exposure, amp,
-                                                       imageBBox, parallelOverscanBBox,
-                                                       isTransposed=not isTransposed)
+            # The serial overscan correction has removed some signal
+            # from the parallel overscan region, but that is largely a
+            # constant offset.  The collapseArray method now attempts
+            # to fill fully masked columns with the median of
+            # neighboring values, with a fallback to the median of the
+            # correction in the other columns.  Filling with neighbor
+            # values ensures that large variations in the parallel
+            # overscan do not create new outlier points.
+            parallelResults = self.correctOverscan(exposure, amp,
+                                                   imageBBox, parallelOverscanBBox,
+                                                   isTransposed=not isTransposed)
+            overscanMean = (overscanMean, parallelResults.overscanMean)
+            overscanMedian = (overscanMedian, parallelResults.overscanMedian)
+            overscanSigma = (overscanSigma, parallelResults.overscanSigma)
+            residualMean = (residualMean, parallelResults.overscanMeanResidual)
+            residualMedian = (residualMedian, parallelResults.overscanMedianResidual)
+            residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
 
-                overscanMean = (overscanMean, parallelResults.overscanMean)
-                overscanMedian = (overscanMedian, parallelResults.overscanMedian)
-                overscanSigma = (overscanSigma, parallelResults.overscanSigma)
-                residualMean = (residualMean, parallelResults.overscanMeanResidual)
-                residualMedian = (residualMedian, parallelResults.overscanMedianResidual)
-                residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
         parallelOverscanFit = parallelResults.overscanOverscanModel if parallelResults else None
         parallelOverscanImage = parallelResults.overscanImage if parallelResults else None
 
@@ -568,7 +560,18 @@ class OverscanCorrectionTask(pipeBase.Task):
         """
         collapsed = np.mean(maskedArray, axis=1)
         if collapsed.mask.sum() > 0:
-            collapsed.data[collapsed.mask] = np.mean(maskedArray.data[collapsed.mask], axis=1)
+            defaultValue = np.median(collapsed.data[~collapsed.mask])
+            for maskSlice in np.ma.clump_masked(collapsed):
+                neighborhood = []
+                if maskSlice.start > 5:
+                    neighborhood.extend(collapsed[maskSlice.start - 5:maskSlice.start].data)
+                if maskSlice.stop < collapsed.size - 5:
+                    neighborhood.extend(collapsed[maskSlice.stop:maskSlice.stop+5].data)
+                if len(neighborhood) > 0:
+                    collapsed.data[maskSlice] = np.median(neighborhood)
+                else:
+                    collapsed.data[maskSlice] = defaultValue
+
         return collapsed
 
     def collapseArrayMedian(self, maskedArray):
