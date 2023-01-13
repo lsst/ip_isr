@@ -1298,6 +1298,29 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Amplifier level processing.
         overscans = []
+
+        if self.config.doOverscan and self.config.overscan.doParallelOverscan:
+            parallelMask = None
+
+            for amp in ccd:
+                dataView = afwImage.MaskedImageF(ccdExposure.getMaskedImage(),
+                                                 amp.getRawParallelOverscanBBox(),
+                                                 afwImage.PARENT)
+
+                isrFunctions.makeThresholdMask(
+                    maskedImage=dataView, threshold=100000,
+                    growFootprints=0, maskName="BAD"
+                )
+                if parallelMask is None:
+                    parallelMask = dataView.mask.array
+                else:
+                    parallelMask |= dataView.mask.array
+            for amp in ccd:
+                dataView = afwImage.MaskedImageF(ccdExposure.getMaskedImage(),
+                                                 amp.getRawParallelOverscanBBox(),
+                                                 afwImage.PARENT)
+                dataView.mask.array |= parallelMask
+
         for amp in ccd:
             # if ccdExposure is one amp,
             # check for coverage to prevent performing ops multiple times

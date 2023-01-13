@@ -271,7 +271,7 @@ class OverscanCorrectionTask(pipeBase.Task):
 
         median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
         bad = np.where(np.abs(overscanArray - median) > self.config.maxDeviation)
-        overscanMask[bad] = overscanImage.mask.getPlaneBitMask("SAT")
+        overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("SAT")
 
         # Do overscan fit.
         # CZW: Handle transposed correctly.
@@ -539,10 +539,15 @@ class OverscanCorrectionTask(pipeBase.Task):
         lq, median, uq = np.percentile(imageArray, [25.0, 50.0, 75.0], axis=1)
         axisMedians = median
         axisStdev = 0.74*(uq - lq)  # robust stdev
+        axisStdev = np.where(axisStdev > 2.0 * np.median(axisStdev),
+                             np.median(axisStdev), axisStdev)
 
         diff = np.abs(imageArray - axisMedians[:, np.newaxis])
-        return np.ma.masked_where(diff > self.statControl.getNumSigmaClip()
-                                  * axisStdev[:, np.newaxis], imageArray)
+        # import pdb; pdb.set_trace()
+        masked = np.ma.masked_where(diff > self.statControl.getNumSigmaClip()
+                                    * axisStdev[:, np.newaxis], imageArray)
+
+        return masked
 
     @staticmethod
     def collapseArray(maskedArray):
