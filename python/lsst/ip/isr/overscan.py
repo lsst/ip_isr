@@ -549,8 +549,42 @@ class OverscanCorrectionTask(pipeBase.Task):
 
         return masked
 
-    @staticmethod
-    def collapseArray(maskedArray):
+    def fillMaskedPixels(self, overscanVector):
+        """Fill masked/NaN pixels in the overscan.
+
+        Parameters
+        ----------
+        overscanVector : `np.array` or `np.ma.masked_array`
+            Overscan vector to fill.
+
+        Returns
+        -------
+        overscanVector : `np.ma.masked_array`
+            Filled vector.
+        """
+        workingCopy = overscanVector
+        if not isinstance(overscanVector, np.ma.MaskedArray):
+            workingCopy = np.ma.masked_array(overscanVector,
+                                             mask=~np.isfinite(overscanVector))
+
+        defaultValue = np.median(workingCopy.data[~workingCopy.mask])
+        #        import pdb; pdb.set_trace()
+        for maskSlice in np.ma.clump_masked(workingCopy):
+            neighborhood = []
+            if maskSlice.start > 5:
+                neighborhood.extend(workingCopy[maskSlice.start - 5:maskSlice.start].data)
+            if maskSlice.stop < workingCopy.size - 5:
+                neighborhood.extend(workingCopy[maskSlice.stop:maskSlice.stop+5].data)
+            if len(neighborhood) > 0:
+                workingCopy.data[maskSlice] = np.nanmedian(neighborhood)
+                workingCopy.mask[maskSlice] = False
+            else:
+                workingCopy.data[maskSlice] = defaultValue
+                workingCopy.mask[maskSlice] = False
+        return workingCopy
+
+    # @staticmethod
+    def collapseArray(self, maskedArray):
         """Collapse overscan array (and mask) to a 1-D vector of values.
 
         Parameters
@@ -565,17 +599,7 @@ class OverscanCorrectionTask(pipeBase.Task):
         """
         collapsed = np.mean(maskedArray, axis=1)
         if collapsed.mask.sum() > 0:
-            defaultValue = np.median(collapsed.data[~collapsed.mask])
-            for maskSlice in np.ma.clump_masked(collapsed):
-                neighborhood = []
-                if maskSlice.start > 5:
-                    neighborhood.extend(collapsed[maskSlice.start - 5:maskSlice.start].data)
-                if maskSlice.stop < collapsed.size - 5:
-                    neighborhood.extend(collapsed[maskSlice.stop:maskSlice.stop+5].data)
-                if len(neighborhood) > 0:
-                    collapsed.data[maskSlice] = np.median(neighborhood)
-                else:
-                    collapsed.data[maskSlice] = defaultValue
+            collapsed = self.fillMaskedPixels(collapsed)
 
         return collapsed
 
@@ -744,6 +768,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                 mi.mask.array[:, :] = masked.mask[:, :]
 
             overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
+            overscanVector = self.fillMaskedPixels(overscanVector)
             maskArray = self.maskExtrapolated(overscanVector)
         else:
             collapsed = self.collapseArray(masked)

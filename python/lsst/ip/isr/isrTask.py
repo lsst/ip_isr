@@ -1309,7 +1309,7 @@ class IsrTask(pipeBase.PipelineTask):
 
                 isrFunctions.makeThresholdMask(
                     maskedImage=dataView, threshold=100000,
-                    growFootprints=0, maskName="BAD"
+                    growFootprints=2, maskName="BAD"
                 )
                 if parallelMask is None:
                     parallelMask = dataView.mask.array
@@ -1907,7 +1907,6 @@ class IsrTask(pipeBase.PipelineTask):
         See Also
         --------
         lsst.ip.isr.overscan.OverscanTask
-
         """
         if amp.getRawHorizontalOverscanBBox().isEmpty():
             self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
