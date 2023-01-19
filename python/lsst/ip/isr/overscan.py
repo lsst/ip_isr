@@ -29,7 +29,7 @@ import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
 from .isr import fitOverscanImage
-from .isrFunctions import makeThresholdMask, countMaskedPixels
+from .isrFunctions import makeThresholdMask
 
 
 class OverscanCorrectionTaskConfig(pexConfig.Config):
@@ -80,15 +80,16 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
         doc="Correct using parallel overscan after serial overscan correction?",
         default=False,
     )
-    parallelOverscanMaskThreshold = pexConfig.RangeField(
-        dtype=float,
-        doc="Minimum fraction of pixels in parallel overscan region necessary "
-        "for parallel overcan correction.",
-        default=0.1,
-        min=0.0,
-        max=1.0,
-        inclusiveMin=True,
-        inclusiveMax=True,
+    parallelOverscanMaskThreshold = pexConfig.Field(
+        dtype=int,
+        doc="Threshold above which pixels in the parallel overscan are masked as bleeds.",
+        default=100000,
+    )
+    parallelOverscanMaskGrowSize = pexConfig.Field(
+        dtype=int,
+        doc="Number of pixels masks created from saturated bleeds should be grown"
+            " while masking the parallel overscan.",
+        default=7,
     )
 
     leadingColumnsToSkip = pexConfig.Field(
@@ -226,9 +227,11 @@ class OverscanCorrectionTask(pipeBase.Task):
             # constant offset.  The collapseArray method now attempts
             # to fill fully masked columns with the median of
             # neighboring values, with a fallback to the median of the
-            # correction in the other columns.  Filling with neighbor
+            # correction in all other columns.  Filling with neighbor
             # values ensures that large variations in the parallel
-            # overscan do not create new outlier points.
+            # overscan do not create new outlier points.  The
+            # MEDIAN_PER_ROW method does this filling as a separate
+            # operation, using the same method.
             parallelResults = self.correctOverscan(exposure, amp,
                                                    imageBBox, parallelOverscanBBox,
                                                    isTransposed=not isTransposed)
@@ -292,8 +295,6 @@ class OverscanCorrectionTask(pipeBase.Task):
                                                          overscanImage.image.array)
         self.debugView(overscanImage, overscanResults.overscanValue, amp, isTransposed=isTransposed)
         overscanImage.image.array -= overscanOverscanModel
-
-
 
         # Find residual fit statistics.
         stats = afwMath.makeStatistics(overscanImage.getMaskedImage(),
@@ -476,6 +477,41 @@ class OverscanCorrectionTask(pipeBase.Task):
                                image, type(image), dir(image))
         return outI
 
+    def maskParallelOverscan(self, exposure, detector):
+        """Mask the union of high values on all amplifiers in the parallel
+        overscan.
+
+        This operates on the image in-place.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            An untrimmed raw exposure.
+        detector : `lsst.afw.cameraGeom.Detector`
+            The detetor to use for amplifier geometry.
+        """
+        parallelMask = None
+
+        for amp in detector:
+            dataView = afwImage.MaskedImageF(exposure.getMaskedImage(),
+                                             amp.getRawParallelOverscanBBox(),
+                                             afwImage.PARENT)
+            makeThresholdMask(
+                maskedImage=dataView,
+                threshold=self.config.parallelOverscanMaskThreshold,
+                growFootprints=self.config.parallelOverscanMaskGrowSize,
+                maskName="BAD"
+            )
+            if parallelMask is None:
+                parallelMask = dataView.mask.array
+            else:
+                parallelMask |= dataView.mask.array
+        for amp in detector:
+            dataView = afwImage.MaskedImageF(exposure.getMaskedImage(),
+                                             amp.getRawParallelOverscanBBox(),
+                                             afwImage.PARENT)
+            dataView.mask.array |= parallelMask
+
     # Constant methods
     def measureConstantOverscan(self, image):
         """Measure a constant overscan value.
@@ -539,11 +575,15 @@ class OverscanCorrectionTask(pipeBase.Task):
         lq, median, uq = np.percentile(imageArray, [25.0, 50.0, 75.0], axis=1)
         axisMedians = median
         axisStdev = 0.74*(uq - lq)  # robust stdev
+
+        # Replace pixels that have excessively large stdev values
+        # with the median of stdev values.  A large stdev likely
+        # indicates a bleed is spilling into the overscan.
         axisStdev = np.where(axisStdev > 2.0 * np.median(axisStdev),
                              np.median(axisStdev), axisStdev)
 
+        # Mask pixels that are N-sigma away from their array medians.
         diff = np.abs(imageArray - axisMedians[:, np.newaxis])
-        # import pdb; pdb.set_trace()
         masked = np.ma.masked_where(diff > self.statControl.getNumSigmaClip()
                                     * axisStdev[:, np.newaxis], imageArray)
 
@@ -561,6 +601,15 @@ class OverscanCorrectionTask(pipeBase.Task):
         -------
         overscanVector : `np.ma.masked_array`
             Filled vector.
+
+        Notes
+        -----
+        Each maskSlice is a section of overscan with contiguous masks.
+        Ideally this adds 5 pixels from the left and right of that
+        mask slice, and takes the median of those values to fill the
+        slice.  If this isn't possible, the median of all non-masked
+        values is used.  This updates the masked_array to clear the
+        mask for the pixels filled.
         """
         workingCopy = overscanVector
         if not isinstance(overscanVector, np.ma.MaskedArray):
@@ -568,7 +617,6 @@ class OverscanCorrectionTask(pipeBase.Task):
                                              mask=~np.isfinite(overscanVector))
 
         defaultValue = np.median(workingCopy.data[~workingCopy.mask])
-        #        import pdb; pdb.set_trace()
         for maskSlice in np.ma.clump_masked(workingCopy):
             neighborhood = []
             if maskSlice.start > 5:
@@ -583,22 +631,25 @@ class OverscanCorrectionTask(pipeBase.Task):
                 workingCopy.mask[maskSlice] = False
         return workingCopy
 
-    # @staticmethod
-    def collapseArray(self, maskedArray):
+    def collapseArray(self, maskedArray, fillMasked=True):
         """Collapse overscan array (and mask) to a 1-D vector of values.
 
         Parameters
         ----------
         maskedArray : `numpy.ma.masked_array`
             Masked array of input overscan data.
+        fillMasked : `bool`, optional
+            If true, fill any pixels that are masked with a median of
+            neighbors.
 
         Returns
         -------
         collapsed : `numpy.ma.masked_array`
             Single dimensional overscan data, combined with the mean.
+
         """
         collapsed = np.mean(maskedArray, axis=1)
-        if collapsed.mask.sum() > 0:
+        if collapsed.mask.sum() > 0 and fillMasked:
             collapsed = self.fillMaskedPixels(collapsed)
 
         return collapsed
@@ -829,7 +880,7 @@ class OverscanCorrectionTask(pipeBase.Task):
         if isTransposed:
             calcImage = np.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
-        collapsed = self.collapseArray(masked)
+        collapsed = self.collapseArray(masked, fillMasked=False)
 
         num = len(collapsed)
         indices = 2.0 * np.arange(num)/float(num) - 1.0

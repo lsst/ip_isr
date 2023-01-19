@@ -1300,26 +1300,8 @@ class IsrTask(pipeBase.PipelineTask):
         overscans = []
 
         if self.config.doOverscan and self.config.overscan.doParallelOverscan:
-            parallelMask = None
-
-            for amp in ccd:
-                dataView = afwImage.MaskedImageF(ccdExposure.getMaskedImage(),
-                                                 amp.getRawParallelOverscanBBox(),
-                                                 afwImage.PARENT)
-
-                isrFunctions.makeThresholdMask(
-                    maskedImage=dataView, threshold=100000,
-                    growFootprints=2, maskName="BAD"
-                )
-                if parallelMask is None:
-                    parallelMask = dataView.mask.array
-                else:
-                    parallelMask |= dataView.mask.array
-            for amp in ccd:
-                dataView = afwImage.MaskedImageF(ccdExposure.getMaskedImage(),
-                                                 amp.getRawParallelOverscanBBox(),
-                                                 afwImage.PARENT)
-                dataView.mask.array |= parallelMask
+            # This will attempt to mask bleed pixels across all amplifiers.
+            self.overscan.maskParallelOverscan(ccdExposure, ccd)
 
         for amp in ccd:
             # if ccdExposure is one amp,
