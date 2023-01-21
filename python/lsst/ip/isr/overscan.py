@@ -87,8 +87,9 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
     )
     parallelOverscanMaskGrowSize = pexConfig.Field(
         dtype=int,
-        doc="Number of pixels masks created from saturated bleeds should be grown"
-            " while masking the parallel overscan.",
+        doc="Masks created from saturated bleeds should be grown by this many "
+            "pixels during construction of the parallel overscan mask. "
+            "This value determined from the ITL chip in the LATISS camera",
         default=7,
     )
 
@@ -259,7 +260,55 @@ class OverscanCorrectionTask(pipeBase.Task):
                                residualSigma=residualSigma)
 
     def correctOverscan(self, exposure, amp, imageBBox, overscanBBox, isTransposed=True):
-        """
+        """Trim the exposure, fit the overscan, subtract the fit, and
+        calculate statistics.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure containing the data.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            The amplifier that is to be corrected.
+        imageBBox: `lsst.geom.Box2I`
+            Bounding box of the image data that will have the overscan
+            subtracted.  If parallel overscan will be performed, that
+            area is added to the image bounding box during serial
+            overscan correction.
+        overscanBBox: `lsst.geom.Box2I`
+            Bounding box for the overscan data.
+        isTransposed: `bool`
+            If true, then the data will be transposed before fitting
+            the overscan.
+
+        Returns
+        -------
+        results : `lsst.pipe.base.Struct`
+            ``ampOverscanModel``
+                Overscan model broadcast to the full image size.
+                (`lsst.afw.image.Exposure`)
+            ``overscanOverscanModel``
+                Overscan model broadcast to the full overscan image
+                size. (`lsst.afw.image.Exposure`)
+            ``overscanImage``
+                Overscan image with the overscan fit subtracted.
+                (`lsst.afw.image.Exposure`)
+            ``overscanValue``
+                Overscan model. (`float` or `np.array`)
+            ``overscanMean``
+                Mean value of the overscan fit. (`float`)
+            ``overscanMedian``
+                Median value of the overscan fit. (`float`)
+            ``overscanSigma``
+                Standard deviation of the overscan fit. (`float`)
+            ``overscanMeanResidual``
+                Mean value of the overscan region after overscan
+                subtraction. (`float`)
+            ``overscanMedianResidual``
+                Median value of the overscan region after overscan
+                subtraction. (`float`)
+            ``overscanSigmaResidual``
+                Standard deviation of the overscan region after
+                overscan subtraction. (`float`)
         """
         overscanBox = self.trimOverscan(exposure, amp, overscanBBox,
                                         self.config.leadingColumnsToSkip,
@@ -608,8 +657,7 @@ class OverscanCorrectionTask(pipeBase.Task):
         Ideally this adds 5 pixels from the left and right of that
         mask slice, and takes the median of those values to fill the
         slice.  If this isn't possible, the median of all non-masked
-        values is used.  This updates the masked_array to clear the
-        mask for the pixels filled.
+        values is used.  The mask is removed for the pixels filled.
         """
         workingCopy = overscanVector
         if not isinstance(overscanVector, np.ma.MaskedArray):
