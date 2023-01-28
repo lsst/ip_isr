@@ -577,12 +577,8 @@ class OverscanCorrectionTask(pipeBase.Task):
             - ``overscanValue``: Overscan value to subtract (`float`)
             - ``isTransposed``: Orientation of the overscan (`bool`)
         """
-        if self.config.fitType == 'MEDIAN':
-            calcImage = self.integerConvert(image)
-        else:
-            calcImage = image
         fitType = afwMath.stringToStatisticsProperty(self.config.fitType)
-        overscanValue = afwMath.makeStatistics(calcImage, fitType, self.statControl).getValue()
+        overscanValue = afwMath.makeStatistics(image, fitType, self.statControl).getValue()
 
         return pipeBase.Struct(overscanValue=overscanValue,
                                isTransposed=False)
