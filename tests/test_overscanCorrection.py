@@ -385,6 +385,13 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             # Test the output value for the serial and parallel overscans
             self.assertEqual(oscanResults.overscanMean[0], 2.0)
             self.assertEqual(oscanResults.overscanMean[1], 4.5)
+            if fitType != 'MEDIAN':
+                # The ramp that has been inserted should be fully
+                # removed by the overscan fit, removing all of the
+                # signal.  This isn't true of the constant fit, so do
+                # not test that here.
+                self.assertLess(statAfter[1], statBefore[1])
+                self.assertEqual(statAfter[1], 0.0)
 
     def test_bleedParallelOverscanCorrection(self):
         """Expect that this should reduce the image variance with a full fit.
@@ -450,6 +457,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 self.assertAlmostEqual(exposureCopy.image.array[5][0],
                                        0.5 * (exposureCopy.image.array[5][4]
                                               + exposureCopy.image.array[5][5]), delta=0.3)
+                # These fits should also reduce the image stdev, as
+                # they are modeling the ramp.
+                self.assertLess(statAfter[1], statBefore[1])
 
     def test_bleedParallelOverscanCorrectionFailure(self):
         """Expect that this should reduce the image variance with a full fit.
@@ -510,6 +520,11 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 # instead of 4.5:
                 self.assertAlmostEqual(oscanResults.overscanMean[1], 6.5, delta=0.001)
             else:
+                # This is not correcting the bleed, so it will be printed
+                # onto the image, making the stdev after correction worse
+                # than before.
+                self.assertGreater(statAfter[1], statBefore[1])
+
                 # Check that the median overscan value matches the
                 # constant fit:
                 self.assertAlmostEqual(oscanResults.overscanMedian[1], 6.5, delta=0.001)
