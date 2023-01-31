@@ -1298,6 +1298,11 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Amplifier level processing.
         overscans = []
+
+        if self.config.doOverscan and self.config.overscan.doParallelOverscan:
+            # This will attempt to mask bleed pixels across all amplifiers.
+            self.overscan.maskParallelOverscan(ccdExposure, ccd)
+
         for amp in ccd:
             # if ccdExposure is one amp,
             # check for coverage to prevent performing ops multiple times
@@ -1884,7 +1889,6 @@ class IsrTask(pipeBase.PipelineTask):
         See Also
         --------
         lsst.ip.isr.overscan.OverscanTask
-
         """
         if amp.getRawHorizontalOverscanBBox().isEmpty():
             self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
