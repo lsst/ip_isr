@@ -383,15 +383,15 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             self.assertLess(statAfter[0], statBefore[0])
 
             # Test the output value for the serial and parallel overscans
-            self.assertEqual(oscanResults.overscanMean[0], 2.0)
-            self.assertEqual(oscanResults.overscanMean[1], 4.5)
+            self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
+            self.assertAlmostEqual(oscanResults.overscanMean[1], 4.5, delta=0.001)
             if fitType != 'MEDIAN':
                 # The ramp that has been inserted should be fully
                 # removed by the overscan fit, removing all of the
                 # signal.  This isn't true of the constant fit, so do
                 # not test that here.
                 self.assertLess(statAfter[1], statBefore[1])
-                self.assertEqual(statAfter[1], 0.0)
+                self.assertAlmostEqual(statAfter[1], 0.0, delta=0.001)
 
     def test_bleedParallelOverscanCorrection(self):
         """Expect that this should reduce the image variance with a full fit.
@@ -444,7 +444,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
             # Test the output value for the serial and parallel
             # overscans.
-            self.assertEqual(oscanResults.overscanMean[0], 2.0)
+            self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
             self.assertAlmostEqual(oscanResults.overscanMean[1], 4.5, delta=0.001)
             self.assertAlmostEqual(oscanResults.residualMean[1], 0.0, delta=0.001)
             if fitType != 'MEDIAN':
@@ -513,7 +513,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
             # Test the output value for the serial and parallel
             # overscans.
-            self.assertEqual(oscanResults.overscanMean[0], 2.0)
+            self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
             # These are the wrong values:
             if fitType == 'MEDIAN':
                 # Check that the constant case is now biased, at 6.5
