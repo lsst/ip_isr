@@ -72,6 +72,9 @@ class IsrCalib(abc.ABC):
         self._detectorId = None
         self._filter = None
         self._calibId = None
+        self._seqfile = None
+        self._seqname = None
+        self._seqcksum = None
         self._metadata = PropertyList()
         self.setMetadata(PropertyList())
         self.calibInfoFromDict(kwargs)
@@ -80,7 +83,8 @@ class IsrCalib(abc.ABC):
         self.requiredAttributes = set(["_OBSTYPE", "_SCHEMA", "_VERSION"])
         self.requiredAttributes.update(["_instrument", "_raftName", "_slotName",
                                         "_detectorName", "_detectorSerial", "_detectorId",
-                                        "_filter", "_calibId", "_metadata"])
+                                        "_filter", "_calibId", "_seqfile", "_seqname", "_seqcksum",
+                                        "_metadata"])
 
         self.log = log if log else logging.getLogger(__name__)
 
@@ -261,10 +265,39 @@ class IsrCalib(abc.ABC):
         self._metadata["DET_SER"] = self._detectorSerial if self._detectorSerial else None
         self._metadata["FILTER"] = self._filter if self._filter else None
         self._metadata["CALIB_ID"] = self._calibId if self._calibId else None
+        self._metadata["SEQFILE"] = self._seqfile if self._seqfile else None
+        self._metadata["SEQNAME"] = self._seqname if self._seqname else None
+        self._metadata["SEQCKSUM"] = self._seqcksum if self._seqcksum else None
         self._metadata["CALIBCLS"] = get_full_type_name(self)
 
         mdSupplemental.update(kwargs)
         mdOriginal.update(mdSupplemental)
+
+    def updateMetadataFromExposures(self, exposures):
+        """Extract and unify metadata information.
+
+        Parameters
+        ----------
+        exposures : `list`
+            Exposures or other calibrations to scan.
+        """
+        keywords = ["SEQNAME", "SEQFILE", "SEQCKSUM"]
+        metadata = {}
+
+        for exp in exposures:
+            try:
+                expMeta = exp.getMetadata()
+            except AttributeError:
+                continue
+            for key in keywords:
+                if key in expMeta:
+                    if key in metadata:
+                        if metadata[key] != expMeta[key]:
+                            self.log.warning("Metadata mismatch! Have: %s Found %s",
+                                             metadata[key], expMeta[key])
+                    else:
+                        metadata[key] = expMeta[key]
+        self.updateMetadata(**metadata)
 
     def calibInfoFromDict(self, dictionary):
         """Handle common keywords.
@@ -318,6 +351,9 @@ class IsrCalib(abc.ABC):
         self._detectorSerial = search(dictionary, ["DET_SER", "DETECTOR_SERIAL", "detectorSerial"])
         self._filter = search(dictionary, ["FILTER", "filterName"])
         self._calibId = search(dictionary, ["CALIB_ID"])
+        self._seqfile = search(dictionary, ["SEQFILE"])
+        self._seqname = search(dictionary, ["SEQNAME"])
+        self._seqcksum = search(dictionary, ["SEQCKSUM"])
 
     @classmethod
     def determineCalibClass(cls, metadata, message):
