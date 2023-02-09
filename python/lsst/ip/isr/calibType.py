@@ -281,7 +281,9 @@ class IsrCalib(abc.ABC):
         exposures : `list`
             Exposures or other calibrations to scan.
         """
-        keywords = ["SEQNAME", "SEQFILE", "SEQCKSUM"]
+        # Specifying these here allows them to be propagated during
+        # calibration construction.
+        keywords = ["SEQNAME", "SEQFILE", "SEQCKSUM", "ODP", "AP0_RC"]
         metadata = {}
 
         for exp in exposures:

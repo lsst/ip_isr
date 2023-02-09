@@ -383,6 +383,18 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Write calibration identifiers into output exposure header?",
     )
 
+    # Calib checking configuration:
+    doRaiseOnCalibMismatch = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Should IsrTask halt if exposure and calibration header values do not match?",
+    )
+    cameraKeywords = pexConfig.ListField(
+        dtype=str,
+        doc="List of header keywords to compare between exposure and calibrations.",
+        default=[],
+    )
+
     # Image conversion configuration
     doConvertIntToFloat = pexConfig.Field(
         dtype=bool,
@@ -1257,40 +1269,40 @@ class IsrTask(pipeBase.PipelineTask):
             exposureMetadata = ccdExposure.getMetadata()
             if self.config.doBias:
                 exposureMetadata["LSST CALIB DATE BIAS"] = self.extractCalibDate(bias)
-                self.checkSequencer(exposureMetadata, bias, "bias")
+                self.compareCameraKeywords(exposureMetadata, bias, "bias")
             if self.config.doBrighterFatter:
                 exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
-                self.checkSequencer(exposureMetadata, bfKernel, "brighter-fatter")
+                self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
             if self.config.doCrosstalk:
                 exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
-                self.checkSequencer(exposureMetadata, crosstalk, "crosstalk")
+                self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
             if self.config.doDark:
                 exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
-                self.checkSequencer(exposureMetadata, dark, "dark")
+                self.compareCameraKeywords(exposureMetadata, dark, "dark")
             if self.config.doDefect:
                 exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
-                self.checkSequencer(exposureMetadata, defects, "defects")
+                self.compareCameraKeywords(exposureMetadata, defects, "defects")
             if self.config.doDeferredCharge:
                 exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
-                self.checkSequencer(exposureMetadata, deferredChargeCalib, "CTI")
+                self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
             if self.config.doFlat:
                 exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
-                self.checkSequencer(exposureMetadata, flat, "flat")
+                self.compareCameraKeywords(exposureMetadata, flat, "flat")
             if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
                 exposureMetadata["LSST CALIB DATE FRINGE"] = self.extractCalibDate(fringes.fringes)
-                self.checkSequencer(exposureMetadata, fringes.fringes, "fringe")
+                self.compareCameraKeywords(exposureMetadata, fringes.fringes, "fringe")
             if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
                 exposureMetadata["LSST CALIB DATE ILLUMINATION"] = self.extractCalibDate(illumMaskedImage)
-                self.checkSequencer(exposureMetadata, illumMaskedImage, "illumination")
+                self.compareCameraKeywords(exposureMetadata, illumMaskedImage, "illumination")
             if self.doLinearize(ccd):
                 exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-                self.checkSequencer(exposureMetadata, linearizer, "linearizer")
+                self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
             if self.config.usePtcGains or self.config.usePtcReadNoise:
                 exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
-                self.checkSequencer(exposureMetadata, ptc, "PTC")
+                self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
             if self.config.doStrayLight:
                 exposureMetadata["LSST CALIB DATE STRAYLIGHT"] = self.extractCalibDate(strayLightData)
-                self.checkSequencer(exposureMetadata, strayLightData, "straylight")
+                self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
             if self.config.doAttachTransmissionCurve:
                 exposureMetadata["LSST CALIB DATE OPTICS_TR"] = self.extractCalibDate(opticsTransmission)
                 exposureMetadata["LSST CALIB DATE FILTER_TR"] = self.extractCalibDate(filterTransmission)
@@ -1740,7 +1752,7 @@ class IsrTask(pipeBase.PipelineTask):
         else:
             return "Unknown Unknown"
 
-    def checkSequencer(self, exposureMetadata, calib, calibName):
+    def compareCameraKeywords(self, exposureMetadata, calib, calibName):
         """Compare header keywords to confirm camera states match.
 
         Parameters
@@ -1752,16 +1764,21 @@ class IsrTask(pipeBase.PipelineTask):
         calibName : `str`
             Calib type for log message.
         """
-        headerList = ['SEQFILE', 'SEQNAME', 'SEQCKSUM']
         try:
             calibMetadata = calib.getMetadata()
         except AttributeError:
             return
-        for keyword in headerList:
+        for keyword in self.config.cameraKeywords:
             if keyword in exposureMetadata and keyword in calibMetadata:
                 if exposureMetadata[keyword] != calibMetadata[keyword]:
-                    self.log.warning("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
-                                     calibName, keyword, exposureMetadata[keyword], calibMetadata[keyword])
+                    if self.config.doRaiseOnCalibMismatch:
+                        raise RuntimeError("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                                           calibName, keyword,
+                                           exposureMetadata[keyword], calibMetadata[keyword])
+                    else:
+                        self.log.warning("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                                         calibName, keyword,
+                                         exposureMetadata[keyword], calibMetadata[keyword])
             else:
                 self.log.debug("Sequencer keyword %s not found.", keyword)
 
