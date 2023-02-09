@@ -26,6 +26,14 @@ import lsst.utils.tests
 from lsst.ip.isr import IsrProvenance, IsrCalib
 
 
+class FakeExposure():
+    def __init__(self, **kwargs):
+        self.metadata = kwargs
+
+    def getMetadata(self):
+        return self.metadata
+
+
 class IsrCalibCases(lsst.utils.tests.TestCase):
     """Test unified calibration type.
     """
@@ -39,6 +47,8 @@ class IsrCalibCases(lsst.utils.tests.TestCase):
                                 {'exposure': 1235, 'detector': 0, 'filter': 'G'},
                                 {'exposure': 1234, 'detector': 1, 'filter': 'G'},
                                 {'exposure': 1235, 'detector': 1, 'filter': 'G'}])
+        self.exposure1 = FakeExposure(SEQNAME='sequencer A', SEQFILE='my.seq', SEQCKSUM='abcdef')
+        self.exposure2 = FakeExposure(SEQNAME='sequencer B', SEQFILE='my.seq')
 
     def runText(self, textType):
         filename = tempfile.mktemp()
@@ -60,6 +70,7 @@ class IsrCalibCases(lsst.utils.tests.TestCase):
         fromFits = IsrProvenance.readFits(usedFilename)
         self.assertEqual(self.calib, fromFits)
 
+        fromFits.updateMetadataFromExposures([self.exposure1, self.exposure2, None])
         fromFits.updateMetadata(setDate=True)
         self.assertNotEqual(self.calib, fromFits)
 
