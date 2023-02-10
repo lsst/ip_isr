@@ -389,7 +389,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False,
         doc="Should IsrTask halt if exposure and calibration header values do not match?",
     )
-    cameraKeywords = pexConfig.ListField(
+    cameraKeywordsToCompare = pexConfig.ListField(
         dtype=str,
         doc="List of header keywords to compare between exposure and calibrations.",
         default=[],
@@ -1768,7 +1768,7 @@ class IsrTask(pipeBase.PipelineTask):
             calibMetadata = calib.getMetadata()
         except AttributeError:
             return
-        for keyword in self.config.cameraKeywords:
+        for keyword in self.config.cameraKeywordsToCompare:
             if keyword in exposureMetadata and keyword in calibMetadata:
                 if exposureMetadata[keyword] != calibMetadata[keyword]:
                     if self.config.doRaiseOnCalibMismatch:
