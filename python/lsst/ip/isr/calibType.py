@@ -79,7 +79,12 @@ class IsrCalib(abc.ABC):
         self.setMetadata(PropertyList())
         self.calibInfoFromDict(kwargs)
 
-        # Define the required attributes for this calibration.
+        # Define the required attributes for this calibration.  These
+        # are entries that are automatically filled and propagated
+        # from the metadata.  The existence of the attribute is
+        # required (they're checked for equivalence), but they do not
+        # necessarily need to have a value (None == None in this
+        # case).
         self.requiredAttributes = set(["_OBSTYPE", "_SCHEMA", "_VERSION"])
         self.requiredAttributes.update(["_instrument", "_raftName", "_slotName",
                                         "_detectorName", "_detectorSerial", "_detectorId",
@@ -281,8 +286,10 @@ class IsrCalib(abc.ABC):
         exposures : `list`
             Exposures or other calibrations to scan.
         """
-        # Specifying these here allows them to be propagated during
-        # calibration construction.
+        # This list of keywords is the set of header entries that
+        # should be checked and propagated.  Not having an entry is
+        # not a failure, as they may not be defined for the exposures
+        # being used.
         keywords = ["SEQNAME", "SEQFILE", "SEQCKSUM", "ODP", "AP0_RC"]
         metadata = {}
 
