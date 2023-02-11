@@ -207,7 +207,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                      covArrayModel=[], covSqrtWeights=[], aMatrix=[], bMatrix=[], covArrayModelNoB=[],
                      aMatrixNoB=[], finalVar=[np.nan], finalModelVar=[np.nan], finalMean=[np.nan]):
         """Function to initialize an amp of a PhotonTransferCurveDataset.
-
+        print(f"In setAmpValues. amp:{ampName}") 
         Notes
         -----
         The parameters are all documented in `init`.
@@ -228,11 +228,11 @@ class PhotonTransferCurveDataset(IsrCalib):
         if len(aMatrixNoB) == 0:
             aMatrixNoB = nanMatrix
 
-        self.inputExpIdPairs[ampName] = inputExpIdPair
-        self.expIdMask[ampName] = expIdMask
-        self.rawExpTimes[ampName] = rawExpTime
-        self.rawMeans[ampName] = rawMean
-        self.rawVars[ampName] = rawVar
+        self.inputExpIdPairs[ampName].append(inputExpIdPair)
+        self.expIdMask[ampName].append(expIdMask)
+        self.rawExpTimes[ampName].append(rawExpTime)
+        self.rawMeans[ampName].append(rawMean)
+        self.rawVars[ampName].append(rawVar)
         self.photoCharge[ampName] = photoCharge
         self.gain[ampName] = gain
         self.gainErr[ampName] = gainErr
@@ -242,8 +242,17 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ptcFitParsError[ampName] = ptcFitParsError
         self.ptcFitChiSq[ampName] = ptcFitChiSq
         self.ptcTurnoff[ampName] = ptcTurnoff
-        self.covariances[ampName] = covArray
-        self.covariancesSqrtWeights[ampName] = covSqrtWeights
+        print(f"In ip_isr, type(covArray)={type(covArray)}, shape = {np.array(covArray).shape}")
+        if len(self.covariances[ampName]) == 0:
+            self.covariances[ampName] = np.array(covArray)
+        else:
+            self.covariances[ampName] = np.concatenate((self.covariances[ampName],np.array(covArray)))
+        print(f"In ip_isr, type(covSqrtWeights)={type(covSqrtWeights)}, shape = {np.array(covSqrtWeights).shape}")
+        print(f"In ip_isr, type(self.covariancesSqrtWeights[ampName])={type(self.covariancesSqrtWeights[ampName])}, shape = {np.array(self.covariancesSqrtWeights[ampName]).shape}")        
+        if len(self.covariancesSqrtWeights[ampName]) == 0:
+            self.covariancesSqrtWeights[ampName] = np.array(covSqrtWeights)
+        else:
+            self.covariancesSqrtWeights[ampName] = np.concatenate((self.covariancesSqrtWeights[ampName],np.array(covSqrtWeights)))        
         self.covariancesModel[ampName] = covArrayModel
         self.covariancesModelNoB[ampName] = covArrayModelNoB
         self.aMatrix[ampName] = aMatrix
