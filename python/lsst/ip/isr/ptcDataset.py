@@ -242,19 +242,18 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ptcFitParsError[ampName] = ptcFitParsError
         self.ptcFitChiSq[ampName] = ptcFitChiSq
         self.ptcTurnoff[ampName] = ptcTurnoff
-        print(f"In ip_isr, type(covArray)={type(covArray)}, shape = {np.array(covArray).shape}")
         if len(self.covariances[ampName]) == 0:
             self.covariances[ampName] = np.array(covArray)
         else:
             self.covariances[ampName] = np.concatenate((self.covariances[ampName],np.array(covArray)))
-        print(f"In ip_isr, type(covSqrtWeights)={type(covSqrtWeights)}, shape = {np.array(covSqrtWeights).shape}")
-        print(f"In ip_isr, type(self.covariancesSqrtWeights[ampName])={type(self.covariancesSqrtWeights[ampName])}, shape = {np.array(self.covariancesSqrtWeights[ampName]).shape}")        
+        #print(f"In ip_isr, type(covSqrtWeights)={type(covSqrtWeights)}, shape = {np.array(covSqrtWeights).shape}")
+        #print(f"In ip_isr, type(self.covariancesSqrtWeights[ampName])={type(self.covariancesSqrtWeights[ampName])}, shape = {np.array(self.covariancesSqrtWeights[ampName]).shape}")        
         if len(self.covariancesSqrtWeights[ampName]) == 0:
             self.covariancesSqrtWeights[ampName] = np.array(covSqrtWeights)
         else:
             self.covariancesSqrtWeights[ampName] = np.concatenate((self.covariancesSqrtWeights[ampName],np.array(covSqrtWeights)))        
-        self.covariancesModel[ampName] = covArrayModel
-        self.covariancesModelNoB[ampName] = covArrayModelNoB
+        self.covariancesModel[ampName] = np.full_like(self.covariances[ampName], np.nan)
+        self.covariancesModelNoB[ampName] = np.full_like(self.covariances[ampName], np.nan)
         self.aMatrix[ampName] = aMatrix
         self.bMatrix[ampName] = bMatrix
         self.aMatrixNoB[ampName] = aMatrixNoB
@@ -264,6 +263,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.finalVars[ampName] = finalVar
         self.finalModelVars[ampName] = finalModelVar
         self.finalMeans[ampName] = finalMean
+        print(f"In ip_isr, amp:{ampName},rawMeans shape = {np.array(self.rawMeans[ampName]).shape}, covArray shape = {np.array(self.covariances[ampName]).shape}")
 
     def updateMetadata(self, **kwargs):
         """Update calibration metadata.
@@ -530,12 +530,19 @@ class PhotonTransferCurveDataset(IsrCalib):
         nPoints = []
         for i, ampName in enumerate(self.ampNames):
             nPoints.append(len(list(self.covariances.values())[i]))
+            print(f"In toTable, amp:{ampName}, npoint = {len(list(self.covariances.values())[i])}")
         nSignalPoints = max(nPoints)
+        print(f"nSignalPoints={nSignalPoints}")
         nPadPoints = {}
         for i, ampName in enumerate(self.ampNames):
             nPadPoints[ampName] = nSignalPoints - len(list(self.covariances.values())[i])
-        covMatrixSide = self.covMatrixSide
-
+            print(f"In toTable, amp:{ampName}, nPadPoints = {nPadPoints[ampName]}")
+            covMatrixSide = self.covMatrixSide
+        print(f"In toTable, reshape size = {nSignalPoints*covMatrixSide**2}")
+        print(f"In toTable, cov size = {np.array(self.covariances[ampName]).shape}")
+        print(f"In toTable, covSQW size = {np.array(self.covariancesSqrtWeights[ampName]).shape}")
+        print(f"In toTable, covM size = {np.array(self.covariancesModel[ampName]).shape}")
+        print(f"In toTable, covMNoB size = {np.array(self.covariancesModelNoB[ampName]).shape}")                
         catalog = Table([{'AMPLIFIER_NAME': ampName,
                           'PTC_FIT_TYPE': self.ptcFitType,
                           'COV_MATRIX_SIDE': self.covMatrixSide,
