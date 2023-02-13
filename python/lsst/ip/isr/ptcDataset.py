@@ -207,7 +207,6 @@ class PhotonTransferCurveDataset(IsrCalib):
                      covArrayModel=[], covSqrtWeights=[], aMatrix=[], bMatrix=[], covArrayModelNoB=[],
                      aMatrixNoB=[], finalVar=[np.nan], finalModelVar=[np.nan], finalMean=[np.nan]):
         """Function to initialize an amp of a PhotonTransferCurveDataset.
-
         Notes
         -----
         The parameters are all documented in `init`.
@@ -227,12 +226,13 @@ class PhotonTransferCurveDataset(IsrCalib):
             bMatrix = nanMatrix
         if len(aMatrixNoB) == 0:
             aMatrixNoB = nanMatrix
-
-        self.inputExpIdPairs[ampName] = inputExpIdPair
-        self.expIdMask[ampName] = expIdMask
-        self.rawExpTimes[ampName] = rawExpTime
-        self.rawMeans[ampName] = rawMean
-        self.rawVars[ampName] = rawVar
+        # Modifications here for the subregions.
+        # New data is appended to the existing data
+        self.inputExpIdPairs[ampName] += inputExpIdPair
+        self.expIdMask[ampName] += expIdMask
+        self.rawExpTimes[ampName] += rawExpTime
+        self.rawMeans[ampName] += rawMean
+        self.rawVars[ampName] += rawVar
         self.photoCharge[ampName] = photoCharge
         self.gain[ampName] = gain
         self.gainErr[ampName] = gainErr
@@ -242,10 +242,16 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ptcFitParsError[ampName] = ptcFitParsError
         self.ptcFitChiSq[ampName] = ptcFitChiSq
         self.ptcTurnoff[ampName] = ptcTurnoff
-        self.covariances[ampName] = covArray
-        self.covariancesSqrtWeights[ampName] = covSqrtWeights
-        self.covariancesModel[ampName] = covArrayModel
-        self.covariancesModelNoB[ampName] = covArrayModelNoB
+        if len(self.covariances[ampName]) == 0:
+            self.covariances[ampName] = np.array(covArray)
+        else:
+            self.covariances[ampName] = np.concatenate((self.covariances[ampName],np.array(covArray)))
+        if len(self.covariancesSqrtWeights[ampName]) == 0:
+            self.covariancesSqrtWeights[ampName] = np.array(covSqrtWeights)
+        else:
+            self.covariancesSqrtWeights[ampName] = np.concatenate((self.covariancesSqrtWeights[ampName],np.array(covSqrtWeights)))        
+        self.covariancesModel[ampName] = np.full_like(self.covariances[ampName], np.nan)
+        self.covariancesModelNoB[ampName] = np.full_like(self.covariances[ampName], np.nan)
         self.aMatrix[ampName] = aMatrix
         self.bMatrix[ampName] = bMatrix
         self.aMatrixNoB[ampName] = aMatrixNoB
@@ -526,7 +532,6 @@ class PhotonTransferCurveDataset(IsrCalib):
         for i, ampName in enumerate(self.ampNames):
             nPadPoints[ampName] = nSignalPoints - len(list(self.covariances.values())[i])
         covMatrixSide = self.covMatrixSide
-
         catalog = Table([{'AMPLIFIER_NAME': ampName,
                           'PTC_FIT_TYPE': self.ptcFitType,
                           'COV_MATRIX_SIDE': self.covMatrixSide,
