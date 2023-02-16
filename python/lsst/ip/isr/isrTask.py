@@ -1341,18 +1341,29 @@ class IsrTask(pipeBase.PipelineTask):
                     self.log.debug("Corrected overscan for amplifier %s.", amp.getName())
                     if overscanResults is not None and \
                        self.config.qa is not None and self.config.qa.saveStats is True:
+                        if isinstance(overscanResults.overscanMean, float):
+                            # Only serial overscan was run
+                            mean = overscanResults.overscanMean
+                            sigma = overscanResults.overscanSigma
+                            residMean = overscanResults.residualMean
+                            residSigma = overscanResults.residualSigma
+                        else:
+                            # Both serial and parallel overscan were
+                            # run.  Only report serial here.
+                            mean = overscanResults.overscanMean[0]
+                            sigma = overscanResults.overscanSigma[0]
+                            residMean = overscanResults.residualMean[0]
+                            residSigma = overscanResults.residualSigma[0]
 
-                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = overscanResults.overscanMean
-                        self.metadata[f"FIT STDEV {amp.getName()}"] = overscanResults.overscanSigma
+                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = mean
+                        self.metadata[f"FIT STDEV {amp.getName()}"] = sigma
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",
-                                       amp.getName(), overscanResults.overscanMean,
-                                       overscanResults.overscanSigma)
+                                       amp.getName(), mean, sigma)
 
-                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = overscanResults.residualMean
-                        self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = overscanResults.residualSigma
+                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = residMean
+                        self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = residSigma
                         self.log.debug("  Overscan stats for amplifer %s after correction: %f +/- %f",
-                                       amp.getName(), overscanResults.residualMean,
-                                       overscanResults.residualSigma)
+                                       amp.getName(), residMean, residSigma)
 
                         ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
                 else:
