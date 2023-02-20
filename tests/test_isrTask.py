@@ -77,6 +77,7 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
     """
     def setUp(self):
         self.config = IsrTaskConfig()
+        self.config.overscan.doParallelOverscan = True
         self.config.qa = IsrQaConfig()
         self.task = IsrTask(config=self.config)
         self.camera = isrMock.IsrMock().getCamera()
@@ -216,6 +217,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
     """
     def setUp(self):
         self.config = IsrTaskConfig()
+        self.config.overscan.doParallelOverscan = True
         self.config.qa = IsrQaConfig()
         self.task = IsrTask(config=self.config)
 
@@ -342,6 +344,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         """Test masking cases of configuration parameters.
         """
         self.batchSetConfiguration(True)
+        self.config.overscan.doParallelOverscan = False
         self.config.overscan.fitType = "POLY"
         self.config.overscan.order = 1
 
