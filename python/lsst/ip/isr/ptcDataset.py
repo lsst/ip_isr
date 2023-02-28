@@ -300,6 +300,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.ptcFitType = dictionary['ptcFitType']
         calib.covMatrixSide = dictionary['covMatrixSide']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
+        calib.ampNames = []
 
         # The cov matrices are square
         covMatrixSide = calib.covMatrixSide
