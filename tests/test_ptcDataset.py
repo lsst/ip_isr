@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import unittest
 import tempfile
+import copy
 
 import numpy as np
 
@@ -61,8 +62,18 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         self.gain = 1.5  # e-/ADU
         self.noiseSq = 5*self.gain  # 7.5 (e-)^2
         self.c1 = 1./self.gain
+        self.timeVec = np.arange(1., 101., 5)
+        self.k2NonLinearity = -5e-6
+        # quadratic signal-chain non-linearity
+        muVec = self.flux*self.timeVec + self.k2NonLinearity*self.timeVec**2
 
         self.ampNames = [amp.getName() for amp in self.flatExp1.getDetector().getAmplifiers()]
+        self.dataset = PhotonTransferCurveDataset(self.ampNames, " ")  # pack raw data for fitting
+        self.covariancesSqrtWeights = {}
+        for ampName in self.ampNames:  # just the expTimes and means here - vars vary per function
+            self.dataset.rawExpTimes[ampName] = self.timeVec
+            self.dataset.rawMeans[ampName] = muVec
+            self.covariancesSqrtWeights[ampName] = []
 
     def test_ptcDatset(self):
         # Fill the set up with made up data.
@@ -138,6 +149,39 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             usedFilename = localDataset.writeFits(filename + ".fits")
             fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
             self.assertEqual(localDataset, fromFits)
+
+    def test_getExpIdsUsed(self):
+        localDataset = copy.copy(self.dataset)
+
+        for pair in [(12, 34), (56, 78), (90, 10)]:
+            localDataset.inputExpIdPairs["C:0,0"].append(pair)
+        localDataset.expIdMask["C:0,0"] = np.array([True, False, True])
+        self.assertTrue(np.all(localDataset.getExpIdsUsed("C:0,0") == [(12, 34), (90, 10)]))
+
+        localDataset.expIdMask["C:0,0"] = np.array([True, False, True, True])  # wrong length now
+        with self.assertRaises(AssertionError):
+            localDataset.getExpIdsUsed("C:0,0")
+
+    def test_getGoodAmps(self):
+        dataset = self.dataset
+
+        self.assertTrue(dataset.ampNames == self.ampNames)
+        dataset.badAmps.append("C:0,1")
+        self.assertTrue(dataset.getGoodAmps() == [amp for amp in self.ampNames if amp != "C:0,1"])
+
+    def test_ptcDataset_pre_dm38309(self):
+        """Test for PTC datasets created by cpSolvePtcTask prior to DM-38309.
+        """
+        localDataset = copy.copy(self.dataset)
+
+        for pair in [[(12, 34)], [(56, 78)], [(90, 10)]]:
+            localDataset.inputExpIdPairs["C:0,0"].append(pair)
+        localDataset.expIdMask["C:0,0"] = np.array([True, False, True])
+
+        with self.assertWarnsRegex(RuntimeWarning, "PTC file was written incorrectly"):
+            used = localDataset.getExpIdsUsed("C:0,0")
+
+        self.assertTrue(np.all(used == [(12, 34), (90, 10)]))
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
