@@ -27,6 +27,7 @@ __all__ = ['PhotonTransferCurveDataset']
 
 import numpy as np
 from astropy.table import Table
+import warnings
 
 from lsst.ip.isr import IsrCalib
 
@@ -618,7 +619,17 @@ class PhotonTransferCurveDataset(IsrCalib):
         pairs = self.inputExpIdPairs[ampName]
         mask = self.expIdMask[ampName]
         # cast to bool required because numpy
-        return [(exp1, exp2) for ((exp1, exp2), m) in zip(pairs, mask) if bool(m) is True]
+        try:
+            expIdsUsed = [(exp1, exp2) for ((exp1, exp2), m) in zip(pairs, mask) if bool(m) is True]
+        except ValueError:
+            warnings.warn("The PTC file was written incorrectly; you should rerun the "
+                          "PTC solve task if possible.", RuntimeWarning)
+            expIdsUsed = []
+            for pairList, m in zip(pairs, mask):
+                if m:
+                    expIdsUsed.append(pairList[0])
+
+        return expIdsUsed
 
     def getGoodAmps(self):
         return [amp for amp in self.ampNames if amp not in self.badAmps]
