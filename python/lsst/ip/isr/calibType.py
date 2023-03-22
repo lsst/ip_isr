@@ -499,7 +499,7 @@ class IsrCalib(abc.ABC):
             Calibration contained within the file.
         """
         tableList = []
-        tableList.append(Table.read(filename, hdu=1))
+        tableList.append(Table.read(filename, hdu=1, mask_invalid=False))
         extNum = 2  # Fits indices start at 1, we've read one already.
         keepTrying = True
 
@@ -507,7 +507,7 @@ class IsrCalib(abc.ABC):
             with warnings.catch_warnings():
                 warnings.simplefilter("error")
                 try:
-                    newTable = Table.read(filename, hdu=extNum)
+                    newTable = Table.read(filename, hdu=extNum, mask_invalid=False)
                     tableList.append(newTable)
                     extNum += 1
                 except Exception:
