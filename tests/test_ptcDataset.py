@@ -75,22 +75,69 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.dataset.rawMeans[ampName] = muVec
             self.covariancesSqrtWeights[ampName] = []
 
+    def _checkTypes(self, ptcDataset):
+        """Check that all the types are correct for a ptc dataset."""
+        for ampName in ptcDataset.ampNames:
+            self.assertIsInstance(ptcDataset.expIdMask[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.expIdMask[ampName].dtype, bool)
+            self.assertIsInstance(ptcDataset.rawExpTimes[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.rawExpTimes[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.rawMeans[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.rawMeans[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.rawVars[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.rawVars[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.gain[ampName], float)
+            self.assertIsInstance(ptcDataset.gainErr[ampName], float)
+            self.assertIsInstance(ptcDataset.noise[ampName], float)
+            self.assertIsInstance(ptcDataset.noiseErr[ampName], float)
+            self.assertIsInstance(ptcDataset.ptcFitPars[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.ptcFitPars[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.ptcFitParsError[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.ptcFitParsError[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.ptcFitChiSq[ampName], float)
+            self.assertIsInstance(ptcDataset.ptcTurnoff[ampName], float)
+            self.assertIsInstance(ptcDataset.covariances[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.covariances[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.covariancesModel[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.covariancesModel[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.covariancesSqrtWeights[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.covariancesSqrtWeights[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.aMatrix[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.aMatrix[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.bMatrix[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.bMatrix[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.covariancesModelNoB[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.covariancesModelNoB[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.aMatrixNoB[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.aMatrixNoB[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.finalVars[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.finalVars[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.finalModelVars[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.finalModelVars[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.finalMeans[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.finalMeans[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.photoCharges[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.photoCharges[ampName].dtype, np.float64)
+
     def test_emptyPtcDataset(self):
         """Test an empty PTC dataset."""
         emptyDataset = PhotonTransferCurveDataset(
             self.ampNames,
             ptcFitType="PARTIAL",
         )
+        self._checkTypes(emptyDataset)
 
         with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
             usedFilename = emptyDataset.writeText(f.name)
             fromText = PhotonTransferCurveDataset.readText(usedFilename)
         self.assertEqual(emptyDataset, fromText)
+        self._checkTypes(emptyDataset)
 
         with tempfile.NamedTemporaryFile(suffix=".fits") as f:
             usedFilename = emptyDataset.writeFits(f.name)
             fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
         self.assertEqual(emptyDataset, fromFits)
+        self._checkTypes(emptyDataset)
 
     def test_partialPtcDataset(self):
         """Test of a partial PTC dataset."""
@@ -102,6 +149,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             ptcFitType="PARTIAL",
             covMatrixSide=nSideCovMatrix
         )
+        self._checkTypes(partialDataset)
 
         for ampName in partialDataset.ampNames:
             partialDataset.setAmpValuesPartialDataset(
@@ -111,16 +159,19 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 rawMean=10.0,
                 rawVar=10.0,
             )
+        self._checkTypes(partialDataset)
 
         with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
             usedFilename = partialDataset.writeText(f.name)
             fromText = PhotonTransferCurveDataset.readText(usedFilename)
-        self.assertEqual(partialDataset, fromText)
+        self.assertEqual(fromText, partialDataset)
+        self._checkTypes(fromText)
 
         with tempfile.NamedTemporaryFile(suffix=".fits") as f:
             usedFilename = partialDataset.writeFits(f.name)
             fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
-        self.assertEqual(partialDataset, fromFits)
+        self.assertEqual(fromFits, partialDataset)
+        self._checkTypes(fromFits)
 
     def test_ptcDatset(self):
         """Test of a full PTC dataset."""
@@ -139,7 +190,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 localDataset.inputExpIdPairs[ampName] = [(1, 2)]*nSignalPoints
                 localDataset.expIdMask[ampName] = np.ones(nSignalPoints, dtype=bool)
                 localDataset.expIdMask[ampName][1] = False
-                localDataset.rawExpTimes[ampName] = np.arange(nSignalPoints)
+                localDataset.rawExpTimes[ampName] = np.arange(nSignalPoints, dtype=np.float64)
                 localDataset.rawMeans[ampName] = self.flux*np.arange(nSignalPoints)
                 localDataset.rawVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
                 localDataset.photoCharges[ampName] = np.full(nSignalPoints, np.nan)
@@ -174,8 +225,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 if localDataset.ptcFitType in ['FULLCOVARIANCE', ]:
                     localDataset.ptcFitPars[ampName] = np.array([np.nan, np.nan])
                     localDataset.ptcFitParsError[ampName] = np.array([np.nan, np.nan])
-                    localDataset.ptcFitChiSq[ampName] = np.array([np.nan, np.nan])
-                    localDataset.ptcTurnoff[ampName] = np.array([np.nan, np.nan])
+                    localDataset.ptcFitChiSq[ampName] = np.nan
+                    localDataset.ptcTurnoff[ampName] = np.nan
 
                     localDataset.covariances[ampName] = np.full(
                         (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
@@ -190,15 +241,19 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.aMatrixNoB[ampName] = np.full(
                         (nSideCovMatrix, nSideCovMatrix), 2e-6)
 
+            self._checkTypes(localDataset)
+
             with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
                 usedFilename = localDataset.writeText(f.name)
                 fromText = PhotonTransferCurveDataset.readText(usedFilename)
-            self.assertEqual(localDataset, fromText)
+            self.assertEqual(fromText, localDataset)
+            self._checkTypes(fromText)
 
             with tempfile.NamedTemporaryFile(suffix=".fits") as f:
                 usedFilename = localDataset.writeFits(f.name)
                 fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
-            self.assertEqual(localDataset, fromFits)
+            self.assertEqual(fromFits, localDataset)
+            self._checkTypes(fromFits)
 
     def test_getExpIdsUsed(self):
         localDataset = copy.copy(self.dataset)

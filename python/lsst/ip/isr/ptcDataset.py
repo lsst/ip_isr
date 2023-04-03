@@ -323,36 +323,43 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.ampNames.append(ampName)
             calib.inputExpIdPairs[ampName] = dictionary['inputExpIdPairs'][ampName]
             calib.expIdMask[ampName] = np.array(dictionary['expIdMask'][ampName])
-            calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName])
-            calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName])
-            calib.rawVars[ampName] = np.array(dictionary['rawVars'][ampName])
-            calib.gain[ampName] = np.array(dictionary['gain'][ampName])
-            calib.gainErr[ampName] = np.array(dictionary['gainErr'][ampName])
-            calib.noise[ampName] = np.array(dictionary['noise'][ampName])
-            calib.noiseErr[ampName] = np.array(dictionary['noiseErr'][ampName])
-            calib.ptcFitPars[ampName] = np.array(dictionary['ptcFitPars'][ampName])
-            calib.ptcFitParsError[ampName] = np.array(dictionary['ptcFitParsError'][ampName])
-            calib.ptcFitChiSq[ampName] = np.array(dictionary['ptcFitChiSq'][ampName])
-            calib.ptcTurnoff[ampName] = np.array(dictionary['ptcTurnoff'][ampName])
+            calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName], dtype=np.float64)
+            calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName], dtype=np.float64)
+            calib.rawVars[ampName] = np.array(dictionary['rawVars'][ampName], dtype=np.float64)
+            calib.gain[ampName] = float(dictionary['gain'][ampName])
+            calib.gainErr[ampName] = float(dictionary['gainErr'][ampName])
+            calib.noise[ampName] = float(dictionary['noise'][ampName])
+            calib.noiseErr[ampName] = float(dictionary['noiseErr'][ampName])
+            calib.ptcFitPars[ampName] = np.array(dictionary['ptcFitPars'][ampName], dtype=np.float64)
+            calib.ptcFitParsError[ampName] = np.array(dictionary['ptcFitParsError'][ampName],
+                                                      dtype=np.float64)
+            calib.ptcFitChiSq[ampName] = float(dictionary['ptcFitChiSq'][ampName])
+            calib.ptcTurnoff[ampName] = float(dictionary['ptcTurnoff'][ampName])
             if nSignalPoints > 0:
                 # Regular dataset
-                calib.covariances[ampName] = np.array(dictionary['covariances'][ampName]).reshape(
+                calib.covariances[ampName] = np.array(dictionary['covariances'][ampName],
+                                                      dtype=np.float64).reshape(
                     (nSignalPoints, covMatrixSide, covMatrixSide))
                 calib.covariancesModel[ampName] = np.array(
-                    dictionary['covariancesModel'][ampName]).reshape(
+                    dictionary['covariancesModel'][ampName],
+                    dtype=np.float64).reshape(
                         (nSignalPoints, covMatrixSide, covMatrixSide))
                 calib.covariancesSqrtWeights[ampName] = np.array(
-                    dictionary['covariancesSqrtWeights'][ampName]).reshape(
+                    dictionary['covariancesSqrtWeights'][ampName],
+                    dtype=np.float64).reshape(
                         (nSignalPoints, covMatrixSide, covMatrixSide))
-                calib.aMatrix[ampName] = np.array(dictionary['aMatrix'][ampName]).reshape(
+                calib.aMatrix[ampName] = np.array(dictionary['aMatrix'][ampName],
+                                                  dtype=np.float64).reshape(
                     (covMatrixSide, covMatrixSide))
-                calib.bMatrix[ampName] = np.array(dictionary['bMatrix'][ampName]).reshape(
+                calib.bMatrix[ampName] = np.array(dictionary['bMatrix'][ampName],
+                                                  dtype=np.float64).reshape(
                     (covMatrixSide, covMatrixSide))
                 calib.covariancesModelNoB[ampName] = np.array(
-                    dictionary['covariancesModelNoB'][ampName]).reshape(
+                    dictionary['covariancesModelNoB'][ampName], dtype=np.float64).reshape(
                         (nSignalPoints, covMatrixSide, covMatrixSide))
                 calib.aMatrixNoB[ampName] = np.array(
-                    dictionary['aMatrixNoB'][ampName]).reshape((covMatrixSide, covMatrixSide))
+                    dictionary['aMatrixNoB'][ampName],
+                    dtype=np.float64).reshape((covMatrixSide, covMatrixSide))
             else:
                 # Empty dataset
                 calib.covariances[ampName] = np.array([], dtype=np.float64)
@@ -363,10 +370,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.covariancesModelNoB[ampName] = np.array([], dtype=np.float64)
                 calib.aMatrixNoB[ampName] = np.array([], dtype=np.float64)
 
-            calib.finalVars[ampName] = np.array(dictionary['finalVars'][ampName])
-            calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName])
-            calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName])
-            calib.photoCharges[ampName] = np.array(dictionary['photoCharges'][ampName])
+            calib.finalVars[ampName] = np.array(dictionary['finalVars'][ampName], dtype=np.float64)
+            calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName], dtype=np.float64)
+            calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName], dtype=np.float64)
+            calib.photoCharges[ampName] = np.array(dictionary['photoCharges'][ampName], dtype=np.float64)
 
         calib.updateMetadata()
         return calib
