@@ -592,6 +592,233 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
     return diff, iteration
 
 
+def generate_xymesh(df):
+    """
+    generate a 2D mesh of x,y coordinates
+    
+    param: df: input array (used only to get shape)
+    return: xc,yc: meshgrid of coordinates
+    """
+    
+    ydim, xdim = df.shape
+    y = np.arange(ydim, dtype=int)
+    x = np.arange(xdim, dtype=int)    
+    xc,yc = np.meshgrid(x,y)
+
+    return xc,yc
+
+
+def transfer_flux(cfunc, fstep, correction_mode=True):
+    """
+    take the input convolved deflection potential and the flux array
+    to compute and apply the flux transfer into the correction array
+
+    param: cfunc: deflection potential, being the convolution of the flux F with the kernel K
+    param: fstep: the flux of array values which act as the source of the flux transfer
+    param: correction_mode: bool defines if applying correction (True) or generating sims (False)
+
+    return: corr: BFE correction array
+    """
+
+    if cfunc.shape != fstep.shape:
+        raise RuntimeError(f'transfer_flux: array shapes do not match: {cfunc.shape}, {fstep.shape}')
+    
+    # set the sign of the correction and set its value for the
+    # time averaged solution
+    if correction_mode:
+        # negative sign if applying BFE correction
+        factor = -0.5
+    else:
+        # positive sign if generating BFE simulations
+        factor = 0.5
+    
+    # initialise the BFE correction image to zero
+    corr = np.zeros_like(cfunc)
+
+    # generate a 2D mesh of x,y coordinates
+    xc,yc = generate_xymesh(cfunc)
+
+    # process each axis in turn
+    for ax in [0,1]:
+
+        # gradient of phi on right/upper edge of pixel
+        diff = np.diff(cfunc, axis=ax)
+        
+        # expand array back to full size with zero gradient at the end
+        gx = np.zeros_like(cfunc)
+        ydiff, xdiff = diff.shape
+        gx[:ydiff, :xdiff] += diff
+        
+        # select pixels with either positive gradients on the right edge, flux flowing to the right/up
+        # or negative gradients, flux flowing to the left/down
+        for i,sel in enumerate([gx>0, gx<0]):
+            xselpixels = xc[sel]
+            yselpixels = yc[sel]
+            # and add the flux into the pixel to the right or top
+            # depending on which axis we are handling
+            if ax==0:
+                xpix = xselpixels
+                ypix = yselpixels+1
+            else:
+                xpix = xselpixels+1
+                ypix = yselpixels
+            # define flux as the either current pixel value or pixel above/right
+            # depending on whether positive or negative gradient
+            if i==0:
+                # positive gradients, flux flowing to higher coordinate values
+                flux = factor * fstep[sel]*gx[sel] 
+            else:
+                # negative gradients, flux flowing to lower coordinate values
+                flux = factor * fstep[ypix,xpix]*gx[sel] 
+            # change the fluxes of the donor and receiving pixels
+            # such that flux is conserved
+            corr[sel] -= flux                
+            corr[ypix,xpix] += flux    
+
+    # return correction array
+    return corr
+
+
+def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, gains=None, correction_mode=True):
+
+    """Apply brighter fatter correction in place for the image.
+    Modified version conserves flux, with improved correction of PSF core.
+    Also modified convolution to mitigate edge effects.
+
+    Author of modified version: Lance.Miller@physics.ox.ac.uk. 
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to have brighter-fatter correction applied.  Modified
+        by this method.
+    kernel : `numpy.ndarray`
+        Brighter-fatter kernel to apply.
+    maxIter : scalar
+        Number of correction iterations to run.
+    threshold : scalar
+        Convergence threshold in terms of the sum of absolute
+        deviations between an iteration and the previous one.
+    applyGain : `Bool`
+        If True, then the exposure values are scaled by the gain prior
+        to correction.
+    gains : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the gains to use.
+        If gains is None, the nominal gains in the amplifier object are used.
+    correction_mode : `Bool`
+        If True (default) the function applies correction for BFE.  If False,
+        the code can instead be used to generate a simulation of BFE (sign change
+        in the direction of the effect)
+
+    Returns
+    -------
+    diff : `float`
+        Final difference between iterations achieved in correction.
+    iteration : `int`
+        Number of iterations used to calculate correction.
+
+    Notes
+    -----
+    Modified version of brighterFatterCorrection()
+
+    This correction takes a kernel that has been derived from flat
+    field images to redistribute the charge.  The gradient of the
+    kernel is the deflection field due to the accumulated charge.
+
+    Given the original image I(x) and the kernel K(x) we can compute
+    the corrected image Ic(x) using the following equation:
+
+    Ic(x) = I(x) + 0.5*d/dx(I(x)*d/dx(int( dy*K(x-y)*I(y))))
+
+    Improved algorithm at this step applies the divergence theorem to
+    obtain a pixelised correction.
+
+    Because we use the measured counts instead of the incident counts
+    we apply the correction iteratively to reconstruct the original
+    counts and the correction.  We stop iterating when the summed
+    difference between the current corrected image and the one from
+    the previous iteration is below the threshold.  We do not require
+    convergence because the number of iterations is too large a
+    computational cost.  How we define the threshold still needs to be
+    evaluated, the current default was shown to work reasonably well
+    on a small set of images.
+
+    Edges are handled in the convolution by padding.  This is still not
+    a physical model for the edge, but avoids discontinuity in the correction.
+    """
+
+    image = exposure.getMaskedImage().getImage()
+
+    # The image needs to be units of electrons/holes
+    with gainContext(exposure, image, applyGain, gains):
+    
+        # get kernel and its shape
+        kLy,kLx = kernel.shape
+        kernelImage = afwImage.ImageD(kLx, kLy)
+        kernelImage.getArray()[:, :] = kernel
+        tempImage = image.clone()
+
+        nanIndex = numpy.isnan(tempImage.getArray())
+        tempImage.getArray()[nanIndex] = 0.
+
+        outImage = afwImage.ImageF(image.getDimensions())
+        corr = numpy.zeros_like(image.getArray())
+        prev_image = numpy.zeros_like(image.getArray())
+        convCntrl = afwMath.ConvolutionControl(False, True, 1)
+        fixedKernel = afwMath.FixedKernel(kernelImage)
+
+        # set the padding amount
+        # ensure we pad by an even amount larger than the kernel
+        kLy = 2 * ((1+kLy)//2)
+        kLx = 2 * ((1+kLx)//2)
+        
+        # The deflection potential only depends on the gradient of
+        # the convolution, so we can subtract the mean, which then
+        # allows us to pad the image with zeros and avoid wrap-around effects
+        # (although still not handling the image edges with a physical model)
+        # This wouldn't be great if there were a strong image gradient.
+        imydim,imxdim = tempImage.shape
+        imean = np.mean(tempImage[~nanIndex])
+        imeansub = tempImage - imean
+        imeansub[nanIndex] = 0.
+        padArray = np.pad(imeansub,((0,kLy),(0,kLx)))
+    
+        for iteration in range(maxIter):
+
+            # create deflection potential, convolution of flux with kernel
+            # using padded counts array
+            afwMath.convolve(outImage, padArray, fixedKernel, convCntrl)
+            tmpArray = tempImage.getArray()
+            outArray = outImage.getArray()
+            
+            # trim convolution output back to original shape
+            outArray = outArray[:imydim, :imxdim]
+
+            # generate the correction array, with correction_mode set as input
+            corr[...] = transfer_flux(outArray, tmpArray, correction_mode=correction_mode)
+
+            # update the arrays for the next iteration
+            tmpArray[:, :] = image.getArray()[:, :]
+            tmpArray += corr
+            tmpArray[nanIndex] = 0.
+            # update padded array
+            imeansub = tmpArray - imean
+            imeansub[nanIndex] = 0.
+            padArray = np.pad(imeansub,((0,kLy),(0,kLx)))            
+
+            if iteration > 0:
+                diff = numpy.sum(numpy.abs(prev_image - tmpArray))
+
+                if diff < threshold:
+                    break
+                prev_image[:, :] = tmpArray[:, :]
+
+        image.getArray() += corr
+            
+    return diff, iteration
+
+
+
 @contextmanager
 def gainContext(exp, image, apply, gains=None):
     """Context manager that applies and removes gain.
