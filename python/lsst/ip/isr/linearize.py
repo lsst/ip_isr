@@ -412,9 +412,12 @@ class Linearizer(IsrCalib):
             if int(self._detectorId) != int(detector.getId()):
                 raise RuntimeError("Detector IDs don't match: %s != %s" %
                                    (int(self._detectorId), int(detector.getId())))
-            if self._detectorSerial != detector.getSerial():
-                raise RuntimeError("Detector serial numbers don't match: %s != %s" %
-                                   (self._detectorSerial, detector.getSerial()))
+            # DM-38778: This check fails on LATISS due to an error in the
+            #           camera configuration.
+            # if self._detectorSerial != detector.getSerial():
+            #      raise RuntimeError(
+            #          "Detector serial numbers don't match: %s != %s" %
+            #          (self._detectorSerial, detector.getSerial()))
             if len(detector.getAmplifiers()) != len(self.linearityCoeffs.keys()):
                 raise RuntimeError("Detector number of amps = %s does not match saved value %s" %
                                    (len(detector.getAmplifiers()),
@@ -753,6 +756,14 @@ class LinearizeSpline(LinearizeBase):
         """
         splineCoeff = kwargs['coeffs']
         centers, values = np.split(splineCoeff, 2)
+        if centers[0] != 0.0 or values[0] != 0:
+            # If the spline is not anchored at zero, remove the offset
+            # found at the lowest flux available, and add the anchor.
+            offset = values[0]
+            values -= offset
+            centers = np.concatenate(([0.0], centers))
+            values = np.concatenate(([0.0], values))
+
         interp = afwMath.makeInterpolate(centers.tolist(), values.tolist(),
                                          afwMath.stringToInterpStyle("AKIMA_SPLINE"))
 
