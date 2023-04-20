@@ -1487,11 +1487,14 @@ class IsrTask(pipeBase.PipelineTask):
 
             self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
                           type(bfKernel), type(bfGains))
-            bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
-                                                              self.config.brighterFatterMaxIter,
-                                                              self.config.brighterFatterThreshold,
-                                                              self.config.brighterFatterApplyGain,
-                                                              bfGains)
+            bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
+                bfExp,
+                bfKernel,
+                self.config.brighterFatterMaxIter,
+                self.config.brighterFatterThreshold,
+                self.config.brighterFatterApplyGain,
+                bfGains
+            )
             if bfResults[1] == self.config.brighterFatterMaxIter:
                 self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
                                  bfResults[0])
