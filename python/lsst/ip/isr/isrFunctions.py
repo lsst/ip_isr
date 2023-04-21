@@ -757,7 +757,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
 
         outImage = afwImage.ImageF(image.getDimensions())
         corr = numpy.zeros_like(image.getArray())
-        prev_image = numpy.zeros_like(image.getArray())
+        prevImage = numpy.zeros_like(image.getArray())
         convCntrl = afwMath.ConvolutionControl(False, True, 1)
         fixedKernel = afwMath.FixedKernel(kernelImage)
 
@@ -771,17 +771,21 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         # allows us to pad the image with zeros and avoid wrap-around effects
         # (although still not handling the image edges with a physical model)
         # This wouldn't be great if there were a strong image gradient.
-        imydim, imxdim = tempImage.shape
-        imean = numpy.mean(tempImage[~nanIndex])
-        imeansub = tempImage - imean
-        imeansub[nanIndex] = 0.
-        padArray = numpy.pad(imeansub, ((0, kLy), (0, kLx)))
+        imydim, imxdim = tempImage.array.shape
+        imean = numpy.mean(tempImage.getArray()[~nanIndex])
+        # subtract mean from image
+        tempImage -= imean
+        tempImage.array[nanIndex] = 0.
+        padArray = numpy.pad(tempImage.getArray(), ((0, kLy), (0, kLx)))
+        # Convert array to afw image so afwMath.convolve works
+        padImage = afwImage.ImageF(padArray.shape[1], padArray.shape[0])
+        padImage.array[:] = padArray
 
         for iteration in range(maxIter):
 
             # create deflection potential, convolution of flux with kernel
             # using padded counts array
-            afwMath.convolve(outImage, padArray, fixedKernel, convCntrl)
+            afwMath.convolve(outImage, padImage, fixedKernel, convCntrl)
             tmpArray = tempImage.getArray()
             outArray = outImage.getArray()
 
@@ -794,18 +798,19 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
             # update the arrays for the next iteration
             tmpArray[:, :] = image.getArray()[:, :]
             tmpArray += corr
-            tmpArray[nanIndex] = 0.
+            tmpArray.array[nanIndex] = 0.
             # update padded array
-            imeansub = tmpArray - imean
-            imeansub[nanIndex] = 0.
-            padArray = numpy.pad(imeansub, ((0, kLy), (0, kLx)))
+            # subtract mean
+            tmpArray -= imean
+            tempImage.array[nanIndex] = 0.
+            padArray = numpy.pad(tempImage.getArray(), ((0, kLy), (0, kLx)))
 
             if iteration > 0:
-                diff = numpy.sum(numpy.abs(prev_image - tmpArray))
+                diff = numpy.sum(numpy.abs(prevImage - tmpArray.getArray()))
 
                 if diff < threshold:
                     break
-                prev_image[:, :] = tmpArray[:, :]
+                prevImage[:, :] = tmpArray[:, :]
 
         image.getArray()[:] += corr[:]
 
