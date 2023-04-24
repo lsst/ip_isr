@@ -412,8 +412,8 @@ class Linearizer(IsrCalib):
             if int(self._detectorId) != int(detector.getId()):
                 raise RuntimeError("Detector IDs don't match: %s != %s" %
                                    (int(self._detectorId), int(detector.getId())))
-            # DM-38778: This check fails on LATISS due to an error in the
-            #           camera configuration.
+            # TODO: DM-38778: This check fails on LATISS due to an
+            #                 error in the camera configuration.
             # if self._detectorSerial != detector.getSerial():
             #      raise RuntimeError(
             #          "Detector serial numbers don't match: %s != %s" %
@@ -756,11 +756,13 @@ class LinearizeSpline(LinearizeBase):
         """
         splineCoeff = kwargs['coeffs']
         centers, values = np.split(splineCoeff, 2)
-        if centers[0] != 0.0 or values[0] != 0:
-            # If the spline is not anchored at zero, remove the offset
-            # found at the lowest flux available, and add the anchor.
+        # If the spline is not anchored at zero, remove the offset
+        # found at the lowest flux available, and add an anchor at
+        # flux=0.0 if there's no entry at that point.
+        if values[0] != 0:
             offset = values[0]
             values -= offset
+        if centers[0] != 0.0:
             centers = np.concatenate(([0.0], centers))
             values = np.concatenate(([0.0], values))
 

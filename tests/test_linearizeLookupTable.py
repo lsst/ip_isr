@@ -115,7 +115,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         with self.assertRaises(RuntimeError):
             llt.applyLinearity(image, detBadName)
 
-        # bad serial -- disabled until DM-38778
+        # TODO: DM-38778: bad serial value disabled.
         # detBadSerial = self.makeDetector(detSerial="bad_detector_serial")
         # with self.assertRaises(RuntimeError):
         # llt.applyLinearity(image, detBadSerial)
