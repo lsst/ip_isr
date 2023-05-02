@@ -617,7 +617,8 @@ class OverscanCorrectionTask(pipeBase.Task):
         maskedArray : `numpy.ma.masked_array`
             Masked image marking outliers.
         """
-        lq, median, uq = np.percentile(imageArray, [25.0, 50.0, 75.0], axis=1)
+        lq, median, uq = np.percentile(np.ma.getdata(imageArray),
+                                       [25.0, 50.0, 75.0], axis=1)
         axisMedians = median
         axisStdev = 0.74*(uq - lq)  # robust stdev
 
