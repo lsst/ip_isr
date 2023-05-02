@@ -614,6 +614,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False,
         doc="Apply the brighter-fatter correction?"
     )
+    doFluxConservingBrighterFatterCorrection = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Apply the flux-conserving BFE correction by Miller et al.?"
+    )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
         default="DETECTOR",
@@ -1487,14 +1492,24 @@ class IsrTask(pipeBase.PipelineTask):
 
             self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
                           type(bfKernel), type(bfGains))
-            bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
-                bfExp,
-                bfKernel,
-                self.config.brighterFatterMaxIter,
-                self.config.brighterFatterThreshold,
-                self.config.brighterFatterApplyGain,
-                bfGains
-            )
+            if self.config.doFluxConservingBrighterFatterCorrection:
+                bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
+                    bfExp,
+                    bfKernel,
+                    self.config.brighterFatterMaxIter,
+                    self.config.brighterFatterThreshold,
+                    self.config.brighterFatterApplyGain,
+                    bfGains
+                )
+            else:
+                bfResults = isrFunctions.brighterFatterCorrection(
+                    bfExp,
+                    bfKernel,
+                    self.config.brighterFatterMaxIter,
+                    self.config.brighterFatterThreshold,
+                    self.config.brighterFatterApplyGain,
+                    bfGains
+                )
             if bfResults[1] == self.config.brighterFatterMaxIter:
                 self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
                                  bfResults[0])
