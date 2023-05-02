@@ -777,6 +777,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         tempImage -= imean
         tempImage.array[nanIndex] = 0.
         padArray = numpy.pad(tempImage.getArray(), ((0, kLy), (0, kLx)))
+        outImage = afwImage.ImageF(numpy.pad(outImage.getArray(), ((0, kLy), (0, kLx))))
         # Convert array to afw image so afwMath.convolve works
         padImage = afwImage.ImageF(padArray.shape[1], padArray.shape[0])
         padImage.array[:] = padArray
@@ -798,7 +799,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
             # update the arrays for the next iteration
             tmpArray[:, :] = image.getArray()[:, :]
             tmpArray += corr
-            tmpArray.array[nanIndex] = 0.
+            tmpArray[nanIndex] = 0.
             # update padded array
             # subtract mean
             tmpArray -= imean
@@ -806,7 +807,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
             padArray = numpy.pad(tempImage.getArray(), ((0, kLy), (0, kLx)))
 
             if iteration > 0:
-                diff = numpy.sum(numpy.abs(prevImage - tmpArray.getArray()))
+                diff = numpy.sum(numpy.abs(prevImage - tmpArray))
 
                 if diff < threshold:
                     break
