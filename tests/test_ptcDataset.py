@@ -90,6 +90,12 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertIsInstance(ptcDataset.gainErr[ampName], float)
             self.assertIsInstance(ptcDataset.noise[ampName], float)
             self.assertIsInstance(ptcDataset.noiseErr[ampName], float)
+            self.assertIsInstance(ptcDataset.histVars[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.histVars[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.histChi2Dofs[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.histChi2Dofs[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.kspValues[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.kspValues[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.ptcFitPars[ampName], np.ndarray)
             self.assertEqual(ptcDataset.ptcFitPars[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.ptcFitParsError[ampName], np.ndarray)
@@ -198,6 +204,9 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 localDataset.gainErr[ampName] = 0.1
                 localDataset.noise[ampName] = self.noiseSq
                 localDataset.noiseErr[ampName] = 2.0
+                localDataset.histVars[ampName] = localDataset.rawVars[ampName]
+                localDataset.histChi2Dofs[ampName] = np.full(nSignalPoints, 1.0)
+                localDataset.kspValues[ampName] = np.full(nSignalPoints, 0.5)
 
                 localDataset.finalVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
                 localDataset.finalModelVars[ampName] = np.full(nSignalPoints, 100.0)
