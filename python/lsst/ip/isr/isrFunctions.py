@@ -780,7 +780,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         # allows us to pad the image with zeros and avoid wrap-around effects
         # (although still not handling the image edges with a physical model)
         # This wouldn't be great if there were a strong image gradient.
-        imydim, imxdim = tempImage.array.shape
+        imYdimension, imXdimension = tempImage.array.shape
         imean = numpy.mean(tempImage.getArray()[~nanIndex])
         # subtract mean from image
         tempImage -= imean
@@ -800,7 +800,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
             outArray = outImage.getArray()
 
             # trim convolution output back to original shape
-            outArray = outArray[:imydim, :imxdim]
+            outArray = outArray[:imYdimension, :imXdimension]
 
             # generate the correction array, with correctionMode set as input
             corr[...] = transferFlux(outArray, tmpArray, correctionMode=correctionMode)
