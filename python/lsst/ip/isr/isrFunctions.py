@@ -681,8 +681,12 @@ def transferFlux(cFunc, fStep, correctionMode=True):
 def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain,
                                            gains=None, correctionMode=True):
     """Apply brighter fatter correction in place for the image.
-    Modified version conserves flux, with improved correction of PSF core.
-    Also modified convolution to mitigate edge effects.
+
+    This version presents a modified version of the algorithm
+    found in ``lsst.ip.isr.isrFunctions.brighterFatterCorrection``
+    which conserves the image flux, resulting in improved
+    correction of the cores of stars. The convolution has also been
+    modified to mitigate edge effects.
 
     Parameters
     ----------
@@ -716,15 +720,20 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
 
     Notes
     -----
-    Modified version of brighterFatterCorrection()
+    Modified version of ``lsst.ip.isr.isrFunctions.brighterFatterCorrection``.
+
     This correction takes a kernel that has been derived from flat
     field images to redistribute the charge.  The gradient of the
     kernel is the deflection field due to the accumulated charge.
+
     Given the original image I(x) and the kernel K(x) we can compute
     the corrected image Ic(x) using the following equation:
+
     Ic(x) = I(x) + 0.5*d/dx(I(x)*d/dx(int( dy*K(x-y)*I(y))))
+
     Improved algorithm at this step applies the divergence theorem to
     obtain a pixelised correction.
+
     Because we use the measured counts instead of the incident counts
     we apply the correction iteratively to reconstruct the original
     counts and the correction.  We stop iterating when the summed
@@ -734,13 +743,13 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
     computational cost.  How we define the threshold still needs to be
     evaluated, the current default was shown to work reasonably well
     on a small set of images.
+
     Edges are handled in the convolution by padding.  This is still not
     a physical model for the edge, but avoids discontinuity in the correction.
 
     Author of modified version: Lance.Miller@physics.ox.ac.uk
-    (see DM-33555).
+    (see DM-38555).
     """
-
     image = exposure.getMaskedImage().getImage()
 
     # The image needs to be units of electrons/holes
