@@ -85,6 +85,9 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
         isrFunctions.brighterFatterCorrection(exp, kernelToUse, 5, 100, False)
         self.assertImagesEqual(ref_image, image)
 
+        isrFunctions.fluxConservingBrighterFatterCorrection(exp, kernelToUse, 5, 100, False)
+        self.assertImagesEqual(ref_image, image)
+
     def test_BrighterFatterIO(self):
         dictionary = self.bfk.toDict()
         newBfk = BrighterFatterKernel().fromDict(dictionary)
