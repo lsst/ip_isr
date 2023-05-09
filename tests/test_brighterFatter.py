@@ -85,9 +85,6 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
         isrFunctions.brighterFatterCorrection(exp, kernelToUse, 5, 100, False)
         self.assertImagesEqual(ref_image, image)
 
-        isrFunctions.brighterFatterCorrection(exp, kernelToUse, 5, 100, False)
-        self.assertImagesEqual(ref_image, image)
-
         isrFunctions.fluxConservingBrighterFatterCorrection(exp, kernelToUse, 5, 100, False)
         self.assertImagesEqual(ref_image, image)
 
