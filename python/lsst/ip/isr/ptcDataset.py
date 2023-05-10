@@ -77,11 +77,21 @@ class PhotonTransferCurveDataset(IsrCalib):
     rawExpTimes : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the unmasked exposure times.
     rawMeans : `dict`, [`str`, `np.ndarray`]
-        Dictionary keyed by amp namescontaining the unmasked average of the
+        Dictionary keyed by amp names containing the unmasked average of the
         means of the exposures in each flat pair.
     rawVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         difference image of the exposures in each flat pair.
+    histVars : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the variance of the
+        difference image of the exposures in each flat pair estimated
+        by fitting a Gaussian model.
+    histChi2Dofs : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the chi-squared per degree
+        of freedom fitting the difference image to a Gaussian model.
+    kspValues : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the KS test p-value from
+        fitting the difference image to a Gaussian model.
     gain : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the fitted gains.
     gainErr : `dict`, [`str`, `float`]
@@ -152,7 +162,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.1
+    _VERSION = 1.2
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
         self.ptcFitType = ptcFitType
@@ -172,6 +182,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.gainErr = {ampName: np.nan for ampName in ampNames}
         self.noise = {ampName: np.nan for ampName in ampNames}
         self.noiseErr = {ampName: np.nan for ampName in ampNames}
+
+        self.histVars = {ampName: np.array([]) for ampName in ampNames}
+        self.histChi2Dofs = {ampName: np.array([]) for ampName in ampNames}
+        self.kspValues = {ampName: np.array([]) for ampName in ampNames}
 
         self.ptcFitPars = {ampName: np.array([]) for ampName in ampNames}
         self.ptcFitParsError = {ampName: np.array([]) for ampName in ampNames}
@@ -197,7 +211,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'aMatrixNoB', 'covariances', 'covariancesModel',
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
-                                        'photoCharges'])
+                                        'photoCharges', 'histVars', 'histChi2Dofs', 'kspValues'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
 
@@ -214,6 +228,9 @@ class PhotonTransferCurveDataset(IsrCalib):
             covSqrtWeights=None,
             gain=np.nan,
             noise=np.nan,
+            histVar=np.nan,
+            histChi2Dof=np.nan,
+            kspValue=0.0,
     ):
         """
         Set the amp values for a partial PTC Dataset (from cpExtractPtcTask).
@@ -243,6 +260,12 @@ class PhotonTransferCurveDataset(IsrCalib):
             Estimated gain for this exposure pair.
         noise : `float`, optional
             Estimated read noise for this exposure pair.
+        histVar : `float`, optional
+            Variance estimated from fitting a histogram with a Gaussian model.
+        histChi2Dof : `float`, optional
+            Chi-squared per degree of freedom from Gaussian histogram fit.
+        kspValue : `float`, optional
+            KS test p-value from the Gaussian histogram fit.
         """
         nanMatrix = np.full((self.covMatrixSide, self.covMatrixSide), np.nan)
         if covariance is None:
@@ -260,6 +283,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.covariancesSqrtWeights[ampName] = np.array([covSqrtWeights])
         self.gain[ampName] = gain
         self.noise[ampName] = noise
+        self.histVars[ampName] = np.array([histVar])
+        self.histChi2Dofs[ampName] = np.array([histChi2Dof])
+        self.kspValues[ampName] = np.array([kspValue])
 
         self.covariancesModel[ampName] = np.array([nanMatrix])
         self.covariancesModelNoB[ampName] = np.array([nanMatrix])
@@ -330,6 +356,9 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.gainErr[ampName] = float(dictionary['gainErr'][ampName])
             calib.noise[ampName] = float(dictionary['noise'][ampName])
             calib.noiseErr[ampName] = float(dictionary['noiseErr'][ampName])
+            calib.histVars[ampName] = np.array(dictionary['histVars'][ampName], dtype=np.float64)
+            calib.histChi2Dofs[ampName] = np.array(dictionary['histChi2Dofs'][ampName], dtype=np.float64)
+            calib.kspValues[ampName] = np.array(dictionary['kspValues'][ampName], dtype=np.float64)
             calib.ptcFitPars[ampName] = np.array(dictionary['ptcFitPars'][ampName], dtype=np.float64)
             calib.ptcFitParsError[ampName] = np.array(dictionary['ptcFitParsError'][ampName],
                                                       dtype=np.float64)
@@ -414,6 +443,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['gainErr'] = self.gainErr
         outDict['noise'] = self.noise
         outDict['noiseErr'] = self.noiseErr
+        outDict['histVars'] = self.histVars
+        outDict['histChi2Dofs'] = self.histChi2Dofs
+        outDict['kspValues'] = self.kspValues
         outDict['ptcFitPars'] = _dictOfArraysToDictOfLists(self.ptcFitPars)
         outDict['ptcFitParsError'] = _dictOfArraysToDictOfLists(self.ptcFitParsError)
         outDict['ptcFitChiSq'] = self.ptcFitChiSq
@@ -466,6 +498,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['gainErr'] = dict()
         inDict['noise'] = dict()
         inDict['noiseErr'] = dict()
+        inDict['histVars'] = dict()
+        inDict['histChi2Dofs'] = dict()
+        inDict['kspValues'] = dict()
         inDict['ptcFitPars'] = dict()
         inDict['ptcFitParsError'] = dict()
         inDict['ptcFitChiSq'] = dict()
@@ -526,6 +561,15 @@ class PhotonTransferCurveDataset(IsrCalib):
                     inDict['ptcTurnoff'][ampName] = np.nan
             else:
                 inDict['ptcTurnoff'][ampName] = record['PTC_TURNOFF']
+            if calibVersion == 1.1:
+                inDict['histVars'][ampName] = np.array([np.nan])
+                inDict['histChi2Dofs'][ampName] = np.array([np.nan])
+                inDict['kspValues'][ampName] = np.array([0.0])
+            else:
+                inDict['histVars'][ampName] = record['HIST_VARS']
+                inDict['histChi2Dofs'][ampName] = record['HIST_CHI2_DOFS']
+                inDict['kspValues'][ampName] = record['KS_PVALUES']
+
         return cls().fromDict(inDict)
 
     def toTable(self):
@@ -561,6 +605,9 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'GAIN_ERR': self.gainErr[ampName],
                 'NOISE': self.noise[ampName],
                 'NOISE_ERR': self.noiseErr[ampName],
+                'HIST_VARS': self.histVars[ampName],
+                'HIST_CHI2_DOFS': self.histChi2Dofs[ampName],
+                'KS_PVALUES': self.kspValues[ampName],
                 'PTC_FIT_PARS': np.array(self.ptcFitPars[ampName]),
                 'PTC_FIT_PARS_ERROR': np.array(self.ptcFitParsError[ampName]),
                 'PTC_FIT_CHI_SQ': self.ptcFitChiSq[ampName],
