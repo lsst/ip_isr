@@ -552,17 +552,24 @@ class BrighterFatterKernel(IsrCalib):
     # Implementation methods
     def makeDetectorKernelFromAmpwiseKernels(self, detectorName, ampsToExclude=[]):
         """Average the amplifier level kernels to create a detector level
-        kernel.
+        kernel.  There is no change in index ordering/orientation from
+        this averaging.
+
+        Parameters
+        ----------
+        detectorName : `str`
+            Detector for which the averaged kernel will be used.
+        ampsToExclude : `list` [`str`], optional
+            Amps that should not be included in the average.
         """
         inKernels = np.array([self.ampKernels[amp] for amp in
                               self.ampKernels if amp not in ampsToExclude])
-        averagingList = np.transpose(inKernels)
         avgKernel = np.zeros_like(inKernels[0])
         sctrl = afwMath.StatisticsControl()
         sctrl.setNumSigmaClip(5.0)
         for i in range(np.shape(avgKernel)[0]):
             for j in range(np.shape(avgKernel)[1]):
-                avgKernel[i, j] = afwMath.makeStatistics(averagingList[i, j],
+                avgKernel[i, j] = afwMath.makeStatistics(inKernels[:, i, j],
                                                          afwMath.MEANCLIP, sctrl).getValue()
 
         self.detKernels[detectorName] = avgKernel
