@@ -1037,26 +1037,41 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doBrighterFatter:
             brighterFatterKernel = inputs.pop('newBFKernel', None)
             if brighterFatterKernel is None:
+                # This type of kernel must be in (y, x) index
+                # ordering, as it used directly as the .array
+                # component of the afwImage kernel.
                 brighterFatterKernel = inputs.get('bfKernel', None)
 
             if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
-                # This is a ISR calib kernel
+                # This is a ISR calib kernel.  These kernels are
+                # generated in (x, y) index ordering, and need to be
+                # transposed to be used directly as the .array
+                # component of the afwImage kernel.  This is done
+                # explicitly below when setting the ``bfKernel``
+                # input.
                 detName = detector.getName()
                 level = brighterFatterKernel.level
 
                 # This is expected to be a dictionary of amp-wise gains.
                 inputs['bfGains'] = brighterFatterKernel.gain
                 if self.config.brighterFatterLevel == 'DETECTOR':
+                    kernel = None
                     if level == 'DETECTOR':
                         if detName in brighterFatterKernel.detKernels:
-                            inputs['bfKernel'] = brighterFatterKernel.detKernels[detName]
+                            kernel = brighterFatterKernel.detKernels[detName]
                         else:
                             raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
                     elif level == 'AMP':
                         self.log.warning("Making DETECTOR level kernel from AMP based brighter "
                                          "fatter kernels.")
                         brighterFatterKernel.makeDetectorKernelFromAmpwiseKernels(detName)
-                        inputs['bfKernel'] = brighterFatterKernel.detKernels[detName]
+                        kernel = brighterFatterKernel.detKernels[detName]
+                    if kernel is None:
+                        raise RuntimeError("Could not identify brighter-fatter kernel!")
+                    # Do the one single transpose here so the kernel
+                    # can be directly loaded into the afwImage .array
+                    # component.
+                    inputs['bfKernel'] = numpy.transpose(kernel)
                 elif self.config.brighterFatterLevel == 'AMP':
                     raise NotImplementedError("Per-amplifier brighter-fatter correction not implemented")
 
