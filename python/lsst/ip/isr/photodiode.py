@@ -48,8 +48,12 @@ class PhotodiodeCalib(IsrCalib):
 
         ``"integrationMethod"``
             Name of the algorithm to use to integrate the current
-            samples. Allowed values are ``DIRECT_SUM`` and
-            ``TRIMMED_SUM`` (`str`).
+            samples. Allowed values are ``DIRECT_SUM``,
+            ``TRIMMED_SUM``, and ``CHARGE_SUM`` (`str`).
+        ``"currentScale"``
+            Scale factor to apply to the current samples for the
+            ``CHARGE_SUM`` integration method. A typical value
+            would be `-1`, to flip the sign of the integrated charge.
     """
 
     _OBSTYPE = 'PHOTODIODE'
@@ -73,6 +77,11 @@ class PhotodiodeCalib(IsrCalib):
             self.integrationMethod = kwargs.pop('integrationMethod')
         else:
             self.integrationMethod = 'DIRECT_SUM'
+
+        if 'currentScale' in kwargs:
+            self.currentScale = kwargs.pop('currentScale')
+        else:
+            self.currentScale = 1.0
 
         if 'day_obs' in kwargs:
             self.updateMetadata(day_obs=kwargs['day_obs'])
@@ -231,6 +240,8 @@ class PhotodiodeCalib(IsrCalib):
             return self.integrateDirectSum()
         elif self.integrationMethod == 'TRIMMED_SUM':
             return self.integrateTrimmedSum()
+        elif self.integrationMethod == 'CHARGE_SUM':
+            return self.integrateChargeSum()
         else:
             raise RuntimeError(f"Unknown integration method {self.integrationMethod}")
 
@@ -265,3 +276,31 @@ class PhotodiodeCalib(IsrCalib):
         lowValueIndices = np.where(self.currentSamples < currentThreshold)
         baseline = np.median(self.currentSamples[lowValueIndices])
         return np.trapz(self.currentSamples - baseline, self.timeSamples)
+
+    def integrateChargeSum(self):
+        """For this method, the values in .currentSamples are actually the
+        integrated charge values as measured by the ammeter for each
+        sampling interval.  We need to do a baseline subtraction,
+        based on the charge values when the LED is off, then sum up
+        the corrected signals.
+
+        Returns
+        -------
+        sum : `float`
+            Total charge measured.
+        """
+        dt = self.timeSamples[:, 1:] - self.timeSamples[:, :-1]
+        # The .currentSamples values are the current integrals over
+        # the interval preceding the current time stamp, so omit the
+        # first value.
+        charge = self.currentScale*self.currentSamples[:, 1:]
+        # The current per interval to use for baseline subtraction
+        # without assuming all of the dt values are the same:
+        current = charge/dt
+        # For the baseline current level, select current values < 5%
+        # of the maximum, measured relative to the overall minimum.
+        dy = np.max(current, axis=1) - np.min(current, axis=1)
+        index = np.where(current < dy/20. + np.min(current, axis=1))
+        bg_current = np.sum(charge[index])/np.sum(dt[index])
+        # Return the background-subtracted total charge.
+        return np.sum(charge - bg_current*dt, axis=1)
