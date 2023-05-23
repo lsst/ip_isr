@@ -65,11 +65,11 @@ class PhotodiodeCalib(IsrCalib):
             if len(timeSamples) != len(currentSamples):
                 raise RuntimeError(f"Inconsitent vector lengths: {len(timeSamples)} vs {len(currentSamples)}")
             else:
-                self.timeSamples = np.array(timeSamples)
-                self.currentSamples = np.array(currentSamples)
+                self.timeSamples = np.array(timeSamples).flatten()
+                self.currentSamples = np.array(currentSamples).flatten()
         else:
-            self.timeSamples = np.array([])
-            self.currentSamples = np.array([])
+            self.timeSamples = np.array([]).flatten()
+            self.currentSamples = np.array([]).flatten()
 
         super().__init__(**kwargs)
 
@@ -118,8 +118,8 @@ class PhotodiodeCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
-        calib.timeSamples = np.array(dictionary['timeSamples'])
-        calib.currentSamples = np.array(dictionary['currentSamples'])
+        calib.timeSamples = np.array(dictionary['timeSamples']).flatten()
+        calib.currentSamples = np.array(dictionary['currentSamples']).flatten()
         calib.integrationMethod = dictionary.get('integrationMethod', "DIRECT_SUM")
 
         calib.updateMetadata()
@@ -289,18 +289,18 @@ class PhotodiodeCalib(IsrCalib):
         sum : `float`
             Total charge measured.
         """
-        dt = self.timeSamples[:, 1:] - self.timeSamples[:, :-1]
+        dt = self.timeSamples[1:] - self.timeSamples[:-1]
         # The .currentSamples values are the current integrals over
         # the interval preceding the current time stamp, so omit the
         # first value.
-        charge = self.currentScale*self.currentSamples[:, 1:]
+        charge = self.currentScale*self.currentSamples[1:]
         # The current per interval to use for baseline subtraction
         # without assuming all of the dt values are the same:
         current = charge/dt
         # For the baseline current level, select current values < 5%
         # of the maximum, measured relative to the overall minimum.
-        dy = np.max(current, axis=1) - np.min(current, axis=1)
-        index = np.where(current < dy/20. + np.min(current, axis=1))
+        dy = np.max(current) - np.min(current)
+        index = np.where(current < dy/20. + np.min(current))
         bg_current = np.sum(charge[index])/np.sum(dt[index])
         # Return the background-subtracted total charge.
-        return np.sum(charge - bg_current*dt, axis=1)
+        return np.sum(charge - bg_current*dt)
