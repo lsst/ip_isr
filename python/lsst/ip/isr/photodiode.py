@@ -65,11 +65,11 @@ class PhotodiodeCalib(IsrCalib):
             if len(timeSamples) != len(currentSamples):
                 raise RuntimeError(f"Inconsitent vector lengths: {len(timeSamples)} vs {len(currentSamples)}")
             else:
-                self.timeSamples = np.array(timeSamples).flatten()
-                self.currentSamples = np.array(currentSamples).flatten()
+                self.timeSamples = np.array(timeSamples).ravel()
+                self.currentSamples = np.array(currentSamples).ravel()
         else:
-            self.timeSamples = np.array([]).flatten()
-            self.currentSamples = np.array([]).flatten()
+            self.timeSamples = np.array([]).ravel()
+            self.currentSamples = np.array([]).ravel()
 
         super().__init__(**kwargs)
 
@@ -118,8 +118,8 @@ class PhotodiodeCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
-        calib.timeSamples = np.array(dictionary['timeSamples']).flatten()
-        calib.currentSamples = np.array(dictionary['currentSamples']).flatten()
+        calib.timeSamples = np.array(dictionary['timeSamples']).ravel()
+        calib.currentSamples = np.array(dictionary['currentSamples']).ravel()
         calib.integrationMethod = dictionary.get('integrationMethod', "DIRECT_SUM")
 
         calib.updateMetadata()
