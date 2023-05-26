@@ -154,15 +154,19 @@ class PhotonTransferCurveDataset(IsrCalib):
         will be right-padded with np.nan to match the length of
         rawExpTimes.
     photoCharges : `dict`, [`str`, `np.ndarray`]
-         Dictionary keyed by amp names containing the integrated photocharge
-         for linearity calibration.
+        Dictionary keyed by amp names containing the integrated photocharge
+        for linearity calibration.
+    auxValues : `dict`, [`str`, `np.ndarray`]
+        Dictionary of per-detector auxiliary header values that can be used
+        for PTC, linearity computation.
 
     Version 1.1 adds the `ptcTurnoff` attribute.
+    Version 1.3 adds the `auxValues` attribute.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.2
+    _VERSION = 1.3
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
         self.ptcFitType = ptcFitType
@@ -204,6 +208,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.finalModelVars = {ampName: np.array([]) for ampName in ampNames}
         self.finalMeans = {ampName: np.array([]) for ampName in ampNames}
 
+        # Try this as a dict of arrays.
+        self.auxValues = {}
+
         super().__init__(**kwargs)
         self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'expIdMask', 'rawExpTimes',
                                         'rawMeans', 'rawVars', 'gain', 'gainErr', 'noise', 'noiseErr',
@@ -211,7 +218,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'aMatrixNoB', 'covariances', 'covariancesModel',
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
-                                        'photoCharges', 'histVars', 'histChi2Dofs', 'kspValues'])
+                                        'photoCharges', 'histVars', 'histChi2Dofs', 'kspValues',
+                                        'auxValues'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
 
@@ -231,6 +239,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             histVar=np.nan,
             histChi2Dof=np.nan,
             kspValue=0.0,
+            auxValues=None,
     ):
         """
         Set the amp values for a partial PTC Dataset (from cpExtractPtcTask).
@@ -292,6 +301,18 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.aMatrix[ampName] = nanMatrix
         self.bMatrix[ampName] = nanMatrix
         self.aMatrixNoB[ampName] = nanMatrix
+
+    def setAuxValuesPartialDataset(self, auxDict):
+        """
+        Set a dictionary of auxiliary values for a partial dataset.
+
+        Parameters
+        ----------
+        auxDict : `dict` [`str`, `float`]
+            Dictionary of float values.
+        """
+        for key, value in auxDict.items():
+            self.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
 
     def updateMetadata(self, **kwargs):
         """Update calibration metadata.
@@ -404,6 +425,9 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName], dtype=np.float64)
             calib.photoCharges[ampName] = np.array(dictionary['photoCharges'][ampName], dtype=np.float64)
 
+        for key, value in dictionary['auxValues'].items():
+            calib.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
+
         calib.updateMetadata()
         return calib
 
@@ -461,6 +485,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['finalModelVars'] = _dictOfArraysToDictOfLists(self.finalModelVars)
         outDict['finalMeans'] = _dictOfArraysToDictOfLists(self.finalMeans)
         outDict['photoCharges'] = _dictOfArraysToDictOfLists(self.photoCharges)
+        outDict['auxValues'] = _dictOfArraysToDictOfLists(self.auxValues)
 
         return outDict
 
@@ -570,6 +595,13 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['histChi2Dofs'][ampName] = record['HIST_CHI2_DOFS']
                 inDict['kspValues'][ampName] = record['KS_PVALUES']
 
+        inDict['auxValues'] = {}
+        record = ptcTable[0]
+        for col in record.columns.keys():
+            if col.startswith('PTCAUX_'):
+                parts = col.split('PTCAUX_')
+                inDict['auxValues'][parts[1]] = record[col]
+
         return cls().fromDict(inDict)
 
     def toTable(self):
@@ -625,6 +657,11 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'FINAL_MODEL_VARS': self.finalModelVars[ampName],
                 'FINAL_MEANS': self.finalMeans[ampName],
             }
+
+            if self.auxValues:
+                for key, value in self.auxValues.items():
+                    ampDict[f"PTCAUX_{key}"] = value
+
             catalogList.append(ampDict)
 
         catalog = Table(catalogList)

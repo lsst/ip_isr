@@ -125,6 +125,10 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertIsInstance(ptcDataset.photoCharges[ampName], np.ndarray)
             self.assertEqual(ptcDataset.photoCharges[ampName].dtype, np.float64)
 
+        for key, value in ptcDataset.auxValues.items():
+            self.assertIsInstance(value, np.ndarray)
+            self.assertEqual(value.dtype, np.float64)
+
     def test_emptyPtcDataset(self):
         """Test an empty PTC dataset."""
         emptyDataset = PhotonTransferCurveDataset(
@@ -165,19 +169,28 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 rawMean=10.0,
                 rawVar=10.0,
             )
-        self._checkTypes(partialDataset)
 
-        with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
-            usedFilename = partialDataset.writeText(f.name)
-            fromText = PhotonTransferCurveDataset.readText(usedFilename)
-        self.assertEqual(fromText, partialDataset)
-        self._checkTypes(fromText)
+        for useAuxValues in [False, True]:
+            if useAuxValues:
+                partialDataset.setAuxValuesPartialDataset(
+                    {
+                        "CCOBCURR": 1.0,
+                        "CCDTEMP": 0.0,
+                    }
+                )
+            self._checkTypes(partialDataset)
 
-        with tempfile.NamedTemporaryFile(suffix=".fits") as f:
-            usedFilename = partialDataset.writeFits(f.name)
-            fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
-        self.assertEqual(fromFits, partialDataset)
-        self._checkTypes(fromFits)
+            with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
+                usedFilename = partialDataset.writeText(f.name)
+                fromText = PhotonTransferCurveDataset.readText(usedFilename)
+            self.assertEqual(fromText, partialDataset)
+            self._checkTypes(fromText)
+
+            with tempfile.NamedTemporaryFile(suffix=".fits") as f:
+                usedFilename = partialDataset.writeFits(f.name)
+                fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
+            self.assertEqual(fromFits, partialDataset)
+            self._checkTypes(fromFits)
 
     def test_ptcDatset(self):
         """Test of a full PTC dataset."""
@@ -250,19 +263,26 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.aMatrixNoB[ampName] = np.full(
                         (nSideCovMatrix, nSideCovMatrix), 2e-6)
 
-            self._checkTypes(localDataset)
+            for useAuxValues in [False, True]:
+                if useAuxValues:
+                    localDataset.auxValues = {
+                        "CCOBCURR": np.ones(nSignalPoints),
+                        "CCDTEMP": np.zeros(nSignalPoints),
+                    }
 
-            with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
-                usedFilename = localDataset.writeText(f.name)
-                fromText = PhotonTransferCurveDataset.readText(usedFilename)
-            self.assertEqual(fromText, localDataset)
-            self._checkTypes(fromText)
+                self._checkTypes(localDataset)
 
-            with tempfile.NamedTemporaryFile(suffix=".fits") as f:
-                usedFilename = localDataset.writeFits(f.name)
-                fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
-            self.assertEqual(fromFits, localDataset)
-            self._checkTypes(fromFits)
+                with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
+                    usedFilename = localDataset.writeText(f.name)
+                    fromText = PhotonTransferCurveDataset.readText(usedFilename)
+                self.assertEqual(fromText, localDataset)
+                self._checkTypes(fromText)
+
+                with tempfile.NamedTemporaryFile(suffix=".fits") as f:
+                    usedFilename = localDataset.writeFits(f.name)
+                    fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
+                self.assertEqual(fromFits, localDataset)
+                self._checkTypes(fromFits)
 
     def test_getExpIdsUsed(self):
         localDataset = copy.copy(self.dataset)
