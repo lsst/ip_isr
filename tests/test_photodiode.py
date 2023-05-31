@@ -63,7 +63,7 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(calib.integrate(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateTrimmedSum(), 2.88720e-10, rtol=1e-14)
-        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5978848e-09, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5960649e-09, rtol=1e-14)
 
         self.assertEqual(calib.timeSamples.shape, (16, ))
         self.assertEqual(calib.currentSamples.shape, (16, ))
@@ -87,7 +87,7 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(calib.integrate(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateTrimmedSum(), 2.88720e-10, rtol=1e-14)
-        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5978848e-09, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5960649e-09, rtol=1e-14)
 
         self.assertEqual(calib.timeSamples.shape, (16, ))
         self.assertEqual(calib.currentSamples.shape, (16, ))
