@@ -304,10 +304,10 @@ class PhotodiodeCalib(IsrCalib):
         # the signal ramp and which should not be included in the
         # baseline estimate.
         dy = np.max(current) - np.min(current)
-        signal = np.where(current > dy/20. + np.min(current))
-        imin = signal[0][0] - 2
-        imax = signal[0][-1] + 2
-        bg = (np.array(list(range(0, imin)) + list(range(imax, len(current)))),)
+        signal, = np.where(current > dy/20. + np.min(current))
+        imin = signal[0] - 2
+        imax = signal[-1] + 2
+        bg = np.concatenate([np.arange(0, imin), np.arange(imax, len(current))])
         bg_current = np.sum(charge[bg])/np.sum(dt[bg])
         # Return the background-subtracted total charge.
         return np.sum(charge - bg_current*dt)
