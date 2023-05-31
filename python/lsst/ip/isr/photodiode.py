@@ -297,10 +297,17 @@ class PhotodiodeCalib(IsrCalib):
         # The current per interval to use for baseline subtraction
         # without assuming all of the dt values are the same:
         current = charge/dt
-        # For the baseline current level, select current values < 5%
-        # of the maximum, measured relative to the overall minimum.
+        # To determine the baseline current level, exclude points with
+        # signal levels > 5% of the maximum (measured relative to the
+        # overall minimum), and extend that selection 2 entries on
+        # either side to avoid otherwise low-valued points that sample
+        # the signal ramp and which should not be included in the
+        # baseline estimate.
         dy = np.max(current) - np.min(current)
-        index = np.where(current < dy/20. + np.min(current))
-        bg_current = np.sum(charge[index])/np.sum(dt[index])
+        signal, = np.where(current > dy/20. + np.min(current))
+        imin = signal[0] - 2
+        imax = signal[-1] + 2
+        bg = np.concatenate([np.arange(0, imin), np.arange(imax, len(current))])
+        bg_current = np.sum(charge[bg])/np.sum(dt[bg])
         # Return the background-subtracted total charge.
         return np.sum(charge - bg_current*dt)

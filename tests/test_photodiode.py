@@ -22,6 +22,8 @@
 import unittest
 import tempfile
 
+import numpy as np
+
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.geom as geom
 import lsst.utils.tests
@@ -63,7 +65,7 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(calib.integrate(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateTrimmedSum(), 2.88720e-10, rtol=1e-14)
-        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5978848e-09, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5960649e-09, rtol=1e-14)
 
         self.assertEqual(calib.timeSamples.shape, (16, ))
         self.assertEqual(calib.currentSamples.shape, (16, ))
@@ -87,7 +89,7 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(calib.integrate(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateDirectSum(), 2.88414e-10, rtol=1e-14)
         self.assertFloatsAlmostEqual(calib.integrateTrimmedSum(), 2.88720e-10, rtol=1e-14)
-        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5978848e-09, rtol=1e-14)
+        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.5960649e-09, rtol=1e-14)
 
         self.assertEqual(calib.timeSamples.shape, (16, ))
         self.assertEqual(calib.currentSamples.shape, (16, ))
@@ -101,6 +103,25 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
         calib.writeFits(outPath)
         newPhotodiode = PhotodiodeCalib().readFits(outPath)
         self.assertEqual(calib, newPhotodiode)
+
+    def testIntegrateChargeSum(self):
+        """
+        This tests the .integrateChargeSum method in the presence of
+        an above-baseline point which is still below the initial
+        threshold for identifying points to exclude in the baseline
+        current estimate.
+        """
+        # Compute a value to insert at time 0.47.
+        test_time = 0.47
+        test_current = ((max(self.currentSeries) - min(self.currentSeries))/40.
+                        + min(self.currentSeries))
+        new_times = np.array(self.timeSeries + [test_time])
+        new_currents = np.array(self.currentSeries + [test_current])
+        # Put these arrays in time order, though this isn't strictly needed.
+        index = np.argsort(new_times)
+        calib = PhotodiodeCalib(timeSamples=new_times[index],
+                                currentSamples=new_currents[index])
+        self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.6049277e-09, rtol=1e-14)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
