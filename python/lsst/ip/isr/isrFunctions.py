@@ -63,6 +63,8 @@ from contextlib import contextmanager
 
 from .defects import Defects
 
+from .astier23BFcorr import BFCorr
+
 
 def createPsf(fwhm):
     """Make a double Gaussian PSF.
@@ -843,6 +845,20 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         image.getArray()[:] += corr[:]
 
     return diff, iteration
+
+
+def electrostaticModelBrightterFatterCorrection(exposure, applyGain, gains=None):
+    """Use BFE correction from electrostatic model in Astier+23"""
+    image = exposure.getMaskedImage().getImage()
+    # Change this file location
+    fileName = "./R03_S12/avalues.npy"
+    # The image needs to be units of electrons/holes
+    with gainContext(exposure, image, applyGain, gains):
+        bf_corr = BFCorr(fileName)
+        delta = bf_corr.DeltaImageFFT(image.getArray())
+        image.getArray()[:] -= delta[:]
+
+    return
 
 
 @contextmanager

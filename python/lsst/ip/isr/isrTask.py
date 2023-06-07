@@ -638,6 +638,13 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False,
         doc="Apply the flux-conserving BFE correction by Miller et al.?"
     )
+    doElectrostaticModelBrighterFatterCorrection = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Apply the BFE correction in Astier+23? If True "
+            "the value of doFluxConservingBrighterFatterCorrection "
+            "is irrelevant."
+    )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
         default="DETECTOR",
@@ -1557,54 +1564,67 @@ class IsrTask(pipeBase.PipelineTask):
                 )
             bfExp = interpExp.clone()
 
-            self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
-                          type(bfKernel), type(bfGains))
-            if self.config.doFluxConservingBrighterFatterCorrection:
-                bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
-                    bfExp,
-                    bfKernel,
-                    self.config.brighterFatterMaxIter,
-                    self.config.brighterFatterThreshold,
-                    self.config.brighterFatterApplyGain,
-                    bfGains
-                )
+            if not self.config.doElectrostaticModelBrighterFatterCorrection:
+                self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
+                              type(bfKernel), type(bfGains))
+                if self.config.doFluxConservingBrighterFatterCorrection:
+                    bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
+                        bfExp,
+                        bfKernel,
+                        self.config.brighterFatterMaxIter,
+                        self.config.brighterFatterThreshold,
+                        self.config.brighterFatterApplyGain,
+                        bfGains
+                    )
+                else:
+                    bfResults = isrFunctions.brighterFatterCorrection(
+                        bfExp,
+                        bfKernel,
+                        self.config.brighterFatterMaxIter,
+                        self.config.brighterFatterThreshold,
+                        self.config.brighterFatterApplyGain,
+                        bfGains
+                    )
+                if bfResults[1] == self.config.brighterFatterMaxIter:
+                    self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
+                                     bfResults[0])
+                else:
+                    self.log.info("Finished brighter-fatter correction in %d iterations.",
+                                  bfResults[1])
             else:
-                bfResults = isrFunctions.brighterFatterCorrection(
+                # Use model in Astier+23
+                # bfExp is modified in place, like with the other methods
+                # above.
+                self.log.info("Applying brighter-fatter correction using model in Astier+23")
+                isrFunctions.electrostaticModelBrighterFatterCorrection(
                     bfExp,
-                    bfKernel,
-                    self.config.brighterFatterMaxIter,
-                    self.config.brighterFatterThreshold,
                     self.config.brighterFatterApplyGain,
-                    bfGains
-                )
-            if bfResults[1] == self.config.brighterFatterMaxIter - 1:
-                self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
-                                 bfResults[0])
-            else:
-                self.log.info("Finished brighter-fatter correction in %d iterations.",
-                              bfResults[1])
+                    bfGains)
+
             image = ccdExposure.getMaskedImage().getImage()
             bfCorr = bfExp.getMaskedImage().getImage()
             bfCorr -= interpExp.getMaskedImage().getImage()
             image += bfCorr
 
-            # Applying the brighter-fatter correction applies a
-            # convolution to the science image. At the edges this
-            # convolution may not have sufficient valid pixels to
-            # produce a valid correction. Mark pixels within the size
-            # of the brighter-fatter kernel as EDGE to warn of this
-            # fact.
-            self.log.info("Ensuring image edges are masked as EDGE to the brighter-fatter kernel size.")
-            self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
-                           maskPlane="EDGE")
+            # DM-39515 Don't do the following for the Astier+23 correction?
+            if not self.config.doElectrostaticModelBrighterFatterCorrection:
+                # Applying the brighter-fatter correction applies a
+                # convolution to the science image. At the edges this
+                # convolution may not have sufficient valid pixels to
+                # produce a valid correction. Mark pixels within the size
+                # of the brighter-fatter kernel as EDGE to warn of this
+                # fact.
+                self.log.info("Ensuring image edges are masked as EDGE to the brighter-fatter kernel size.")
+                self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
+                               maskPlane="EDGE")
 
-            if self.config.brighterFatterMaskGrowSize > 0:
-                self.log.info("Growing masks to account for brighter-fatter kernel convolution.")
-                for maskPlane in self.config.brighterFatterMaskListToInterpolate:
-                    isrFunctions.growMasks(ccdExposure.getMask(),
-                                           radius=self.config.brighterFatterMaskGrowSize,
-                                           maskNameList=maskPlane,
-                                           maskValue=maskPlane)
+                if self.config.brighterFatterMaskGrowSize > 0:
+                    self.log.info("Growing masks to account for brighter-fatter kernel convolution.")
+                    for maskPlane in self.config.brighterFatterMaskListToInterpolate:
+                        isrFunctions.growMasks(ccdExposure.getMask(),
+                                               radius=self.config.brighterFatterMaskGrowSize,
+                                               maskNameList=maskPlane,
+                                               maskValue=maskPlane)
 
             self.debugView(ccdExposure, "doBrighterFatter")
 
