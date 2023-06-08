@@ -29,7 +29,7 @@ from lsst.pipe.base import Task
 class MaskingConfig(Config):
     doSpecificMasking = Field(
         dtype=bool,
-        doc="",
+        doc="Masking configuration.",
         default=False,
     )
 
