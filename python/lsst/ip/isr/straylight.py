@@ -34,7 +34,7 @@ from .calibType import IsrCalib
 class StrayLightConfig(Config):
     doRotatorAngleCorrection = Field(
         dtype=bool,
-        doc="",
+        doc="Rotator angle correction configuration.",
         default=False,
     )
     # TODO DM-28093: change the doc to specify that these are physical labels
