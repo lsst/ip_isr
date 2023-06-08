@@ -847,11 +847,11 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
     return diff, iteration
 
 
-def electrostaticModelBrightterFatterCorrection(exposure, applyGain, gains=None):
+def electrostaticModelBrighterFatterCorrection(exposure, applyGain, gains=None):
     """Use BFE correction from electrostatic model in Astier+23"""
     image = exposure.getMaskedImage().getImage()
     # Change this file location
-    fileName = "./R03_S12/avalues.npy"
+    fileName = "/sdf/home/p/plazas/u/WORK/DM/DM-39515-BFE-correction-astier23/R03_S12/avalues.npy"
     # The image needs to be units of electrons/holes
     with gainContext(exposure, image, applyGain, gains):
         bf_corr = BFCorr(fileName)
