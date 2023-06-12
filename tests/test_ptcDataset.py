@@ -112,10 +112,14 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertEqual(ptcDataset.aMatrix[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.bMatrix[ampName], np.ndarray)
             self.assertEqual(ptcDataset.bMatrix[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.noiseMatrix[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.noiseMatrix[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.covariancesModelNoB[ampName], np.ndarray)
             self.assertEqual(ptcDataset.covariancesModelNoB[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.aMatrixNoB[ampName], np.ndarray)
             self.assertEqual(ptcDataset.aMatrixNoB[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.noiseMatrixNoB[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.noiseMatrixNoB[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.finalVars[ampName], np.ndarray)
             self.assertEqual(ptcDataset.finalVars[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.finalModelVars[ampName], np.ndarray)
@@ -226,9 +230,12 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                                                                            nSideCovMatrix), 10.0)
                     localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
                     localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
+                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
                     localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
                                                                         nSideCovMatrix), np.nan)
                     localDataset.aMatrixNoB[ampName] = np.full(
+                        (nSideCovMatrix, nSideCovMatrix), np.nan)
+                    localDataset.noiseMatrixNoB[ampName] = np.full(
                         (nSideCovMatrix, nSideCovMatrix), np.nan)
 
                 if localDataset.ptcFitType in ['FULLCOVARIANCE', ]:
@@ -245,10 +252,13 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                                                                            nSideCovMatrix), 10.0)
                     localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-6)
                     localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-7)
+                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 3.0)
                     localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
                                                                         nSideCovMatrix), 15.0)
                     localDataset.aMatrixNoB[ampName] = np.full(
                         (nSideCovMatrix, nSideCovMatrix), 2e-6)
+                    localDataset.noiseMatrixNoB[ampName] = np.full(
+                        (nSideCovMatrix, nSideCovMatrix), 3.0)
 
             self._checkTypes(localDataset)
 
