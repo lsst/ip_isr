@@ -601,7 +601,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
                 inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
             else:
-                nanMatrix = np.full((cls.covMatrixSide, cls.covMatrixSide), np.nan)
+                nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
                 inDict['noiseMatrix'][ampName] = nanMatrix
                 inDict['noiseMatrixNoB'][ampName] = nanMatrix
 
