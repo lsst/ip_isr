@@ -589,7 +589,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                     inDict['ptcTurnoff'][ampName] = np.nan
             else:
                 inDict['ptcTurnoff'][ampName] = record['PTC_TURNOFF']
-            if calibVersion == 1.1:
+            if calibVersion < 1.2:
                 inDict['histVars'][ampName] = np.array([np.nan])
                 inDict['histChi2Dofs'][ampName] = np.array([np.nan])
                 inDict['kspValues'][ampName] = np.array([0.0])
@@ -597,13 +597,13 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['histVars'][ampName] = record['HIST_VARS']
                 inDict['histChi2Dofs'][ampName] = record['HIST_CHI2_DOFS']
                 inDict['kspValues'][ampName] = record['KS_PVALUES']
-            if calibVersion == 1.3:
-                inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
-                inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
-            else:
+            if calibVersion < 1.3:
                 nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
                 inDict['noiseMatrix'][ampName] = nanMatrix
                 inDict['noiseMatrixNoB'][ampName] = nanMatrix
+            else:
+                inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
+                inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
 
         return cls().fromDict(inDict)
 
