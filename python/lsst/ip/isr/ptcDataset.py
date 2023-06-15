@@ -130,6 +130,9 @@ class PhotonTransferCurveDataset(IsrCalib):
     bMatrix : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "b" parameters from
         the model in Eq. 20 of Astier+19.
+    noiseMatrix : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the "noise" parameters from
+        the model in Eq. 20 of Astier+19.
     covariancesModelNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing covariances model
         (with 'b'=0 in Eq. 20 of Astier+19)
@@ -138,6 +141,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         Dictionary keyed by amp names containing the "a" parameters from the
         model in Eq. 20 of Astier+19
         (and 'b' = 0).
+    noiseMatrixNoB : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the "noise" parameters from
+        the model in Eq. 20 of Astier+19, with 'b' = 0.
     finalVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the masked variance of the
         difference image of each flat
@@ -158,11 +164,14 @@ class PhotonTransferCurveDataset(IsrCalib):
          for linearity calibration.
 
     Version 1.1 adds the `ptcTurnoff` attribute.
+    Version 1.2 adds the `histVars`, `histChi2Dofs`, and `kspValues`
+    attributes.
+    Version 1.3 adds the `noiseMatrix` and `noiseMatrixNoB` attributes.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.2
+    _VERSION = 1.3
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
         self.ptcFitType = ptcFitType
@@ -197,8 +206,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.covariancesSqrtWeights = {ampName: np.array([]) for ampName in ampNames}
         self.aMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.bMatrix = {ampName: np.array([]) for ampName in ampNames}
+        self.noiseMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.covariancesModelNoB = {ampName: np.array([]) for ampName in ampNames}
         self.aMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
+        self.noiseMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
 
         self.finalVars = {ampName: np.array([]) for ampName in ampNames}
         self.finalModelVars = {ampName: np.array([]) for ampName in ampNames}
@@ -210,8 +221,9 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'ptcFitPars', 'ptcFitParsError', 'ptcFitChiSq', 'ptcTurnoff',
                                         'aMatrixNoB', 'covariances', 'covariancesModel',
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
-                                        'aMatrix', 'bMatrix', 'finalVars', 'finalModelVars', 'finalMeans',
-                                        'photoCharges', 'histVars', 'histChi2Dofs', 'kspValues'])
+                                        'aMatrix', 'bMatrix', 'noiseMatrix', 'noiseMatrixNoB', 'finalVars',
+                                        'finalModelVars', 'finalMeans', 'photoCharges', 'histVars',
+                                        'histChi2Dofs', 'kspValues'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
 
@@ -292,6 +304,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.aMatrix[ampName] = nanMatrix
         self.bMatrix[ampName] = nanMatrix
         self.aMatrixNoB[ampName] = nanMatrix
+        self.noiseMatrix[ampName] = nanMatrix
+        self.noiseMatrixNoB[ampName] = nanMatrix
 
     def updateMetadata(self, **kwargs):
         """Update calibration metadata.
@@ -389,6 +403,12 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.aMatrixNoB[ampName] = np.array(
                     dictionary['aMatrixNoB'][ampName],
                     dtype=np.float64).reshape((covMatrixSide, covMatrixSide))
+                calib.noiseMatrix[ampName] = np.array(
+                    dictionary['noiseMatrix'][ampName],
+                    dtype=np.float64).reshape((covMatrixSide, covMatrixSide))
+                calib.noiseMatrixNoB[ampName] = np.array(
+                    dictionary['noiseMatrixNoB'][ampName],
+                    dtype=np.float64).reshape((covMatrixSide, covMatrixSide))
             else:
                 # Empty dataset
                 calib.covariances[ampName] = np.array([], dtype=np.float64)
@@ -398,6 +418,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.bMatrix[ampName] = np.array([], dtype=np.float64)
                 calib.covariancesModelNoB[ampName] = np.array([], dtype=np.float64)
                 calib.aMatrixNoB[ampName] = np.array([], dtype=np.float64)
+                calib.noiseMatrix[ampName] = np.array([], dtype=np.float64)
+                calib.noiseMatrixNoB[ampName] = np.array([], dtype=np.float64)
 
             calib.finalVars[ampName] = np.array(dictionary['finalVars'][ampName], dtype=np.float64)
             calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName], dtype=np.float64)
@@ -455,8 +477,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['covariancesSqrtWeights'] = _dictOfArraysToDictOfLists(self.covariancesSqrtWeights)
         outDict['aMatrix'] = _dictOfArraysToDictOfLists(self.aMatrix)
         outDict['bMatrix'] = _dictOfArraysToDictOfLists(self.bMatrix)
+        outDict['noiseMatrix'] = _dictOfArraysToDictOfLists(self.noiseMatrix)
         outDict['covariancesModelNoB'] = _dictOfArraysToDictOfLists(self.covariancesModelNoB)
         outDict['aMatrixNoB'] = _dictOfArraysToDictOfLists(self.aMatrixNoB)
+        outDict['noiseMatrixNoB'] = _dictOfArraysToDictOfLists(self.noiseMatrixNoB)
         outDict['finalVars'] = _dictOfArraysToDictOfLists(self.finalVars)
         outDict['finalModelVars'] = _dictOfArraysToDictOfLists(self.finalModelVars)
         outDict['finalMeans'] = _dictOfArraysToDictOfLists(self.finalMeans)
@@ -510,8 +534,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['covariancesSqrtWeights'] = dict()
         inDict['aMatrix'] = dict()
         inDict['bMatrix'] = dict()
+        inDict['noiseMatrix'] = dict()
         inDict['covariancesModelNoB'] = dict()
         inDict['aMatrixNoB'] = dict()
+        inDict['noiseMatrixNoB'] = dict()
         inDict['finalVars'] = dict()
         inDict['finalModelVars'] = dict()
         inDict['finalMeans'] = dict()
@@ -545,8 +571,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['covariancesSqrtWeights'][ampName] = record['COVARIANCES_SQRT_WEIGHTS']
             inDict['aMatrix'][ampName] = record['A_MATRIX']
             inDict['bMatrix'][ampName] = record['B_MATRIX']
+            inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
             inDict['covariancesModelNoB'][ampName] = record['COVARIANCES_MODEL_NO_B']
             inDict['aMatrixNoB'][ampName] = record['A_MATRIX_NO_B']
+            inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
             inDict['finalVars'][ampName] = record['FINAL_VARS']
             inDict['finalModelVars'][ampName] = record['FINAL_MODEL_VARS']
             inDict['finalMeans'][ampName] = record['FINAL_MEANS']
@@ -561,7 +589,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                     inDict['ptcTurnoff'][ampName] = np.nan
             else:
                 inDict['ptcTurnoff'][ampName] = record['PTC_TURNOFF']
-            if calibVersion == 1.1:
+            if calibVersion < 1.2:
                 inDict['histVars'][ampName] = np.array([np.nan])
                 inDict['histChi2Dofs'][ampName] = np.array([np.nan])
                 inDict['kspValues'][ampName] = np.array([0.0])
@@ -569,6 +597,13 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['histVars'][ampName] = record['HIST_VARS']
                 inDict['histChi2Dofs'][ampName] = record['HIST_CHI2_DOFS']
                 inDict['kspValues'][ampName] = record['KS_PVALUES']
+            if calibVersion < 1.3:
+                nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
+                inDict['noiseMatrix'][ampName] = nanMatrix
+                inDict['noiseMatrixNoB'][ampName] = nanMatrix
+            else:
+                inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
+                inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
 
         return cls().fromDict(inDict)
 
@@ -615,6 +650,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'A_MATRIX': self.aMatrix[ampName].ravel(),
                 'B_MATRIX': self.bMatrix[ampName].ravel(),
                 'A_MATRIX_NO_B': self.aMatrixNoB[ampName].ravel(),
+                'NOISE_MATRIX': self.noiseMatrix[ampName].ravel(),
+                'NOISE_MATRIX_NO_B': self.noiseMatrixNoB[ampName].ravel(),
                 'BAD_AMPS': badAmps,
                 'PHOTO_CHARGE': self.photoCharges[ampName],
                 'COVARIANCES': self.covariances[ampName].ravel(),
