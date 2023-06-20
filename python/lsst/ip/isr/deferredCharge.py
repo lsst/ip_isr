@@ -81,7 +81,7 @@ class SerialTrap():
             raise ValueError('Unknown trap type: %s', self.trap_type)
 
         if self.trap_type == 'spline':
-            centers, values = np.split(np.array(self.coeffs, dtype=np.float), 2)
+            centers, values = np.split(np.array(self.coeffs, dtype=np.float64), 2)
             # Ensure all NaN values are stripped out
             values = values[~np.isnan(centers)]
             centers = centers[~np.isnan(centers)]
