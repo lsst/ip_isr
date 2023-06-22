@@ -551,15 +551,15 @@ class CrosstalkCalib(IsrCalib):
         subtrahend.set((0, 0, 0))
 
         coeffs = coeffs.transpose()
-        for ii, iAmp in enumerate(sourceDetector):
-            iImage = subtrahend[iAmp.getBBox() if isTrimmed else iAmp.getRawDataBBox()]
-            for jj, jAmp in enumerate(detector):
-                if coeffs[ii, jj] == 0.0:
+        for ss, sAmp in enumerate(sourceDetector):
+            sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
+            for tt, tAmp in enumerate(detector):
+                if coeffs[ss, tt] == 0.0:
                     continue
-                jImage = self.extractAmp(mi, jAmp, iAmp, isTrimmed)
-                jImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
-                jImage -= backgrounds[jj]
-                iImage.scaledPlus(coeffs[ii, jj], jImage)
+                tImage = self.extractAmp(mi, tAmp, sAmp, isTrimmed)
+                tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
+                tImage -= backgrounds[tt]
+                sImage.scaledPlus(coeffs[ss, tt], tImage)
 
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
