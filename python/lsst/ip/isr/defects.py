@@ -201,9 +201,9 @@ class Defects(IsrCalib):
         region = lsst.geom.Box2I(lsst.geom.Point2I(minX, minY),
                                  lsst.geom.Point2I(maxX, maxY))
 
-        mi = lsst.afw.image.MaskedImageF(region)
-        self.maskPixels(mi, maskName="BAD")
-        self._defects = Defects.fromMask(mi, "BAD")._defects
+        mask = lsst.afw.image.Mask(region)
+        self.maskPixels(mask, maskName="BAD")
+        self._defects = Defects.fromMask(mask, "BAD")._defects
 
     @contextlib.contextmanager
     def bulk_update(self):
@@ -258,18 +258,19 @@ class Defects(IsrCalib):
             retDefectList.append(nbbox)
         return retDefectList
 
-    def maskPixels(self, maskedImage, maskName="BAD"):
+    def maskPixels(self, mask, maskName="BAD"):
         """Set mask plane based on these defects.
 
         Parameters
         ----------
-        maskedImage : `lsst.afw.image.MaskedImage`
+        maskedImage : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
             Image to process.  Only the mask plane is updated.
         maskName : str, optional
             Mask plane name to use.
         """
         # mask bad pixels
-        mask = maskedImage.getMask()
+        if hasattr(mask, "getMask"):
+            mask = mask.getMask()
         bitmask = mask.getPlaneBitMask(maskName)
         for defect in self:
             bbox = defect.getBBox()
@@ -659,12 +660,12 @@ class Defects(IsrCalib):
                                                  for fp in fpList), normalize_on_init=False)
 
     @classmethod
-    def fromMask(cls, maskedImage, maskName):
+    def fromMask(cls, mask, maskName):
         """Compute a defect list from a specified mask plane.
 
         Parameters
         ----------
-        maskedImage : `lsst.afw.image.MaskedImage`
+        mask : `lsst.afw.image.Mask` or `lsst.afw.image.MaskedImage`
             Image to process.
         maskName : `str` or `list`
             Mask plane name, or list of names to convert.
@@ -674,7 +675,8 @@ class Defects(IsrCalib):
         defects : `Defects`
             Defect list constructed from masked pixels.
         """
-        mask = maskedImage.getMask()
+        if hasattr(mask, "getMask"):
+            mask = mask.getMask()
         thresh = lsst.afw.detection.Threshold(mask.getPlaneBitMask(maskName),
                                               lsst.afw.detection.Threshold.BITMASK)
         fpList = lsst.afw.detection.FootprintSet(mask, thresh).getFootprints()
