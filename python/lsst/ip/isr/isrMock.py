@@ -463,7 +463,7 @@ class IsrMock(pipeBase.Task):
                                               if self.config.isTrimmed else ampT.getRawDataBBox()]
                     outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
                                                 isTrimmed=self.config.isTrimmed)
-                    self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxT][idxS])
+                    self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
 
         for amp in exposure.getDetector():
             bbox = None
