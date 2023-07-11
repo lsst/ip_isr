@@ -110,11 +110,17 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
         Image to process.
     defectList : `lsst.meas.algorithms.Defects`
         List of defects to interpolate over.
-    fwhm : scalar
+    fwhm : `float`
         FWHM of double Gaussian smoothing kernel.
     fallbackValue : scalar, optional
         Fallback value if an interpolated value cannot be determined.
         If None, then the clipped mean of the image is used.
+
+    Notes
+    -----
+    The ``fwhm`` parameter is used to create a PSF, but the underlying
+    interpolation code (`lsst.meas.algorithms.interpolateOverDefects`) does
+    not currently make use of this information.
     """
     psf = createPsf(fwhm)
     if fallbackValue is None:
@@ -189,7 +195,7 @@ def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
     ----------
     maskedImage : `lsst.afw.image.MaskedImage`
         Image to process.
-    fwhm : scalar
+    fwhm : `float`
         FWHM of double Gaussian smoothing kernel.
     growSaturatedFootprints : scalar, optional
         Number of pixels to grow footprints for saturated pixels.
@@ -197,6 +203,12 @@ def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
         Mask plane name.
     fallbackValue : scalar, optional
         Value of last resort for interpolation.
+
+    Notes
+    -----
+    The ``fwhm`` parameter is used to create a PSF, but the underlying
+    interpolation code (`lsst.meas.algorithms.interpolateOverDefects`) does
+    not currently make use of this information.
     """
     mask = maskedImage.getMask()
 
@@ -225,7 +237,7 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
         Image to process.
     saturation  : scalar
         Saturation level used as the detection threshold.
-    fwhm : scalar
+    fwhm : `float`
         FWHM of double Gaussian smoothing kernel.
     growFootprints : scalar, optional
         Number of pixels to grow footprints of detected regions.
@@ -235,6 +247,12 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
         Mask plane name.
     fallbackValue : scalar, optional
         Value of last resort for interpolation.
+
+    Notes
+    -----
+    The ``fwhm`` parameter is used to create a PSF, but the underlying
+    interpolation code (`lsst.meas.algorithms.interpolateOverDefects`) does
+    not currently make use of this information.
     """
     defectList = makeThresholdMask(
         maskedImage=maskedImage,
