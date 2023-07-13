@@ -201,7 +201,7 @@ class PhotodiodeCalib(IsrCalib):
         outMeta['INTEGRATION_METHOD'] = self.integrationMethod
         catalog.meta = outMeta
 
-        return([catalog])
+        return [catalog]
 
     @classmethod
     def readTwoColumnPhotodiodeData(cls, filename):
