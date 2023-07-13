@@ -708,7 +708,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         catalog.meta = outMeta
         tableList.append(catalog)
 
-        return(tableList)
+        return tableList
 
     def fromDetector(self, detector):
         """Read metadata parameters from a detector.

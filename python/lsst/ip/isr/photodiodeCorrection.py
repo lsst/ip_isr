@@ -218,7 +218,7 @@ class PhotodiodeCorrection(IsrCalib):
             catalog = Table([{'LOOKUP_VALUES': value} for value in self.tableData])
             tableList.append(catalog)
 
-        return(tableList)
+        return tableList
 
     def validate(self):
         """Validate photodiode correction"""

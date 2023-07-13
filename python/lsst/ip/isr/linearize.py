@@ -362,7 +362,7 @@ class Linearizer(IsrCalib):
         if self.tableData is not None:
             catalog = Table([{'LOOKUP_VALUES': value} for value in self.tableData])
             tableList.append(catalog)
-        return(tableList)
+        return tableList
 
     def getLinearityTypeByName(self, linearityTypeName):
         """Determine the linearity class to use from the type name.
