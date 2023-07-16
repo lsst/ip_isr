@@ -1525,7 +1525,7 @@ class IsrTask(pipeBase.PipelineTask):
                     self.config.brighterFatterApplyGain,
                     bfGains
                 )
-            if bfResults[1] == self.config.brighterFatterMaxIter:
+            if bfResults[1] == self.config.brighterFatterMaxIter-1:
                 self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
                                  bfResults[0])
             else:
