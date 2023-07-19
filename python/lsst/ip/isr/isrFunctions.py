@@ -785,7 +785,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         outImage = afwImage.ImageF(image.getDimensions())
         corr = numpy.zeros_like(image.getArray())
         prevImage = numpy.zeros_like(image.getArray())
-        convCntrl = afwMath.ConvolutionControl(False, True, 1)
+        convCntrl = afwMath.ConvolutionControl(False, False, 1)
         fixedKernel = afwMath.FixedKernel(kernelImage)
 
         # set the padding amount
