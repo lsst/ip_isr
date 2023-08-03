@@ -27,7 +27,6 @@ __all__ = ['PhotonTransferCurveDataset']
 
 import numpy as np
 from astropy.table import Table
-import warnings
 
 from lsst.ip.isr import IsrCalib
 
@@ -749,8 +748,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         try:
             expIdsUsed = [(exp1, exp2) for ((exp1, exp2), m) in zip(pairs, mask) if m]
         except ValueError:
-            warnings.warn("The PTC file was written incorrectly; you should rerun the "
-                          "PTC solve task if possible.", RuntimeWarning)
+            self.log.warning("The PTC file was written incorrectly; you should rerun the "
+                             "PTC solve task if possible.")
             expIdsUsed = []
             for pairList, m in zip(pairs, mask):
                 if m:

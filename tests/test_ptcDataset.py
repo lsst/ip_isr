@@ -21,6 +21,7 @@
 import unittest
 import tempfile
 import copy
+import logging
 
 import numpy as np
 
@@ -322,8 +323,9 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             localDataset.inputExpIdPairs["C:0,0"].append(pair)
         localDataset.expIdMask["C:0,0"] = np.array([True, False, True])
 
-        with self.assertWarnsRegex(RuntimeWarning, "PTC file was written incorrectly"):
+        with self.assertLogs("lsst.ip.isr.calibType", logging.WARNING) as cm:
             used = localDataset.getExpIdsUsed("C:0,0")
+        self.assertIn("PTC file was written incorrectly", cm.output[0])
 
         self.assertTrue(np.all(used == [(12, 34), (90, 10)]))
 
