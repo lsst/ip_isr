@@ -90,7 +90,10 @@ class AmpOffsetTask(pipeBase.Task):
         # this allows for default plane bit masks to be defined
         self.makeSubtask("background")
         if self.config.doDetection:
-            self.makeSubtask("detection")
+            try:
+                self.makeSubtask("detection", excludeMaskPlanes=[])
+            except TypeError:
+                self.makeSubtask("detection")
 
     def run(self, exposure):
         """Calculate amp offset values, determine corrective pedestals for each
