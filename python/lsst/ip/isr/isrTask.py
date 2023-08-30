@@ -268,7 +268,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
     )
     outputBin2Exposure = cT.Output(
         name="postIsrBin2",
-        doc="First binned image.",
+        doc="Second binned image.",
         storageClass="ExposureF",
         dimensions=["instrument", "exposure", "detector"],
     )
@@ -943,15 +943,15 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
     binFactor1 = pexConfig.Field(
         dtype=int,
-        doc="Binning factor for first binned exposure.",
+        doc="Binning factor for first binned exposure. This is intended for a finely binned output.",
         default=8,
-        check=lambda x: x >= 0,
+        check=lambda x: x > 1,
     )
     binFactor2 = pexConfig.Field(
         dtype=int,
-        doc="Binning factor for second binned exposure.",
+        doc="Binning factor for second binned exposure. This is intended for a coarsely binned output.",
         default=64,
-        check=lambda x: x >= 0,
+        check=lambda x: x > 1,
     )
 
     # Write the outputs to disk. If ISR is run as a subtask, this may not
@@ -2622,8 +2622,8 @@ class IsrTask(pipeBase.PipelineTask):
         """
         mi = exposure.getMaskedImage()
 
-        bin1 = afwMath.binImage(mi.clone(), self.config.binFactor1)
-        bin2 = afwMath.binImage(mi.clone(), self.config.binFactor2)
+        bin1 = afwMath.binImage(mi, self.config.binFactor1)
+        bin2 = afwMath.binImage(mi, self.config.binFactor2)
 
         return bin1, bin2
 
