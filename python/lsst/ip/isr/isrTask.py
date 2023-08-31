@@ -260,6 +260,19 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
         storageClass="ExposureF",
         dimensions=["instrument", "exposure", "detector"],
     )
+    outputBin1Exposure = cT.Output(
+        name="postIsrBin1",
+        doc="First binned image.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+    outputBin2Exposure = cT.Output(
+        name="postIsrBin2",
+        doc="Second binned image.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+
     outputOssThumbnail = cT.Output(
         name="OssThumb",
         doc="Output Overscan-subtracted thumbnail image.",
@@ -329,7 +342,12 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.outputs.remove("outputFlattenedThumbnail")
             self.outputs.remove("outputOssThumbnail")
             self.outputs.remove("outputStatistics")
+            self.outputs.remove("outputBin1Exposure")
+            self.outputs.remove("outputBin2Exposure")
 
+        if config.doBinnedExposures is not True:
+            self.outputs.remove("outputBin1Exposure")
+            self.outputs.remove("outputBin2Exposure")
         if config.doSaveInterpPixels is not True:
             self.outputs.remove("preInterpExposure")
         if config.qa.doThumbnailOss is not True:
@@ -915,6 +933,25 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     isrStats = pexConfig.ConfigurableField(
         target=IsrStatisticsTask,
         doc="Task to calculate additional statistics.",
+    )
+
+    # Make binned images?
+    doBinnedExposures = pexConfig.Field(
+        dtype=bool,
+        doc="Should binned exposures be calculated?",
+        default=False,
+    )
+    binFactor1 = pexConfig.Field(
+        dtype=int,
+        doc="Binning factor for first binned exposure. This is intended for a finely binned output.",
+        default=8,
+        check=lambda x: x > 1,
+    )
+    binFactor2 = pexConfig.Field(
+        dtype=int,
+        doc="Binning factor for second binned exposure. This is intended for a coarsely binned output.",
+        default=64,
+        check=lambda x: x > 1,
     )
 
     # Write the outputs to disk. If ISR is run as a subtask, this may not
@@ -1703,12 +1740,21 @@ class IsrTask(pipeBase.PipelineTask):
             outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
                                                  ptc=ptc).results
 
+        # do any binning.
+        outputBin1Exposure = None
+        outputBin2Exposure = None
+        if self.config.doBinnedExposures:
+            outputBin1Exposure, outputBin2Exposure = self.makeBinnedImages(ccdExposure)
+
         self.debugView(ccdExposure, "postISRCCD")
 
         return pipeBase.Struct(
             exposure=ccdExposure,
             ossThumb=ossThumb,
             flattenedThumb=flattenedThumb,
+
+            outputBin1Exposure=outputBin1Exposure,
+            outputBin2Exposure=outputBin2Exposure,
 
             preInterpExposure=preInterpExp,
             outputExposure=ccdExposure,
@@ -2558,6 +2604,28 @@ class IsrTask(pipeBase.PipelineTask):
                 self.flatCorrection(exp, flat, invert=True)
             if self.config.doDark and dark is not None:
                 self.darkCorrection(exp, dark, invert=True)
+
+    def makeBinnedImages(self, exposure):
+        """Make visualizeVisit style binned exposures.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to bin.
+
+        Returns
+        -------
+        bin1 : `lsst.afw.image.Exposure`
+            Binned exposure using binFactor1.
+        bin2 : `lsst.afw.image.Exposure`
+            Binned exposure using binFactor2.
+        """
+        mi = exposure.getMaskedImage()
+
+        bin1 = afwMath.binImage(mi, self.config.binFactor1)
+        bin2 = afwMath.binImage(mi, self.config.binFactor2)
+
+        return bin1, bin2
 
     def debugView(self, exposure, stepname):
         """Utility function to examine ISR exposure at different stages.

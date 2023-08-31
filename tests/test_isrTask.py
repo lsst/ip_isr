@@ -551,6 +551,26 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 
+    def test_binnedExposures(self):
+        """Ensure that binned exposures have correct sizes."""
+        self.batchSetConfiguration(True)
+        self.config.doBinnedExposures = True
+        self.config.binFactor1 = 8
+        self.config.binFactor2 = 64
+
+        results = self.validateIsrResults()
+
+        original = results.exposure.image.array.shape
+        bin1 = results.outputBin1Exposure.image.array.shape
+        bin2 = results.outputBin2Exposure.image.array.shape
+
+        # Binning truncates, so check that the original and obtained
+        # binned images have the correct offset.
+        self.assertEqual(original[0] - bin1[0] * 8, 4)
+        self.assertEqual(original[1] - bin1[1] * 8, 0)
+        self.assertEqual(original[0] - bin2[0] * 64, 12)
+        self.assertEqual(original[1] - bin2[1] * 64, 8)
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
