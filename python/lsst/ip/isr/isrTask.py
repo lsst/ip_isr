@@ -1088,8 +1088,7 @@ class IsrTask(pipeBase.PipelineTask):
             if brighterFatterKernel is None:
                 # This was requested by the config, but none were found.
                 raise RuntimeError("No brighter-fatter kernel was supplied.")
-
-            if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
+            elif not isinstance(brighterFatterKernel, numpy.ndarray):
                 # This is a ISR calib kernel.  These kernels are
                 # generated in (x, y) index ordering, and need to be
                 # transposed to be used directly as the .array
