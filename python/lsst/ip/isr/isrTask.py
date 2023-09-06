@@ -1027,6 +1027,9 @@ class IsrTask(pipeBase.PipelineTask):
 
         detector = inputs['ccdExposure'].getDetector()
 
+        # This is use for header provenance.
+        additionalInputDates = {}
+
         if self.config.doCrosstalk is True:
             # Crosstalk sources need to be defined by the pipeline
             # yaml if they exist.
@@ -1071,6 +1074,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Load the correct style of brighter-fatter kernel, and repack
         # the information as a numpy array.
+        brighterFatterSource = None
         if self.config.doBrighterFatter:
             brighterFatterKernel = inputs.pop('newBFKernel', None)
             if brighterFatterKernel is None:
@@ -1078,14 +1082,22 @@ class IsrTask(pipeBase.PipelineTask):
                 # ordering, as it used directly as the .array
                 # component of the afwImage kernel.
                 brighterFatterKernel = inputs.get('bfKernel', None)
+                brighterFatterSource = 'bfKernel'
+                additionalInputDates[brighterFatterSource] = self.extractCalibDate(brighterFatterKernel)
 
-            if brighterFatterKernel is not None and not isinstance(brighterFatterKernel, numpy.ndarray):
+            if brighterFatterKernel is None:
+                # This was requested by the config, but none were found.
+                raise RuntimeError("No brighter-fatter kernel was supplied.")
+            elif not isinstance(brighterFatterKernel, numpy.ndarray):
                 # This is a ISR calib kernel.  These kernels are
                 # generated in (x, y) index ordering, and need to be
                 # transposed to be used directly as the .array
                 # component of the afwImage kernel.  This is done
                 # explicitly below when setting the ``bfKernel``
                 # input.
+                brighterFatterSource = 'newBFKernel'
+                additionalInputDates[brighterFatterSource] = self.extractCalibDate(brighterFatterKernel)
+
                 detName = detector.getName()
                 level = brighterFatterKernel.level
 
@@ -1128,16 +1140,30 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doHeaderProvenance:
             # Add calibration provenanace info to header.
             exposureMetadata = inputs['ccdExposure'].getMetadata()
-            for inputName in sorted(inputs.keys()):
+
+            # These inputs change name during this step.  These should
+            # have matching entries in the additionalInputDates dict.
+            additionalInputs = []
+            if self.config.doBrighterFatter:
+                additionalInputs.append(brighterFatterSource)
+
+            for inputName in sorted(list(inputs.keys()) + additionalInputs):
                 reference = getattr(inputRefs, inputName, None)
                 if reference is not None and hasattr(reference, "run"):
                     runKey = f"LSST CALIB RUN {inputName.upper()}"
                     runValue = reference.run
                     idKey = f"LSST CALIB UUID {inputName.upper()}"
                     idValue = str(reference.id)
+                    dateKey = f"LSST CALIB DATE {inputName.upper()}"
+
+                    if inputName in additionalInputDates:
+                        dateValue = additionalInputDates[inputName]
+                    else:
+                        dateValue = self.extractCalibDate(inputs[inputName])
 
                     exposureMetadata[runKey] = runValue
                     exposureMetadata[idKey] = idValue
+                    exposureMetadata[dateKey] = dateValue
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
@@ -1320,51 +1346,32 @@ class IsrTask(pipeBase.PipelineTask):
         if (self.config.doDeferredCharge and deferredChargeCalib is None):
             raise RuntimeError("Must supply a deferred charge calibration if config.doDeferredCharge=True.")
 
-        if self.config.doHeaderProvenance:
-            # Inputs have been validated, so we can add their date
-            # information to the output header.
-            exposureMetadata = ccdExposure.getMetadata()
-            if self.config.doBias:
-                exposureMetadata["LSST CALIB DATE BIAS"] = self.extractCalibDate(bias)
-                self.compareCameraKeywords(exposureMetadata, bias, "bias")
-            if self.config.doBrighterFatter:
-                exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
-                self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
-            if self.config.doCrosstalk:
-                exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
-                self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
-            if self.config.doDark:
-                exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
-                self.compareCameraKeywords(exposureMetadata, dark, "dark")
-            if self.config.doDefect:
-                exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
-                self.compareCameraKeywords(exposureMetadata, defects, "defects")
-            if self.config.doDeferredCharge:
-                exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
-                self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
-            if self.config.doFlat:
-                exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
-                self.compareCameraKeywords(exposureMetadata, flat, "flat")
-            if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
-                exposureMetadata["LSST CALIB DATE FRINGE"] = self.extractCalibDate(fringes.fringes)
-                self.compareCameraKeywords(exposureMetadata, fringes.fringes, "fringe")
-            if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
-                exposureMetadata["LSST CALIB DATE ILLUMINATION"] = self.extractCalibDate(illumMaskedImage)
-                self.compareCameraKeywords(exposureMetadata, illumMaskedImage, "illumination")
-            if self.doLinearize(ccd):
-                exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-                self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
-            if self.config.usePtcGains or self.config.usePtcReadNoise:
-                exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
-                self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
-            if self.config.doStrayLight:
-                exposureMetadata["LSST CALIB DATE STRAYLIGHT"] = self.extractCalibDate(strayLightData)
-                self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
-            if self.config.doAttachTransmissionCurve:
-                exposureMetadata["LSST CALIB DATE OPTICS_TR"] = self.extractCalibDate(opticsTransmission)
-                exposureMetadata["LSST CALIB DATE FILTER_TR"] = self.extractCalibDate(filterTransmission)
-                exposureMetadata["LSST CALIB DATE SENSOR_TR"] = self.extractCalibDate(sensorTransmission)
-                exposureMetadata["LSST CALIB DATE ATMOSP_TR"] = self.extractCalibDate(atmosphereTransmission)
+        # Validate that the inputs match the exposure configuration.
+        exposureMetadata = ccdExposure.getMetadata()
+        if self.config.doBias:
+            self.compareCameraKeywords(exposureMetadata, bias, "bias")
+        if self.config.doBrighterFatter:
+            self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
+        if self.config.doCrosstalk:
+            self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
+        if self.config.doDark:
+            self.compareCameraKeywords(exposureMetadata, dark, "dark")
+        if self.config.doDefect:
+            self.compareCameraKeywords(exposureMetadata, defects, "defects")
+        if self.config.doDeferredCharge:
+            self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
+        if self.config.doFlat:
+            self.compareCameraKeywords(exposureMetadata, flat, "flat")
+        if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
+            self.compareCameraKeywords(exposureMetadata, fringes.fringes, "fringe")
+        if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
+            self.compareCameraKeywords(exposureMetadata, illumMaskedImage, "illumination")
+        if self.doLinearize(ccd):
+            self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
+        if self.config.usePtcGains or self.config.usePtcReadNoise:
+            self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+        if self.config.doStrayLight:
+            self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
