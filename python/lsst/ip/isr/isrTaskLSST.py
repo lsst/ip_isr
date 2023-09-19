@@ -1,3 +1,67 @@
+__all__ = ["IsrTaskLSST", "IsrTaskLSSTConfig"]
+
+import numpy
+import math
+
+from . import isrFunctions
+from . import isrQa
+from . import linearize
+from .defects import Defects
+
+from contextlib import contextmanager
+from lsst.afw.cameraGeom import NullLinearityType
+import lsst.pex.config as pexConfig
+import lsst.afw.math as afwMath
+import lsst.pipe.base as pipeBase
+import lsst.pipe.base.connectionTypes as cT
+from lsst.daf.butler import DimensionGraph
+from lsst.meas.algorithms.detection import SourceDetectionTask
+
+from .overscan import OverscanCorrectionTask
+from .assembleCcdTask import AssembleCcdTask
+from .deferredCharge import DeferredChargeTask
+from .crosstalk import CrosstalkTask
+from .masking import MaskingTask
+from .isrStatistics import IsrStatisticsTask
+from .isr import maskNans
+
+
+def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
+    """Lookup function to identify crosstalkSource entries.
+
+    This should return an empty list under most circumstances.  Only
+    when inter-chip crosstalk has been identified should this be
+    populated.
+
+    Parameters
+    ----------
+    datasetType : `str`
+        Dataset to lookup.
+    registry : `lsst.daf.butler.Registry`
+        Butler registry to query.
+    quantumDataId : `lsst.daf.butler.ExpandedDataCoordinate`
+        Data id to transform to identify crosstalkSources.  The
+        ``detector`` entry will be stripped.
+    collections : `lsst.daf.butler.CollectionSearch`
+        Collections to search through.
+
+    Returns
+    -------
+    results : `list` [`lsst.daf.butler.DatasetRef`]
+        List of datasets that match the query that will be used as
+        crosstalkSources.
+    """
+    newDataId = quantumDataId.subset(DimensionGraph(registry.dimensions, names=["instrument", "exposure"]))
+    results = set(registry.queryDatasets(datasetType, collections=collections, dataId=newDataId,
+                                         findFirst=True))
+    # In some contexts, calling `.expanded()` to expand all data IDs in the
+    # query results can be a lot faster because it vectorizes lookups.  But in
+    # this case, expandDataId shouldn't need to hit the database at all in the
+    # steady state, because only the detector record is unknown and those are
+    # cached in the registry.
+    return [ref.expanded(registry.expandDataId(ref.dataId, records=newDataId.records)) for ref in results]
+
+
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
                          dimensions={"instrument", "exposure", "detector"},
                          defaultTemplates={}):
