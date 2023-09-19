@@ -723,75 +723,497 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                if overscanResults is not None:
+                    self.updateVariance(ampExposure, amp,
+                                        overscanImage=overscanResults.overscanImage,
+                                        ptcDataset=ptc)
+                else:
+                    self.updateVariance(ampExposure, amp,
+                                        overscanImage=None,
+                                        ptcDataset=ptc)
+                if self.config.qa is not None and self.config.qa.saveStats is True:
+                    qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
+                                                     afwMath.MEDIAN | afwMath.STDEVCLIP)
+                    self.log.debug("  Variance stats for amplifer %s: %f +/- %f.",
+                                   amp.getName(), qaStats.getValue(afwMath.MEDIAN),
+                                   qaStats.getValue(afwMath.STDEVCLIP))
+        if self.config.maskNegativeVariance:
+            self.maskNegativeVariance(ccdExposure)
 
-                isrFunctions.updateVariance(
-                        maskedImage=ampExposure.getMaskedImage(),
-                        gain=gain,
-                        readNoise=readNoise,
-                        )
+    def maskDefect(self, exposure, defectBaseList):
+        """Mask defects using mask plane "BAD", in place.
 
-#                if self.config.maskNegativeVariance:
-#                    self.maskNegativeVariance(ccdExposure)
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
 
-    def run(self,**kwargs):
+        defectBaseList : defect-type
+            List of defects to mask. Can be of type  `lsst.ip.isr.Defects`
+            or `list` of `lsst.afw.image.DefectBase`.
+        """
+        maskedImage = exposure.getMaskedImage()
+        if not isinstance(defectBaseList, Defects):
+            # Promotes DefectBase to Defect
+            defectList = Defects(defectBaseList)
+        else:
+            defectList = defectBaseList
+        defectList.maskPixels(maskedImage, maskName="BAD")
 
+    def maskEdges(self, exposure, numEdgePixels=0, maskPlane="SUSPECT", level='DETECTOR'):
+        """Mask edge pixels with applicable mask plane.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        numEdgePixels : `int`, optional
+            Number of edge pixels to mask.
+        maskPlane : `str`, optional
+            Mask plane name to use.
+        level : `str`, optional
+            Level at which to mask edges.
+        """
+        maskedImage = exposure.getMaskedImage()
+        maskBitMask = maskedImage.getMask().getPlaneBitMask(maskPlane)
+
+        if numEdgePixels > 0:
+            if level == 'DETECTOR':
+                boxes = [maskedImage.getBBox()]
+            elif level == 'AMP':
+                boxes = [amp.getBBox() for amp in exposure.getDetector()]
+
+            for box in boxes:
+                # This makes a bbox numEdgeSuspect pixels smaller than the
+                # image on each side
+                subImage = maskedImage[box]
+                box.grow(-numEdgePixels)
+                # Mask pixels outside box
+                SourceDetectionTask.setEdgeBits(
+                    subImage,
+                    box,
+                    maskBitMask)
+
+    def maskNan(self, exposure):
+        """Mask NaNs using mask plane "UNMASKEDNAN", in place.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+
+        Notes
+        -----
+        We mask over all non-finite values (NaN, inf), including those
+        that are masked with other bits (because those may or may not be
+        interpolated over later, and we want to remove all NaN/infs).
+        Despite this behaviour, the "UNMASKEDNAN" mask plane is used to
+        preserve the historical name.
+        """
+        maskedImage = exposure.getMaskedImage()
+
+        # Find and mask NaNs
+        maskedImage.getMask().addMaskPlane("UNMASKEDNAN")
+        maskVal = maskedImage.getMask().getPlaneBitMask("UNMASKEDNAN")
+        numNans = maskNans(maskedImage, maskVal)
+        self.metadata["NUMNANS"] = numNans
+        if numNans > 0:
+            self.log.warning("There were %d unmasked NaNs.", numNans)
+
+    def countBadPixels(self, exposure):
+        """
+        Notes
+        -----
+        Reset and interpolate bad pixels.
+
+        Large contiguous bad regions (which should have the BAD mask
+        bit set) should have their values set to the image median.
+        This group should include defects and bad amplifiers. As the
+        area covered by these defects are large, there's little
+        reason to expect that interpolation would provide a more
+        useful value.
+
+        Smaller defects can be safely interpolated after the larger
+        regions have had their pixel values reset.  This ensures
+        that the remaining defects adjacent to bad amplifiers (as an
+        example) do not attempt to interpolate extreme values.
+        """
+        badPixelCount, badPixelValue = isrFunctions.setBadRegions(exposure)
+        if badPixelCount > 0:
+            self.log.info("Set %d BAD pixels to %f.", badPixelCount, badPixelValue)
+
+    @contextmanager
+    def flatContext(self, exp, flat, dark=None):
+        """Context manager that applies and removes flats and darks,
+        if the task is configured to apply them.
+
+        Parameters
+        ----------
+        exp : `lsst.afw.image.Exposure`
+            Exposure to process.
+        flat : `lsst.afw.image.Exposure`
+            Flat exposure the same size as ``exp``.
+        dark : `lsst.afw.image.Exposure`, optional
+            Dark exposure the same size as ``exp``.
+
+        Yields
+        ------
+        exp : `lsst.afw.image.Exposure`
+            The flat and dark corrected exposure.
+        """
+        if self.config.doDark and dark is not None:
+            self.darkCorrection(exp, dark)
+        if self.config.doFlat:
+            self.flatCorrection(exp, flat)
+        try:
+            yield exp
+        finally:
+            if self.config.doFlat:
+                self.flatCorrection(exp, flat, invert=True)
+            if self.config.doDark and dark is not None:
+                self.darkCorrection(exp, dark, invert=True)
+
+    def getBrighterFatterKernel(self, detector, bfKernel):
+        detName = detector.getName()
+
+        # This is expected to be a dictionary of amp-wise gains.
+        bfGains = bfKernel.gain
+        if bfKernel.level == 'DETECTOR':
+            if detName in bfKernel.detKernels:
+                bfKernelOut = bfKernel.detKernels[detName]
+                return bfKernelOut, bfGains
+            else:
+                raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
+        elif bfKernel.level == 'AMP':
+            self.log.warning("Making DETECTOR level kernel from AMP based brighter "
+                             "fatter kernels.")
+            bfKernel.makeDetectorKernelFromAmpwiseKernels(detName)
+            bfKernelOut = bfKernel.detKernels[detName]
+            return bfKernelOut, bfGains
+
+    def applyBrighterFatterCorrection(self, ccdExposure, flat, dark, bfKernel, bfGains):
+        # We need to apply flats and darks before we can interpolate, and
+        # we need to interpolate before we do B-F, but we do B-F without
+        # the flats and darks applied so we can work in units of electrons
+        # or holes. This context manager applies and then removes the darks
+        # and flats.
+        #
+        # We also do not want to interpolate values here, so operate on
+        # temporary images so we can apply only the BF-correction and roll
+        # back the interpolation.
+        # This won't be necessary once the gain normalization
+        # is done appropriately.
+        interpExp = ccdExposure.clone()
+        with self.flatContext(interpExp, flat, dark):
+            isrFunctions.interpolateFromMask(
+                maskedImage=interpExp.getMaskedImage(),
+                fwhm=self.config.fwhm,
+                growSaturatedFootprints=self.config.growSaturationFootprintSize,
+                maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
+            )
+        bfExp = interpExp.clone()
+        self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
+                      type(bfKernel), type(bfGains))
+        bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
+                                                          self.config.brighterFatterMaxIter,
+                                                          self.config.brighterFatterThreshold,
+                                                          self.config.brighterFatterApplyGain,
+                                                          bfGains)
+        if bfResults[1] == self.config.brighterFatterMaxIter:
+            self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
+                             bfResults[0])
+        else:
+            self.log.info("Finished brighter-fatter correction in %d iterations.",
+                          bfResults[1])
+
+        image = ccdExposure.getMaskedImage().getImage()
+        bfCorr = bfExp.getMaskedImage().getImage()
+        bfCorr -= interpExp.getMaskedImage().getImage()
+        image += bfCorr
+
+        # Applying the brighter-fatter correction applies a
+        # convolution to the science image. At the edges this
+        # convolution may not have sufficient valid pixels to
+        # produce a valid correction. Mark pixels within the size
+        # of the brighter-fatter kernel as EDGE to warn of this
+        # fact.
+        self.log.info("Ensuring image edges are masked as EDGE to the brighter-fatter kernel size.")
+        self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
+                       maskPlane="EDGE")
+
+        if self.config.brighterFatterMaskGrowSize > 0:
+            self.log.info("Growing masks to account for brighter-fatter kernel convolution.")
+            for maskPlane in self.config.brighterFatterMaskListToInterpolate:
+                isrFunctions.growMasks(ccdExposure.getMask(),
+                                       radius=self.config.brighterFatterMaskGrowSize,
+                                       maskNameList=maskPlane,
+                                       maskValue=maskPlane)
+
+        return ccdExposure
+
+    def darkCorrection(self, exposure, darkExposure, invert=False):
+        """Apply dark correction in place.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        darkExposure : `lsst.afw.image.Exposure`
+            Dark exposure of the same size as ``exposure``.
+        invert : `Bool`, optional
+            If True, re-add the dark to an already corrected image.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if either ``exposure`` or ``darkExposure`` do not
+            have their dark time defined.
+
+        See Also
+        --------
+        lsst.ip.isr.isrFunctions.darkCorrection
+        """
+        expScale = exposure.getInfo().getVisitInfo().getDarkTime()
+        if math.isnan(expScale):
+            raise RuntimeError("Exposure darktime is NAN.")
+        if darkExposure.getInfo().getVisitInfo() is not None \
+                and not math.isnan(darkExposure.getInfo().getVisitInfo().getDarkTime()):
+            darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
+        else:
+            # DM-17444: darkExposure.getInfo.getVisitInfo() is None
+            #           so getDarkTime() does not exist.
+            self.log.warning("darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.")
+            darkScale = 1.0
+
+        isrFunctions.darkCorrection(
+            maskedImage=exposure.getMaskedImage(),
+            darkMaskedImage=darkExposure.getMaskedImage(),
+            expScale=expScale,
+            darkScale=darkScale,
+            invert=invert,
+        )
+
+    def applyPostIsr(self, **kwargs):
+        # TODO add post-ISR (4th column of Eli's calibration boxes)
+        pass
+
+    @staticmethod
+    def extractCalibDate(calib):
+        """Extract common calibration metadata values that will be written to
+        output header.
+
+        Parameters
+        ----------
+        calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
+            Calibration to pull date information from.
+
+        Returns
+        -------
+        dateString : `str`
+            Calibration creation date string to add to header.
+        """
+        if hasattr(calib, "getMetadata"):
+            if 'CALIB_CREATION_DATE' in calib.getMetadata():
+                return " ".join((calib.getMetadata().get("CALIB_CREATION_DATE", "Unknown"),
+                                 calib.getMetadata().get("CALIB_CREATION_TIME", "Unknown")))
+            else:
+                return " ".join((calib.getMetadata().get("CALIB_CREATE_DATE", "Unknown"),
+                                 calib.getMetadata().get("CALIB_CREATE_TIME", "Unknown")))
+        else:
+            return "Unknown Unknown"
+
+    def doLinearize(self, detector):
+        """Check if linearization is needed for the detector cameraGeom.
+
+        Checks config.doLinearize and the linearity type of the first
+        amplifier.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector to get linearity type from.
+
+        Returns
+        -------
+        doLinearize : `Bool`
+            If True, linearization should be performed.
+        """
+        return self.config.doLinearize and \
+            detector.getAmplifiers()[0].getLinearityType() != NullLinearityType
+
+    def run(self, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
+            ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
+            crosstalkSources=None, flat=None, **kwargs
+            ):
+
+        # TODO rename ccd to detector?
         ccd = ccdExposure.getDetector()
-        filterLabel = ccdExposure.getFilter()
-        physicalFilter = isrFunctions.getPhysicalFilter(filterLabel, self.log)
 
-        self.validateInput(**kwargs)
+        if self.config.doHeaderProvenance:
+            # Inputs have been validated, so we can add their date
+            # information to the output header.
+            exposureMetadata = ccdExposure.getMetadata()
+            if self.config.doDiffNonLinearCorrection:
+                exposureMetadata["LSST CALIB DATE DNL"] = self.extractCalibDate(dnlLUT)
+            if self.config.doBias:
+                exposureMetadata["LSST CALIB DATE BIAS"] = self.extractCalibDate(bias)
+            if self.config.doDeferredCharge:
+                exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
+            if self.doLinearize(ccd):
+                exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
+            if self.config.usePtcGains or self.config.usePtcReadNoise:
+                exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
+            if self.config.doCrosstalk:
+                exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
+            if self.config.doDefect:
+                exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
+            if self.config.doBrighterFatter:
+                exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
+            if self.config.doDark:
+                exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
+
         if self.config.doDiffNonLinearCorrection:
-            self.diffNonLinearCorrection(ccdExposure,dnlLUT,**kwargs)
+            self.diffNonLinearCorrection(ccdExposure, dnlLUT)
+
         if self.config.doOverscan:
-            overscans = self.overscanCorrection(self, ccd, ccdExposure)
+            # Input units: ADU
+            overscans = self.overscanCorrection(ccd, ccdExposure)
 
         if self.config.doAssembleCcd:
+            # Input units: ADU
             self.log.info("Assembling CCD from amplifiers.")
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warning("No WCS found in input exposure.")
-            self.debugView(ccdExposure, "doAssembleCcd")
 
         if self.config.doSnapCombine:
+            # Input units: ADU
             self.snapCombine(**kwargs)
 
         if self.config.doBias:
+            # Input units: ADU
             self.log.info("Applying bias correction.")
-            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
-                                        trimToFit=self.config.doTrimToMatchCalib)
-            self.debugView(ccdExposure, "doBias")
+            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage())
 
         if self.config.doDeferredCharge:
+            # Input units: ADU
             self.log.info("Applying deferred charge/CTI correction.")
             self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
-            self.debugView(ccdExposure, "doDeferredCharge")
-
 
         if self.config.doLinearize:
+            # Input units: ADU
             self.log.info("Applying linearizer.")
+            linearizer = self.getLinearizer(detector=ccd)
             linearizer.applyLinearity(image=ccdExposure.getMaskedImage().getImage(),
                                       detector=ccd, log=self.log)
 
         if self.config.doGainNormalize:
+            # Input units: ADU
+            # Output units: electrons
+            # TODO DM 36639
             gains, readNoise = self.gainNormalize(**kwargs)
 
         if self.config.doVariance:
-            self.variancePlane(gains, readNoise, **kwargs)
+            # Input units: electrons
+            self.variancePlane(ccdExposure, ccd, overscans, ptc)
 
         if self.config.doCrosstalk:
+            # Input units: electrons
             self.log.info("Applying crosstalk correction.")
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
-                               crosstalkSources=crosstalkSources, isTrimmed=True)
-            self.debugView(ccdExposure, "doCrosstalk")
+                               crosstalkSources=crosstalkSources)
 
+        # Masking block (defects, NAN pixels and trails).
+        # Saturated and suspect pixels have already been masked.
+        if self.config.doDefect:
+            # Input units: electrons
+            self.log.info("Applying defects masking.")
+            self.maskDefect(ccdExposure, defects)
 
+        if self.config.doNanMasking:
+            self.log.info("Masking non-finite (NAN, inf) value pixels.")
+            self.maskNan(ccdExposure)
 
+        if self.config.doWidenSaturationTrails:
+            self.log.info("Widening saturation trails.")
+            isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
 
+        if self.config.doCameraSpecificMasking:
+            self.log.info("Masking regions for camera specific reasons.")
+            self.masking.run(ccdExposure)
 
+        preInterpExp = None
+        if self.config.doSaveInterpPixels:
+            preInterpExp = ccdExposure.clone()
 
+        if self.config.doSetBadRegions:
+            self.log.info('Counting pixels in BAD regions.')
+            self.countBadPixels(ccdExposure)
 
+        if self.config.doInterpolate:
+            self.log.info("Interpolating masked pixels.")
+            isrFunctions.interpolateFromMask(
+                maskedImage=ccdExposure.getMaskedImage(),
+                fwhm=self.config.fwhm,
+                growSaturatedFootprints=self.config.growSaturationFootprintSize,
+                maskNameList=list(self.config.maskListToInterpolate)
+            )
 
+        if self.config.doBrighterFatter:
+            # Input units: electrons
+            self.log.info("Applying Bright-Fatter kernels.")
+            bfKernelOut, bfGains = self.getBrighterFatterKernel(ccd, bfKernel)
+            ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut, bfGains)
 
+        if self.config.doDark:
+            # Input units: electrons
+            self.log.info("Applying dark subtraction.")
+            self.darkCorrection(ccdExposure, dark)
 
+        if self.config.doFluence:
+            # Inputs units: electrons
+            self.log.info("Applying post-ISR operations.")
+            self.applyPostIsr(**kwargs)
 
+        # Calculate standard image quality statistics
+        if self.config.doStandardStatistics:
+            metadata = ccdExposure.getMetadata()
+            for amp in ccd:
+                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+                ampName = amp.getName()
+                metadata[f"LSST ISR MASK SAT {ampName}"] = isrFunctions.countMaskedPixels(
+                    ampExposure.getMaskedImage(),
+                    [self.config.saturatedMaskName]
+                )
+                metadata[f"LSST ISR MASK BAD {ampName}"] = isrFunctions.countMaskedPixels(
+                    ampExposure.getMaskedImage(),
+                    ["BAD"]
+                )
+                qaStats = afwMath.makeStatistics(ampExposure.getImage(),
+                                                 afwMath.MEAN | afwMath.MEDIAN | afwMath.STDEVCLIP)
+
+                metadata[f"LSST ISR FINAL MEAN {ampName}"] = qaStats.getValue(afwMath.MEAN)
+                metadata[f"LSST ISR FINAL MEDIAN {ampName}"] = qaStats.getValue(afwMath.MEDIAN)
+                metadata[f"LSST ISR FINAL STDEV {ampName}"] = qaStats.getValue(afwMath.STDEVCLIP)
+
+                k1 = f"LSST ISR FINAL MEDIAN {ampName}"
+                k2 = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
+                if self.config.doOverscan and k1 in metadata and k2 in metadata:
+                    metadata[f"LSST ISR LEVEL {ampName}"] = metadata[k1] - metadata[k2]
+                else:
+                    metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
+
+        # calculate additional statistics.
+        outputStatistics = None
+        if self.config.doCalculateStatistics:
+            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
+                                                 ptc=ptc).results
+
+        return pipeBase.Struct(
+            exposure=ccdExposure,
+
+            preInterpExposure=preInterpExp,
+            outputExposure=ccdExposure,
+            outputStatistics=outputStatistics,
+        )
