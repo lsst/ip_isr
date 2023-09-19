@@ -595,15 +595,131 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         #TODO DM 36638
         pass
 
-    def gainNormalize(self,**kwargs):
-        #TODO DM 36639
+    def getLinearizer(self, detector):
+        # Here we assume linearizer as dict or LUT are not supported
+        # TODO DM 28741
+
+        # TODO construct isrcalib input
+        linearizer = linearize.Linearizer(detector=detector, log=self.log)
+        self.log.warning("Constructing linearizer from cameraGeom information.")
+
+        return linearizer
+
+    def gainNormalize(self, **kwargs):
+        # TODO DM 36639
         gains = []
         readNoise = []
 
         return gains, readNoise
 
-    def variancePlane(self, ccdExposure, ccd, overscans, gains, readNoises, **kwargs):
-        for amp, gain, readNoise in zip(ccd, gains,readNoises):
+    def updateVariance(self, ampExposure, amp, overscanImage=None, ptcDataset=None):
+        """Set the variance plane using the gain and read noise
+
+        The read noise is calculated from the ``overscanImage`` if the
+        ``doEmpiricalReadNoise`` option is set in the configuration; otherwise
+        the value from the amplifier data is used.
+
+        Parameters
+        ----------
+        ampExposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        amp : `lsst.afw.cameraGeom.Amplifier` or `FakeAmp`
+            Amplifier detector data.
+        overscanImage : `lsst.afw.image.MaskedImage`, optional.
+            Image of overscan, required only for empirical read noise.
+        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+            PTC dataset containing the gains and read noise.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if either ``usePtcGains`` or ``usePtcReadNoise``
+            are ``True``, but ptcDataset is not provided.
+
+            Raised if ```doEmpiricalReadNoise`` is ``True`` but
+            ``overscanImage`` is ``None``.
+
+        See also
+        --------
+        lsst.ip.isr.isrFunctions.updateVariance
+        """
+        maskPlanes = [self.config.saturatedMaskName, self.config.suspectMaskName]
+        if self.config.usePtcGains:
+            if ptcDataset is None:
+                raise RuntimeError("No ptcDataset provided to use PTC gains.")
+            else:
+                gain = ptcDataset.gain[amp.getName()]
+                self.log.info("Using gain from Photon Transfer Curve.")
+        else:
+            gain = amp.getGain()
+
+        if math.isnan(gain):
+            gain = 1.0
+            self.log.warning("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
+        elif gain <= 0:
+            patchedGain = 1.0
+            self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
+                             amp.getName(), gain, patchedGain)
+            gain = patchedGain
+
+        if self.config.doEmpiricalReadNoise and overscanImage is None:
+            badPixels = isrFunctions.countMaskedPixels(ampExposure.getMaskedImage(),
+                                                       [self.config.saturatedMaskName,
+                                                        self.config.suspectMaskName,
+                                                        "BAD", "NO_DATA"])
+            allPixels = ampExposure.getWidth() * ampExposure.getHeight()
+            if allPixels == badPixels:
+                # If the image is bad, do not raise.
+                self.log.info("Skipping empirical read noise for amp %s.  No good pixels.",
+                              amp.getName())
+            else:
+                raise RuntimeError("Overscan is none for EmpiricalReadNoise.")
+
+        if self.config.doEmpiricalReadNoise and overscanImage is not None:
+            stats = afwMath.StatisticsControl()
+            stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
+            readNoise = afwMath.makeStatistics(overscanImage.getImage(),
+                                               afwMath.STDEVCLIP, stats).getValue()
+            self.log.info("Calculated empirical read noise for amp %s: %f.",
+                          amp.getName(), readNoise)
+        elif self.config.usePtcReadNoise:
+            if ptcDataset is None:
+                raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
+            else:
+                readNoise = ptcDataset.noise[amp.getName()]
+            self.log.info("Using read noise from Photon Transfer Curve.")
+        else:
+            readNoise = amp.getReadNoise()
+
+        metadata = ampExposure.getMetadata()
+        metadata[f'LSST GAIN {amp.getName()}'] = gain
+        metadata[f'LSST READNOISE {amp.getName()}'] = readNoise
+
+        isrFunctions.updateVariance(
+            maskedImage=ampExposure.getMaskedImage(),
+            gain=gain,
+            readNoise=readNoise,
+        )
+
+    def maskNegativeVariance(self, exposure):
+        """Identify and mask pixels with negative variance values.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+
+        See Also
+        --------
+        lsst.ip.isr.isrFunctions.updateVariance
+        """
+        maskPlane = exposure.getMask().getPlaneBitMask(self.config.negativeVarianceMaskName)
+        bad = numpy.where(exposure.getVariance().getArray() <= 0.0)
+        exposure.mask.array[bad] |= maskPlane
+
+    # TODO check make stats is necessary or not
+    def variancePlane(self, ccdExposure, ccd, overscans, ptc):
+        for amp, overscanResults in zip(ccd, overscans):
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
