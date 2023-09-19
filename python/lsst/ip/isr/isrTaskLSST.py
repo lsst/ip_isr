@@ -252,46 +252,324 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Overscan subtraction task for image segments.",
     )
 
-class isrTaskLSST(pipeBase.PipelineTask):
+    # Amplifier to CCD assembly configuration.
+    doAssembleCcd = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Assemble amp-level exposures into a ccd-level exposure?"
+    )
+    assembleCcd = pexConfig.ConfigurableField(
+        target=AssembleCcdTask,
+        doc="CCD assembly task.",
+    )
+
+    # Combine snaps.
+    doSnapCombine = pexConfig.Field(
+        dtype=bool,
+        doc="Combine snaps?",
+        default=False,
+    )
+
+    # Bias subtraction.
+    doBias = pexConfig.Field(
+        dtype=bool,
+        doc="Apply bias frame correction?",
+        default=True,
+    )
+
+    # Deferred charge correction.
+    doDeferredCharge = pexConfig.Field(
+        dtype=bool,
+        doc="Apply deferred charge correction?",
+        default=False,
+    )
+    deferredChargeCorrection = pexConfig.ConfigurableField(
+        target=DeferredChargeTask,
+        doc="Deferred charge correction task.",
+    )
+
+    # Linearization.
+    doLinearize = pexConfig.Field(
+        dtype=bool,
+        doc="Correct for nonlinearity of the detector's response?",
+        default=True,
+    )
+
+    # Normalize gain.
+    doGainNormalize = pexConfig.Field(
+        dtype=bool,
+        doc="Normalize by the gain.",
+        default=True,
+    )
+
+    # Variance construction.
+    doVariance = pexConfig.Field(
+        dtype=bool,
+        doc="Calculate variance?",
+        default=True
+    )
+    gain = pexConfig.Field(
+        dtype=float,
+        doc="The gain to use if no Detector is present in the Exposure (ignored if NaN).",
+        default=float("NaN"),
+    )
+    usePtcGains = pexConfig.Field(
+        dtype=bool,
+        doc="Use the gain values from the Photon Transfer Curve?",
+        default=False,
+    )
+    readNoise = pexConfig.Field(
+        dtype=float,
+        doc="The read noise to use if no Detector is present in the Exposure.",
+        default=0.0,
+    )
+    doEmpiricalReadNoise = pexConfig.Field(
+        dtype=bool,
+        doc="Calculate empirical read noise instead of value from AmpInfo data?",
+        default=False,
+    )
+    usePtcReadNoise = pexConfig.Field(
+        dtype=bool,
+        doc="Use readnoise values from the Photon Transfer Curve?",
+        default=False,
+    )
+    maskNegativeVariance = pexConfig.Field(
+        dtype=bool,
+        doc="Mask pixels that claim a negative variance.  This likely indicates a failure "
+        "in the measurement of the overscan at an edge due to the data falling off faster "
+        "than the overscan model can account for it.",
+        default=True,
+    )
+    negativeVarianceMaskName = pexConfig.Field(
+        dtype=str,
+        doc="Mask plane to use to mark pixels with negative variance, if `maskNegativeVariance` is True.",
+        default="BAD",
+    )
+    saturatedMaskName = pexConfig.Field(
+        dtype=str,
+        doc="Name of mask plane to use in saturation detection and interpolation.",
+        default="SAT",
+    )
+    suspectMaskName = pexConfig.Field(
+        dtype=str,
+        doc="Name of mask plane to use for suspect pixels.",
+        default="SUSPECT",
+    )
+
+    # Crosstalk.
+    doCrosstalk = pexConfig.Field(
+        dtype=bool,
+        doc="Apply intra-CCD crosstalk correction?",
+        default=False,
+    )
+    doCrosstalkBeforeAssemble = pexConfig.Field(
+        dtype=bool,
+        doc="Apply crosstalk correction before CCD assembly?",
+        default=False,
+    )
+    crosstalk = pexConfig.ConfigurableField(
+        target=CrosstalkTask,
+        doc="Intra-CCD crosstalk correction.",
+    )
+
+    # Masking options.
+    doDefect = pexConfig.Field(
+        dtype=bool,
+        doc="Apply correction for CCD defects, e.g. hot pixels?",
+        default=True,
+    )
+    doNanMasking = pexConfig.Field(
+        dtype=bool,
+        doc="Mask non-finite (NAN, inf) pixels.",
+        default=True,
+    )
+    doWidenSaturationTrails = pexConfig.Field(
+        dtype=bool,
+        doc="Widen bleed trails based on their width.",
+        default=True,
+    )
+    doCameraSpecificMasking = pexConfig.Field(
+        dtype=bool,
+        doc="Mask camera-specific bad regions?",
+        default=False,
+    )
+    masking = pexConfig.ConfigurableField(
+        target=MaskingTask,
+        doc="Masking task."
+    )
+
+    # Interpolation options.
+    doInterpolate = pexConfig.Field(
+        dtype=bool,
+        doc="Interpolate masked pixels?",
+        default=True,
+    )
+    maskListToInterpolate = pexConfig.ListField(
+        dtype=str,
+        doc="List of mask planes that should be interpolated.",
+        default=['SAT', 'BAD'],
+    )
+    doSaveInterpPixels = pexConfig.Field(
+        dtype=bool,
+        doc="Save a copy of the pre-interpolated pixel values?",
+        default=False,
+    )
+
+    # Initial masking options.
+    doSetBadRegions = pexConfig.Field(
+        dtype=bool,
+        doc="Should we set the level of all BAD patches of the chip to the chip's average value?",
+        default=True,
+    )
+
+    # Brighter-Fatter correction.
+    doBrighterFatter = pexConfig.Field(
+        dtype=bool,
+        doc="Apply the brighter-fatter correction?",
+        default=False,
+    )
+    brighterFatterLevel = pexConfig.ChoiceField(
+        dtype=str,
+        doc="The level at which to correct for brighter-fatter.",
+        allowed={
+            "AMP": "Every amplifier treated separately.",
+            "DETECTOR": "One kernel per detector.",
+        },
+        default="DETECTOR",
+    )
+    brighterFatterMaxIter = pexConfig.Field(
+        dtype=int,
+        doc="Maximum number of iterations for the brighter-fatter correction.",
+        default=10,
+    )
+    brighterFatterThreshold = pexConfig.Field(
+        dtype=float,
+        doc="Threshold used to stop iterating the brighter-fatter correction.  It is the "
+        "absolute value of the difference between the current corrected image and the one "
+        "from the previous iteration summed over all the pixels.",
+        default=1000,
+    )
+    brighterFatterApplyGain = pexConfig.Field(
+        dtype=bool,
+        doc="Should the gain be applied when applying the brighter-fatter correction?",
+        default=True,
+    )
+    brighterFatterMaskListToInterpolate = pexConfig.ListField(
+        dtype=str,
+        doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
+        "correction.",
+        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
+    )
+    brighterFatterMaskGrowSize = pexConfig.Field(
+        dtype=int,
+        doc="Number of pixels to grow the masks listed in config.brighterFatterMaskListToInterpolate "
+        "when brighter-fatter correction is applied.",
+        default=0,
+    )
+    fwhm = pexConfig.Field(
+        dtype=float,
+        doc="FWHM of PSF in arcseconds.",
+        default=1.0,
+    )
+    growSaturationFootprintSize = pexConfig.Field(
+        dtype=int,
+        doc="Number of pixels by which to grow the saturation footprints.",
+        default=1,
+    )
+    brighterFatterMaskListToInterpolate = pexConfig.ListField(
+        dtype=str,
+        doc="List of mask planes that should be interpolated over when applying the brighter-fatter."
+        "correction.",
+        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
+    )
+
+    # Dark subtraction.
+    doDark = pexConfig.Field(
+        dtype=bool,
+        doc="Apply dark frame correction.",
+        default=True,
+    )
+
+    # Post-ISR operations to make fluence image.
+    doFluence = pexConfig.Field(
+        dtype=bool,
+        doc="Apply post-ISR operations?",
+        default=True,
+    )
+
+    # Write the outputs to disk. If ISR is run as a subtask, this may not
+    # be needed.
+    doWrite = pexConfig.Field(
+        dtype=bool,
+        doc="Persist postISRCCD?",
+        default=True,
+    )
+
+    # Calculate image quality statistics?
+    doStandardStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Should standard image quality statistics be calculated?",
+        default=True,
+    )
+    # Calculate additional statistics?
+    doCalculateStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Should additional ISR statistics be calculated?",
+        default=False,
+    )
+    isrStats = pexConfig.ConfigurableField(
+        target=IsrStatisticsTask,
+        doc="Task to calculate additional statistics.",
+    )
+
+
+class IsrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig
     _DefaultName = "isr"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.makeSubtask("assembleCcd")
-        self.makeSubtask("crosstalk")
-        self.makeSubtask("strayLight")
-        self.makeSubtask("fringe")
-        self.makeSubtask("masking")
         self.makeSubtask("overscan")
-        self.makeSubtask("vignette")
-        self.makeSubtask("ampOffset")
+        self.makeSubtask("assembleCcd")
         self.makeSubtask("deferredChargeCorrection")
+        self.makeSubtask("crosstalk")
+        self.makeSubtask("masking")
         self.makeSubtask("isrStats")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
-        super().runQuantum(self, butlerQC, inputRefs, outputRefs)
 
-    def validateInput(self,**kwargs):
+        inputs = butlerQC.get(inputRefs)
+        self.validateInput(inputs)
+        super().runQuantum(butlerQC, inputRefs, outputRefs)
+
+    def validateInput(self, inputs):
         """
         This is a check that all the inputs required by the config
         are available.
         """
 
-        inputMap = {'bias': self.config.doBias}
-        for calibrationFile,configValue in inputMap.items():
-            #TODO do checks for fringes, illumination correction, etc
-            if inputMap[calibrationFile] is None and configValue:
-                raise RuntimeError("Must supply ",calibrationFile)
+        inputMap = {'dnlLUT': self.config.doDiffNonLinearCorrection,
+                    'bias': self.config.doBias,
+                    'deferredChargeCalib': self.config.doDeferredCharge,
+                    'linearizer': self.config.doLinearize,
+                    'ptc': self.config.doGainNormalize,
+                    'crosstalk': self.config.doCrosstalk,
+                    'defects': self.config.doDefect,
+                    'bfKernel': self.config.doBrighterFatter,
+                    'dark': self.config.doDark,
+                    }
 
+        for calibrationFile, configValue in inputMap.items():
+            if configValue and inputs[calibrationFile] is None:
+                raise RuntimeError("Must supply ", calibrationFile)
 
-    def diffNonLinearCorrection(self,ccdExposure,dnlLUT,**kwargs):
-        #TODO DM 36636
-        #isrFunctions.diffNonLinearCorrection
+    def diffNonLinearCorrection(self, ccdExposure, dnlLUT, **kwargs):
+        # TODO DM 36636
+        # isrFunctions.diffNonLinearCorrection
         pass
 
     def overscanCorrection(self, ccd, ccdExposure):
-        #TODO DM 36637 for per amp
+        # TODO DM 36637 for per amp
 
         overscans = []
         for amp in ccd:
