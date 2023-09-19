@@ -63,8 +63,8 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
-                         dimensions={"instrument", "exposure", "detector"},
-                         defaultTemplates={}):
+                             dimensions={"instrument", "exposure", "detector"},
+                             defaultTemplates={}):
     ccdExposure = cT.Input(
         name="raw",
         doc="Input exposure to process.",
@@ -78,7 +78,179 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument"],
         isCalibration=True,
     )
-    #Non-linearity correction DM-36636
+    dnlLUT = cT.PrerequisiteInput(
+        name="dnlLUT",
+        doc="Look-up table for differential non-linearity.",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "exposure", "detector"],
+        isCalibration=True,
+        # TODO DM 36636
+    )
+    bias = cT.PrerequisiteInput(
+        name="bias",
+        doc="Input bias calibration.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
+    deferredChargeCalib = cT.PrerequisiteInput(
+        name="cpCtiCalib",
+        doc="Deferred charge/CTI correction dataset.",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
+    linearizer = cT.PrerequisiteInput(
+        name='linearizer',
+        storageClass="Linearizer",
+        doc="Linearity correction calibration.",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+        minimum=0,  # can fall back to cameraGeom
+    )
+    ptc = cT.PrerequisiteInput(
+        name="ptc",
+        doc="Input Photon Transfer Curve dataset",
+        storageClass="PhotonTransferCurveDataset",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
+    crosstalk = cT.PrerequisiteInput(
+        name="crosstalk",
+        doc="Input crosstalk object",
+        storageClass="CrosstalkCalib",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+        minimum=0,  # can fall back to cameraGeom
+    )
+    crosstalkSources = cT.PrerequisiteInput(
+        name="isrOverscanCorrected",
+        doc="Overscan corrected input images.",
+        storageClass="Exposure",
+        dimensions=["instrument", "exposure", "detector"],
+        deferLoad=True,
+        multiple=True,
+        lookupFunction=crosstalkSourceLookup,
+        minimum=0,  # not needed for all instruments, no config to control this
+    )
+    defects = cT.PrerequisiteInput(
+        name='defects',
+        doc="Input defect tables.",
+        storageClass="Defects",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
+    bfKernel = cT.PrerequisiteInput(
+        name='brighterFatterKernel',
+        doc="Newer complete kernel + gain solutions.",
+        storageClass="BrighterFatterKernel",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+        minimum=0,  # can use either bfKernel or newBFKernel
+    )
+    dark = cT.PrerequisiteInput(
+        name='dark',
+        doc="Input dark calibration.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
+    outputExposure = cT.Output(
+        name='postISRCCD',
+        doc="Output ISR processed exposure.",
+        storageClass="Exposure",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+    preInterpExposure = cT.Output(
+        name='preInterpISRCCD',
+        doc="Output ISR processed exposure, with pixels left uninterpolated.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+    outputStatistics = cT.Output(
+        name="isrStatistics",
+        doc="Output of additional statistics table.",
+        storageClass="StructuredDataDict",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+
+    def __init__(self, *, config=None):
+        super().__init__(config=config)
+
+        if config.doDiffNonLinearCorrection is not True:
+            self.prerequisiteInputs.remove("dnlLUT")
+        if config.doBias is not True:
+            self.prerequisiteInputs.remove("bias")
+        if config.doDeferredCharge is not True:
+            self.prerequisiteInputs.remove("deferredChargeCalib")
+        if config.doLinearize is not True:
+            self.prerequisiteInputs.remove("linearizer")
+        if config.usePtcGains is not True and config.usePtcReadNoise is not True:
+            self.prerequisiteInputs.remove("ptc")
+        if config.doCrosstalk is not True:
+            self.prerequisiteInputs.remove("crosstalkSources")
+            self.prerequisiteInputs.remove("crosstalk")
+        if config.doDefect is not True:
+            self.prerequisiteInputs.remove("defects")
+        if config.doBrighterFatter is not True:
+            self.prerequisiteInputs.remove("bfKernel")
+        if config.doDark is not True:
+            self.prerequisiteInputs.remove("dark")
+
+        if config.doWrite is not True:
+            self.outputs.remove("outputExposure")
+            self.outputs.remove("preInterpExposure")
+
+        if config.doSaveInterpPixels is not True:
+            self.outputs.remove("preInterpExposure")
+
+        if config.doCalculateStatistics is not True:
+            self.outputs.remove("outputStatistics")
+
+
+class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
+                        pipelineConnections=IsrTaskLSSTConnections):
+    """Configuration parameters for IsrTaskLSST.
+
+    Items are grouped in the order in which they are executed by the task.
+    """
+    datasetType = pexConfig.Field(
+        dtype=str,
+        doc="Dataset type for input data; users will typically leave this alone, "
+        "but camera-specific ISR tasks will override it.",
+        default="raw",
+    )
+    expectWcs = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Expect input science images to have a WCS (set False for e.g. spectrographs)."
+    )
+    qa = pexConfig.ConfigField(
+        dtype=isrQa.IsrQaConfig,
+        doc="QA related configuration options.",
+    )
+    doHeaderProvenance = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Write calibration identifiers into output exposure header.",
+    )
+
+    # Differential non-linearity correction.
+    doDiffNonLinearCorrection = pexConfig.Field(
+        dtype=bool,
+        doc="Do differential non-linearity correction?",
+        default=True,
+    )
+
+    doOverscan = pexConfig.Field(
+        dtype=bool,
+        doc="Do overscan subtraction?",
+        default=True,
+    )
+    overscan = pexConfig.ConfigurableField(
+        target=OverscanCorrectionTask,
+        doc="Overscan subtraction task for image segments.",
+    )
 
 class isrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig
