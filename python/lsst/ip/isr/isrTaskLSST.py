@@ -591,8 +591,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return overscans
 
-    def snapCombine(self,**kwargs):
-        #TODO DM 36638
+    def snapCombine(self, **kwargs):
+        # TODO DM 36638
         pass
 
     def getLinearizer(self, detector):
