@@ -50,6 +50,9 @@ class AmpOffsetConfig(Config):
         ]
         self.detection.reEstimateBackground = False
 
+        # This maintains existing behavior and test values after DM-39796.
+        self.detection.thresholdType = "stdev"
+
     ampEdgeInset = Field(
         doc="Number of pixels the amp edge strip is inset from the amp edge. A thin strip of pixels running "
         "parallel to the edge of the amp is used to characterize the average flux level at the amp edge.",
