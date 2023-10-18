@@ -38,6 +38,7 @@ from lsst.afw.cameraGeom import NullLinearityType
 from lsst.afw.display import getDisplay
 from lsst.meas.algorithms.detection import SourceDetectionTask
 from lsst.utils.timer import timeMethod
+from lsst.ip.isr import PhotonTransferCurveDataset
 
 from . import isrFunctions
 from . import isrQa
@@ -1439,6 +1440,10 @@ class IsrTask(pipeBase.PipelineTask):
             else:
                 self.log.info("Skipped OSCAN for %s.", amp.getName())
 
+        # Define an effective PTC that will contain the gain and readout
+        # noise to be used throughout the ISR task.
+        ptc = self.defineEffectivePtc(ptc, ccd, bfGains, overscans)
+
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
             self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
@@ -1769,6 +1774,96 @@ class IsrTask(pipeBase.PipelineTask):
             outputFlattenedThumbnail=flattenedThumb,
             outputStatistics=outputStatistics,
         )
+
+    def defineEffectivePtc(self, ptcDataset, detector, bfGains, overScans):
+        """Define a Photon Transfer Curve dataset with nominal
+        gains and noise.
+
+        Parameters
+        ------
+        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`
+            Inout Photon Transfer Curve dataset.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector object.
+        bfGains : `dict`
+            Gains from running the brighter-fatter code.
+            A dict keyed by amplifier name for the detector
+            in question.
+        ovserScans : `list` [`lsst.pipe.base.Struct`]
+            List of overscanResults structures
+
+        Returns
+        -------
+        effectivePtc : `lsst.ip.isr.PhotonTransferCurveDataset`
+            PTC dataset containing gains and readout noise
+            values to be used throughout
+            Instrument Signature Removal.
+        """
+        amps = detector.getAmplifiers()
+        ampNames = [amp.getName() for amp in amps]
+        effectivePtc = PhotonTransferCurveDataset(ampNames, 'EFFECTIVE_PTC', 1)
+        boolGainMismatch = False
+
+        for amp, overscanResults in zip(amps, overScans):
+            ampName = amp.getName()
+            # Gain:
+            # Try first with the PTC gains.
+            if self.config.usePtcGains:
+                if ptcDataset is None:
+                    raise RuntimeError("No ptcDataset provided to use PTC gains.")
+                else:
+                    gain = ptcDataset.gain[ampName]
+                    self.log.info("Using gain from Photon Transfer Curve.")
+            else:
+                # Try then with the amplifier gain.
+                # We already have a detector at this point. If there was no
+                # detector to beging with, one would have been created with
+                # self.config.gain and self.config.noise. Same comment
+                # applies for the noise block below.
+                gain = amp.getGain()
+
+            # Check if the gain up to this point differs from the
+            # gain in bfGains. If so, raise or warn, accordingly.
+            if not boolGainMismatch and bfGains is not None:
+                bfGain = bfGains[ampName]
+                if not numpy.isclose(gain, bfGain):
+                    if self.config.doRaiseOnCalibMismatch:
+                        raise RuntimeError("Gain mismatch for amp %s [%s]: gain: %s bfGain: %s",
+                                           ampName, gain, bfGain)
+                    else:
+                        self.log.warning("Gain mismatch for amp %s [%s]: gain: %s bfGain: %s",
+                                         ampName, gain, bfGain)
+                    boolGainMismatch = True
+
+            # Noise:
+            # Try first with the empirical noise from the overscan.
+            if self.config.doEmpiricalReadNoise and overscanResults is not None:
+                if isinstance(overscanResults.residualSigma, float):
+                    # Only serial overscan was run
+                    noise = overscanResults.residualSigma
+                else:
+                    # Both serial and parallel overscan were
+                    # run.  Only report noise from serial here.
+                    noise = overscanResults.residualSigma[0]
+            elif self.config.usePtcReadNoise:
+                # Try then with the PTC noise.
+                if ptcDataset is None:
+                    raise RuntimeError("No ptcDataset provided to use PTC noise.")
+                else:
+                    noise = ptcDataset.noise[amp.getName()]
+                    self.log.info("Using noise from Photon Transfer Curve.")
+            else:
+                # Finally, try with the amplifier noise.
+                # We already have a detector at this point. If there
+                # was no detector to beging with, one would have
+                # been created with self.config.gain and
+                # self.config.noise.
+                noise = amp.getReadNoise()
+
+            effectivePtc.gain[ampName] = gain
+            effectivePtc.noise[ampName] = noise
+
+            return effectivePtc
 
     def ensureExposure(self, inputExp, camera=None, detectorNum=None):
         """Ensure that the data returned by Butler is a fully constructed exp.
