@@ -567,6 +567,35 @@ class CrosstalkCalib(IsrCalib):
         mask.clearMaskPlane(crosstalkPlane)
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
+    def subtractCrosstalkParallelOverscanRegion(self, thisExposure, crosstalkCoeffs=None,
+                                                badPixels=["BAD"]):
+        """Subtract crosstalk just from the parallel overscan region.
+
+        This does no background ... assumes serial overscan done ...
+        # something something.
+        There may be a better way of doing this.
+        """
+        mi = thisExposure.getMaskedImage()
+        mask = mi.getMask()
+        detector = thisExposure.getDetector()
+        if self.hasCrosstalk is False:
+            self.fromDetector(detector, coeffVector=crosstalkCoeffs)
+
+        numAmps = len(detector)
+        if numAmps != self.nAmp:
+            raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
+                               f"{numAmps} in {detector.getName()}")
+
+        source = mi
+        sourceDetector = detector
+
+        if crosstalkCoeffs is not None:
+            coeffs = crosstalkCoeffs
+        else:
+            coeffs = self.coeffs
+
+        pass
+
 
 class CrosstalkConfig(Config):
     """Configuration for intra-detector crosstalk removal."""
@@ -671,7 +700,7 @@ class CrosstalkTask(Task):
     _DefaultName = 'isrCrosstalk'
 
     def run(self, exposure, crosstalk=None,
-            crosstalkSources=None, isTrimmed=False, camera=None):
+            crosstalkSources=None, isTrimmed=False, camera=None, parallelOverscanRegion=False):
         """Apply intra-detector crosstalk correction
 
         Parameters
@@ -711,6 +740,9 @@ class CrosstalkTask(Task):
         if not crosstalk.hasCrosstalk:
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients.")
 
+        elif parallelOverscanRegion:
+            self.log.info("Applying crosstalk correction to parallel overscan region.")
+            crosstalk.subtractCrosstalkParallelOverscanRegion(exposure, crosstalkCoeffs=crosstalk.coeffs)
         else:
             self.log.info("Applying crosstalk correction.")
             crosstalk.subtractCrosstalk(exposure, crosstalkCoeffs=crosstalk.coeffs,
