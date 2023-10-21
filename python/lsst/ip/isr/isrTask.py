@@ -496,6 +496,10 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         target=OverscanCorrectionTask,
         doc="Overscan subtraction task for image segments.",
     )
+    parallelOverscanAfterCrosstalk = pexConfig.ConfigurableField(
+        target=OverscanCorrectionTask,
+        doc="Overscan subtraction task after crosstalk.",
+    )
     doParallelOverscanCrosstalk = pexConfig.Field(
         dtype=bool,
         doc="Do parallel overscan crosstalk correction?",
@@ -967,6 +971,13 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
+    def setDefaults(self):
+        super().setDefaults()
+
+        self.parallelOverscanAfterCrosstalk.fitType = "MEDIAN_PER_ROW"
+        self.parallelOverscanAfterCrosstalk.doSerialOverscan = False
+        self.parallelOverscanAfterCrosstalk.doParallelOverscan = True
+
     def validate(self):
         super().validate()
         if self.doFlat and self.doApplyGains:
@@ -1016,6 +1027,7 @@ class IsrTask(pipeBase.PipelineTask):
         self.makeSubtask("fringe")
         self.makeSubtask("masking")
         self.makeSubtask("overscan")
+        self.makeSubtask("parallelOverscanAfterCrosstalk")
         self.makeSubtask("vignette")
         self.makeSubtask("ampOffset")
         self.makeSubtask("deferredChargeCorrection")
@@ -1396,6 +1408,7 @@ class IsrTask(pipeBase.PipelineTask):
             # This will attempt to mask bleed pixels across all amplifiers.
             self.overscan.maskParallelOverscan(ccdExposure, ccd)
 
+        # Always do serial overscan first...
         for amp in ccd:
             # if ccdExposure is one amp,
             # check for coverage to prevent performing ops multiple times
@@ -1443,6 +1456,14 @@ class IsrTask(pipeBase.PipelineTask):
                 overscans.append(overscanResults if overscanResults is not None else None)
             else:
                 self.log.info("Skipped OSCAN for %s.", amp.getName())
+
+        # Don't know what to do about secondary overscanResults
+        if self.config.doParallelOverscanCrosstalk:
+            # Here is where we do a crosstalk correction only in
+            # the parallel region ...
+
+            # And then we run the parallel overscan code, alone.
+            pass
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
@@ -2050,20 +2071,7 @@ class IsrTask(pipeBase.PipelineTask):
             self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
             return None
 
-        # Perform overscan correction on subregions.
-        if self.config.doParallelOverscanCrosstalk:
-            crosstalkTask = self.crosstalk
-            _crosstalk = crosstalk
-        else:
-            crosstalkTask = None
-            _crosstalk = None
-
-        overscanResults = self.overscan.run(
-            ccdExposure,
-            amp,
-            crosstalkTask=crosstalkTask,
-            crosstalk=_crosstalk,
-        )
+        overscanResults = self.overscan.run(ccdExposure, amp)
 
         metadata = ccdExposure.getMetadata()
         ampName = amp.getName()

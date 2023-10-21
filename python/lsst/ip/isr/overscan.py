@@ -74,6 +74,11 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
             " and fitType=MEDIAN_PER_ROW.",
         default=True,
     )
+    doSerialOverscan = pexConfig.Field(
+        dtype=bool,
+        doc="Correct using serial overscan?",
+        default=True,
+    )
 
     doParallelOverscan = pexConfig.Field(
         dtype=bool,
@@ -147,7 +152,7 @@ class OverscanCorrectionTask(pipeBase.Task):
             self.statControl.setNumSigmaClip(self.config.numSigmaClip)
             self.statControl.setAndMask(afwImage.Mask.getPlaneBitMask(self.config.maskPlanes))
 
-    def run(self, exposure, amp, isTransposed=False, crosstalkTask=None, crosstalk=None):
+    def run(self, exposure, amp, isTransposed=False):
         """Measure and remove an overscan from an amplifier image.
 
         Parameters
@@ -203,23 +208,28 @@ class OverscanCorrectionTask(pipeBase.Task):
                                                          imageBBox.getMinY()),
                                             geom.Extent2I(serialOverscanBBox.getWidth(),
                                                           imageBBox.getHeight()))
-        serialResults = self.correctOverscan(exposure, amp,
-                                             imageBBox, serialOverscanBBox, isTransposed=isTransposed)
-        overscanMean = serialResults.overscanMean
-        overscanMedian = serialResults.overscanMedian
-        overscanSigma = serialResults.overscanSigma
-        residualMean = serialResults.overscanMeanResidual
-        residualMedian = serialResults.overscanMedianResidual
-        residualSigma = serialResults.overscanSigmaResidual
+
+        if self.config.doSerialOverscan:
+            serialResults = self.correctOverscan(exposure, amp,
+                                                 imageBBox, serialOverscanBBox, isTransposed=isTransposed)
+            overscanMean = serialResults.overscanMean
+            overscanMedian = serialResults.overscanMedian
+            overscanSigma = serialResults.overscanSigma
+            residualMean = serialResults.overscanMeanResidual
+            residualMedian = serialResults.overscanMedianResidual
+            residualSigma = serialResults.overscanSigmaResidual
+        else:
+            # Get these somehow from the exposure metadata
+            overscanMean = 0.0
+            overscanMedian = 0.0
+            overscanSigma = 0.0
+            residualMean = 0.0
+            residualMedian = 0.0
+            residualSigma = 0.0
 
         # Do Parallel Overscan
         parallelResults = None
         if self.config.doParallelOverscan:
-            if crosstalkTask is not None and crosstalk is not None:
-                # Here is where we run the crosstalk task on a copy of the
-                # imageand only apply it to the parallel overscan bbox
-                pass
-
             # This does not need any extensions, as we'll only
             # subtract it from the data region.
             parallelOverscanBBox = amp.getRawParallelOverscanBBox()
