@@ -198,16 +198,16 @@ class OverscanCorrectionTask(pipeBase.Task):
         serialOverscanBBox = amp.getRawSerialOverscanBBox()
         imageBBox = amp.getRawDataBBox()
 
-        if self.config.doParallelOverscan:
-            # We need to extend the serial overscan BBox to the full
-            # size of the detector.
-            parallelOverscanBBox = amp.getRawParallelOverscanBBox()
-            imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
+        # Always do this ...
+        # We need to extend the serial overscan BBox to the full
+        # size of the detector.
+        parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+        imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
 
-            serialOverscanBBox = geom.Box2I(geom.Point2I(serialOverscanBBox.getMinX(),
-                                                         imageBBox.getMinY()),
-                                            geom.Extent2I(serialOverscanBBox.getWidth(),
-                                                          imageBBox.getHeight()))
+        serialOverscanBBox = geom.Box2I(geom.Point2I(serialOverscanBBox.getMinX(),
+                                                     imageBBox.getMinY()),
+                                        geom.Extent2I(serialOverscanBBox.getWidth(),
+                                                      imageBBox.getHeight()))
 
         if self.config.doSerialOverscan:
             serialResults = self.correctOverscan(exposure, amp,
