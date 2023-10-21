@@ -299,7 +299,7 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.prerequisiteInputs.remove("bias")
         if config.doLinearize is not True:
             self.prerequisiteInputs.remove("linearizer")
-        if config.doCrosstalk is not True:
+        if not config.doCrosstalk and not config.doParallelOverscanCrosstalk:
             self.prerequisiteInputs.remove("crosstalkSources")
             self.prerequisiteInputs.remove("crosstalk")
         if config.doBrighterFatter is not True:
@@ -495,6 +495,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     overscan = pexConfig.ConfigurableField(
         target=OverscanCorrectionTask,
         doc="Overscan subtraction task for image segments.",
+    )
+    doParallelOverscanCrosstalk = pexConfig.Field(
+        dtype=bool,
+        doc="Do parallel overscan crosstalk correction?",
+        default=False,
     )
 
     # Amplifier to CCD assembly configuration
@@ -1401,7 +1406,7 @@ class IsrTask(pipeBase.PipelineTask):
 
                 if self.config.doOverscan and not badAmp:
                     # Overscan correction on amp-by-amp basis.
-                    overscanResults = self.overscanCorrection(ccdExposure, amp)
+                    overscanResults = self.overscanCorrection(ccdExposure, amp, crosstalk=crosstalk)
                     self.log.debug("Corrected overscan for amplifier %s.", amp.getName())
                     if overscanResults is not None and \
                        self.config.qa is not None and self.config.qa.saveStats is True:
@@ -1991,7 +1996,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         return badAmp
 
-    def overscanCorrection(self, ccdExposure, amp):
+    def overscanCorrection(self, ccdExposure, amp, crosstalk=None):
         """Apply overscan correction in place.
 
         This method does initial pixel rejection of the overscan
@@ -2046,7 +2051,19 @@ class IsrTask(pipeBase.PipelineTask):
             return None
 
         # Perform overscan correction on subregions.
-        overscanResults = self.overscan.run(ccdExposure, amp)
+        if self.config.doParallelOverscanCrosstalk:
+            crosstalkTask = self.crosstalk
+            _crosstalk = crosstalk
+        else:
+            crosstalkTask = None
+            _crosstalk = None
+
+        overscanResults = self.overscan.run(
+            ccdExposure,
+            amp,
+            crosstalkTask=crosstalkTask,
+            crosstalk=_crosstalk,
+        )
 
         metadata = ccdExposure.getMetadata()
         ampName = amp.getName()

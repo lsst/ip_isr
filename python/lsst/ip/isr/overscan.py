@@ -147,7 +147,7 @@ class OverscanCorrectionTask(pipeBase.Task):
             self.statControl.setNumSigmaClip(self.config.numSigmaClip)
             self.statControl.setAndMask(afwImage.Mask.getPlaneBitMask(self.config.maskPlanes))
 
-    def run(self, exposure, amp, isTransposed=False):
+    def run(self, exposure, amp, isTransposed=False, crosstalkTask=None, crosstalk=None):
         """Measure and remove an overscan from an amplifier image.
 
         Parameters
@@ -215,6 +215,11 @@ class OverscanCorrectionTask(pipeBase.Task):
         # Do Parallel Overscan
         parallelResults = None
         if self.config.doParallelOverscan:
+            if crosstalkTask is not None and crosstalk is not None:
+                # Here is where we run the crosstalk task on a copy of the
+                # imageand only apply it to the parallel overscan bbox
+                pass
+
             # This does not need any extensions, as we'll only
             # subtract it from the data region.
             parallelOverscanBBox = amp.getRawParallelOverscanBBox()
