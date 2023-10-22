@@ -391,7 +391,7 @@ class CrosstalkCalib(IsrCalib):
 
     # Implementation methods.
     @staticmethod
-    def extractAmp(image, amp, ampTarget, isTrimmed=False):
+    def extractAmp(image, amp, ampTarget, isTrimmed=False, parallelOverscan=False):
         """Extract the image data from an amp, flipped to match ampTarget.
 
         Parameters
@@ -421,7 +421,10 @@ class CrosstalkCalib(IsrCalib):
                   lsst.afw.cameraGeom.ReadoutCorner.UL: True,
                   lsst.afw.cameraGeom.ReadoutCorner.UR: True}
 
-        output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
+        if parallelOverscan:
+            output = image[amp.getRawParallelOverscanBBox()]
+        else:
+            output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
         thisAmpCorner = amp.getReadoutCorner()
         targetAmpCorner = ampTarget.getReadoutCorner()
 
@@ -568,7 +571,7 @@ class CrosstalkCalib(IsrCalib):
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
     def subtractCrosstalkParallelOverscanRegion(self, thisExposure, crosstalkCoeffs=None,
-                                                badPixels=["BAD"]):
+                                                badPixels=["BAD"], crosstalkStr="CROSSTALK"):
         """Subtract crosstalk just from the parallel overscan region.
 
         This does no background ... assumes serial overscan done ...
@@ -594,7 +597,27 @@ class CrosstalkCalib(IsrCalib):
         else:
             coeffs = self.coeffs
 
-        pass
+        crosstalkPlane = mask.addMaskPlane(crosstalkStr)
+        crosstalk = mask.getPlaneBitMask(crosstalkStr)
+
+        subtrahend = source.Factory(source.getBBox())
+        subtrahend.set((0, 0, 0))
+
+        coeffs = coeffs.transpose()
+        for ss, sAmp in enumerate(sourceDetector):
+            sImage = subtrahend[sAmp.getRawParallelOverscanBBox()]
+            for tt, tAmp in enumerate(detector):
+                if coeffs[ss, tt] == 0.0:
+                    continue
+                tImage = self.extractAmp(mi, tAmp, sAmp, False, parallelOverscan=True)
+                tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
+                sImage.scaledPlus(coeffs[ss, tt], tImage)
+
+        # Set crosstalkStr bit only for those pixels that have been
+        # significantly modified (i.e., those masked as such in 'subtrahend'),
+        # not necessarily those that are bright originally.
+        mask.clearMaskPlane(crosstalkPlane)
+        mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
 
 class CrosstalkConfig(Config):
