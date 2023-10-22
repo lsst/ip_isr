@@ -564,6 +564,9 @@ class CrosstalkCalib(IsrCalib):
                 tImage -= backgrounds[tt]
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
 
+        # Subtrahend should only be positive.
+        subtrahend.image.array[subtrahend.image.array < 0.0] = 0.0
+
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
         # not necessarily those that are bright originally.
