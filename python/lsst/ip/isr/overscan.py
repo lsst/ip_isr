@@ -256,7 +256,7 @@ class OverscanCorrectionTask(pipeBase.Task):
             # operation, using the same method.
             parallelResults = self.correctOverscan(exposure, amp,
                                                    imageBBox, parallelOverscanBBox,
-                                                   isTransposed=not isTransposed)
+                                                   isTransposed=not isTransposed, parallel=True)
             overscanMean = (overscanMean, parallelResults.overscanMean)
             overscanMedian = (overscanMedian, parallelResults.overscanMedian)
             overscanSigma = (overscanSigma, parallelResults.overscanSigma)
@@ -280,7 +280,7 @@ class OverscanCorrectionTask(pipeBase.Task):
                                residualMedian=residualMedian,
                                residualSigma=residualSigma)
 
-    def correctOverscan(self, exposure, amp, imageBBox, overscanBBox, isTransposed=True):
+    def correctOverscan(self, exposure, amp, imageBBox, overscanBBox, isTransposed=True, parallel=False):
         """Trim the exposure, fit the overscan, subtract the fit, and
         calculate statistics.
 
@@ -300,6 +300,8 @@ class OverscanCorrectionTask(pipeBase.Task):
         isTransposed: `bool`
             If true, then the data will be transposed before fitting
             the overscan.
+        parallel : `bool`
+            This is a parallel bbox so use the row not column thing.
 
         Returns
         -------
@@ -331,9 +333,15 @@ class OverscanCorrectionTask(pipeBase.Task):
                 Standard deviation of the overscan region after
                 overscan subtraction. (`float`)
         """
+        if parallel:
+            leading = self.config.leadingRowsToSkip
+            trailing = self.config.trailingRowsToSkip
+        else:
+            leading = self.config.leadingColumnsToSkip
+            trailing = self.config.trailingColumnsToSkip
         overscanBox = self.trimOverscan(exposure, amp, overscanBBox,
-                                        self.config.leadingColumnsToSkip,
-                                        self.config.trailingColumnsToSkip,
+                                        leading,
+                                        trailing,
                                         transpose=isTransposed)
         overscanImage = exposure[overscanBox].getMaskedImage()
         overscanArray = overscanImage.image.array
