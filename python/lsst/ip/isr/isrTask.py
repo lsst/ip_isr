@@ -1459,11 +1459,27 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Don't know what to do about secondary overscanResults
         if self.config.doParallelOverscanCrosstalk:
-            # Here is where we do a crosstalk correction only in
-            # the parallel region ...
+            # Run the crosstalk just in the parallel overscan region.
 
-            # And then we run the parallel overscan code, alone.
-            pass
+            self.crosstalk.run(
+                ccdExposure,
+                crosstalk=crosstalk,
+                camera=camera,
+                parallelOverscanRegion=True,
+            )
+
+            # Need to check that it's configured to run, sure.
+
+            # And now do the parallel overscan bit.
+            # This can all be simplified later, I think splitting it
+            # up into two different tasks isn't crazy and may also
+            # simplify the code and make subconfigs easier.
+            for amp in ccd:
+                if ccdExposure.getBBox().contains(amp.getBBox()):
+                    badAmp = self.maskAmplifier(ccdExposure, amp, defects)
+
+                    if self.config.doOverscan and not badAmp:
+                        _ = self.parallelOverscanAfterCrosstalk.run(ccdExposure, amp)
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
