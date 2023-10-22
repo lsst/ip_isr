@@ -227,6 +227,12 @@ class OverscanCorrectionTask(pipeBase.Task):
             residualMedian = 0.0
             residualSigma = 0.0
 
+            serialResults = pipeBase.Struct(
+                ampOverscanModel=None,
+                overscanOverscanModel=None,
+                overscanImage=None,
+            )
+
         # Do Parallel Overscan
         parallelResults = None
         if self.config.doParallelOverscan:
