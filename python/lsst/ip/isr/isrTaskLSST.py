@@ -146,7 +146,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         storageClass="BrighterFatterKernel",
         dimensions=["instrument", "detector"],
         isCalibration=True,
-        minimum=0,  # can use either bfKernel or newBFKernel
+        minimum=0,
     )
     dark = cT.PrerequisiteInput(
         name='dark',
