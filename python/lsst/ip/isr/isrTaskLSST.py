@@ -210,12 +210,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
 
     Items are grouped in the order in which they are executed by the task.
     """
-    datasetType = pexConfig.Field(
-        dtype=str,
-        doc="Dataset type for input data; users will typically leave this alone, "
-        "but camera-specific ISR tasks will override it.",
-        default="raw",
-    )
     expectWcs = pexConfig.Field(
         dtype=bool,
         default=True,
