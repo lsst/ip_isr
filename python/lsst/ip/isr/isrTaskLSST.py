@@ -197,10 +197,6 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         if config.doDark is not True:
             self.prerequisiteInputs.remove("dark")
 
-        if config.doWrite is not True:
-            self.outputs.remove("outputExposure")
-            self.outputs.remove("preInterpExposure")
-
         if config.doSaveInterpPixels is not True:
             self.outputs.remove("preInterpExposure")
 
@@ -494,14 +490,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doFluence = pexConfig.Field(
         dtype=bool,
         doc="Apply post-ISR operations?",
-        default=True,
-    )
-
-    # Write the outputs to disk. If ISR is run as a subtask, this may not
-    # be needed.
-    doWrite = pexConfig.Field(
-        dtype=bool,
-        doc="Persist postISRCCD?",
         default=True,
     )
 
