@@ -306,7 +306,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     usePtcGains = pexConfig.Field(
         dtype=bool,
         doc="Use the gain values from the Photon Transfer Curve?",
-        default=True,
+        default=False,
     )
     readNoise = pexConfig.Field(
         dtype=float,
