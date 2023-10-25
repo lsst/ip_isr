@@ -25,43 +25,6 @@ from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 
-
-def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
-    """Lookup function to identify crosstalkSource entries.
-
-    This should return an empty list under most circumstances.  Only
-    when inter-chip crosstalk has been identified should this be
-    populated.
-
-    Parameters
-    ----------
-    datasetType : `str`
-        Dataset to lookup.
-    registry : `lsst.daf.butler.Registry`
-        Butler registry to query.
-    quantumDataId : `lsst.daf.butler.ExpandedDataCoordinate`
-        Data id to transform to identify crosstalkSources.  The
-        ``detector`` entry will be stripped.
-    collections : `lsst.daf.butler.CollectionSearch`
-        Collections to search through.
-
-    Returns
-    -------
-    results : `list` [`lsst.daf.butler.DatasetRef`]
-        List of datasets that match the query that will be used as
-        crosstalkSources.
-    """
-    newDataId = quantumDataId.subset(DimensionGraph(registry.dimensions, names=["instrument", "exposure"]))
-    results = set(registry.queryDatasets(datasetType, collections=collections, dataId=newDataId,
-                                         findFirst=True))
-    # In some contexts, calling `.expanded()` to expand all data IDs in the
-    # query results can be a lot faster because it vectorizes lookups.  But in
-    # this case, expandDataId shouldn't need to hit the database at all in the
-    # steady state, because only the detector record is unknown and those are
-    # cached in the registry.
-    return [ref.expanded(registry.expandDataId(ref.dataId, records=newDataId.records)) for ref in results]
-
-
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
                              dimensions={"instrument", "exposure", "detector"},
                              defaultTemplates={}):
@@ -120,16 +83,6 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         storageClass="CrosstalkCalib",
         dimensions=["instrument", "detector"],
         isCalibration=True,
-    )
-    crosstalkSources = cT.PrerequisiteInput(
-        name="isrOverscanCorrected",
-        doc="Overscan corrected input images.",
-        storageClass="Exposure",
-        dimensions=["instrument", "exposure", "detector"],
-        deferLoad=True,
-        multiple=True,
-        lookupFunction=crosstalkSourceLookup,
-        minimum=0,  # not needed for all instruments, no config to control this
     )
     defects = cT.PrerequisiteInput(
         name='defects',
@@ -1040,8 +993,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doCrosstalk:
             # Input units: electrons
             self.log.info("Applying crosstalk correction.")
-            self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
-                               crosstalkSources=crosstalkSources)
+            self.crosstalk.run(ccdExposure, crosstalk=crosstalk)
 
         # Masking block (defects, NAN pixels and trails).
         # Saturated and suspect pixels have already been masked.
