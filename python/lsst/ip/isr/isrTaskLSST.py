@@ -93,7 +93,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
     )
     bfKernel = cT.PrerequisiteInput(
         name='brighterFatterKernel',
-        doc="Newer complete kernel + gain solutions.",
+        doc="Complete kernel + gain solutions.",
         storageClass="BrighterFatterKernel",
         dimensions=["instrument", "detector"],
         isCalibration=True,
