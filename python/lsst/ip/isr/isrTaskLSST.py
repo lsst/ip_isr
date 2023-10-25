@@ -117,6 +117,19 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         storageClass="ExposureF",
         dimensions=["instrument", "exposure", "detector"],
     )
+    outputBin1Exposure = cT.Output(
+        name="postIsrBin1",
+        doc="First binned image.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+    outputBin2Exposure = cT.Output(
+        name="postIsrBin2",
+        doc="Second binned image.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "exposure", "detector"],
+    )
+
     outputStatistics = cT.Output(
         name="isrStatistics",
         doc="Output of additional statistics table.",
@@ -147,6 +160,9 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         if config.doDark is not True:
             self.prerequisiteInputs.remove("dark")
 
+        if config.doBinnedExposures is not True:
+            self.outputs.remove("outputBin1Exposure")
+            self.outputs.remove("outputBin2Exposure")
         if config.doSaveInterpPixels is not True:
             self.outputs.remove("preInterpExposure")
 
@@ -1065,8 +1081,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
                                                  ptc=ptc).results
 
+        # do image binning.
+        outputBin1Exposure = None
+        outputBin2Exposure = None
+        if self.config.doBinnedExposures:
+            outputBin1Exposure, outputBin2Exposure = self.makeBinnedImages(ccdExposure)
+
         return pipeBase.Struct(
             exposure=ccdExposure,
+
+            outputBin1Exposure=outputBin1Exposure,
+            outputBin2Exposure=outputBin2Exposure,
 
             preInterpExposure=preInterpExp,
             outputExposure=ccdExposure,
