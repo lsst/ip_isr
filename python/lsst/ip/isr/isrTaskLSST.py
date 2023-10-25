@@ -141,33 +141,33 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         super().__init__(config=config)
 
         if config.doDiffNonLinearCorrection is not True:
-            self.prerequisiteInputs.remove("dnlLUT")
+            del self.dnlLUT
         if config.doBias is not True:
-            self.prerequisiteInputs.remove("bias")
+            del self.bias
         if config.doDeferredCharge is not True:
-            self.prerequisiteInputs.remove("deferredChargeCalib")
+            del self.deferredChargeCalib
         if config.doLinearize is not True:
-            self.prerequisiteInputs.remove("linearizer")
+            del self.linearizer
         if config.usePtcGains is not True and config.usePtcReadNoise is not True:
-            self.prerequisiteInputs.remove("ptc")
+            del self.ptc
         if config.doCrosstalk is not True:
-            self.prerequisiteInputs.remove("crosstalkSources")
-            self.prerequisiteInputs.remove("crosstalk")
+            del self.crosstalkSources
+            del self.crosstalk
         if config.doDefect is not True:
-            self.prerequisiteInputs.remove("defects")
+            del self.defects
         if config.doBrighterFatter is not True:
-            self.prerequisiteInputs.remove("bfKernel")
+            del self.bfKernel
         if config.doDark is not True:
-            self.prerequisiteInputs.remove("dark")
+            del self.dark
 
         if config.doBinnedExposures is not True:
-            self.outputs.remove("outputBin1Exposure")
-            self.outputs.remove("outputBin2Exposure")
+            del self.outputBin1Exposure
+            del self.outputBin2Exposure
         if config.doSaveInterpPixels is not True:
-            self.outputs.remove("preInterpExposure")
+            del self.preInterpExposure
 
         if config.doCalculateStatistics is not True:
-            self.outputs.remove("outputStatistics")
+            del self.outputStatistics
 
 
 class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
