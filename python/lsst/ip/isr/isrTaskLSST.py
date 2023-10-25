@@ -408,13 +408,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
-    # Post-ISR operations to make fluence image.
-    doFluence = pexConfig.Field(
-        dtype=bool,
-        doc="Apply post-ISR operations?",
-        default=True,
-    )
-
     # Calculate image quality statistics?
     doStandardStatistics = pexConfig.Field(
         dtype=bool,
@@ -870,10 +863,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             invert=invert,
         )
 
-    def applyPostIsr(self, **kwargs):
-        # TODO add post-ISR (4th column of Eli's calibration boxes)
-        pass
-
     @staticmethod
     def extractCalibDate(calib):
         """Extract common calibration metadata values that will be written to
@@ -1041,11 +1030,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Input units: electrons
             self.log.info("Applying dark subtraction.")
             self.darkCorrection(ccdExposure, dark)
-
-        if self.config.doFluence:
-            # Inputs units: electrons
-            self.log.info("Applying post-ISR operations.")
-            self.applyPostIsr(**kwargs)
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
