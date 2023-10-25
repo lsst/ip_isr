@@ -631,7 +631,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 raise RuntimeError("No ptcDataset provided to use PTC gains.")
             else:
                 gain = ptcDataset.gain[amp.getName()]
-                self.log.info("Using gain from Photon Transfer Curve.")
+                self.log.warning("Using gain from Photon Transfer Curve.")
         else:
             gain = amp.getGain()
 
@@ -669,7 +669,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
             else:
                 readNoise = ptcDataset.noise[amp.getName()]
-            self.log.info("Using read noise from Photon Transfer Curve.")
+            self.log.warning("Using read noise from Photon Transfer Curve (not certified).")
         else:
             readNoise = amp.getReadNoise()
 
@@ -1028,8 +1028,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             crosstalkSources=None, flat=None, **kwargs
             ):
 
-        # TODO rename ccd to detector?
-        ccd = ccdExposure.getDetector()
+        detector = ccdExposure.getDetector()
 
         if self.config.doHeaderProvenance:
             # Inputs have been validated, so we can add their date
@@ -1041,7 +1040,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 exposureMetadata["LSST CALIB DATE BIAS"] = self.extractCalibDate(bias)
             if self.config.doDeferredCharge:
                 exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
-            if self.doLinearize(ccd):
+            if self.doLinearize(detector):
                 exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
             if self.config.usePtcGains or self.config.usePtcReadNoise:
                 exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
@@ -1059,7 +1058,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         if self.config.doOverscan:
             # Input units: ADU
-            overscans = self.overscanCorrection(ccd, ccdExposure)
+            overscans = self.overscanCorrection(detector, ccdExposure)
 
         if self.config.doAssembleCcd:
             # Input units: ADU
@@ -1086,9 +1085,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doLinearize:
             # Input units: ADU
             self.log.info("Applying linearizer.")
-            linearizer = self.getLinearizer(detector=ccd)
+            linearizer = self.getLinearizer(detector=detector)
             linearizer.applyLinearity(image=ccdExposure.getMaskedImage().getImage(),
-                                      detector=ccd, log=self.log)
+                                      detector=detector, log=self.log)
 
         if self.config.doGainNormalize:
             # Input units: ADU
@@ -1098,7 +1097,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         if self.config.doVariance:
             # Input units: electrons
-            self.variancePlane(ccdExposure, ccd, overscans, ptc)
+            self.variancePlane(ccdExposure, detector, overscans, ptc)
 
         if self.config.doCrosstalk:
             # Input units: electrons
@@ -1145,7 +1144,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doBrighterFatter:
             # Input units: electrons
             self.log.info("Applying Bright-Fatter kernels.")
-            bfKernelOut, bfGains = self.getBrighterFatterKernel(ccd, bfKernel)
+            bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
             ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut, bfGains)
 
         if self.config.doDark:
@@ -1161,7 +1160,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
             metadata = ccdExposure.getMetadata()
-            for amp in ccd:
+            for amp in detector:
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                 ampName = amp.getName()
                 metadata[f"LSST ISR MASK SAT {ampName}"] = isrFunctions.countMaskedPixels(
