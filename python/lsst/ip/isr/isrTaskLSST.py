@@ -352,11 +352,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Apply intra-CCD crosstalk correction?",
         default=True,
     )
-    doCrosstalkBeforeAssemble = pexConfig.Field(
-        dtype=bool,
-        doc="Apply crosstalk correction before CCD assembly?",
-        default=False,
-    )
     crosstalk = pexConfig.ConfigurableField(
         target=CrosstalkTask,
         doc="Intra-CCD crosstalk correction.",
