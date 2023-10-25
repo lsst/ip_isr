@@ -271,7 +271,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doDeferredCharge = pexConfig.Field(
         dtype=bool,
         doc="Apply deferred charge correction?",
-        default=False,
+        default=True,
     )
     deferredChargeCorrection = pexConfig.ConfigurableField(
         target=DeferredChargeTask,
@@ -306,7 +306,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     usePtcGains = pexConfig.Field(
         dtype=bool,
         doc="Use the gain values from the Photon Transfer Curve?",
-        default=False,
+        default=True,
     )
     readNoise = pexConfig.Field(
         dtype=float,
@@ -321,7 +321,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     usePtcReadNoise = pexConfig.Field(
         dtype=bool,
         doc="Use readnoise values from the Photon Transfer Curve?",
-        default=False,
+        default=True,
     )
     maskNegativeVariance = pexConfig.Field(
         dtype=bool,
@@ -350,7 +350,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doCrosstalk = pexConfig.Field(
         dtype=bool,
         doc="Apply intra-CCD crosstalk correction?",
-        default=False,
+        default=True,
     )
     doCrosstalkBeforeAssemble = pexConfig.Field(
         dtype=bool,
@@ -416,7 +416,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doBrighterFatter = pexConfig.Field(
         dtype=bool,
         doc="Apply the brighter-fatter correction?",
-        default=False,
+        default=True,
     )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
@@ -497,7 +497,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doCalculateStatistics = pexConfig.Field(
         dtype=bool,
         doc="Should additional ISR statistics be calculated?",
-        default=False,
+        default=True,
     )
     isrStats = pexConfig.ConfigurableField(
         target=IsrStatisticsTask,
