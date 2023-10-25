@@ -106,7 +106,6 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         doc="Linearity correction calibration.",
         dimensions=["instrument", "detector"],
         isCalibration=True,
-        minimum=0,  # can fall back to cameraGeom
     )
     ptc = cT.PrerequisiteInput(
         name="ptc",
@@ -121,7 +120,6 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         storageClass="CrosstalkCalib",
         dimensions=["instrument", "detector"],
         isCalibration=True,
-        minimum=0,  # can fall back to cameraGeom
     )
     crosstalkSources = cT.PrerequisiteInput(
         name="isrOverscanCorrected",
@@ -146,7 +144,6 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         storageClass="BrighterFatterKernel",
         dimensions=["instrument", "detector"],
         isCalibration=True,
-        minimum=0,
     )
     dark = cT.PrerequisiteInput(
         name='dark',
