@@ -965,7 +965,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         return self.config.doLinearize and \
             detector.getAmplifiers()[0].getLinearityType() != NullLinearityType
 
-    def run(self, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
+    def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
             crosstalkSources=None, flat=None, **kwargs
             ):
