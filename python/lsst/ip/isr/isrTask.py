@@ -1484,14 +1484,8 @@ class IsrTask(pipeBase.PipelineTask):
                 if ccdExposure.getBBox().contains(amp.getBBox()):
                     self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-                    if overscanResults is not None:
-                        self.updateVariance(ampExposure, amp,
-                                            overscanImage=overscanResults.overscanImage,
-                                            ptcDataset=ptc)
-                    else:
-                        self.updateVariance(ampExposure, amp,
-                                            overscanImage=None,
-                                            ptcDataset=ptc)
+                    self.updateVariance(ampExposure, amp, ptc)
+
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
                                                          afwMath.MEDIAN | afwMath.STDEVCLIP)
