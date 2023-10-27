@@ -1374,6 +1374,10 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doStrayLight:
             self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
 
+        # Start in ADU. Update units to electrons when gain is applied:
+        # updateVariance, applyGains, BFE correction, CTI correction.
+        exposureMetadata["LSST ISR UNITS"] = "ADU"
+
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
             self.log.info("Converting exposure to floating point values.")
@@ -1442,8 +1446,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Define an effective PTC that will contain the gain and readout
         # noise to be used throughout the ISR task.
-        metadata = ccdExposure.getMetadata()
-        ptc = self.defineEffectivePtc(ptc, ccd, bfGains, overscans, metadata)
+        ptc = self.defineEffectivePtc(ptc, ccd, bfGains, overscans, exposureMetadata)
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
@@ -1624,6 +1627,7 @@ class IsrTask(pipeBase.PipelineTask):
             self.log.info("Applying gain correction instead of flat.")
             isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
                                     ptcGains=ptc.gain)
+            exposureMetadata["LSST ISR UNITS"] = "electrons"
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction after flat.")
@@ -1767,8 +1771,8 @@ class IsrTask(pipeBase.PipelineTask):
         )
 
     def defineEffectivePtc(self, ptcDataset, detector, bfGains, overScans, metadata):
-        """Define a Photon Transfer Curve dataset with nominal
-        gains and noise.
+        """Define an effective Photon Transfer Curve dataset
+        with nominal gains and noise.
 
         Parameters
         ------
@@ -1822,7 +1826,7 @@ class IsrTask(pipeBase.PipelineTask):
             # gain in bfGains. If so, raise or warn, accordingly.
             if not boolGainMismatch and bfGains is not None:
                 bfGain = bfGains[ampName]
-                if not numpy.isclose(gain, bfGain):
+                if not math.isclose(gain, bfGain, rel_tol=1e-4):
                     if self.config.doRaiseOnCalibMismatch:
                         raise RuntimeError("Gain mismatch for det %s amp %s: "
                                            "(gain (%s): %s, bfGain: %s)",
@@ -1863,7 +1867,8 @@ class IsrTask(pipeBase.PipelineTask):
                 # self.config.noise.
                 noise = amp.getReadNoise()
 
-            self.log.info("Noise provenance: %s, Gain provenance: %s)",
+            self.log.info("%s - Noise provenance: %s, Gain provenance: %s",
+                          ampName,
                           noiseProvenanceString,
                           gainProvenanceString)
             metadata[f"LSST ISR GAIN SOURCE {ampName}"] = gainProvenanceString
@@ -1872,7 +1877,7 @@ class IsrTask(pipeBase.PipelineTask):
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
 
-        return effectivePtc, gainProvenanceString, noiseProvenanceString
+        return effectivePtc
 
     def ensureExposure(self, inputExp, camera=None, detectorNum=None):
         """Ensure that the data returned by Butler is a fully constructed exp.
@@ -2212,7 +2217,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         # At this point, the effective PTC should have
         # gain and noise values.
-        gain = ptcDataset[ampName]
+        gain = ptcDataset.gain[ampName]
         if math.isnan(gain):
             gain = 1.0
             self.log.warning("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
@@ -2222,17 +2227,21 @@ class IsrTask(pipeBase.PipelineTask):
                              ampName, gain, patchedGain)
             gain = patchedGain
 
-        readNoise = ptcDataset[ampName].noise
+        readNoise = ptcDataset.noise[ampName]
 
         metadata = ampExposure.getMetadata()
-        metadata[f'LSST GAIN {amp.getName()}'] = gain
-        metadata[f'LSST READNOISE {amp.getName()}'] = readNoise
+        metadata[f"LSST GAIN {amp.getName()}"] = gain
+        metadata[f"LSST READNOISE {amp.getName()}"] = readNoise
 
         isrFunctions.updateVariance(
             maskedImage=ampExposure.getMaskedImage(),
             gain=gain,
             readNoise=readNoise,
         )
+
+        # isrFunctions.updateVariance will apply the gain.
+        # Update the units.
+        metadata["LSST ISR UNITS"] = 'electrons'
 
     def maskNegativeVariance(self, exposure):
         """Identify and mask pixels with negative variance values.
