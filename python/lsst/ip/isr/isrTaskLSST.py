@@ -394,7 +394,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         "when brighter-fatter correction is applied.",
         default=0,
     )
-    fwhmInterBF = pexConfig.Field(
+    brighterFatterFwhmForInterpolation = pexConfig.Field(
         dtype=float,
         doc="FWHM of PSF in arcseconds used for interpolation in brighter-fatter correction "
         "(currently unused).",
@@ -801,7 +801,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         with self.flatContext(interpExp, flat, dark):
             isrFunctions.interpolateFromMask(
                 maskedImage=interpExp.getMaskedImage(),
-                fwhm=self.config.fwhmInterBF,
+                fwhm=self.config.brighterFatterFwhmForInterpolation,
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
                 maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
             )
@@ -1057,7 +1057,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Interpolating masked pixels.")
             isrFunctions.interpolateFromMask(
                 maskedImage=ccdExposure.getMaskedImage(),
-                fwhm=self.config.fwhmInterBF,
+                fwhm=self.config.brighterFatterFwhmForInterpolation,
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
                 maskNameList=list(self.config.maskListToInterpolate)
             )
