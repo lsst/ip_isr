@@ -741,7 +741,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
     usePtcGains = pexConfig.Field(
         dtype=bool,
-        doc="Use the gain values from the Photon Transfer Curve?",
+        doc="Use the gain values from the input Photon Transfer Curve?",
         default=False,
     )
     normalizeGains = pexConfig.Field(
@@ -1442,13 +1442,8 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Define an effective PTC that will contain the gain and readout
         # noise to be used throughout the ISR task.
-        ptc, gainSource, noiseSource = self.defineEffectivePtc(ptc, ccd,
-                                                               bfGains,
-                                                               overscans)
-        # All amps have the same sources.
         metadata = ccdExposure.getMetadata()
-        metadata['LSST ISR GAIN SOURCE'] = gainSource
-        metadata['LSST ISR NOISE SOURCE'] = noiseSource
+        ptc = self.defineEffectivePtc(ptc, ccd, bfGains, overscans, metadata)
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
@@ -1775,7 +1770,7 @@ class IsrTask(pipeBase.PipelineTask):
             outputStatistics=outputStatistics,
         )
 
-    def defineEffectivePtc(self, ptcDataset, detector, bfGains, overScans):
+    def defineEffectivePtc(self, ptcDataset, detector, bfGains, overScans, metadata):
         """Define a Photon Transfer Curve dataset with nominal
         gains and noise.
 
@@ -1791,6 +1786,8 @@ class IsrTask(pipeBase.PipelineTask):
             in question.
         ovserScans : `list` [`lsst.pipe.base.Struct`]
             List of overscanResults structures
+        metadata : `lsst.daf.base.PropertyList`
+            Exposure metadata to update gain and noise provenance.
 
         Returns
         -------
@@ -1873,6 +1870,9 @@ class IsrTask(pipeBase.PipelineTask):
             self.log.info("Noise provenance: %s, Gain provenance: %s)",
                           noiseProvenanceString,
                           gainProvenanceString)
+            metadata[f"LSST ISR GAIN SOURCE {ampName}"] = gainProvenanceString
+            metadata[f"LSST ISR NOISE SOURCE {ampName}"] = noiseProvenanceString
+
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
 
