@@ -1442,7 +1442,13 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Define an effective PTC that will contain the gain and readout
         # noise to be used throughout the ISR task.
-        ptc = self.defineEffectivePtc(ptc, ccd, bfGains, overscans)
+        ptc, gainSource, noiseSource = self.defineEffectivePtc(ptc, ccd,
+                                                               bfGains,
+                                                               overscans)
+        # All amps have the same sources.
+        metadata = ccdExposure.getMetadata()
+        metadata['LSST ISR GAIN SOURCE'] = gainSource
+        metadata['LSST ISR NOISE SOURCE'] = noiseSource
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
@@ -1876,7 +1882,7 @@ class IsrTask(pipeBase.PipelineTask):
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
 
-            return effectivePtc
+        return effectivePtc, gainProvenanceString, noiseProvenanceString
 
     def ensureExposure(self, inputExp, camera=None, detectorNum=None):
         """Ensure that the data returned by Butler is a fully constructed exp.
