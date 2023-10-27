@@ -1622,12 +1622,8 @@ class IsrTask(pipeBase.PipelineTask):
 
         if self.config.doApplyGains:
             self.log.info("Applying gain correction instead of flat.")
-            if self.config.usePtcGains:
-                self.log.info("Using gains from the Photon Transfer Curve.")
-                isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
-                                        ptcGains=ptc.gain)
-            else:
-                isrFunctions.applyGains(ccdExposure, self.config.normalizeGains)
+            isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
+                                    ptcGains=ptc.gain)
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction after flat.")
