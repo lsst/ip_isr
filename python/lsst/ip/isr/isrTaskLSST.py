@@ -151,7 +151,6 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         if config.usePtcGains is not True and config.usePtcReadNoise is not True:
             del self.ptc
         if config.doCrosstalk is not True:
-            del self.crosstalkSources
             del self.crosstalk
         if config.doDefect is not True:
             del self.defects
@@ -915,7 +914,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
     def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
-            crosstalkSources=None, flat=None, **kwargs
+            flat=None, **kwargs
             ):
 
         detector = ccdExposure.getDetector()
