@@ -14,7 +14,6 @@ import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
 import lsst.pipe.base.connectionTypes as cT
-from lsst.daf.butler import DimensionGraph
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
 from .overscan import OverscanCorrectionTask
@@ -24,6 +23,7 @@ from .crosstalk import CrosstalkTask
 from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
+
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
                              dimensions={"instrument", "exposure", "detector"},
@@ -524,11 +524,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         return gains, readNoise
 
     def updateVariance(self, ampExposure, amp, ptcDataset=None):
-        """Set the variance plane using the gain and read noise
-
-        The read noise is calculated from the ``overscanImage`` if the
-        ``doEmpiricalReadNoise`` option is set in the configuration; otherwise
-        the value from the amplifier data is used.
+        """Set the variance plane using the gain and read noise.
 
         Parameters
         ----------
@@ -549,7 +545,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         --------
         lsst.ip.isr.isrFunctions.updateVariance
         """
-        maskPlanes = [self.config.saturatedMaskName, self.config.suspectMaskName]
         if self.config.usePtcGains:
             if ptcDataset is None:
                 raise RuntimeError("No ptcDataset provided to use PTC gains.")
@@ -610,8 +605,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
 
-                self.updateVariance(ampExposure, amp,
-                                        ptcDataset=ptc)
+                self.updateVariance(ampExposure, amp, ptcDataset=ptc)
 
                 if self.config.qa is not None and self.config.qa.saveStats is True:
                     qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
