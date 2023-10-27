@@ -322,11 +322,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Widen bleed trails based on their width.",
         default=True,
     )
-    doCameraSpecificMasking = pexConfig.Field(
-        dtype=bool,
-        doc="Mask camera-specific bad regions?",
-        default=False,
-    )
     masking = pexConfig.ConfigurableField(
         target=MaskingTask,
         doc="Masking task."
@@ -1014,10 +1009,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doWidenSaturationTrails:
             self.log.info("Widening saturation trails.")
             isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
-
-        if self.config.doCameraSpecificMasking:
-            self.log.info("Masking regions for camera specific reasons.")
-            self.masking.run(ccdExposure)
 
         preInterpExp = None
         if self.config.doSaveInterpPixels:
