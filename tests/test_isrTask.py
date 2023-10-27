@@ -29,7 +29,7 @@ import lsst.utils.tests
 from lsst.ip.isr.isrTask import (IsrTask, IsrTaskConfig)
 from lsst.ip.isr.isrQa import IsrQaConfig
 from lsst.pipe.base import Struct
-
+from lsst.ip.isr import PhotonTransferCurveDataset
 
 def countMaskedPixels(maskedImage, maskPlane):
     """Function to count the number of masked pixels of a given type.
@@ -126,8 +126,13 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         """Expect The variance image should have a larger median value after
         this operation.
         """
+        ampName = self.amp.getName()
+        effectivePtc = PhotonTransferCurveDataset([self.amp.getName()], "TEST_PTC", 1)
+        effectivePtc.gain[ampName] = self.amp.getGain()
+        effectivePtc.noise[ampName] = self.amp.getReadNoise()
         statBefore = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
-        self.task.updateVariance(self.inputExp, self.amp)
+        # effectivePtc will have noise and gain.
+        self.task.updateVariance(self.inputExp, self.amp, effectivePtc)
         statAfter = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
         self.assertGreater(statAfter[0], statBefore[0])
         self.assertFloatsAlmostEqual(statBefore[0], 0.0, atol=1e-2)
