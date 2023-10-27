@@ -436,6 +436,25 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Task to calculate additional statistics.",
     )
 
+    # Make binned images?
+    doBinnedExposures = pexConfig.Field(
+        dtype=bool,
+        doc="Should binned exposures be calculated?",
+        default=False,
+    )
+    binFactor1 = pexConfig.Field(
+        dtype=int,
+        doc="Binning factor for first binned exposure. This is intended for a finely binned output.",
+        default=8,
+        check=lambda x: x > 1,
+    )
+    binFactor2 = pexConfig.Field(
+        dtype=int,
+        doc="Binning factor for second binned exposure. This is intended for a coarsely binned output.",
+        default=64,
+        check=lambda x: x > 1,
+    )
+
 
 class IsrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig
@@ -911,6 +930,28 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         """
         return self.config.doLinearize and \
             detector.getAmplifiers()[0].getLinearityType() != NullLinearityType
+
+    def makeBinnedImages(self, exposure):
+        """Make visualizeVisit style binned exposures.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to bin.
+
+        Returns
+        -------
+        bin1 : `lsst.afw.image.Exposure`
+            Binned exposure using binFactor1.
+        bin2 : `lsst.afw.image.Exposure`
+            Binned exposure using binFactor2.
+        """
+        mi = exposure.getMaskedImage()
+
+        bin1 = afwMath.binImage(mi, self.config.binFactor1)
+        bin2 = afwMath.binImage(mi, self.config.binFactor2)
+
+        return bin1, bin2
 
     def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
