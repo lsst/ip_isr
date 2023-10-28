@@ -148,8 +148,6 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.deferredChargeCalib
         if config.doLinearize is not True:
             del self.linearizer
-        if config.usePtcGains is not True and config.usePtcReadNoise is not True:
-            del self.ptc
         if config.doCrosstalk is not True:
             del self.crosstalk
         if config.doDefect is not True:
@@ -260,16 +258,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=float,
         doc="The gain to use if no Detector is present in the Exposure (ignored if NaN).",
         default=float("NaN"),
-    )
-    usePtcGains = pexConfig.Field(
-        dtype=bool,
-        doc="Use the gain values from the Photon Transfer Curve?",
-        default=True,
-    )
-    usePtcReadNoise = pexConfig.Field(
-        dtype=bool,
-        doc="Use readnoise values from the Photon Transfer Curve?",
-        default=True,
     )
     maskNegativeVariance = pexConfig.Field(
         dtype=bool,
@@ -556,21 +544,18 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         Raises
         ------
         RuntimeError
-            Raised if either ``usePtcGains`` or ``usePtcReadNoise``
-            are ``True``, but ptcDataset is not provided.
+            Raised if ptcDataset is not provided.
 
         See also
         --------
         lsst.ip.isr.isrFunctions.updateVariance
         """
-        if self.config.usePtcGains:
-            if ptcDataset is None:
-                raise RuntimeError("No ptcDataset provided to use PTC gains.")
-            else:
-                gain = ptcDataset.gain[amp.getName()]
-                self.log.warning("Using gain from Photon Transfer Curve.")
+        # Get gains from PTC
+        if ptcDataset is None:
+            raise RuntimeError("No ptcDataset provided to use PTC gains.")
         else:
-            gain = amp.getGain()
+            gain = ptcDataset.gain[amp.getName()]
+            self.log.debug("Getting gain from Photon Transfer Curve.")
 
         if math.isnan(gain):
             gain = 1.0
@@ -581,14 +566,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                              amp.getName(), gain, patchedGain)
             gain = patchedGain
 
-        if self.config.usePtcReadNoise:
-            if ptcDataset is None:
-                raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
-            else:
-                readNoise = ptcDataset.noise[amp.getName()]
-            self.log.info("Using read noise from Photon Transfer Curve.")
+        # Get read noise from PTC
+        if ptcDataset is None:
+            raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
         else:
-            raise RuntimeError("Not supporting other read noise.")
+            readNoise = ptcDataset.noise[amp.getName()]
+            self.log.debug("Getting read noise from Photon Transfer Curve.")
 
         metadata = ampExposure.getMetadata()
         metadata[f'LSST GAIN {amp.getName()}'] = gain
@@ -964,6 +947,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Inputs have been validated, so we can add their date
             # information to the output header.
             exposureMetadata = ccdExposure.getMetadata()
+            exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
             if self.config.doDiffNonLinearCorrection:
                 exposureMetadata["LSST CALIB DATE DNL"] = self.extractCalibDate(dnlLUT)
             if self.config.doBias:
@@ -972,8 +956,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
             if self.doLinearize(detector):
                 exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-            if self.config.usePtcGains or self.config.usePtcReadNoise:
-                exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
             if self.config.doCrosstalk:
                 exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
             if self.config.doDefect:
