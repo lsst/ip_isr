@@ -128,7 +128,7 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         this operation.
         """
         ampName = self.amp.getName()
-        effectivePtc = PhotonTransferCurveDataset([self.amp.getName()], "TEST_PTC", 1)
+        effectivePtc = PhotonTransferCurveDataset([ampName], "TEST_PTC", 1)
         effectivePtc.gain[ampName] = self.amp.getGain()
         effectivePtc.noise[ampName] = self.amp.getReadNoise()
         statBefore = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
@@ -141,7 +141,7 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
 
     def test_defineEffectivePtc(self):
         ampName = self.amp.getName()
-        inputPtc = PhotonTransferCurveDataset([self.amp.getName()], "TEST_PTC", 1)
+        inputPtc = PhotonTransferCurveDataset([ampName], "TEST_PTC", 1)
         inputPtc.gain[ampName] = 1.2
         inputPtc.noise[ampName] = 5
 
