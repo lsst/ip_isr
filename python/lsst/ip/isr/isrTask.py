@@ -1375,7 +1375,8 @@ class IsrTask(pipeBase.PipelineTask):
             self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
 
         # Start in ADU. Update units to electrons when gain is applied:
-        # updateVariance, applyGains, BFE correction, CTI correction.
+        # updateVariance, applyGains
+        # Check if needed during/after BFE correction, CTI correction.
         exposureMetadata["LSST ISR UNITS"] = "ADU"
 
         # Begin ISR processing.
@@ -2239,7 +2240,7 @@ class IsrTask(pipeBase.PipelineTask):
             readNoise=readNoise,
         )
 
-        # isrFunctions.updateVariance will apply the gain.
+        # isrFunctions.updateVariance applied the gain.
         # Update the units.
         metadata["LSST ISR UNITS"] = 'electrons'
 
