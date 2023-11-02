@@ -29,7 +29,8 @@ import lsst.utils.tests
 from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
 from lsst.ip.isr.isrQa import IsrQaConfig
 from lsst.pipe.base import Struct
-
+import lsst.ip.isr.isrMock as isrM
+from lsst.ip.isr import PhotonTransferCurveDataset
 
 def countMaskedPixels(maskedImage, maskPlane):
     """Function to count the number of masked pixels of a given type.
@@ -83,10 +84,24 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.task = IsrTaskLSST(config=self.config)
         self.camera = isrMock.IsrMock().getCamera()
 
+
         self.inputExp = isrMock.TrimmedRawMock().run()
         self.amp = self.inputExp.getDetector()[0]
         self.mi = self.inputExp.getMaskedImage()
         self.detector = self.inputExp.getDetector()
+
+        # We need a mock PTC to test the variance
+        # Get a mock as an example, and get its cameraGeom:
+        ampNames = [x.getName() for x in self.detector.getAmplifiers()]
+        print(ampNames)
+        # Make PTC.  The arguments other than the ampNames aren't important for this.
+        self.ptc = PhotonTransferCurveDataset(ampNames,
+                                    ptcFitType='DUMMY_PTC',
+                                    covMatrixSide=1)
+        for ampName in ampNames:
+            self.ptc.gain[ampName] = 1.5  # gain in e-/ADU
+            self.ptc.noise[ampName] = 8.5  # read noise in ADU
+
 
     def validateIsrData(self, results):
         """results should be a struct with components that are
@@ -107,7 +122,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         this operation.
         """
         statBefore = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
-        self.task.updateVariance(self.inputExp, self.amp)
+        self.task.updateVariance(self.inputExp, self.amp, ptcDataset=self.ptc)
         statAfter = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
         self.assertGreater(statAfter[0], statBefore[0])
         self.assertFloatsAlmostEqual(statBefore[0], 0.0, atol=1e-2)
@@ -447,7 +462,6 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.inputExp = isrMock.RawMock(config=self.mockConfig).run()
         self.amp = self.inputExp.getDetector()[0]
         self.mi = self.inputExp.getMaskedImage()
-        #TO DO initiate ptc data sets and fill gains with 1.5
 
     def batchSetConfiguration(self, value):
         """Set the configuration state to a consistent value.
