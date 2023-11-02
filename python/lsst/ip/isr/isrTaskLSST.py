@@ -968,7 +968,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return bin1, bin2
 
-    def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
+    def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
             flat=None, **kwargs
             ):
@@ -1000,6 +1000,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
+        overscans = None
         if self.config.doOverscan:
             # Input units: ADU
             overscans = self.overscanCorrection(detector, ccdExposure)
@@ -1118,8 +1119,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # calculate additional statistics.
         outputStatistics = None
         if self.config.doCalculateStatistics:
-            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
-                                                 ptc=ptc).results
+            if overscans is None or ptc is None:
+                self.log.warning("Can't compute statistics without overscan" \
+                    " and PTC.")
+            else:
+                outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
+                                                     ptc=ptc).results
 
         # do image binning.
         outputBin1Exposure = None

@@ -74,7 +74,8 @@ def computeImageMedianAndStd(image):
 
 
 class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
-    """Test IsrTaskLSST methods with trimmed raw data.
+    """Test IsrTaskLSST methods with trimmed raw data,
+    testing post-assembly steps.
     """
     def setUp(self):
         print('New instance')
@@ -125,7 +126,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         statAfter = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
         self.assertGreater(statAfter[0], statBefore[0])
         self.assertFloatsAlmostEqual(statBefore[0], 0.0, atol=1e-2)
-        self.assertFloatsAlmostEqual(statAfter[0], 8170.0195, atol=1e-2)
+        self.assertFloatsAlmostEqual(statAfter[0], 5452.2637, atol=1e-2)
 
     def test_darkCorrection(self):
         """Expect the median image value should decrease after this operation.
@@ -443,8 +444,8 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
 
 
 class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
-    """Test IsrTask methods using untrimmed raw data,
-    testing pre-assembly and assembly
+    """Test IsrTaskLSST methods using untrimmed raw data,
+    testing pre-assembly steps and the assembly step itself.
     """
     def setUp(self):
         self.config = IsrTaskLSSTConfig()
@@ -461,6 +462,20 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.inputExp = isrMock.RawMock(config=self.mockConfig).run()
         self.amp = self.inputExp.getDetector()[0]
         self.mi = self.inputExp.getMaskedImage()
+        self.detector = self.inputExp.getDetector()
+
+        # We need a mock PTC to test the variance
+        # Get a mock as an example, and get its cameraGeom:
+        ampNames = [x.getName() for x in self.detector.getAmplifiers()]
+        print(ampNames)
+        # Make PTC.
+        # The arguments other than the ampNames aren't important for this.
+        self.ptc = PhotonTransferCurveDataset(ampNames,
+                                              ptcFitType='DUMMY_PTC',
+                                              covMatrixSide=1)
+        for ampName in ampNames:
+            self.ptc.gain[ampName] = 1.5  # gain in e-/ADU
+            self.ptc.noise[ampName] = 8.5  # read noise in ADU
 
     def batchSetConfiguration(self, value):
         """Set the configuration state to a consistent value.
@@ -478,11 +493,12 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
 
         self.config.doSetBadRegions = False
         self.config.doBias = False
+        self.config.doDeferredCharge = False
         self.config.doVariance = False
         self.config.doWidenSaturationTrails = False
-        self.config.doBrighterFatter = False
+        self.config.doCrosstalk = False
         self.config.doDefect = False
-        self.config.doSaturationInterpolation = False
+        self.config.doBrighterFatter = False
         self.config.doDark = False
         self.config.qa.saveStats = False
 
@@ -498,11 +514,16 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.task = IsrTaskLSST(config=self.config)
         results = self.task.run(self.inputExp,
                                 camera=self.camera,
+                                #dnlLUT=None,
                                 bias=self.dataContainer.get("bias"),
-                                dark=self.dataContainer.get("dark"),
-                                flat=self.dataContainer.get("flat"),
+                                #deferredChargeCalib=None,
+                                #linearizer=None,
+                                ptc=self.ptc,
+                                #crosstalk=None,
+                                defects=self.dataContainer.get("defects"),
                                 bfKernel=self.dataContainer.get("bfKernel"),
-                                defects=self.dataContainer.get("defects")
+                                #bfGains=None,
+                                dark=self.dataContainer.get("dark"),
                                 )
 
         self.assertIsInstance(results, Struct)
