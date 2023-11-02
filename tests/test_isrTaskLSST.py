@@ -29,6 +29,7 @@ import lsst.utils.tests
 from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
 from lsst.ip.isr.isrQa import IsrQaConfig
 from lsst.pipe.base import Struct
+from lsst.ip.isr import PhotonTransferCurveDataset
 
 
 def countMaskedPixels(maskedImage, maskPlane):
@@ -73,7 +74,8 @@ def computeImageMedianAndStd(image):
 
 
 class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
-    """Test IsrTaskLSST methods with trimmed raw data.
+    """Test IsrTaskLSST methods with trimmed raw data,
+    testing post-assembly steps.
     """
     def setUp(self):
         print('New instance')
@@ -87,6 +89,19 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.amp = self.inputExp.getDetector()[0]
         self.mi = self.inputExp.getMaskedImage()
         self.detector = self.inputExp.getDetector()
+
+        # We need a mock PTC to test the variance
+        # Get a mock as an example, and get its cameraGeom:
+        ampNames = [x.getName() for x in self.detector.getAmplifiers()]
+        print(ampNames)
+        # Make PTC.
+        # The arguments other than the ampNames aren't important for this.
+        self.ptc = PhotonTransferCurveDataset(ampNames,
+                                              ptcFitType='DUMMY_PTC',
+                                              covMatrixSide=1)
+        for ampName in ampNames:
+            self.ptc.gain[ampName] = 1.5  # gain in e-/ADU
+            self.ptc.noise[ampName] = 8.5  # read noise in ADU
 
     def validateIsrData(self, results):
         """results should be a struct with components that are
@@ -107,11 +122,11 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         this operation.
         """
         statBefore = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
-        self.task.updateVariance(self.inputExp, self.amp)
+        self.task.updateVariance(self.inputExp, self.amp, ptcDataset=self.ptc)
         statAfter = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
         self.assertGreater(statAfter[0], statBefore[0])
         self.assertFloatsAlmostEqual(statBefore[0], 0.0, atol=1e-2)
-        self.assertFloatsAlmostEqual(statAfter[0], 8170.0195, atol=1e-2)
+        self.assertFloatsAlmostEqual(statAfter[0], 5452.2637, atol=1e-2)
 
     def test_darkCorrection(self):
         """Expect the median image value should decrease after this operation.
@@ -350,7 +365,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
 
     #     self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
     #     self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 2000)
-    #     self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 3940)
+    #    self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 3940)
     #     self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 
     # def test_maskingCase_throughDefectsAmpEdges(self):
@@ -378,7 +393,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
 
     #     self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
     #     self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 2000)
-    #     self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 11280)
+    #   self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 11280)
     #     self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 
     # def test_maskingCase_throughBad(self):
@@ -429,8 +444,8 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
 
 
 class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
-    """Test IsrTask methods using untrimmed raw data,
-    testing pre-assembly and assembly
+    """Test IsrTaskLSST methods using untrimmed raw data,
+    testing pre-assembly steps and the assembly step itself.
     """
     def setUp(self):
         self.config = IsrTaskLSSTConfig()
@@ -447,7 +462,20 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.inputExp = isrMock.RawMock(config=self.mockConfig).run()
         self.amp = self.inputExp.getDetector()[0]
         self.mi = self.inputExp.getMaskedImage()
-        #TO DO initiate ptc data sets and fill gains with 1.5
+        self.detector = self.inputExp.getDetector()
+
+        # We need a mock PTC to test the variance
+        # Get a mock as an example, and get its cameraGeom:
+        ampNames = [x.getName() for x in self.detector.getAmplifiers()]
+        print(ampNames)
+        # Make PTC.
+        # The arguments other than the ampNames aren't important for this.
+        self.ptc = PhotonTransferCurveDataset(ampNames,
+                                              ptcFitType='DUMMY_PTC',
+                                              covMatrixSide=1)
+        for ampName in ampNames:
+            self.ptc.gain[ampName] = 1.5  # gain in e-/ADU
+            self.ptc.noise[ampName] = 8.5  # read noise in ADU
 
     def batchSetConfiguration(self, value):
         """Set the configuration state to a consistent value.
@@ -465,11 +493,12 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
 
         self.config.doSetBadRegions = False
         self.config.doBias = False
+        self.config.doDeferredCharge = False
         self.config.doVariance = False
         self.config.doWidenSaturationTrails = False
-        self.config.doBrighterFatter = False
+        self.config.doCrosstalk = False
         self.config.doDefect = False
-        self.config.doSaturationInterpolation = False
+        self.config.doBrighterFatter = False
         self.config.doDark = False
         self.config.qa.saveStats = False
 
@@ -483,13 +512,15 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
             Results struct generated from the current ISR configuration.
         """
         self.task = IsrTaskLSST(config=self.config)
+        # Not testing dnlLUT (not existant yet), deferred Charge,
+        # linearizer, crosstalk, bfgains
         results = self.task.run(self.inputExp,
                                 camera=self.camera,
                                 bias=self.dataContainer.get("bias"),
-                                dark=self.dataContainer.get("dark"),
-                                flat=self.dataContainer.get("flat"),
+                                ptc=self.ptc,
+                                defects=self.dataContainer.get("defects"),
                                 bfKernel=self.dataContainer.get("bfKernel"),
-                                defects=self.dataContainer.get("defects")
+                                dark=self.dataContainer.get("dark"),
                                 )
 
         self.assertIsInstance(results, Struct)
@@ -518,9 +549,8 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.batchSetConfiguration(False)
         self.validateIsrResults()
 
-
     def test_overscanCorrection(self):
-        self.task.overscanCorrection(self.detector,self.inputExp)
+        self.task.overscanCorrection(self.detector, self.inputExp)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
