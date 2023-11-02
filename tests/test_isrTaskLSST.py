@@ -29,8 +29,8 @@ import lsst.utils.tests
 from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
 from lsst.ip.isr.isrQa import IsrQaConfig
 from lsst.pipe.base import Struct
-import lsst.ip.isr.isrMock as isrM
 from lsst.ip.isr import PhotonTransferCurveDataset
+
 
 def countMaskedPixels(maskedImage, maskPlane):
     """Function to count the number of masked pixels of a given type.
@@ -84,7 +84,6 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.task = IsrTaskLSST(config=self.config)
         self.camera = isrMock.IsrMock().getCamera()
 
-
         self.inputExp = isrMock.TrimmedRawMock().run()
         self.amp = self.inputExp.getDetector()[0]
         self.mi = self.inputExp.getMaskedImage()
@@ -94,14 +93,14 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         # Get a mock as an example, and get its cameraGeom:
         ampNames = [x.getName() for x in self.detector.getAmplifiers()]
         print(ampNames)
-        # Make PTC.  The arguments other than the ampNames aren't important for this.
+        # Make PTC.
+        # The arguments other than the ampNames aren't important for this.
         self.ptc = PhotonTransferCurveDataset(ampNames,
-                                    ptcFitType='DUMMY_PTC',
-                                    covMatrixSide=1)
+                                              ptcFitType='DUMMY_PTC',
+                                              covMatrixSide=1)
         for ampName in ampNames:
             self.ptc.gain[ampName] = 1.5  # gain in e-/ADU
             self.ptc.noise[ampName] = 8.5  # read noise in ADU
-
 
     def validateIsrData(self, results):
         """results should be a struct with components that are
@@ -365,7 +364,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
 
     #     self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
     #     self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 2000)
-    #     self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 3940)
+    #    self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 3940)
     #     self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 
     # def test_maskingCase_throughDefectsAmpEdges(self):
@@ -393,7 +392,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
 
     #     self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
     #     self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 2000)
-    #     self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 11280)
+    #   self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 11280)
     #     self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 
     # def test_maskingCase_throughBad(self):
@@ -532,9 +531,8 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.batchSetConfiguration(False)
         self.validateIsrResults()
 
-
     def test_overscanCorrection(self):
-        self.task.overscanCorrection(self.detector,self.inputExp)
+        self.task.overscanCorrection(self.detector, self.inputExp)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
