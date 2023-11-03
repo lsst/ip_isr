@@ -1876,6 +1876,13 @@ class IsrTask(pipeBase.PipelineTask):
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
 
+        self.log.info("Det: %s - Noise provenance: %s, Gain provenance: %s",
+                      detName,
+                      noiseProvenanceString,
+                      gainProvenanceString)
+        metadata["LSST ISR GAIN SOURCE"] = gainProvenanceString
+        metadata["LSST ISR NOISE SOURCE"] = noiseProvenanceString
+
         return effectivePtc
 
     def ensureExposure(self, inputExp, camera=None, detectorNum=None):
