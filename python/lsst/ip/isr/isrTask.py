@@ -1866,15 +1866,21 @@ class IsrTask(pipeBase.PipelineTask):
                 # self.config.noise.
                 noise = amp.getReadNoise()
 
-            self.log.info("%s - Noise provenance: %s, Gain provenance: %s",
-                          ampName,
-                          noiseProvenanceString,
-                          gainProvenanceString)
-            metadata[f"LSST ISR GAIN SOURCE {ampName}"] = gainProvenanceString
-            metadata[f"LSST ISR NOISE SOURCE {ampName}"] = noiseProvenanceString
+            if math.isnan(gain):
+                gain = 1.0
+                self.log.warning("Gain for amp %s set to NAN! Updating to"
+                                 " 1.0 to generate Poisson variance.", ampName)
+            elif gain <= 0:
+                patchedGain = 1.0
+                self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
+                                 ampName, gain, patchedGain)
+                gain = patchedGain
 
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
+
+            metadata[f"LSST GAIN {amp.getName()}"] = gain
+            metadata[f"LSST READNOISE {amp.getName()}"] = noise
 
         self.log.info("Det: %s - Noise provenance: %s, Gain provenance: %s",
                       detName,
@@ -2220,34 +2226,16 @@ class IsrTask(pipeBase.PipelineTask):
         lsst.ip.isr.isrFunctions.updateVariance
         """
         ampName = amp.getName()
-
         # At this point, the effective PTC should have
         # gain and noise values.
         gain = ptcDataset.gain[ampName]
-        if math.isnan(gain):
-            gain = 1.0
-            self.log.warning("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
-        elif gain <= 0:
-            patchedGain = 1.0
-            self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
-                             ampName, gain, patchedGain)
-            gain = patchedGain
-
         readNoise = ptcDataset.noise[ampName]
-
-        metadata = ampExposure.getMetadata()
-        metadata[f"LSST GAIN {amp.getName()}"] = gain
-        metadata[f"LSST READNOISE {amp.getName()}"] = readNoise
 
         isrFunctions.updateVariance(
             maskedImage=ampExposure.getMaskedImage(),
             gain=gain,
             readNoise=readNoise,
         )
-
-        # isrFunctions.updateVariance applied the gain.
-        # Update the units.
-        metadata["LSST ISR UNITS"] = 'electrons'
 
     def maskNegativeVariance(self, exposure):
         """Identify and mask pixels with negative variance values.
