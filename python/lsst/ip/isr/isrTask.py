@@ -1346,6 +1346,10 @@ class IsrTask(pipeBase.PipelineTask):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
         if (self.config.doDeferredCharge and deferredChargeCalib is None):
             raise RuntimeError("Must supply a deferred charge calibration if config.doDeferredCharge=True.")
+        if (self.config.usePtcGains and ptc is None):
+            raise RuntimeError("No ptcDataset provided to use PTC gains.")
+        if (self.config.usePtcReadNoise and ptc is None):
+            raise RuntimeError("No ptcDataset provided to use PTC read noise.")
 
         # Validate that the inputs match the exposure configuration.
         exposureMetadata = ccdExposure.getMetadata()
@@ -1778,7 +1782,7 @@ class IsrTask(pipeBase.PipelineTask):
         Parameters
         ------
         ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`
-            Inout Photon Transfer Curve dataset.
+            Input Photon Transfer Curve dataset.
         detector : `lsst.afw.cameraGeom.Detector`
             Detector object.
         bfGains : `dict`
@@ -1809,16 +1813,13 @@ class IsrTask(pipeBase.PipelineTask):
             # Try first with the PTC gains.
             gainProvenanceString = "amp"
             if self.config.usePtcGains:
-                if ptcDataset is None:
-                    raise RuntimeError("No ptcDataset provided to use PTC gains.")
-                else:
-                    gain = ptcDataset.gain[ampName]
-                    gainProvenanceString = "ptc"
-                    self.log.info("Using gain from Photon Transfer Curve.")
+                gain = ptcDataset.gain[ampName]
+                gainProvenanceString = "ptc"
+                self.log.info("Using gain from Photon Transfer Curve.")
             else:
                 # Try then with the amplifier gain.
                 # We already have a detector at this point. If there was no
-                # detector to beging with, one would have been created with
+                # detector to begin with, one would have been created with
                 # self.config.gain and self.config.noise. Same comment
                 # applies for the noise block below.
                 gain = amp.getGain()
@@ -1854,16 +1855,13 @@ class IsrTask(pipeBase.PipelineTask):
                     noise = overscanResults.residualSigma[0]
             elif self.config.usePtcReadNoise:
                 # Try then with the PTC noise.
-                if ptcDataset is None:
-                    raise RuntimeError("No ptcDataset provided to use PTC noise.")
-                else:
-                    noise = ptcDataset.noise[amp.getName()]
-                    noiseProvenanceString = "ptc"
-                    self.log.info("Using noise from Photon Transfer Curve.")
+                noise = ptcDataset.noise[amp.getName()]
+                noiseProvenanceString = "ptc"
+                self.log.info("Using noise from Photon Transfer Curve.")
             else:
                 # Finally, try with the amplifier noise.
                 # We already have a detector at this point. If there
-                # was no detector to beging with, one would have
+                # was no detector to begin with, one would have
                 # been created with self.config.gain and
                 # self.config.noise.
                 noise = amp.getReadNoise()
