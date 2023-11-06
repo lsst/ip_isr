@@ -512,17 +512,14 @@ class IsrTaskLSSTUnTrimmedTestCases(lsst.utils.tests.TestCase):
             Results struct generated from the current ISR configuration.
         """
         self.task = IsrTaskLSST(config=self.config)
+        # Not testing dnlLUT (not existant yet), deferred Charge,
+        # linearizer, crosstalk, bfgains
         results = self.task.run(self.inputExp,
                                 camera=self.camera,
-                                #dnlLUT=None,
                                 bias=self.dataContainer.get("bias"),
-                                #deferredChargeCalib=None,
-                                #linearizer=None,
                                 ptc=self.ptc,
-                                #crosstalk=None,
                                 defects=self.dataContainer.get("defects"),
                                 bfKernel=self.dataContainer.get("bfKernel"),
-                                #bfGains=None,
                                 dark=self.dataContainer.get("dark"),
                                 )
 

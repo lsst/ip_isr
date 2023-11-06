@@ -1120,8 +1120,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         outputStatistics = None
         if self.config.doCalculateStatistics:
             if overscans is None or ptc is None:
-                self.log.warning("Can't compute statistics without overscan" \
-                    " and PTC.")
+                self.log.warning("Can't compute statistics without overscan"
+                                 " and PTC.")
             else:
                 outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
                                                      ptc=ptc).results
