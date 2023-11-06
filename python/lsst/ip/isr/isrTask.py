@@ -1878,9 +1878,8 @@ class IsrTask(pipeBase.PipelineTask):
 
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
-
             # Make sure noise,turnoff, and gain make sense
-            effectivePtc.validateGainNoiseTurnoffValues()
+            effectivePtc.validateGainNoiseTurnoffValues(ampName)
 
             metadata[f"LSST GAIN {amp.getName()}"] = effectivePtc.gain[ampName]
             metadata[f"LSST READNOISE {amp.getName()}"] = effectivePtc.noise[ampName]
