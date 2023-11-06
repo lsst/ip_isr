@@ -1815,7 +1815,7 @@ class IsrTask(pipeBase.PipelineTask):
             if self.config.usePtcGains:
                 gain = ptcDataset.gain[ampName]
                 gainProvenanceString = "ptc"
-                self.log.info("Using gain from Photon Transfer Curve.")
+                self.log.debug("Using gain from Photon Transfer Curve.")
             else:
                 # Try then with the amplifier gain.
                 # We already have a detector at this point. If there was no
@@ -1857,7 +1857,7 @@ class IsrTask(pipeBase.PipelineTask):
                 # Try then with the PTC noise.
                 noise = ptcDataset.noise[amp.getName()]
                 noiseProvenanceString = "ptc"
-                self.log.info("Using noise from Photon Transfer Curve.")
+                self.log.debug("Using noise from Photon Transfer Curve.")
             else:
                 # Finally, try with the amplifier noise.
                 # We already have a detector at this point. If there
@@ -1880,7 +1880,7 @@ class IsrTask(pipeBase.PipelineTask):
             effectivePtc.noise[ampName] = noise
 
             # Make sure noise,turnoff, and gain make sense
-            effectivePtc.validateGainNoiseTurnoff()
+            effectivePtc.validateGainNoiseTurnoffValues()
 
             metadata[f"LSST GAIN {amp.getName()}"] = effectivePtc.gain[ampName]
             metadata[f"LSST READNOISE {amp.getName()}"] = effectivePtc.noise[ampName]
