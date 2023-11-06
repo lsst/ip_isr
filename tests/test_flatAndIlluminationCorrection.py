@@ -130,7 +130,7 @@ class IsrTestCases(unittest.TestCase):
             effectivePtc = PhotonTransferCurveDataset([ampName], "TEST_PTC", 1)
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = readNoise
-
+            effectivePtc.validateGainNoiseTurnoffValues()
             isrTask.updateVariance(raw, testAmp, effectivePtc)
             if gain <= 0:               # behave the same way as amp.setGain
                 gain = 1

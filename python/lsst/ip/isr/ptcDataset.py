@@ -26,6 +26,7 @@ Define dataset class for MeasurePhotonTransferCurve task
 __all__ = ['PhotonTransferCurveDataset']
 
 import numpy as np
+import math
 from astropy.table import Table
 
 from lsst.ip.isr import IsrCalib
@@ -774,3 +775,34 @@ class PhotonTransferCurveDataset(IsrCalib):
             Boolean array of good points used in PTC.
         """
         return self.expIdMask[ampName]
+
+    def validateGainNoiseTurnoffValues(self):
+        """Ensure the gain, read noise, and PTC turnoff have
+           sensible values."""
+
+        for ampName in self.ampNames:
+            gain = self.gain[ampName]
+            noise = self.noise[ampName]
+            ptcTurnoff = self.ptcTurnoff[ampName]
+
+            # Check if gain is not positive or is np.nan
+            if not (isinstance(gain, (int, float)) and gain > 0) or math.isnan(gain):
+                self.log.warning(f"Invalid gain value for {ampName}: {gain}"
+                                 " Setting to default: Gain=1")
+                gain = 1
+
+            # Check if noise is not positive or is np.nan
+            if not (isinstance(noise, (int, float)) and noise > 0) or math.isnan(noise):
+                self.log.warning(f"Invalid noise value for {ampName}: {noise}"
+                                 " Setting to default: Noise=1")
+                noise = 1
+
+            # Check if ptcTurnoff is not positive or is np.nan
+            if not (isinstance(ptcTurnoff, (int, float)) and ptcTurnoff > 0) or math.isnan(ptcTurnoff):
+                self.log.warning(f"Invalid PTC turnoff value for {ampName}: {ptcTurnoff}"
+                                 " Setting to default: PTC Turnoff=2e19")
+                ptcTurnoff = 2e19
+
+            self.gain[ampName] = gain
+            self.noise[ampName] = noise
+            self.ptcTurnoff[ampName] = ptcTurnoff
