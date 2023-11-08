@@ -29,6 +29,7 @@ import lsst.utils.tests
 from lsst.ip.isr.isrTask import (IsrTask, IsrTaskConfig)
 from lsst.ip.isr.isrQa import IsrQaConfig
 from lsst.pipe.base import Struct
+from lsst.ip.isr import PhotonTransferCurveDataset
 
 
 def countMaskedPixels(maskedImage, maskPlane):
@@ -126,12 +127,66 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         """Expect The variance image should have a larger median value after
         this operation.
         """
+        ampName = self.amp.getName()
+        effectivePtc = PhotonTransferCurveDataset([ampName], "TEST_PTC", 1)
+        effectivePtc.gain[ampName] = self.amp.getGain()
+        effectivePtc.noise[ampName] = self.amp.getReadNoise()
         statBefore = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
-        self.task.updateVariance(self.inputExp, self.amp)
+        # effectivePtc will have noise and gain.
+        self.task.updateVariance(self.inputExp, self.amp, effectivePtc)
         statAfter = computeImageMedianAndStd(self.inputExp.variance[self.amp.getBBox()])
         self.assertGreater(statAfter[0], statBefore[0])
         self.assertFloatsAlmostEqual(statBefore[0], 0.0, atol=1e-2)
         self.assertFloatsAlmostEqual(statAfter[0], 8170.0195, atol=1e-2)
+
+    def test_defineEffectivePtc(self):
+        ampName = self.amp.getName()
+        inputPtc = PhotonTransferCurveDataset([ampName], "TEST_PTC", 1)
+        inputPtc.gain[ampName] = 1.2
+        inputPtc.noise[ampName] = 5
+
+        exposureMetadata = self.inputExp.getMetadata()
+        detector = self.inputExp.getDetector()
+        overscans = [self.task.overscanCorrection(self.inputExp, self.amp)]
+        bfGains = {ampName: 1.5}
+
+        # Defaults
+        # doEmpiricalReadNoise = False
+        # usePtcReadNoise = False
+        # usePtcGains = False
+        # doRaiseOnCalibMismatch= False
+        effectivePtc = self.task.defineEffectivePtc(inputPtc, detector, bfGains,
+                                                    overscans,
+                                                    exposureMetadata)
+        self.assertEqual(effectivePtc.gain[ampName], self.amp.getGain())
+        self.assertEqual(effectivePtc.noise[ampName], self.amp.getReadNoise())
+
+        # Use input PTC values
+        self.config.usePtcGains = True
+        self.config.usePtcReadNoise = True
+        effectivePtc = self.task.defineEffectivePtc(inputPtc, detector, bfGains,
+                                                    overscans,
+                                                    exposureMetadata)
+        self.assertEqual(effectivePtc.gain[ampName], inputPtc.gain[ampName])
+        self.assertEqual(effectivePtc.noise[ampName], inputPtc.noise[ampName])
+
+        # use empirical readout noise from overscan and PTC gain
+        self.config.usePtcGains = True
+        self.config.doEmpiricalReadNoise = True
+        effectivePtc = self.task.defineEffectivePtc(inputPtc, detector, bfGains,
+                                                    overscans,
+                                                    exposureMetadata)
+        self.assertFloatsAlmostEqual(effectivePtc.noise[ampName], 39.8794613621691)
+        self.assertEqual(effectivePtc.gain[ampName], inputPtc.gain[ampName])
+
+        # Raise if the PTC and BFK gains don't match
+        results = None
+        with self.assertRaises(RuntimeError):
+            self.config.doRaiseOnCalibMismatch = True
+            results = self.task.defineEffectivePtc(inputPtc, detector, bfGains,
+                                                   overscans,
+                                                   exposureMetadata)
+        self.assertIsNone(results)
 
     def test_darkCorrection(self):
         """Expect the median image value should decrease after this operation.

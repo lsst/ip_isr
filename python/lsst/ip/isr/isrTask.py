@@ -55,6 +55,7 @@ from .vignette import VignetteTask
 from .ampOffset import AmpOffsetTask
 from .deferredCharge import DeferredChargeTask
 from .isrStatistics import IsrStatisticsTask
+from .ptcDataset import PhotonTransferCurveDataset
 from lsst.daf.butler import DimensionGraph
 
 
@@ -740,7 +741,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
     usePtcGains = pexConfig.Field(
         dtype=bool,
-        doc="Use the gain values from the Photon Transfer Curve?",
+        doc="Use the gain values from the input Photon Transfer Curve?",
         default=False,
     )
     normalizeGains = pexConfig.Field(
@@ -1345,6 +1346,10 @@ class IsrTask(pipeBase.PipelineTask):
             raise RuntimeError("Must supply an illumcor if config.doIlluminationCorrection=True.")
         if (self.config.doDeferredCharge and deferredChargeCalib is None):
             raise RuntimeError("Must supply a deferred charge calibration if config.doDeferredCharge=True.")
+        if (self.config.usePtcGains and ptc is None):
+            raise RuntimeError("No ptcDataset provided to use PTC gains.")
+        if (self.config.usePtcReadNoise and ptc is None):
+            raise RuntimeError("No ptcDataset provided to use PTC read noise.")
 
         # Validate that the inputs match the exposure configuration.
         exposureMetadata = ccdExposure.getMetadata()
@@ -1372,6 +1377,11 @@ class IsrTask(pipeBase.PipelineTask):
             self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
         if self.config.doStrayLight:
             self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
+
+        # Start in ADU. Update units to electrons when gain is applied:
+        # updateVariance, applyGains
+        # Check if needed during/after BFE correction, CTI correction.
+        exposureMetadata["LSST ISR UNITS"] = "ADU"
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1439,6 +1449,10 @@ class IsrTask(pipeBase.PipelineTask):
             else:
                 self.log.info("Skipped OSCAN for %s.", amp.getName())
 
+        # Define an effective PTC that will contain the gain and readout
+        # noise to be used throughout the ISR task.
+        ptc = self.defineEffectivePtc(ptc, ccd, bfGains, overscans, exposureMetadata)
+
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
             self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
@@ -1473,14 +1487,8 @@ class IsrTask(pipeBase.PipelineTask):
                 if ccdExposure.getBBox().contains(amp.getBBox()):
                     self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
-                    if overscanResults is not None:
-                        self.updateVariance(ampExposure, amp,
-                                            overscanImage=overscanResults.overscanImage,
-                                            ptcDataset=ptc)
-                    else:
-                        self.updateVariance(ampExposure, amp,
-                                            overscanImage=None,
-                                            ptcDataset=ptc)
+                    self.updateVariance(ampExposure, amp, ptc)
+
                     if self.config.qa is not None and self.config.qa.saveStats is True:
                         qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
                                                          afwMath.MEDIAN | afwMath.STDEVCLIP)
@@ -1622,12 +1630,9 @@ class IsrTask(pipeBase.PipelineTask):
 
         if self.config.doApplyGains:
             self.log.info("Applying gain correction instead of flat.")
-            if self.config.usePtcGains:
-                self.log.info("Using gains from the Photon Transfer Curve.")
-                isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
-                                        ptcGains=ptc.gain)
-            else:
-                isrFunctions.applyGains(ccdExposure, self.config.normalizeGains)
+            isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
+                                    ptcGains=ptc.gain)
+            exposureMetadata["LSST ISR UNITS"] = "electrons"
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction after flat.")
@@ -1769,6 +1774,124 @@ class IsrTask(pipeBase.PipelineTask):
             outputFlattenedThumbnail=flattenedThumb,
             outputStatistics=outputStatistics,
         )
+
+    def defineEffectivePtc(self, ptcDataset, detector, bfGains, overScans, metadata):
+        """Define an effective Photon Transfer Curve dataset
+        with nominal gains and noise.
+
+        Parameters
+        ------
+        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`
+            Input Photon Transfer Curve dataset.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector object.
+        bfGains : `dict`
+            Gains from running the brighter-fatter code.
+            A dict keyed by amplifier name for the detector
+            in question.
+        ovserScans : `list` [`lsst.pipe.base.Struct`]
+            List of overscanResults structures
+        metadata : `lsst.daf.base.PropertyList`
+            Exposure metadata to update gain and noise provenance.
+
+        Returns
+        -------
+        effectivePtc : `lsst.ip.isr.PhotonTransferCurveDataset`
+            PTC dataset containing gains and readout noise
+            values to be used throughout
+            Instrument Signature Removal.
+        """
+        amps = detector.getAmplifiers()
+        ampNames = [amp.getName() for amp in amps]
+        detName = detector.getName()
+        effectivePtc = PhotonTransferCurveDataset(ampNames, 'EFFECTIVE_PTC', 1)
+        boolGainMismatch = False
+
+        for amp, overscanResults in zip(amps, overScans):
+            ampName = amp.getName()
+            # Gain:
+            # Try first with the PTC gains.
+            gainProvenanceString = "amp"
+            if self.config.usePtcGains:
+                gain = ptcDataset.gain[ampName]
+                gainProvenanceString = "ptc"
+                self.log.debug("Using gain from Photon Transfer Curve.")
+            else:
+                # Try then with the amplifier gain.
+                # We already have a detector at this point. If there was no
+                # detector to begin with, one would have been created with
+                # self.config.gain and self.config.noise. Same comment
+                # applies for the noise block below.
+                gain = amp.getGain()
+
+            # Check if the gain up to this point differs from the
+            # gain in bfGains. If so, raise or warn, accordingly.
+            if not boolGainMismatch and bfGains is not None:
+                bfGain = bfGains[ampName]
+                if not math.isclose(gain, bfGain, rel_tol=1e-4):
+                    if self.config.doRaiseOnCalibMismatch:
+                        raise RuntimeError("Gain mismatch for det %s amp %s: "
+                                           "(gain (%s): %s, bfGain: %s)",
+                                           detName, ampName, gainProvenanceString,
+                                           gain, bfGain)
+                    else:
+                        self.log.warning("Gain mismatch for det %s amp %s: "
+                                         "(gain (%s): %s, bfGain: %s)",
+                                         detName, ampName, gainProvenanceString,
+                                         gain, bfGain)
+                    boolGainMismatch = True
+
+            # Noise:
+            # Try first with the empirical noise from the overscan.
+            noiseProvenanceString = "amp"
+            if self.config.doEmpiricalReadNoise and overscanResults is not None:
+                noiseProvenanceString = "serial overscan"
+                if isinstance(overscanResults.residualSigma, float):
+                    # Only serial overscan was run
+                    noise = overscanResults.residualSigma
+                else:
+                    # Both serial and parallel overscan were
+                    # run.  Only report noise from serial here.
+                    noise = overscanResults.residualSigma[0]
+            elif self.config.usePtcReadNoise:
+                # Try then with the PTC noise.
+                noise = ptcDataset.noise[amp.getName()]
+                noiseProvenanceString = "ptc"
+                self.log.debug("Using noise from Photon Transfer Curve.")
+            else:
+                # Finally, try with the amplifier noise.
+                # We already have a detector at this point. If there
+                # was no detector to begin with, one would have
+                # been created with self.config.gain and
+                # self.config.noise.
+                noise = amp.getReadNoise()
+
+            if math.isnan(gain):
+                gain = 1.0
+                self.log.warning("Gain for amp %s set to NAN! Updating to"
+                                 " 1.0 to generate Poisson variance.", ampName)
+            elif gain <= 0:
+                patchedGain = 1.0
+                self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
+                                 ampName, gain, patchedGain)
+                gain = patchedGain
+
+            effectivePtc.gain[ampName] = gain
+            effectivePtc.noise[ampName] = noise
+            # Make sure noise,turnoff, and gain make sense
+            effectivePtc.validateGainNoiseTurnoffValues(ampName)
+
+            metadata[f"LSST GAIN {amp.getName()}"] = effectivePtc.gain[ampName]
+            metadata[f"LSST READNOISE {amp.getName()}"] = effectivePtc.noise[ampName]
+
+        self.log.info("Det: %s - Noise provenance: %s, Gain provenance: %s",
+                      detName,
+                      noiseProvenanceString,
+                      gainProvenanceString)
+        metadata["LSST ISR GAIN SOURCE"] = gainProvenanceString
+        metadata["LSST ISR NOISE SOURCE"] = noiseProvenanceString
+
+        return effectivePtc
 
     def ensureExposure(self, inputExp, camera=None, detectorNum=None):
         """Ensure that the data returned by Butler is a fully constructed exp.
@@ -2084,7 +2207,7 @@ class IsrTask(pipeBase.PipelineTask):
 
         return overscanResults
 
-    def updateVariance(self, ampExposure, amp, overscanImage=None, ptcDataset=None):
+    def updateVariance(self, ampExposure, amp, ptcDataset):
         """Set the variance plane using the gain and read noise
 
         The read noise is calculated from the ``overscanImage`` if the
@@ -2097,75 +2220,18 @@ class IsrTask(pipeBase.PipelineTask):
             Exposure to process.
         amp : `lsst.afw.cameraGeom.Amplifier` or `FakeAmp`
             Amplifier detector data.
-        overscanImage : `lsst.afw.image.MaskedImage`, optional.
-            Image of overscan, required only for empirical read noise.
-        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
-            PTC dataset containing the gains and read noise.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if either ``usePtcGains`` of ``usePtcReadNoise``
-            are ``True``, but ptcDataset is not provided.
-
-            Raised if ```doEmpiricalReadNoise`` is ``True`` but
-            ``overscanImage`` is ``None``.
+        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`
+            Effective PTC dataset containing the gains and read noise.
 
         See also
         --------
         lsst.ip.isr.isrFunctions.updateVariance
         """
-        maskPlanes = [self.config.saturatedMaskName, self.config.suspectMaskName]
-        if self.config.usePtcGains:
-            if ptcDataset is None:
-                raise RuntimeError("No ptcDataset provided to use PTC gains.")
-            else:
-                gain = ptcDataset.gain[amp.getName()]
-                self.log.info("Using gain from Photon Transfer Curve.")
-        else:
-            gain = amp.getGain()
-
-        if math.isnan(gain):
-            gain = 1.0
-            self.log.warning("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
-        elif gain <= 0:
-            patchedGain = 1.0
-            self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
-                             amp.getName(), gain, patchedGain)
-            gain = patchedGain
-
-        if self.config.doEmpiricalReadNoise and overscanImage is None:
-            badPixels = isrFunctions.countMaskedPixels(ampExposure.getMaskedImage(),
-                                                       [self.config.saturatedMaskName,
-                                                        self.config.suspectMaskName,
-                                                        "BAD", "NO_DATA"])
-            allPixels = ampExposure.getWidth() * ampExposure.getHeight()
-            if allPixels == badPixels:
-                # If the image is bad, do not raise.
-                self.log.info("Skipping empirical read noise for amp %s.  No good pixels.",
-                              amp.getName())
-            else:
-                raise RuntimeError("Overscan is none for EmpiricalReadNoise.")
-
-        if self.config.doEmpiricalReadNoise and overscanImage is not None:
-            stats = afwMath.StatisticsControl()
-            stats.setAndMask(overscanImage.mask.getPlaneBitMask(maskPlanes))
-            readNoise = afwMath.makeStatistics(overscanImage.getImage(),
-                                               afwMath.STDEVCLIP, stats).getValue()
-            self.log.info("Calculated empirical read noise for amp %s: %f.",
-                          amp.getName(), readNoise)
-        elif self.config.usePtcReadNoise:
-            if ptcDataset is None:
-                raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
-            else:
-                readNoise = ptcDataset.noise[amp.getName()]
-            self.log.info("Using read noise from Photon Transfer Curve.")
-        else:
-            readNoise = amp.getReadNoise()
-
-        metadata = ampExposure.getMetadata()
-        metadata[f'LSST GAIN {amp.getName()}'] = gain
-        metadata[f'LSST READNOISE {amp.getName()}'] = readNoise
+        ampName = amp.getName()
+        # At this point, the effective PTC should have
+        # gain and noise values.
+        gain = ptcDataset.gain[ampName]
+        readNoise = ptcDataset.noise[ampName]
 
         isrFunctions.updateVariance(
             maskedImage=ampExposure.getMaskedImage(),

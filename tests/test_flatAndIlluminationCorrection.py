@@ -33,6 +33,7 @@ import lsst.ip.isr as ipIsr
 from lsst.afw.cameraGeom import Amplifier
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.ip.isr import IsrTask
+from lsst.ip.isr import PhotonTransferCurveDataset
 
 
 class IsrTestCases(unittest.TestCase):
@@ -115,7 +116,7 @@ class IsrTestCases(unittest.TestCase):
         raw.image.set(level)
 
         amp = detector[0]
-
+        ampName = amp.getName()
         for gain in [-1, 0, 0.1, 1, np.NaN]:
             # Because amplifiers are immutable, we can't change the gain or
             # read noise in-place. Instead, we clone, and update the clone.
@@ -125,7 +126,12 @@ class IsrTestCases(unittest.TestCase):
             testAmp.setGain(gain)
             testAmp.finish()
 
-            isrTask.updateVariance(raw, testAmp)
+            # Effective PTC will have the gain and the noise
+            effectivePtc = PhotonTransferCurveDataset([ampName], "TEST_PTC", 1)
+            effectivePtc.gain[ampName] = gain
+            effectivePtc.noise[ampName] = readNoise
+            effectivePtc.validateGainNoiseTurnoffValues(ampName)
+            isrTask.updateVariance(raw, testAmp, effectivePtc)
             if gain <= 0:               # behave the same way as amp.setGain
                 gain = 1
             if math.isnan(gain):
