@@ -768,6 +768,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         Parameters
         ----------
         ampName : `str`
+            Amplifier's name.
 
         Returns
         -------
@@ -778,7 +779,13 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     def validateGainNoiseTurnoffValues(self, ampName):
         """Ensure the gain, read noise, and PTC turnoff have
-           sensible values."""
+        sensible values.
+
+        Parameters
+        ----------
+        ampName : `str`
+            Amplifier's name.
+        """
 
         gain = self.gain[ampName]
         noise = self.noise[ampName]
