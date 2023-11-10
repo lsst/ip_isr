@@ -1826,7 +1826,7 @@ class IsrTask(pipeBase.PipelineTask):
 
             # Check if the gain up to this point differs from the
             # gain in bfGains. If so, raise or warn, accordingly.
-            if not boolGainMismatch and bfGains is not None:
+            if not boolGainMismatch and bfGains is not None and ampName in bfGains:
                 bfGain = bfGains[ampName]
                 if not math.isclose(gain, bfGain, rel_tol=1e-4):
                     if self.config.doRaiseOnCalibMismatch:
