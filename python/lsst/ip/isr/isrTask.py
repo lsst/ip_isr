@@ -71,8 +71,8 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
         Dataset to lookup.
     registry : `lsst.daf.butler.Registry`
         Butler registry to query.
-    quantumDataId : `lsst.daf.butler.ExpandedDataCoordinate`
-        Data id to transform to identify crosstalkSources.  The
+    quantumDataId : `lsst.daf.butler.DataCoordinate`
+        Expanded data id to transform to identify crosstalkSources.  The
         ``detector`` entry will be stripped.
     collections : `lsst.daf.butler.CollectionSearch`
         Collections to search through.
