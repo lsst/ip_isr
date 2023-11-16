@@ -41,6 +41,11 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Measure CTI statistics from image and overscans?",
         default=False,
     )
+    doApplyGainsForCtiStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Apply gain to the overscan region when measuring CTI statistics?",
+        default=True,
+    )
 
     doBandingStatistics = pexConfig.Field(
         dtype=bool,
@@ -283,7 +288,10 @@ class IsrStatisticsTask(pipeBase.Task):
                     osMean = afwMath.makeStatistics(overscanImage.image.array[:, column],
                                                     self.statType, self.statControl).getValue()
                     columns.append(column)
-                    values.append(gain * osMean)
+                    if self.config.doApplyGainsForCtiStatistics:
+                        values.append(gain * osMean)
+                    else:
+                        values.append(osMean)
 
                 # We want these relative to the readout corner.  If that's
                 # on the right side, we need to swap them.

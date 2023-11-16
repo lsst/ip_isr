@@ -975,6 +975,9 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             self.maskListToInterpolate.remove(self.saturatedMaskName)
         if self.doNanInterpolation and "UNMASKEDNAN" not in self.maskListToInterpolate:
             self.maskListToInterpolate.append("UNMASKEDNAN")
+        if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
+            if self.doApplyGains != self.isrStats.doApplyGainsForCtiStatistics:
+                raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
 
 
 class IsrTask(pipeBase.PipelineTask):
