@@ -56,7 +56,6 @@ from .ampOffset import AmpOffsetTask
 from .deferredCharge import DeferredChargeTask
 from .isrStatistics import IsrStatisticsTask
 from .ptcDataset import PhotonTransferCurveDataset
-from lsst.daf.butler import DimensionGraph
 
 
 def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
@@ -72,8 +71,8 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
         Dataset to lookup.
     registry : `lsst.daf.butler.Registry`
         Butler registry to query.
-    quantumDataId : `lsst.daf.butler.ExpandedDataCoordinate`
-        Data id to transform to identify crosstalkSources.  The
+    quantumDataId : `lsst.daf.butler.DataCoordinate`
+        Expanded data id to transform to identify crosstalkSources.  The
         ``detector`` entry will be stripped.
     collections : `lsst.daf.butler.CollectionSearch`
         Collections to search through.
@@ -84,7 +83,7 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
         List of datasets that match the query that will be used as
         crosstalkSources.
     """
-    newDataId = quantumDataId.subset(DimensionGraph(registry.dimensions, names=["instrument", "exposure"]))
+    newDataId = quantumDataId.subset(registry.dimensions.conform(["instrument", "exposure"]))
     results = set(registry.queryDatasets(datasetType, collections=collections, dataId=newDataId,
                                          findFirst=True))
     # In some contexts, calling `.expanded()` to expand all data IDs in the
@@ -92,7 +91,8 @@ def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
     # this case, expandDataId shouldn't need to hit the database at all in the
     # steady state, because only the detector record is unknown and those are
     # cached in the registry.
-    return [ref.expanded(registry.expandDataId(ref.dataId, records=newDataId.records)) for ref in results]
+    records = {k: newDataId.records[k] for k in newDataId.dimensions.elements}
+    return [ref.expanded(registry.expandDataId(ref.dataId, records=records)) for ref in results]
 
 
 class IsrTaskConnections(pipeBase.PipelineTaskConnections,
