@@ -1844,6 +1844,7 @@ class IsrTask(pipeBase.PipelineTask):
             # Noise:
             # Try first with the empirical noise from the overscan.
             noiseProvenanceString = "amp"
+            doWarningPtcValidation = True
             if self.config.doEmpiricalReadNoise and overscanResults is not None:
                 noiseProvenanceString = "serial overscan"
                 if isinstance(overscanResults.residualSigma, float):
@@ -1879,7 +1880,8 @@ class IsrTask(pipeBase.PipelineTask):
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
             # Make sure noise,turnoff, and gain make sense
-            effectivePtc.validateGainNoiseTurnoffValues(ampName)
+            effectivePtc.validateGainNoiseTurnoffValues(ampName, doWarn=doWarningPtcValidation)
+            doWarningPtcValidation = False
 
             metadata[f"LSST GAIN {amp.getName()}"] = effectivePtc.gain[ampName]
             metadata[f"LSST READNOISE {amp.getName()}"] = effectivePtc.noise[ampName]
