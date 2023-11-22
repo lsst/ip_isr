@@ -466,7 +466,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
     def validateInput(self, inputs):
         """
         This is a check that all the inputs required by the config
-        are available.
+        are available and that the gains used for the BF kernel are the
+        baseline gains (i.e. from the PTC).
         """
 
         inputMap = {'dnlLUT': self.config.doDiffNonLinearCorrection,
@@ -479,6 +480,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     'bfKernel': self.config.doBrighterFatter,
                     'dark': self.config.doDark,
                     }
+
+        if not math.isclose(self.bfKernel.gains, self.ptc.gains, rel_tol=1e-6):
+            raise RuntimeError("The gain used in the BF kernel should come from the PTC.")
 
         for calibrationFile, configValue in inputMap.items():
             if configValue and inputs[calibrationFile] is None:
