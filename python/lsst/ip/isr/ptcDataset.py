@@ -794,22 +794,22 @@ class PhotonTransferCurveDataset(IsrCalib):
         # Check if gain is not positive or is np.nan
         if not (isinstance(gain, (int, float)) and gain > 0) or math.isnan(gain):
             if doWarn:
-                self.log.debug(f"Invalid gain value {gain}"
-                               " Setting to default: Gain=1")
+                self.log.warning(f"Invalid gain value {gain}"
+                                 " Setting to default: Gain=1")
             gain = 1
 
         # Check if noise is not positive or is np.nan
         if not (isinstance(noise, (int, float)) and noise > 0) or math.isnan(noise):
             if doWarn:
-                self.log.debug(f"Invalid noise value: {noise}"
-                               " Setting to default: Noise=1")
+                self.log.warning(f"Invalid noise value: {noise}"
+                                 " Setting to default: Noise=1")
             noise = 1
 
         # Check if ptcTurnoff is not positive or is np.nan
         if not (isinstance(ptcTurnoff, (int, float)) and ptcTurnoff > 0) or math.isnan(ptcTurnoff):
             if doWarn:
-                self.log.debug(f"Invalid PTC turnoff value: {ptcTurnoff}"
-                               " Setting to default: PTC Turnoff=2e19")
+                self.log.warning(f"Invalid PTC turnoff value: {ptcTurnoff}"
+                                 " Setting to default: PTC Turnoff=2e19")
             ptcTurnoff = 2e19
 
         self.gain[ampName] = gain

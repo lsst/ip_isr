@@ -1806,6 +1806,7 @@ class IsrTask(pipeBase.PipelineTask):
         detName = detector.getName()
         effectivePtc = PhotonTransferCurveDataset(ampNames, 'EFFECTIVE_PTC', 1)
         boolGainMismatch = False
+        doWarningPtcValidation = True
 
         for amp, overscanResults in zip(amps, overScans):
             ampName = amp.getName()
@@ -1844,7 +1845,6 @@ class IsrTask(pipeBase.PipelineTask):
             # Noise:
             # Try first with the empirical noise from the overscan.
             noiseProvenanceString = "amp"
-            doWarningPtcValidation = True
             if self.config.doEmpiricalReadNoise and overscanResults is not None:
                 noiseProvenanceString = "serial overscan"
                 if isinstance(overscanResults.residualSigma, float):
