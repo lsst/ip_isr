@@ -1806,6 +1806,7 @@ class IsrTask(pipeBase.PipelineTask):
         detName = detector.getName()
         effectivePtc = PhotonTransferCurveDataset(ampNames, 'EFFECTIVE_PTC', 1)
         boolGainMismatch = False
+        doWarningPtcValidation = True
 
         for amp, overscanResults in zip(amps, overScans):
             ampName = amp.getName()
@@ -1879,7 +1880,8 @@ class IsrTask(pipeBase.PipelineTask):
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
             # Make sure noise,turnoff, and gain make sense
-            effectivePtc.validateGainNoiseTurnoffValues(ampName)
+            effectivePtc.validateGainNoiseTurnoffValues(ampName, doWarn=doWarningPtcValidation)
+            doWarningPtcValidation = False
 
             metadata[f"LSST GAIN {amp.getName()}"] = effectivePtc.gain[ampName]
             metadata[f"LSST READNOISE {amp.getName()}"] = effectivePtc.noise[ampName]
