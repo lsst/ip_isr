@@ -32,7 +32,7 @@ from .isr import fitOverscanImage
 from .isrFunctions import makeThresholdMask
 
 
-class OverscanCorrectionTaskConfig(pexConfig.Config):
+class OverscanCorrectionTaskConfigBase(pexConfig.Config):
     """Overscan correction options.
     """
     fitType = pexConfig.ChoiceField(
@@ -74,7 +74,14 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
             " and fitType=MEDIAN_PER_ROW.",
         default=True,
     )
+    maxDeviation = pexConfig.Field(
+        dtype=float,
+        doc="Maximum deviation from median (in ADU) to mask in overscan correction.",
+        default=1000.0, check=lambda x: x > 0,
+    )
 
+
+class OverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
     doParallelOverscan = pexConfig.Field(
         dtype=bool,
         doc="Correct using parallel overscan after serial overscan correction?",
@@ -92,7 +99,6 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
             "This value determined from the ITL chip in the LATISS camera",
         default=7,
     )
-
     leadingColumnsToSkip = pexConfig.Field(
         dtype=int,
         doc="Number of leading columns to skip in serial overscan correction.",
@@ -114,15 +120,9 @@ class OverscanCorrectionTaskConfig(pexConfig.Config):
         default=0,
     )
 
-    maxDeviation = pexConfig.Field(
-        dtype=float,
-        doc="Maximum deviation from median (in ADU) to mask in overscan correction.",
-        default=1000.0, check=lambda x: x > 0,
-    )
 
-
-class OverscanCorrectionTask(pipeBase.Task):
-    """Correction task for overscan.
+class OverscanCorrectionTaskBase(pipeBase.Task):
+    """Base Correction task for overscan.
 
     This class contains a number of utilities that are easier to
     understand and use when they are not embedded in nested if/else
@@ -133,8 +133,8 @@ class OverscanCorrectionTask(pipeBase.Task):
     statControl : `lsst.afw.math.StatisticsControl`, optional
         Statistics control object.
     """
-    ConfigClass = OverscanCorrectionTaskConfig
-    _DefaultName = "overscan"
+    ConfigClass = OverscanCorrectionTaskConfigBase
+    _DefaultName = "overscanBase"
 
     def __init__(self, statControl=None, **kwargs):
         super().__init__(**kwargs)
@@ -148,118 +148,10 @@ class OverscanCorrectionTask(pipeBase.Task):
             self.statControl.setAndMask(afwImage.Mask.getPlaneBitMask(self.config.maskPlanes))
 
     def run(self, exposure, amp, isTransposed=False):
-        """Measure and remove an overscan from an amplifier image.
+        raise NotImplementedError("run method is not defined for OverscanCorrectionTaskBase")
 
-        Parameters
-        ----------
-        exposure : `lsst.afw.image.Exposure`
-            Image data that will have the overscan corrections applied.
-        amp : `lsst.afw.cameraGeom.Amplifier`
-            Amplifier to use for debugging purposes.
-        isTransposed : `bool`, optional
-            Is the image transposed, such that serial and parallel
-            overscan regions are reversed?  Default is False.
-
-        Returns
-        -------
-        overscanResults : `lsst.pipe.base.Struct`
-            Result struct with components:
-
-            ``imageFit``
-                Value or fit subtracted from the amplifier image data
-                (scalar or `lsst.afw.image.Image`).
-            ``overscanFit``
-                Value or fit subtracted from the serial overscan image
-                data (scalar or `lsst.afw.image.Image`).
-            ``overscanImage``
-                Image of the serial overscan region with the serial
-                overscan correction applied
-                (`lsst.afw.image.Image`). This quantity is used to
-                estimate the amplifier read noise empirically.
-            ``parallelOverscanFit``
-                Value or fit subtracted from the parallel overscan
-                image data (scalar, `lsst.afw.image.Image`, or None).
-            ``parallelOverscanImage``
-                Image of the parallel overscan region with the
-                parallel overscan correction applied
-                (`lsst.afw.image.Image` or None).
-
-        Raises
-        ------
-        RuntimeError
-            Raised if an invalid overscan type is set.
-        """
-        # Do Serial overscan first.
-        serialOverscanBBox = amp.getRawSerialOverscanBBox()
-        imageBBox = amp.getRawDataBBox()
-
-        if self.config.doParallelOverscan:
-            # We need to extend the serial overscan BBox to the full
-            # size of the detector.
-            parallelOverscanBBox = amp.getRawParallelOverscanBBox()
-            imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
-
-            serialOverscanBBox = geom.Box2I(geom.Point2I(serialOverscanBBox.getMinX(),
-                                                         imageBBox.getMinY()),
-                                            geom.Extent2I(serialOverscanBBox.getWidth(),
-                                                          imageBBox.getHeight()))
-        serialResults = self.correctOverscan(exposure, amp,
-                                             imageBBox, serialOverscanBBox, isTransposed=isTransposed)
-        overscanMean = serialResults.overscanMean
-        overscanMedian = serialResults.overscanMedian
-        overscanSigma = serialResults.overscanSigma
-        residualMean = serialResults.overscanMeanResidual
-        residualMedian = serialResults.overscanMedianResidual
-        residualSigma = serialResults.overscanSigmaResidual
-
-        # Do Parallel Overscan
-        parallelResults = None
-        if self.config.doParallelOverscan:
-            # This does not need any extensions, as we'll only
-            # subtract it from the data region.
-            parallelOverscanBBox = amp.getRawParallelOverscanBBox()
-            imageBBox = amp.getRawDataBBox()
-
-            maskIm = exposure.getMaskedImage()
-            maskIm = maskIm.Factory(maskIm, parallelOverscanBBox)
-
-            # The serial overscan correction has removed some signal
-            # from the parallel overscan region, but that is largely a
-            # constant offset.  The collapseArray method now attempts
-            # to fill fully masked columns with the median of
-            # neighboring values, with a fallback to the median of the
-            # correction in all other columns.  Filling with neighbor
-            # values ensures that large variations in the parallel
-            # overscan do not create new outlier points.  The
-            # MEDIAN_PER_ROW method does this filling as a separate
-            # operation, using the same method.
-            parallelResults = self.correctOverscan(exposure, amp,
-                                                   imageBBox, parallelOverscanBBox,
-                                                   isTransposed=not isTransposed)
-            overscanMean = (overscanMean, parallelResults.overscanMean)
-            overscanMedian = (overscanMedian, parallelResults.overscanMedian)
-            overscanSigma = (overscanSigma, parallelResults.overscanSigma)
-            residualMean = (residualMean, parallelResults.overscanMeanResidual)
-            residualMedian = (residualMedian, parallelResults.overscanMedianResidual)
-            residualSigma = (residualSigma, parallelResults.overscanSigmaResidual)
-
-        parallelOverscanFit = parallelResults.overscanOverscanModel if parallelResults else None
-        parallelOverscanImage = parallelResults.overscanImage if parallelResults else None
-
-        return pipeBase.Struct(imageFit=serialResults.ampOverscanModel,
-                               overscanFit=serialResults.overscanOverscanModel,
-                               overscanImage=serialResults.overscanImage,
-
-                               parallelOverscanFit=parallelOverscanFit,
-                               parallelOverscanImage=parallelOverscanImage,
-                               overscanMean=overscanMean,
-                               overscanMedian=overscanMedian,
-                               overscanSigma=overscanSigma,
-                               residualMean=residualMean,
-                               residualMedian=residualMedian,
-                               residualSigma=residualSigma)
-
-    def correctOverscan(self, exposure, amp, imageBBox, overscanBBox, isTransposed=True):
+    def correctOverscan(self, exposure, amp, imageBBox, overscanBBox,
+                        isTransposed=True, leadingToSkip=0, trailingToSkip=0):
         """Trim the exposure, fit the overscan, subtract the fit, and
         calculate statistics.
 
@@ -279,6 +171,10 @@ class OverscanCorrectionTask(pipeBase.Task):
         isTransposed: `bool`
             If true, then the data will be transposed before fitting
             the overscan.
+        leadingToSkip : `int`, optional
+            Leading rows/columns to skip.
+        trailingToSkip : `int`, optional
+            Leading rows/columns to skip.
 
         Returns
         -------
@@ -311,8 +207,8 @@ class OverscanCorrectionTask(pipeBase.Task):
                 overscan subtraction. (`float`)
         """
         overscanBox = self.trimOverscan(exposure, amp, overscanBBox,
-                                        self.config.leadingColumnsToSkip,
-                                        self.config.trailingColumnsToSkip,
+                                        leadingToSkip,
+                                        trailingToSkip,
                                         transpose=isTransposed)
         overscanImage = exposure[overscanBox].getMaskedImage()
         overscanArray = overscanImage.image.array
