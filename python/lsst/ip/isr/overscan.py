@@ -21,6 +21,7 @@
 
 __all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask",
            "SerialOverscanCorrectionTaskConfig", "SerialOverscanCorrectionTask",
+           "ParallelOverscanCorrectionTaskConfig", "ParallelOverscanCorrectionTask",
            ]
 
 import numpy as np
@@ -1131,6 +1132,130 @@ class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
             imageBBox,
             serialOverscanBBox,
             isTransposed=isTransposed,
+            leadingToSkip=self.config.leadingToSkip,
+            trailingToSkip=self.config.trailingToSkip,
+        )
+        overscanMean = results.overscanMean
+        overscanMedian = results.overscanMedian
+        overscanSigma = results.overscanSigma
+        residualMean = results.overscanMeanResidual
+        residualMedian = results.overscanMedianResidual
+        residualSigma = results.overscanSigmaResidual
+
+        return pipeBase.Struct(
+            imageFit=results.ampOverscanModel,
+            overscanFit=results.overscanOverscanModel,
+            overscanImage=results.overscanImage,
+            overscanMean=overscanMean,
+            overscanMedian=overscanMedian,
+            overscanSigma=overscanSigma,
+            residualMean=residualMean,
+            residualMedian=residualMedian,
+            residualSigma=residualSigma,
+        )
+
+
+class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
+    leadingToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of leading values to skip in parallel overscan correction.",
+        default=0,
+    )
+    trailingToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of trailing values to skip in parallel overscan correction.",
+        default=0,
+    )
+
+
+class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
+    """Correction task for parallel overscan.
+
+    Parameters
+    ----------
+    statControl : `lsst.afw.math.StatisticsControl`, optional
+        Statistics control object.
+    """
+    ConfigClass = ParallelOverscanCorrectionTaskConfig
+    _DefaultName = "parallelOverscan"
+
+    def run(self, exposure, amp, isTransposed=False):
+        """Measure and remove parallel overscan from an amplifier image.
+
+        This method assumes that serial overscan has already been
+        removed from the amplifier.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Image data that will have the overscan corrections applied.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            Amplifier to use for debugging purposes.
+        isTransposed : `bool`, optional
+            Is the image transposed, such that serial and parallel
+            overscan regions are reversed?  Default is False.
+
+        Returns
+        -------
+        overscanResults : `lsst.pipe.base.Struct`
+            Result struct with components:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the parallel overscan image
+                data (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the parallel overscan region with the parallel
+                overscan correction applied
+                (`lsst.afw.image.Image`). This quantity is used to
+                estimate the amplifier read noise empirically.
+            ``overscanMean``
+                Mean of the fit parallel overscan region.
+            ``overscanMedian``
+                Median of the fit parallel overscan region.
+            ``overscanSigma``
+                Sigma of the fit parallel overscan region.
+            ``residualMean``
+                Mean of the residual of the parallel overscan region after
+                correction.
+            ``residualMedian``
+                Median of the residual of the parallel overscan region after
+                correction.
+            ``residualSigma``
+                Mean of the residual of the parallel overscan region after
+                correction.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if an invalid overscan type is set.
+        """
+        # This does not need any extending, as we only subtract
+        # from the data region.
+        parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+        imageBBox = amp.getRawDataBBox()
+
+        maskIm = exposure.getMaskedImage()
+        maskIm = maskIm.Factory(maskIm, parallelOverscanBBox)
+
+        # The serial overscan correction has removed some signal
+        # from the parallel overscan region, but that is largely a
+        # constant offset.  The collapseArray method now attempts
+        # to fill fully masked columns with the median of
+        # neighboring values, with a fallback to the median of the
+        # correction in all other columns.  Filling with neighbor
+        # values ensures that large variations in the parallel
+        # overscan do not create new outlier points.  The
+        # MEDIAN_PER_ROW method does this filling as a separate
+        # operation, using the same method.
+        results = self.correctOverscan(
+            exposure,
+            amp,
+            imageBBox,
+            parallelOverscanBBox,
+            isTransposed=not isTransposed,
             leadingToSkip=self.config.leadingToSkip,
             trailingToSkip=self.config.trailingToSkip,
         )
