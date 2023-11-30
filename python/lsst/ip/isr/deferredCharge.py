@@ -81,13 +81,20 @@ class SerialTrap():
             raise ValueError('Unknown trap type: %s', self.trap_type)
 
         if self.trap_type == 'spline':
+            # Note that ``spline`` is actually a piecewise linear interpolation
+            # in the model and the application, and not a true spline.
             centers, values = np.split(np.array(self.coeffs, dtype=np.float64), 2)
             # Ensure all NaN values are stripped out
             values = values[~np.isnan(centers)]
             centers = centers[~np.isnan(centers)]
             centers = centers[~np.isnan(values)]
             values = values[~np.isnan(values)]
-            self.interp = interp.interp1d(centers, values)
+            self.interp = interp.interp1d(
+                centers,
+                values,
+                bounds_error=False,
+                fill_value=(values[0], values[-1]),
+            )
 
         self._trap_array = None
         self._trapped_charge = None
