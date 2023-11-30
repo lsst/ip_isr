@@ -19,7 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask"]
+__all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask",
+           "SerialOverscanCorrectionTaskConfig", "SerialOverscanCorrectionTask",
+           ]
 
 import numpy as np
 import lsst.afw.math as afwMath
@@ -927,6 +929,24 @@ class OverscanCorrectionTask(OverscanCorrectionTaskBase):
                 Image of the parallel overscan region with the
                 parallel overscan correction applied
                 (`lsst.afw.image.Image` or None).
+            ``overscanMean``
+                Mean of the fit serial overscan region.
+                This and the following values will be tuples of
+                (serial, parallel) if doParallelOverscan=True.
+            ``overscanMedian``
+                Median of the fit serial overscan region.
+            ``overscanSigma``
+                Sigma of the fit serial overscan region.
+            ``residualMean``
+                Mean of the residual of the serial overscan region after
+                correction.
+            ``residualMedian``
+                Median of the residual of the serial overscan region after
+                correction.
+            ``residualSigma``
+                Mean of the residual of the serial overscan region after
+                correction.
+
 
         Raises
         ------
@@ -1016,3 +1036,119 @@ class OverscanCorrectionTask(OverscanCorrectionTaskBase):
                                residualMean=residualMean,
                                residualMedian=residualMedian,
                                residualSigma=residualSigma)
+
+
+class SerialOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
+    leadingToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of leading values to skip in serial overscan correction.",
+        default=0,
+    )
+    trailingToSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of trailing values to skip in serial overscan correction.",
+        default=0,
+    )
+
+
+class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
+    """Correction task for serial overscan.
+
+    Parameters
+    ----------
+    statControl : `lsst.afw.math.StatisticsControl`, optional
+        Statistics control object.
+    """
+    ConfigClass = SerialOverscanCorrectionTaskConfig
+    _DefaultName = "serialOverscan"
+
+    def run(self, exposure, amp, isTransposed=False):
+        """Measure and remove serial overscan from an amplifier image.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Image data that will have the overscan corrections applied.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            Amplifier to use for debugging purposes.
+        isTransposed : `bool`, optional
+            Is the image transposed, such that serial and parallel
+            overscan regions are reversed?  Default is False.
+
+        Returns
+        -------
+        overscanResults : `lsst.pipe.base.Struct`
+            Result struct with components:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the serial overscan image
+                data (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the serial overscan region with the serial
+                overscan correction applied
+                (`lsst.afw.image.Image`). This quantity is used to
+                estimate the amplifier read noise empirically.
+            ``overscanMean``
+                Mean of the fit serial overscan region.
+            ``overscanMedian``
+                Median of the fit serial overscan region.
+            ``overscanSigma``
+                Sigma of the fit serial overscan region.
+            ``residualMean``
+                Mean of the residual of the serial overscan region after
+                correction.
+            ``residualMedian``
+                Median of the residual of the serial overscan region after
+                correction.
+            ``residualSigma``
+                Mean of the residual of the serial overscan region after
+                correction.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if an invalid overscan type is set.
+        """
+        serialOverscanBBox = amp.getRawSerialOverscanBBox()
+        imageBBox = amp.getRawDataBBox()
+
+        # We always want to extend the serial overscan bounding box to
+        # the full size of the detector.
+        parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+        imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
+
+        serialOverscanBBox = geom.Box2I(geom.Point2I(serialOverscanBBox.getMinX(),
+                                                     imageBBox.getMinY()),
+                                        geom.Extent2I(serialOverscanBBox.getWidth(),
+                                                      imageBBox.getHeight()))
+
+        results = self.correctOverscan(
+            exposure,
+            amp,
+            imageBBox,
+            serialOverscanBBox,
+            isTransposed=isTransposed,
+            leadingToSkip=self.config.leadingToSkip,
+            trailingToSkip=self.config.trailingToSkip,
+        )
+        overscanMean = results.overscanMean
+        overscanMedian = results.overscanMedian
+        overscanSigma = results.overscanSigma
+        residualMean = results.overscanMeanResidual
+        residualMedian = results.overscanMedianResidual
+        residualSigma = results.overscanSigmaResidual
+
+        return pipeBase.Struct(
+            imageFit=results.ampOverscanModel,
+            overscanFit=results.overscanOverscanModel,
+            overscanImage=results.overscanImage,
+            overscanMean=overscanMean,
+            overscanMedian=overscanMedian,
+            overscanSigma=overscanSigma,
+            residualMean=residualMean,
+            residualMedian=residualMedian,
+            residualSigma=residualSigma,
+        )
