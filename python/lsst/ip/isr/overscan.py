@@ -964,10 +964,18 @@ class OverscanCorrectionTask(OverscanCorrectionTaskBase):
             parallelOverscanBBox = amp.getRawParallelOverscanBBox()
             imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
 
-            serialOverscanBBox = geom.Box2I(geom.Point2I(serialOverscanBBox.getMinX(),
-                                                         imageBBox.getMinY()),
-                                            geom.Extent2I(serialOverscanBBox.getWidth(),
-                                                          imageBBox.getHeight()))
+            if isTransposed:
+                serialOverscanBBox = geom.Box2I(
+                    geom.Point2I(serialOverscanBBox.getMinX(), imageBBox.getEndY()),
+                    geom.Extent2I(imageBBox.getWidth(), serialOverscanBBox.getHeight()),
+                )
+            else:
+                serialOverscanBBox = geom.Box2I(
+                    geom.Point2I(serialOverscanBBox.getMinX(),
+                                 imageBBox.getMinY()),
+                    geom.Extent2I(serialOverscanBBox.getWidth(),
+                                  imageBBox.getHeight()),
+                )
 
         serialResults = self.correctOverscan(
             exposure,
@@ -1121,10 +1129,18 @@ class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
         parallelOverscanBBox = amp.getRawParallelOverscanBBox()
         imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
 
-        serialOverscanBBox = geom.Box2I(geom.Point2I(serialOverscanBBox.getMinX(),
-                                                     imageBBox.getMinY()),
-                                        geom.Extent2I(serialOverscanBBox.getWidth(),
-                                                      imageBBox.getHeight()))
+        if isTransposed:
+            serialOverscanBBox = geom.Box2I(
+                geom.Point2I(serialOverscanBBox.getMinX(), imageBBox.getEndY()),
+                geom.Extent2I(imageBBox.getWidth(), serialOverscanBBox.getHeight()),
+            )
+        else:
+            serialOverscanBBox = geom.Box2I(
+                geom.Point2I(serialOverscanBBox.getMinX(),
+                             imageBBox.getMinY()),
+                geom.Extent2I(serialOverscanBBox.getWidth(),
+                              imageBBox.getHeight()),
+            )
 
         results = self.correctOverscan(
             exposure,
