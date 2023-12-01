@@ -656,8 +656,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                                       weights=indices*~collapsed.mask)[0]/numPerBin
 
             if len(binCenters[numPerBin > 0]) < 5:
-                self.log.warn("Cannot do spline fitting for overscan: %s valid points.",
-                              len(binCenters[numPerBin > 0]))
+                self.log.warning("Cannot do spline fitting for overscan: %s valid points.",
+                                 len(binCenters[numPerBin > 0]))
                 # Return a scalar value if we have one, otherwise
                 # return zero.  This amplifier is hopefully already
                 # masked.
@@ -786,8 +786,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             coeffs = fitter(indices, collapsed, self.config.order)
 
             if isinstance(coeffs, float):
-                self.log.warn("Using fallback value %f due to fitter failure. Amplifier will be masked.",
-                              coeffs)
+                self.log.warning("Using fallback value %f due to fitter failure. Amplifier will be masked.",
+                                 coeffs)
                 overscanVector = np.full_like(indices, coeffs)
                 maskArray = np.full_like(collapsed, True, dtype=bool)
             else:
