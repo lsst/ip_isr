@@ -1172,6 +1172,24 @@ class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
 
 
 class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
+    doParallelOverscanSaturation = pexConfig.Field(
+        dtype=bool,
+        doc="Mask saturated pixels in parallel overscan region?",
+        default=True,
+    )
+    parallelOverscanSaturationLevel = pexConfig.Field(
+        dtype=float,
+        doc="The saturation level to use if not specified in call to "
+            "maskParallelOverscan.",
+        default=100000.,
+    )
+    parallelOverscanMaskGrowSize = pexConfig.Field(
+        dtype=int,
+        doc="Masks created from saturated bleeds should be grown by this many "
+            "pixels during construction of the parallel overscan mask. "
+            "This value determined from the ITL chip in the LATISS camera",
+        default=7,
+    )
     leadingToSkip = pexConfig.Field(
         dtype=int,
         doc="Number of leading values to skip in parallel overscan correction.",
@@ -1293,3 +1311,35 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             residualMedian=residualMedian,
             residualSigma=residualSigma,
         )
+
+    def maskParallelOverscan(self, exposure, detector, saturationLevel=None):
+        """Mask parallel overscan, growing saturated pixels.
+
+        This operates on the image in-place.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            An untrimmed raw exposure.
+        detector : `lsst.afw.cameraGeom.Detector`
+            The detetor to use for amplifier geometry.
+        saturationLevel : `float`, optional
+            Saturation level to use for masking.
+        """
+        if not self.config.doParallelOverscanSaturation:
+            # This is a no-op.
+            return
+
+        if saturationLevel is None:
+            saturationLevel = self.config.parallelOverscanSaturationLevel
+
+        for amp in detector:
+            dataView = afwImage.MaskedImageF(exposure.getMaskedImage(),
+                                             amp.getRawParallelOverscanBBox(),
+                                             afwImage.PARENT)
+            makeThresholdMask(
+                maskedImage=dataView,
+                threshold=saturationLevel,
+                growFootprints=self.config.parallelOverscanMaskGrowSize,
+                maskName="BAD"
+            )
