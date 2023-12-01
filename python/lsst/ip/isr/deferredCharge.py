@@ -574,10 +574,10 @@ class DeferredChargeTask(Task):
         useGains = True
         if "USEGAINS" in ctiCalib.getMetadata().keys():
             useGains = ctiCalib.getMetadata()["USEGAINS"]
-            self.log.info(f"useGains = {useGains} due to calibration")
+            self.log.info(f"useGains = {useGains} from calibration metadata.")
         else:
             useGains = self.config.useGains
-            self.log.info(f"useGains = {useGains} due to config")
+            self.log.info(f"USEGAINS not found in calibration metadata.  Using {useGains} from config.")
 
         if useGains:
             if gains is None:
