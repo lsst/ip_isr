@@ -443,6 +443,15 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         check=lambda x: x > 1,
     )
 
+    def validate(self):
+        super().validate()
+
+        if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
+            # DM-41912: Implement doApplyGains in LSST IsrTask
+            # if self.doApplyGains !=
+            #      self.isrStats.doApplyGainsForCtiStatistics:
+            raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
+
 
 class IsrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig

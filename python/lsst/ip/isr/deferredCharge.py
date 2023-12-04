@@ -239,13 +239,17 @@ class DeferredChargeCalib(IsrCalib):
     _SCHEMA = 'Deferred Charge'
     _VERSION = 1.0
 
-    def __init__(self, **kwargs):
+    def __init__(self, useGains=True, **kwargs):
         self.driftScale = {}
         self.decayTime = {}
         self.globalCti = {}
         self.serialTraps = {}
 
         super().__init__(**kwargs)
+
+        units = 'electrons' if useGains else 'ADU'
+        self.updateMetadata(USEGAINS=useGains, UNITS=units)
+
         self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps'])
 
     def fromDetector(self, detector):
@@ -567,11 +571,19 @@ class DeferredChargeTask(Task):
         # true, but no external gains were supplied, use the nominal
         # gains listed in the detector.  Finally, if useGains is
         # false, fake a dictionary of unit gains for ``gainContext``.
-        if self.config.useGains:
+        useGains = True
+        if "USEGAINS" in ctiCalib.getMetadata().keys():
+            useGains = ctiCalib.getMetadata()["USEGAINS"]
+            self.log.info(f"useGains = {useGains} from calibration metadata.")
+        else:
+            useGains = self.config.useGains
+            self.log.info(f"USEGAINS not found in calibration metadata.  Using {useGains} from config.")
+
+        if useGains:
             if gains is None:
                 gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
 
-        with gainContext(exposure, image, self.config.useGains, gains):
+        with gainContext(exposure, image, useGains, gains):
             for amp in detector.getAmplifiers():
                 ampName = amp.getName()
 
