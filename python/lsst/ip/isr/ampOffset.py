@@ -144,9 +144,23 @@ class AmpOffsetTask(Task):
         ampDims = [amp.getBBox().getDimensions() for amp in amps]
         if not all(dim == ampDims[0] for dim in ampDims):
             raise RuntimeError("All amps should have the same geometry.")
+        else:
+            # The zeroth amp is representative of all amps in the detector.
+            self.ampDims = ampDims[0]
+        # Determine amplifier geometry.
+        # ampWidths = {amp.getBBox().getWidth() for amp in amps}
+        # ampHeights = {amp.getBBox().getHeight() for amp in amps}
+        ampAreas = {amp.getBBox().getArea() for amp in amps}
+        if len(ampAreas) > 1:
+            raise NotImplementedError(
+                "Amp offset correction is not yet implemented for detectors with differing amp sizes."
+            )
 
         # Assuming all the amps have the same geometry.
         self.shortAmpSide = np.min(ampDims[0])
+
+        # TODO: Double check that this is true.
+        assert self.config.ampEdgeWidth < self.shortAmpSide - 2 * self.config.ampEdgeInset
 
         # Fit and subtract background.
         if self.config.doBackground:
@@ -191,13 +205,6 @@ class AmpOffsetTask(Task):
                     "edge length exceeds 1. This leads to complications downstream, after convolution in "
                     "the `getSideAmpOffset()` method. Please modify the `ampEdgeWindowFrac` value in the "
                     "config to be 1 or less and rerun."
-                )
-
-            # Determine amplifier geometry.
-            ampAreas = {amp.getBBox().getArea() for amp in amps}
-            if len(ampAreas) > 1:
-                raise NotImplementedError(
-                    "Amp offset correction is not yet implemented for detectors with differing amp sizes."
                 )
 
             # Obtain association and offset matrices.
@@ -275,9 +282,14 @@ class AmpOffsetTask(Task):
         ampAssociations = np.zeros((nAmps, nAmps), dtype=int)
         ampSides = np.full_like(ampAssociations, -1)
 
+        # Dictionary mapping side numbers to interface lengths.
+        interfaceLengthLookup = {i: self.ampDims[i % 2] for i in range(4)}
+        # interfaceLengthLookup = {i: 1 for i in range(4)}  # For no weights!
+
         for ampId in ampIds.ravel():
             neighbors, sides = self.getNeighbors(ampIds, ampId)
-            ampAssociations[ampId, neighbors] = -1
+            interfaceWeights = np.array([1 / interfaceLengthLookup[side] for side in sides])
+            ampAssociations[ampId, neighbors] = -1 * interfaceWeights
             ampSides[ampId, neighbors] = sides
             ampAssociations[ampId, ampId] = -ampAssociations[ampId].sum()
 

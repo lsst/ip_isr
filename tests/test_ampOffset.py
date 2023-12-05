@@ -82,6 +82,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
         config = AmpOffsetConfig()
         config.doBackground = False
         config.doDetection = False
+        config.ampEdgeWidth = 12
         task = AmpOffsetTask(config=config)
         pedestals = task.run(exp).pedestals
         self.assertEqual(np.sum(exp.image.array), 0)
@@ -94,6 +95,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
         config = AmpOffsetConfig()
         config.doBackground = True
         config.doDetection = True
+        config.ampEdgeWidth = 12
         task = AmpOffsetTask(config=config)
         pedestals = task.run(exp).pedestals
         nAmps = len(amps)
@@ -117,6 +119,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
         config = AmpOffsetConfig()
         config.doBackground = True
         config.doDetection = True
+        config.ampEdgeWidth = 12
         task = AmpOffsetTask(config=config)
         pedestals = task.run(exp).pedestals
         nAmps = len(amps)
