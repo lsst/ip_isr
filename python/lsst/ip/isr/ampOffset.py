@@ -147,6 +147,10 @@ class AmpOffsetTask(Task):
         else:
             # The zeroth amp is representative of all amps in the detector.
             self.ampDims = ampDims[0]
+            # Dictionary mapping side numbers to interface lengths.
+            # See `getAmpAssociations()` for details about sides.
+            self.interfaceLengthLookupBySide = {i: self.ampDims[i % 2] for i in range(4)}
+
         # Determine amplifier geometry.
         # ampWidths = {amp.getBBox().getWidth() for amp in amps}
         # ampHeights = {amp.getBBox().getHeight() for amp in amps}
@@ -193,6 +197,8 @@ class AmpOffsetTask(Task):
                 "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set "
                 "to zero."
             )
+            print("All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set")
+            breakpoint()
             pedestals = np.zeros(len(amps))
         else:
             # Set up amp offset inputs.
@@ -282,13 +288,9 @@ class AmpOffsetTask(Task):
         ampAssociations = np.zeros((nAmps, nAmps), dtype=int)
         ampSides = np.full_like(ampAssociations, -1)
 
-        # Dictionary mapping side numbers to interface lengths.
-        interfaceLengthLookup = {i: self.ampDims[i % 2] for i in range(4)}
-        # interfaceLengthLookup = {i: 1 for i in range(4)}  # For no weights!
-
         for ampId in ampIds.ravel():
             neighbors, sides = self.getNeighbors(ampIds, ampId)
-            interfaceWeights = np.array([1 / interfaceLengthLookup[side] for side in sides])
+            interfaceWeights = np.array([self.interfaceLengthLookupBySide[side] for side in sides])
             ampAssociations[ampId, neighbors] = -1 * interfaceWeights
             ampSides[ampId, neighbors] = sides
             ampAssociations[ampId, ampId] = -ampAssociations[ampId].sum()
@@ -364,10 +366,12 @@ class AmpOffsetTask(Task):
         ampsOffsets = np.zeros(len(amps))
         ampsEdges = self.getAmpEdges(im, amps, sides)
         interfaceOffsetLookup = {}
+
         for ampId, ampAssociations in enumerate(associations):
             ampNeighbors = np.ravel(np.where(ampAssociations < 0))
             for ampNeighbor in ampNeighbors:
                 ampSide = sides[ampId][ampNeighbor]
+                interfaceWeight = self.interfaceLengthLookupBySide[ampSide]
                 edgeA = ampsEdges[ampId][ampSide]
                 edgeB = ampsEdges[ampNeighbor][(ampSide + 2) % 4]
                 if ampId < ampNeighbor:
@@ -375,7 +379,7 @@ class AmpOffsetTask(Task):
                     interfaceOffsetLookup[f"{ampId}{ampNeighbor}"] = interfaceOffset
                 else:
                     interfaceOffset = -interfaceOffsetLookup[f"{ampNeighbor}{ampId}"]
-                ampsOffsets[ampId] += interfaceOffset
+                ampsOffsets[ampId] += interfaceWeight * interfaceOffset
         return ampsOffsets
 
     def getAmpEdges(self, im, amps, ampSides):

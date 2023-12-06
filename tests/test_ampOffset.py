@@ -85,6 +85,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
         config.ampEdgeWidth = 12
         task = AmpOffsetTask(config=config)
         pedestals = task.run(exp).pedestals
+        breakpoint()
         self.assertEqual(np.sum(exp.image.array), 0)
         for pedestal, value in zip(pedestals, self.values):
             self.assertAlmostEqual(pedestal, value, 6)
