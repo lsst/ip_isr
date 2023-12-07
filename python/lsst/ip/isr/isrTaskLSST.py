@@ -192,7 +192,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doDiffNonLinearCorrection = pexConfig.Field(
         dtype=bool,
         doc="Do differential non-linearity correction?",
-        default=True,
+        default=False,
     )
 
     doOverscan = pexConfig.Field(
