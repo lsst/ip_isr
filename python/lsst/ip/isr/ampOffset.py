@@ -107,6 +107,11 @@ class AmpOffsetConfig(Config):
         doc="Source detection to add temporary detection footprints prior to amp offset calculation.",
         target=SourceDetectionTask,
     )
+    applyWeights = Field(
+        doc="Weight amp offset calculation by the length of the interface between amplifiers.",
+        dtype=bool,
+        default=True,
+    )
 
 
 class AmpOffsetTask(Task):
@@ -197,7 +202,9 @@ class AmpOffsetTask(Task):
                 "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set "
                 "to zero."
             )
-            print("All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set")
+            print(
+                "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set"
+            )
             breakpoint()
             pedestals = np.zeros(len(amps))
         else:
@@ -290,7 +297,11 @@ class AmpOffsetTask(Task):
 
         for ampId in ampIds.ravel():
             neighbors, sides = self.getNeighbors(ampIds, ampId)
-            interfaceWeights = np.array([self.interfaceLengthLookupBySide[side] for side in sides])
+            interfaceWeights = (
+                1
+                if not self.config.applyWeights
+                else np.array([self.interfaceLengthLookupBySide[side] for side in sides])
+            )
             ampAssociations[ampId, neighbors] = -1 * interfaceWeights
             ampSides[ampId, neighbors] = sides
             ampAssociations[ampId, ampId] = -ampAssociations[ampId].sum()
@@ -371,7 +382,9 @@ class AmpOffsetTask(Task):
             ampNeighbors = np.ravel(np.where(ampAssociations < 0))
             for ampNeighbor in ampNeighbors:
                 ampSide = sides[ampId][ampNeighbor]
-                interfaceWeight = self.interfaceLengthLookupBySide[ampSide]
+                interfaceWeight = (
+                    1 if not self.config.applyWeights else self.interfaceLengthLookupBySide[ampSide]
+                )
                 edgeA = ampsEdges[ampId][ampSide]
                 edgeB = ampsEdges[ampNeighbor][(ampSide + 2) % 4]
                 if ampId < ampNeighbor:
