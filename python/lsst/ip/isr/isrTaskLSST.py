@@ -210,7 +210,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Do parallel overscan subtraction?",
         default=True,
     )
-    serialOverscan = pexConfig.ConfigurableField(
+    parallelOverscan = pexConfig.ConfigurableField(
         target=ParallelOverscanCorrectionTask,
         doc="Parallel overscan subtraction task for image segments.",
     )
