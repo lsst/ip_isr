@@ -188,7 +188,6 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ampNames = ampNames
         self.covMatrixSide = covMatrixSide
         self.covMatrixSideFullCovFit = covMatrixSideFullCovFit
-        self._validateCovarianceMatrizSizes()
 
         self.badAmps = []
 
@@ -241,6 +240,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'histChi2Dofs', 'kspValues', 'auxValues'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
+        self._validateCovarianceMatrizSizes()
 
     def setAmpValuesPartialDataset(
             self,
