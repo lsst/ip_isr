@@ -149,7 +149,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.deferredChargeCalib
         if config.doLinearize is not True:
             del self.linearizer
-        if config.doCrosstalk is not True:
+        if not config.doCrosstalk and not config.doParallelOverscanCrosstalk:
             del self.crosstalk
         if config.doDefect is not True:
             del self.defects
@@ -296,6 +296,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doCrosstalk = pexConfig.Field(
         dtype=bool,
         doc="Apply intra-CCD crosstalk correction?",
+        default=True,
+    )
+    doParallelOverscanCrosstalk = pexConfig.Field(
+        dtype=bool,
+        doc="Apply crosstalk correction in parallel overscan region?",
         default=True,
     )
     crosstalk = pexConfig.ConfigurableField(
@@ -494,7 +499,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     'deferredChargeCalib': self.config.doDeferredCharge,
                     'linearizer': self.config.doLinearize,
                     'ptc': self.config.doGainNormalize,
-                    'crosstalk': self.config.doCrosstalk,
+                    'crosstalk': self.config.doCrosstalk or self.config.doParallelOverscanCrosstalk,
                     'defects': self.config.doDefect,
                     'bfKernel': self.config.doBrighterFatter,
                     'dark': self.config.doDark,
@@ -1109,7 +1114,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
     def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
-            flat=None, **kwargs
+            flat=None, camera=None, **kwargs
             ):
 
         detector = ccdExposure.getDetector()
@@ -1127,7 +1132,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
             if self.doLinearize(detector):
                 exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-            if self.config.doCrosstalk:
+            if self.config.doCrosstalk or self.config.doParallelOverscanCrosstalk:
                 exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
             if self.config.doDefect:
                 exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
@@ -1148,7 +1153,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Input units: ADU
             serialOverscans = self.overscanCorrection("SERIAL", detector, badAmpDict, ccdExposure)
 
-        # TODO: add crosstalk correction for overscan region here.
+        if self.config.doParallelOverscanCrosstalk:
+            # Input units: ADU
+            # Make sure that the units here are consistent with later
+            # application.
+            self.crosstalk.run(
+                ccdExposure,
+                crosstalk=crosstalk,
+                camera=camera,
+                parallelOverscanRegion=True,
+            )
 
         if self.config.doParallelOverscans:
             # Input units: ADU
