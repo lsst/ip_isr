@@ -158,11 +158,13 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         """Test of a partial PTC dataset."""
         # Fill the dataset with made up data.
         nSideCovMatrix = 2
+        nSideCovMatrixFullCovFit = 2
 
         partialDataset = PhotonTransferCurveDataset(
             self.ampNames,
             ptcFitType="PARTIAL",
-            covMatrixSide=nSideCovMatrix
+            covMatrixSide=nSideCovMatrix,
+            covMatrixSideFullCovFit=nSideCovMatrixFullCovFit
         )
         self._checkTypes(partialDataset)
 
@@ -202,11 +204,13 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         # Fill the dataset with made up data.
         nSignalPoints = 5
         nSideCovMatrix = 2
+        nSideCovMatrixFullCovFit = 2
         for fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', 'FULLCOVARIANCE']:
             localDataset = PhotonTransferCurveDataset(
                 self.ampNames,
                 ptcFitType=fitType,
                 covMatrixSide=nSideCovMatrix,
+                covMatrixSideFullCovFit=nSideCovMatrixFullCovFit,
             )
             localDataset.badAmps = [localDataset.ampNames[0], localDataset.ampNames[1]]
             for ampName in localDataset.ampNames:
@@ -239,18 +243,22 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.covariances[ampName] = np.full(
                         (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
                     localDataset.covariancesModel[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), np.nan)
+                        (nSignalPoints, nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
                     localDataset.covariancesSqrtWeights[ampName] = np.full((nSignalPoints, nSideCovMatrix,
                                                                            nSideCovMatrix), 10.0)
-                    localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                        nSideCovMatrix), np.nan)
+                    localDataset.aMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                            nSideCovMatrixFullCovFit), np.nan)
+                    localDataset.bMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                            nSideCovMatrixFullCovFit), np.nan)
+                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                nSideCovMatrixFullCovFit), np.nan)
+                    localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints,
+                                                                        nSideCovMatrixFullCovFit,
+                                                                        nSideCovMatrixFullCovFit), np.nan)
                     localDataset.aMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), np.nan)
+                        (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
                     localDataset.noiseMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), np.nan)
+                        (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
 
                 if localDataset.ptcFitType in ['FULLCOVARIANCE', ]:
                     localDataset.ptcFitPars[ampName] = np.array([np.nan, np.nan])
@@ -261,18 +269,22 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.covariances[ampName] = np.full(
                         (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
                     localDataset.covariancesModel[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 100.0)
+                        (nSignalPoints, nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 100.0)
                     localDataset.covariancesSqrtWeights[ampName] = np.full((nSignalPoints, nSideCovMatrix,
                                                                            nSideCovMatrix), 10.0)
-                    localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-6)
-                    localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-7)
-                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 3.0)
-                    localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                        nSideCovMatrix), 15.0)
+                    localDataset.aMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                            nSideCovMatrixFullCovFit), 1e-6)
+                    localDataset.bMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                            nSideCovMatrixFullCovFit), 1e-7)
+                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                nSideCovMatrixFullCovFit), 3.0)
+                    localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints,
+                                                                        nSideCovMatrixFullCovFit,
+                                                                        nSideCovMatrixFullCovFit), 15.0)
                     localDataset.aMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), 2e-6)
+                        (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 2e-6)
                     localDataset.noiseMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), 3.0)
+                        (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 3.0)
 
             for useAuxValues in [False, True]:
                 if useAuxValues:

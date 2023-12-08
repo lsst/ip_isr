@@ -53,11 +53,15 @@ class PhotonTransferCurveDataset(IsrCalib):
     ----------
     ampNames : `list`
         List with the names of the amplifiers of the detector at hand.
-    ptcFitType : `str`
+    ptcFitType : `str`, optional
         Type of model fitted to the PTC: "POLYNOMIAL", "EXPAPPROXIMATION",
         or "FULLCOVARIANCE".
-    covMatrixSide : `int`
-        Maximum lag of covariances (size of square covariance matrices).
+    covMatrixSide : `int`, optional
+        Maximum lag of measured covariances (size of square covariance
+        matrices).
+    covMatrixSideFullCovFit : `int, optional
+        Maximum covariances lag for FULLCOVARIANCE fit. It shoudl be less or
+        equal than covMatrixSide.
     kwargs : `dict`, optional
         Other keyword arguments to pass to the parent init.
 
@@ -171,16 +175,20 @@ class PhotonTransferCurveDataset(IsrCalib):
     attributes.
     Version 1.3 adds the `noiseMatrix` and `noiseMatrixNoB` attributes.
     Version 1.4 adds the `auxValues` attribute.
+    Version 1.5 adds the `covMatrixSideFullCovFit` attribute.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.4
+    _VERSION = 1.5
 
-    def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1, **kwargs):
+    def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
+                 covMatrixSideFullCovFit=1, **kwargs):
         self.ptcFitType = ptcFitType
         self.ampNames = ampNames
         self.covMatrixSide = covMatrixSide
+        self.covMatrixSideFullCovFit = covMatrixSideFullCovFit
+        self._validateCovarianceMatrizSizes()
 
         self.badAmps = []
 
@@ -288,6 +296,8 @@ class PhotonTransferCurveDataset(IsrCalib):
             KS test p-value from the Gaussian histogram fit.
         """
         nanMatrix = np.full((self.covMatrixSide, self.covMatrixSide), np.nan)
+        nanMatrixFit = np.full((self.covMatrixSideFullCovFit,
+                               self.covMatrixSideFullCovFit), np.nan)
         if covariance is None:
             covariance = nanMatrix
         if covSqrtWeights is None:
@@ -307,13 +317,14 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.histChi2Dofs[ampName] = np.array([histChi2Dof])
         self.kspValues[ampName] = np.array([kspValue])
 
-        self.covariancesModel[ampName] = np.array([nanMatrix])
-        self.covariancesModelNoB[ampName] = np.array([nanMatrix])
-        self.aMatrix[ampName] = nanMatrix
-        self.bMatrix[ampName] = nanMatrix
-        self.aMatrixNoB[ampName] = nanMatrix
-        self.noiseMatrix[ampName] = nanMatrix
-        self.noiseMatrixNoB[ampName] = nanMatrix
+        # From FULLCOVARIANCE model
+        self.covariancesModel[ampName] = np.array([nanMatrixFit])
+        self.covariancesModelNoB[ampName] = np.array([nanMatrixFit])
+        self.aMatrix[ampName] = nanMatrixFit
+        self.bMatrix[ampName] = nanMatrixFit
+        self.aMatrixNoB[ampName] = nanMatrixFit
+        self.noiseMatrix[ampName] = nanMatrixFit
+        self.noiseMatrixNoB[ampName] = nanMatrixFit
 
     def setAuxValuesPartialDataset(self, auxDict):
         """
@@ -370,11 +381,13 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.setMetadata(dictionary['metadata'])
         calib.ptcFitType = dictionary['ptcFitType']
         calib.covMatrixSide = dictionary['covMatrixSide']
+        calib.covMatrixSideFullCovFit = dictionary['covMatrixSideFullCovFit']
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
         calib.ampNames = []
 
         # The cov matrices are square
         covMatrixSide = calib.covMatrixSide
+        covMatrixSideFullCovFit = calib.covMatrixSideFullCovFit
         # Number of final signal levels
         covDimensionsProduct = len(np.array(list(dictionary['covariances'].values())[0]).ravel())
         nSignalPoints = int(covDimensionsProduct/(covMatrixSide*covMatrixSide))
@@ -406,29 +419,29 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.covariancesModel[ampName] = np.array(
                     dictionary['covariancesModel'][ampName],
                     dtype=np.float64).reshape(
-                        (nSignalPoints, covMatrixSide, covMatrixSide))
+                        (nSignalPoints, covMatrixSideFullCovFit, covMatrixSideFullCovFit))
                 calib.covariancesSqrtWeights[ampName] = np.array(
                     dictionary['covariancesSqrtWeights'][ampName],
                     dtype=np.float64).reshape(
                         (nSignalPoints, covMatrixSide, covMatrixSide))
                 calib.aMatrix[ampName] = np.array(dictionary['aMatrix'][ampName],
                                                   dtype=np.float64).reshape(
-                    (covMatrixSide, covMatrixSide))
+                    (covMatrixSideFullCovFit, covMatrixSideFullCovFit))
                 calib.bMatrix[ampName] = np.array(dictionary['bMatrix'][ampName],
                                                   dtype=np.float64).reshape(
-                    (covMatrixSide, covMatrixSide))
+                    (covMatrixSideFullCovFit, covMatrixSideFullCovFit))
                 calib.covariancesModelNoB[ampName] = np.array(
                     dictionary['covariancesModelNoB'][ampName], dtype=np.float64).reshape(
-                        (nSignalPoints, covMatrixSide, covMatrixSide))
+                        (nSignalPoints, covMatrixSideFullCovFit, covMatrixSideFullCovFit))
                 calib.aMatrixNoB[ampName] = np.array(
                     dictionary['aMatrixNoB'][ampName],
-                    dtype=np.float64).reshape((covMatrixSide, covMatrixSide))
+                    dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
                 calib.noiseMatrix[ampName] = np.array(
                     dictionary['noiseMatrix'][ampName],
-                    dtype=np.float64).reshape((covMatrixSide, covMatrixSide))
+                    dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
                 calib.noiseMatrixNoB[ampName] = np.array(
                     dictionary['noiseMatrixNoB'][ampName],
-                    dtype=np.float64).reshape((covMatrixSide, covMatrixSide))
+                    dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
             else:
                 # Empty dataset
                 calib.covariances[ampName] = np.array([], dtype=np.float64)
@@ -477,6 +490,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         outDict['ptcFitType'] = self.ptcFitType
         outDict['covMatrixSide'] = self.covMatrixSide
+        outDict['covMatrixSideFullCovFit'] = self.covMatrixSideFullCovFit
         outDict['ampNames'] = self.ampNames
         outDict['badAmps'] = self.badAmps
         outDict['inputExpIdPairs'] = self.inputExpIdPairs
@@ -537,6 +551,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['ampNames'] = []
         inDict['ptcFitType'] = []
         inDict['covMatrixSide'] = []
+        inDict['covMatrixSideFullCovFit'] = []
         inDict['inputExpIdPairs'] = dict()
         inDict['expIdMask'] = dict()
         inDict['rawExpTimes'] = dict()
@@ -626,6 +641,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             else:
                 inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
                 inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
+            if calibVersion < 1.5:
+                inDict['covMatrixSideFullCovFit'] = inDict['covMatrixSide']
+            else:
+                inDict['covMatrixSideFullCovFit'] = record['COV_MATRIX_SIDE_FULL_COV_FIT']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -660,6 +679,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'AMPLIFIER_NAME': ampName,
                 'PTC_FIT_TYPE': self.ptcFitType,
                 'COV_MATRIX_SIDE': self.covMatrixSide,
+                'COV_MATRIX_SIDE_FULL_COV_FIT': self.covMatrixSideFullCovFit,
                 'INPUT_EXP_ID_PAIRS': self.inputExpIdPairs[ampName],
                 'EXP_ID_MASK': self.expIdMask[ampName],
                 'RAW_EXP_TIMES': self.rawExpTimes[ampName],
@@ -815,3 +835,12 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.gain[ampName] = gain
         self.noise[ampName] = noise
         self.ptcTurnoff[ampName] = ptcTurnoff
+
+    def _validateCovarianceMatrizSizes(self):
+        """Ensure  covMatrixSideFullCovFit <= covMatrixSide."""
+        if self.covMatrixSideFullCovFit > self.covMatrixSide:
+            self.log.warning("covMatrixSideFullCovFit > self.covMatrixSide "
+                             f"({self.covMatrixSideFullCovFit} > {self.covMatrixSide})."
+                             "Setting the former to the latter.")
+
+        self.covMatrixSideFullCovFit = self.covMatrixSide
