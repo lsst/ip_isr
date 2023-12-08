@@ -467,6 +467,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             #      self.isrStats.doApplyGainsForCtiStatistics:
             raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
 
+    def setDefaults(self):
+        super().setDefaults()
+
+        self.serialOverscan.fitType = "MEDIAN_PER_ROW"
+        self.parallelOverscan.fitType = "MEDIAN_PER_ROW"
+
 
 class IsrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig
