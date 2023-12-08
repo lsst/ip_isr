@@ -520,10 +520,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # isrFunctions.diffNonLinearCorrection
         pass
 
-    def maskAmplifiers(self, ccdExposure, detector, defects):
+    def maskFullDefectAmplifiers(self, ccdExposure, detector, defects):
         """
-        Check for fully masked bad amplifiers, and generate masks
-        for SUSPECT and SATURATED values.
+        Check for fully masked bad amplifiers and mask them.
+
+        Full defect masking happens later to allow for defects which
+        cross amplifier boundaries.
 
         Parameters
         ----------
@@ -538,7 +540,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         Returns
         -------
         badAmpDict : `str`[`bool`]
-            Dictionary of amplifiers, keyed by name.
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
         """
         badAmpDict = {}
 
@@ -566,11 +569,41 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                 self.log.warning("Amplifier %s is bad (completely covered with defects)", ampName)
 
+        return badAmpDict
+
+    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector):
+        """
+        Mask SATURATED and SUSPECT pixels and check if any amplifiers
+        are fully masked.
+
+        Parameters
+        ----------
+        badAmpDict : `str` [`bool`]
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
+        ccdExposure : `lsst.afw.image.Exposure`
+            Input exposure to be masked.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector object.
+        defects : `lsst.ip.isr.Defects`
+            List of defects.  Used to determine if an entire
+            amplifier is bad.
+
+        Returns
+        -------
+        badAmpDict : `str`[`bool`]
+            Dictionary of amplifiers, keyed by name.
+        """
+        maskedImage = ccdExposure.getMaskedImage()
+
+        for amp in detector:
+            ampName = amp.getName()
+
+            if badAmpDict[ampName]:
+                # No need to check fully bad amplifiers.
                 continue
 
-            # We only mask saturated and suspect pixels now. Full defect
-            # masking must come after detector is assembled to allow for
-            # defects that cross amplifier boundaries.
+            # Mask saturated and suspect pixels.
             limits = {}
             if self.config.doSaturation:
                 limits.update({self.config.saturatedMaskName: amp.getSaturation()})
@@ -1147,10 +1180,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if self.config.doDark:
                 exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
 
-        # First we must mark which amplifiers are bad.
-        # TODO: Should this be here or after overscan to ensure
-        # correct units of the saturation?
-        badAmpDict = self.maskAmplifiers(ccdExposure, detector, defects)
+        # First we mark which amplifiers are completely bad from defects.
+        badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
 
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
@@ -1170,9 +1201,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 parallelOverscanRegion=True,
             )
 
+        # After serial overscan correction, we can mask SATURATED and
+        # SUSPECT pixels. This updates badAmpDict if any amplifier
+        # is fully saturated after serial overscan correction.
+        badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector)
+
         if self.config.doParallelOverscans:
             # Input units: ADU
-            # At the moment we do not use the parallelOverscans return.
+            # At the moment we do not use the parallelOverscans return value.
             _ = self.overscanCorrection("PARALLEL", detector, badAmpDict, ccdExposure)
 
         if self.config.doAssembleCcd:
