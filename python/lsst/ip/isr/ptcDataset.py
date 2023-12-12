@@ -60,7 +60,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         Maximum lag of measured covariances (size of square covariance
         matrices).
     covMatrixSideFullCovFit : `int, optional
-        Maximum covariances lag for FULLCOVARIANCE fit. It shoudl be less or
+        Maximum covariances lag for FULLCOVARIANCE fit. It should be less or
         equal than covMatrixSide.
     kwargs : `dict`, optional
         Other keyword arguments to pass to the parent init.
@@ -183,11 +183,14 @@ class PhotonTransferCurveDataset(IsrCalib):
     _VERSION = 1.5
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
-                 covMatrixSideFullCovFit=1, **kwargs):
+                 covMatrixSideFullCovFit=None, **kwargs):
         self.ptcFitType = ptcFitType
         self.ampNames = ampNames
         self.covMatrixSide = covMatrixSide
-        self.covMatrixSideFullCovFit = covMatrixSideFullCovFit
+        if covMatrixSideFullCovFit is None:
+            self.covMatrixSideFullCovFit = covMatrixSide
+        else:
+            self.covMatrixSideFullCovFit = covMatrixSideFullCovFit
 
         self.badAmps = []
 
@@ -842,5 +845,4 @@ class PhotonTransferCurveDataset(IsrCalib):
             self.log.warning("covMatrixSideFullCovFit > self.covMatrixSide "
                              f"({self.covMatrixSideFullCovFit} > {self.covMatrixSide})."
                              "Setting the former to the latter.")
-
-        self.covMatrixSideFullCovFit = self.covMatrixSide
+            self.covMatrixSideFullCovFit = self.covMatrixSide
