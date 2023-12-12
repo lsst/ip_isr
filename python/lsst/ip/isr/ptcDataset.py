@@ -645,7 +645,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
                 inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
             if calibVersion < 1.5:
-                # Matched to `COV_MATRIX_SIDE`. Same for all amps. 
+                # Matched to `COV_MATRIX_SIDE`. Same for all amps.
                 inDict['covMatrixSideFullCovFit'] = inDict['covMatrixSide']
             else:
                 inDict['covMatrixSideFullCovFit'] = record['COV_MATRIX_SIDE_FULL_COV_FIT']
@@ -843,7 +843,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     def _validateCovarianceMatrizSizes(self):
         """Ensure  covMatrixSideFullCovFit <= covMatrixSide."""
         if self.covMatrixSideFullCovFit > self.covMatrixSide:
-            self.log.warning("covMatrixSideFullCovFit > self.covMatrixSide "
+            self.log.warning("covMatrixSideFullCovFit > covMatrixSide "
                              f"({self.covMatrixSideFullCovFit} > {self.covMatrixSide})."
                              "Setting the former to the latter.")
             self.covMatrixSideFullCovFit = self.covMatrixSide
