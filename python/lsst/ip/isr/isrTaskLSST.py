@@ -18,6 +18,7 @@ import lsst.pipe.base.connectionTypes as cT
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
 from .overscan import SerialOverscanCorrectionTask, ParallelOverscanCorrectionTask
+from .overscanAmpConfig import OverscanCameraConfig
 from .assembleCcdTask import AssembleCcdTask
 from .deferredCharge import DeferredChargeTask
 from .crosstalk import CrosstalkTask
@@ -149,7 +150,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.deferredChargeCalib
         if config.doLinearize is not True:
             del self.linearizer
-        if not config.doCrosstalk and not config.doParallelOverscanCrosstalk:
+        if not config.doCrosstalk and not config.overscanCamera.doAnyParallelOverscanCrosstalk:
             del self.crosstalk
         if config.doDefect is not True:
             del self.defects
@@ -196,23 +197,9 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=False,
     )
 
-    doSerialOverscan = pexConfig.Field(
-        dtype=bool,
-        doc="Do serial overscan subtraction?",
-        default=True,
-    )
-    serialOverscan = pexConfig.ConfigurableField(
-        target=SerialOverscanCorrectionTask,
-        doc="Serial overscan subtraction task for image segments.",
-    )
-    doParallelOverscan = pexConfig.Field(
-        dtype=bool,
-        doc="Do parallel overscan subtraction?",
-        default=True,
-    )
-    parallelOverscan = pexConfig.ConfigurableField(
-        target=ParallelOverscanCorrectionTask,
-        doc="Parallel overscan subtraction task for image segments.",
+    overscanCamera = pexConfig.ConfigField(
+        dtype=OverscanCameraConfig,
+        doc="Per-detector and per-amplifier overscan configurations.",
     )
 
     # Amplifier to CCD assembly configuration.
@@ -296,11 +283,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doCrosstalk = pexConfig.Field(
         dtype=bool,
         doc="Apply intra-CCD crosstalk correction?",
-        default=True,
-    )
-    doParallelOverscanCrosstalk = pexConfig.Field(
-        dtype=bool,
-        doc="Apply crosstalk correction in parallel overscan region?",
         default=True,
     )
     crosstalk = pexConfig.ConfigurableField(
@@ -470,9 +452,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     def setDefaults(self):
         super().setDefaults()
 
-        self.serialOverscan.fitType = "MEDIAN_PER_ROW"
-        self.parallelOverscan.fitType = "MEDIAN_PER_ROW"
-
 
 class IsrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig
@@ -480,8 +459,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.makeSubtask("serialOverscan")
-        self.makeSubtask("parallelOverscan")
         self.makeSubtask("assembleCcd")
         self.makeSubtask("deferredChargeCorrection")
         self.makeSubtask("crosstalk")
@@ -500,12 +477,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         are available.
         """
 
+        doCrosstalk = self.config.doCrosstalk or self.config.overscanCamera.doAnyParallelOverscanCrosstalk
+
         inputMap = {'dnlLUT': self.config.doDiffNonLinearCorrection,
                     'bias': self.config.doBias,
                     'deferredChargeCalib': self.config.doDeferredCharge,
                     'linearizer': self.config.doLinearize,
                     'ptc': self.config.doGainNormalize,
-                    'crosstalk': self.config.doCrosstalk or self.config.doParallelOverscanCrosstalk,
+                    'crosstalk': doCrosstalk,
                     'defects': self.config.doDefect,
                     'bfKernel': self.config.doBrighterFatter,
                     'dark': self.config.doDark,
@@ -635,7 +614,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return badAmpDict
 
-    def overscanCorrection(self, mode, detector, badAmpDict, ccdExposure):
+    def overscanCorrection(self, mode, detectorConfig, detector, badAmpDict, ccdExposure):
         """Apply serial overscan correction in place to all amps.
 
         The actual overscan subtraction is performed by the
@@ -645,6 +624,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         ----------
         mode : `str`
             Must be `SERIAL` or `PARALLEL`.
+        detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`
+            Per-amplifier configurations.
         detector : `lsst.afw.cameraGeom.Detector`
             Detector object.
         badAmpDict : `dict`
@@ -654,7 +635,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         Returns
         -------
-        serialOverscans : `list` [`lsst.pipe.base.Struct` or None]
+        overscans : `list` [`lsst.pipe.base.Struct` or None]
             Each result struct has components:
 
             ``imageFit``
@@ -689,11 +670,29 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if mode not in ["SERIAL", "PARALLEL"]:
             raise ValueError("Mode must be SERIAL or PARALLEL")
 
+        # This returns a list in amp order, with None for uncorrected amps.
         overscans = []
 
         for i, amp in enumerate(detector):
             ampName = amp.getName()
-            if badAmpDict[ampName] or not ccdExposure.getBBox().contains(amp.getBBox()):
+
+            ampConfig = detectorConfig.getOverscanAmpConfig(ampName)
+
+            if mode == "SERIAL" and not ampConfig.doSerialOverscan:
+                self.log.debug(
+                    "ISR_OSCAN: Amplifier %s/%s configured to skip serial overscan.",
+                    detector.getName(),
+                    ampName,
+                )
+                results = None
+            elif mode == "PARALLEL" and not ampConfig.doParallelOverscan:
+                self.log.debug(
+                    "ISR_OSCAN: Amplifier %s configured to skip parallel overscan.",
+                    detector.getName(),
+                    ampName,
+                )
+                results = None
+            elif badAmpDict[ampName] or not ccdExposure.getBBox().contains(amp.getBBox()):
                 results = None
             else:
                 # Question: should this be something else when in PARALLEL
@@ -706,9 +705,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     results = None
                 else:
                     if mode == "SERIAL":
-                        results = self.serialOverscan.run(ccdExposure, amp)
+                        # We need to set up the subtask here with a custom
+                        # configuration.
+                        serialOverscan = SerialOverscanCorrectionTask(config=ampConfig.serialOverscanConfig)
+                        results = serialOverscan.run(ccdExposure, amp)
                     else:
-                        results = self.parallelOverscan.run(ccdExposure, amp)
+                        parallelOverscan = ParallelOverscanCorrectionTask(
+                            config=ampConfig.parallelOverscanConfig,
+                        )
+                        results = parallelOverscan.run(ccdExposure, amp)
 
                     metadata = ccdExposure.getMetadata()
                     keyBase = "LSST ISR OVERSCAN"
@@ -816,6 +821,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
     # TODO check make stats is necessary or not
     def variancePlane(self, ccdExposure, ccd, overscans, ptc):
+        # NOTE: overscanResults is not used here? (or in original IsrTask).
         for amp, overscanResults in zip(ccd, overscans):
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
@@ -1158,6 +1164,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         detector = ccdExposure.getDetector()
 
+        overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
+
         if self.config.doHeaderProvenance:
             # Inputs have been validated, so we can add their date
             # information to the output header.
@@ -1171,7 +1179,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
             if self.doLinearize(detector):
                 exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-            if self.config.doCrosstalk or self.config.doParallelOverscanCrosstalk:
+            if self.config.doCrosstalk or overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
                 exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
             if self.config.doDefect:
                 exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
@@ -1186,11 +1194,19 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
-        if self.config.doSerialOverscan:
+        if overscanDetectorConfig.doAnySerialOverscan:
             # Input units: ADU
-            serialOverscans = self.overscanCorrection("SERIAL", detector, badAmpDict, ccdExposure)
+            serialOverscans = self.overscanCorrection(
+                "SERIAL",
+                overscanDetectorConfig,
+                detector,
+                badAmpDict,
+                ccdExposure,
+            )
+        else:
+            serialOverscans = [None]*len(detector)
 
-        if self.config.doParallelOverscanCrosstalk:
+        if overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
             # Input units: ADU
             # Make sure that the units here are consistent with later
             # application.
@@ -1199,6 +1215,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 crosstalk=crosstalk,
                 camera=camera,
                 parallelOverscanRegion=True,
+                detectorConfig=overscanDetectorConfig,
             )
 
         # After serial overscan correction, we can mask SATURATED and
@@ -1206,10 +1223,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # is fully saturated after serial overscan correction.
         badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector)
 
-        if self.config.doParallelOverscans:
+        if overscanDetectorConfig.doAnyParallelOverscan:
             # Input units: ADU
             # At the moment we do not use the parallelOverscans return value.
-            _ = self.overscanCorrection("PARALLEL", detector, badAmpDict, ccdExposure)
+            _ = self.overscanCorrection(
+                "PARALLEL",
+                overscanDetectorConfig,
+                detector,
+                badAmpDict,
+                ccdExposure,
+            )
 
         if self.config.doAssembleCcd:
             # Input units: ADU
@@ -1317,7 +1340,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                 k1 = f"LSST ISR FINAL MEDIAN {ampName}"
                 k2 = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
-                if self.config.doOverscan and k1 in metadata and k2 in metadata:
+                if overscanDetectorConfig.doAnySerialOverscan and k1 in metadata and k2 in metadata:
                     metadata[f"LSST ISR LEVEL {ampName}"] = metadata[k1] - metadata[k2]
                 else:
                     metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
