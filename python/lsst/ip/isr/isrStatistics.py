@@ -275,8 +275,8 @@ class IsrStatisticsTask(pipeBase.Task):
             if overscans[ampIter] is None:
                 # The amplifier is likely entirely bad, and needs to
                 # be skipped.
-                self.log.warn("No overscan information available for ISR statistics for amp %s.",
-                              amp.getName())
+                self.log.warning("No overscan information available for ISR statistics for amp %s.",
+                                 amp.getName())
                 nCols = amp.getSerialOverscanBBox().getWidth()
                 ampStats['OVERSCAN_COLUMNS'] = np.full((nCols, ), np.nan)
                 ampStats['OVERSCAN_VALUES'] = np.full((nCols, ), np.nan)
