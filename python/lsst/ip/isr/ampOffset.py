@@ -205,7 +205,6 @@ class AmpOffsetTask(Task):
             print(
                 "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set"
             )
-            breakpoint()
             pedestals = np.zeros(len(amps))
         else:
             # Set up amp offset inputs.
@@ -486,8 +485,9 @@ class AmpOffsetTask(Task):
             interfaceOffset = 0
             self.log.warning(
                 f"The fraction of unmasked pixels for amp interface {interfaceId} is below the threshold "
-                f"({self.config.ampEdgeMinFrac}) or the absolute offset value exceeds the limit "
-                f"({self.config.ampEdgeMaxOffset} ADU). Setting the interface offset to 0."
+                f"({ampEdgeGoodFrac:.2f} <? {self.config.ampEdgeMinFrac}) or the absolute offset value "
+                f"exceeds the limit ({np.abs(interfaceOffset):.2f} >? {self.config.ampEdgeMaxOffset} ADU). "
+                f"Setting the interface offset to {interfaceOffset}."
             )
         self.log.debug(
             f"amp interface {interfaceId} : "
