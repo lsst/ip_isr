@@ -158,11 +158,13 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         """Test of a partial PTC dataset."""
         # Fill the dataset with made up data.
         nSideCovMatrix = 2
+        nSideCovMatrixFullCovFit = 2
 
         partialDataset = PhotonTransferCurveDataset(
             self.ampNames,
             ptcFitType="PARTIAL",
-            covMatrixSide=nSideCovMatrix
+            covMatrixSide=nSideCovMatrix,
+            covMatrixSideFullCovFit=nSideCovMatrixFullCovFit
         )
         self._checkTypes(partialDataset)
 
@@ -201,99 +203,111 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         """Test of a full PTC dataset."""
         # Fill the dataset with made up data.
         nSignalPoints = 5
-        nSideCovMatrix = 2
-        for fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', 'FULLCOVARIANCE']:
-            localDataset = PhotonTransferCurveDataset(
-                self.ampNames,
-                ptcFitType=fitType,
-                covMatrixSide=nSideCovMatrix,
-            )
-            localDataset.badAmps = [localDataset.ampNames[0], localDataset.ampNames[1]]
-            for ampName in localDataset.ampNames:
+        nSideCovMatrixInput = 3  # Size of measured covariances
 
-                localDataset.inputExpIdPairs[ampName] = [(1, 2)]*nSignalPoints
-                localDataset.expIdMask[ampName] = np.ones(nSignalPoints, dtype=bool)
-                localDataset.expIdMask[ampName][1] = False
-                localDataset.rawExpTimes[ampName] = np.arange(nSignalPoints, dtype=np.float64)
-                localDataset.rawMeans[ampName] = self.flux*np.arange(nSignalPoints)
-                localDataset.rawVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
-                localDataset.photoCharges[ampName] = np.full(nSignalPoints, np.nan)
-                localDataset.gain[ampName] = self.gain
-                localDataset.gainErr[ampName] = 0.1
-                localDataset.noise[ampName] = self.noiseSq
-                localDataset.noiseErr[ampName] = 2.0
-                localDataset.histVars[ampName] = localDataset.rawVars[ampName]
-                localDataset.histChi2Dofs[ampName] = np.full(nSignalPoints, 1.0)
-                localDataset.kspValues[ampName] = np.full(nSignalPoints, 0.5)
+        for nSideCovMatrixFullCovFitInput in np.arange(1, nSideCovMatrixInput + 2):
+            for fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', 'FULLCOVARIANCE']:
+                localDataset = PhotonTransferCurveDataset(
+                    self.ampNames,
+                    ptcFitType=fitType,
+                    covMatrixSide=nSideCovMatrixInput,
+                    covMatrixSideFullCovFit=nSideCovMatrixFullCovFitInput,
+                )
+                nSideCovMatrix = localDataset.covMatrixSide
+                nSideCovMatrixFullCovFit = localDataset.covMatrixSideFullCovFit
+                localDataset.badAmps = [localDataset.ampNames[0], localDataset.ampNames[1]]
+                for ampName in localDataset.ampNames:
 
-                localDataset.finalVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
-                localDataset.finalModelVars[ampName] = np.full(nSignalPoints, 100.0)
-                localDataset.finalMeans[ampName] = self.flux*np.arange(nSignalPoints)
+                    localDataset.inputExpIdPairs[ampName] = [(1, 2)]*nSignalPoints
+                    localDataset.expIdMask[ampName] = np.ones(nSignalPoints, dtype=bool)
+                    localDataset.expIdMask[ampName][1] = False
+                    localDataset.rawExpTimes[ampName] = np.arange(nSignalPoints, dtype=np.float64)
+                    localDataset.rawMeans[ampName] = self.flux*np.arange(nSignalPoints)
+                    localDataset.rawVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
+                    localDataset.photoCharges[ampName] = np.full(nSignalPoints, np.nan)
+                    localDataset.gain[ampName] = self.gain
+                    localDataset.gainErr[ampName] = 0.1
+                    localDataset.noise[ampName] = self.noiseSq
+                    localDataset.noiseErr[ampName] = 2.0
+                    localDataset.histVars[ampName] = localDataset.rawVars[ampName]
+                    localDataset.histChi2Dofs[ampName] = np.full(nSignalPoints, 1.0)
+                    localDataset.kspValues[ampName] = np.full(nSignalPoints, 0.5)
 
-                if fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', ]:
-                    localDataset.ptcFitPars[ampName] = np.array([10.0, 1.5, 1e-6])
-                    localDataset.ptcFitParsError[ampName] = np.array([1.0, 0.2, 1e-7])
-                    localDataset.ptcFitChiSq[ampName] = 1.0
-                    localDataset.ptcTurnoff[ampName] = localDataset.rawMeans[ampName][-1]
+                    localDataset.finalVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
+                    localDataset.finalModelVars[ampName] = np.full(nSignalPoints, 100.0)
+                    localDataset.finalMeans[ampName] = self.flux*np.arange(nSignalPoints)
 
-                    localDataset.covariances[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
-                    localDataset.covariancesModel[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.covariancesSqrtWeights[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                           nSideCovMatrix), 10.0)
-                    localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                        nSideCovMatrix), np.nan)
-                    localDataset.aMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), np.nan)
-                    localDataset.noiseMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), np.nan)
+                    if fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', ]:
+                        localDataset.ptcFitPars[ampName] = np.array([10.0, 1.5, 1e-6])
+                        localDataset.ptcFitParsError[ampName] = np.array([1.0, 0.2, 1e-7])
+                        localDataset.ptcFitChiSq[ampName] = 1.0
+                        localDataset.ptcTurnoff[ampName] = localDataset.rawMeans[ampName][-1]
 
-                if localDataset.ptcFitType in ['FULLCOVARIANCE', ]:
-                    localDataset.ptcFitPars[ampName] = np.array([np.nan, np.nan])
-                    localDataset.ptcFitParsError[ampName] = np.array([np.nan, np.nan])
-                    localDataset.ptcFitChiSq[ampName] = np.nan
-                    localDataset.ptcTurnoff[ampName] = np.nan
+                        localDataset.covariances[ampName] = np.full(
+                            (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
+                        localDataset.covariancesModel[ampName] = np.full(
+                            (nSignalPoints, nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
+                        localDataset.covariancesSqrtWeights[ampName] = np.full((nSignalPoints, nSideCovMatrix,
+                                                                               nSideCovMatrix), 10.0)
+                        localDataset.aMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                nSideCovMatrixFullCovFit), np.nan)
+                        localDataset.bMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                nSideCovMatrixFullCovFit), np.nan)
+                        localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                    nSideCovMatrixFullCovFit), np.nan)
+                        localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints,
+                                                                            nSideCovMatrixFullCovFit,
+                                                                            nSideCovMatrixFullCovFit), np.nan)
+                        localDataset.aMatrixNoB[ampName] = np.full(
+                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
+                        localDataset.noiseMatrixNoB[ampName] = np.full(
+                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
 
-                    localDataset.covariances[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
-                    localDataset.covariancesModel[ampName] = np.full(
-                        (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 100.0)
-                    localDataset.covariancesSqrtWeights[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                           nSideCovMatrix), 10.0)
-                    localDataset.aMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-6)
-                    localDataset.bMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 1e-7)
-                    localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrix, nSideCovMatrix), 3.0)
-                    localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints, nSideCovMatrix,
-                                                                        nSideCovMatrix), 15.0)
-                    localDataset.aMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), 2e-6)
-                    localDataset.noiseMatrixNoB[ampName] = np.full(
-                        (nSideCovMatrix, nSideCovMatrix), 3.0)
+                    if localDataset.ptcFitType in ['FULLCOVARIANCE', ]:
+                        localDataset.ptcFitPars[ampName] = np.array([np.nan, np.nan])
+                        localDataset.ptcFitParsError[ampName] = np.array([np.nan, np.nan])
+                        localDataset.ptcFitChiSq[ampName] = np.nan
+                        localDataset.ptcTurnoff[ampName] = np.nan
 
-            for useAuxValues in [False, True]:
-                if useAuxValues:
-                    localDataset.auxValues = {
-                        "CCOBCURR": np.ones(nSignalPoints),
-                        "CCDTEMP": np.zeros(nSignalPoints),
-                    }
+                        localDataset.covariances[ampName] = np.full(
+                            (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
+                        localDataset.covariancesModel[ampName] = np.full(
+                            (nSignalPoints, nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 100.0)
+                        localDataset.covariancesSqrtWeights[ampName] = np.full((nSignalPoints, nSideCovMatrix,
+                                                                               nSideCovMatrix), 10.0)
+                        localDataset.aMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                nSideCovMatrixFullCovFit), 1e-6)
+                        localDataset.bMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                nSideCovMatrixFullCovFit), 1e-7)
+                        localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
+                                                                    nSideCovMatrixFullCovFit), 3.0)
+                        localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints,
+                                                                            nSideCovMatrixFullCovFit,
+                                                                            nSideCovMatrixFullCovFit), 15.0)
+                        localDataset.aMatrixNoB[ampName] = np.full(
+                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 2e-6)
+                        localDataset.noiseMatrixNoB[ampName] = np.full(
+                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 3.0)
 
-                self._checkTypes(localDataset)
+                for useAuxValues in [False, True]:
+                    if useAuxValues:
+                        localDataset.auxValues = {
+                            "CCOBCURR": np.ones(nSignalPoints),
+                            "CCDTEMP": np.zeros(nSignalPoints),
+                        }
 
-                with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
-                    usedFilename = localDataset.writeText(f.name)
-                    fromText = PhotonTransferCurveDataset.readText(usedFilename)
-                self.assertEqual(fromText, localDataset)
-                self._checkTypes(fromText)
+                    self._checkTypes(localDataset)
+                    with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
+                        usedFilename = localDataset.writeText(f.name)
+                        fromText = PhotonTransferCurveDataset.readText(usedFilename)
+                    self.assertEqual(fromText, localDataset)
+                    self._checkTypes(fromText)
 
-                with tempfile.NamedTemporaryFile(suffix=".fits") as f:
-                    usedFilename = localDataset.writeFits(f.name)
-                    fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
-                self.assertEqual(fromFits, localDataset)
-                self._checkTypes(fromFits)
+                    with tempfile.NamedTemporaryFile(suffix=".fits") as f:
+                        usedFilename = localDataset.writeFits(f.name)
+                        fromFits = PhotonTransferCurveDataset.readFits(usedFilename)
+                    self.assertEqual(fromFits, localDataset)
+                    self._checkTypes(fromFits)
 
     def test_getExpIdsUsed(self):
         localDataset = copy.copy(self.dataset)
