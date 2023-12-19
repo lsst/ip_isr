@@ -1170,6 +1170,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Inputs have been validated, so we can add their date
             # information to the output header.
             exposureMetadata = ccdExposure.getMetadata()
+            exposureMetadata["LSST CALIB OVERSCAN HASH"] = overscanDetectorConfig.md5
             exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
             if self.config.doDiffNonLinearCorrection:
                 exposureMetadata["LSST CALIB DATE DNL"] = self.extractCalibDate(dnlLUT)
