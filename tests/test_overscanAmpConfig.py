@@ -20,6 +20,7 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
+import copy
 import tempfile
 import unittest
 
@@ -220,6 +221,34 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
                     self._checkOverscanConfig(ampConfig)
 
         self._checkAnyOverscanConfig(config)
+
+    def testAmpConfigMd5(self):
+        # Check a default detectorConfig
+        detectorConfig1 = OverscanDetectorConfig()
+        configMd51 = detectorConfig1.md5
+
+        # Make sure copying it has the same hash.
+        detectorConfig2 = copy.copy(detectorConfig1)
+        configMd52 = detectorConfig2.md5
+
+        self.assertEqual(configMd51, configMd52)
+
+        # Make a new one with an amp override.
+        overscanAmpConfigOverride = OverscanAmpConfig()
+        overscanAmpConfigOverride.parallelOverscanConfig.fitType = "MEDIAN"
+
+        detectorConfig3 = OverscanDetectorConfig()
+        detectorConfig3.ampRules["amp2"] = overscanAmpConfigOverride
+
+        self.assertNotEqual(detectorConfig3.md5, detectorConfig1.md5)
+
+        # Override another amp but with the default.  This should
+        # give the same answer because amp overrides that match the default
+        # are not hashed.
+        detectorConfig4 = copy.copy(detectorConfig3)
+        detectorConfig4.ampRules["amp3"] = OverscanAmpConfig()
+
+        self.assertEqual(detectorConfig4.md5, detectorConfig3.md5)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

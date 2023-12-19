@@ -1,4 +1,5 @@
 import lsst.pex.config as pexConfig
+import hashlib
 
 from .overscan import SerialOverscanCorrectionTaskConfig, ParallelOverscanCorrectionTaskConfig
 
@@ -45,6 +46,23 @@ class OverscanAmpConfig(pexConfig.Config):
         self.parallelOverscanConfig.fitType = "MEDIAN_PER_ROW"
         self.parallelOverscanConfig.leadingToSkip = 3
         self.parallelOverscanConfig.trailingToSkip = 3
+
+    @property
+    def _stringForHash(self):
+        """Turn this config into a simple string for hashing.
+
+        Only essential data for tracking is returned.
+
+        Returns
+        -------
+        stringForHash : `str`
+        """
+        stringForHash = (f"doSerial={self.doSerialOverscan} "
+                         f"serialFitType={self.serialOverscanConfig.fitType} "
+                         f"doParallelCrosstalk={self.doParallelOverscanCrosstalk} "
+                         f"doParallel={self.doParallelOverscan} "
+                         f"parallelFitType={self.parallelOverscanConfig.fitType}")
+        return stringForHash
 
 
 class OverscanDetectorConfig(pexConfig.Config):
@@ -132,6 +150,39 @@ class OverscanDetectorConfig(pexConfig.Config):
             overscanAmpConfig = self.defaultAmpConfig
 
         return overscanAmpConfig
+
+    @property
+    def _stringForHash(self):
+        """Turn this config into a simple string for hashing.
+
+        Only the default and amps that are different than the
+        default are used in the string representation.
+
+        Returns
+        -------
+        stringForHash : `str`
+        """
+        defaultString = self.defaultAmpConfig._stringForHash
+
+        stringForHash = f"default: {defaultString}"
+        for ampName in self.ampRules:
+            ampString = self.ampRules[ampName]._stringForHash
+            if ampString != defaultString:
+                stringForHash += f" {ampName}: {ampString}"
+
+        return stringForHash
+
+    @property
+    def md5(self):
+        """Compute the MD5 hash of this config (detector + amps).
+
+        This can be used to ensure overscan configs are consistent.
+
+        Returns
+        -------
+        md5Hash : `str`
+        """
+        return hashlib.md5(self._stringForHash.encode("UTF-8")).hexdigest()
 
 
 class OverscanCameraConfig(pexConfig.Config):
