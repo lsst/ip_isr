@@ -107,6 +107,16 @@ class AmpOffsetConfig(Config):
         doc="Source detection to add temporary detection footprints prior to amp offset calculation.",
         target=SourceDetectionTask,
     )
+    applyWeights = Field(
+        doc="Weight amp offset calculation by the length of the interface between amplifiers.",
+        dtype=bool,
+        default=True,
+    )
+    doWindowSmoothing = Field(
+        doc="Smooth amp edge differences by taking a rolling average.",
+        dtype=bool,
+        default=True,
+    )
 
 
 class AmpOffsetTask(Task):
@@ -144,9 +154,27 @@ class AmpOffsetTask(Task):
         ampDims = [amp.getBBox().getDimensions() for amp in amps]
         if not all(dim == ampDims[0] for dim in ampDims):
             raise RuntimeError("All amps should have the same geometry.")
+        else:
+            # The zeroth amp is representative of all amps in the detector.
+            self.ampDims = ampDims[0]
+            # Dictionary mapping side numbers to interface lengths.
+            # See `getAmpAssociations()` for details about sides.
+            self.interfaceLengthLookupBySide = {i: self.ampDims[i % 2] for i in range(4)}
+
+        # Determine amplifier geometry.
+        # ampWidths = {amp.getBBox().getWidth() for amp in amps}
+        # ampHeights = {amp.getBBox().getHeight() for amp in amps}
+        ampAreas = {amp.getBBox().getArea() for amp in amps}
+        if len(ampAreas) > 1:
+            raise NotImplementedError(
+                "Amp offset correction is not yet implemented for detectors with differing amp sizes."
+            )
 
         # Assuming all the amps have the same geometry.
         self.shortAmpSide = np.min(ampDims[0])
+
+        # TODO: Double check that this is true.
+        assert self.config.ampEdgeWidth < self.shortAmpSide - 2 * self.config.ampEdgeInset
 
         # Fit and subtract background.
         if self.config.doBackground:
@@ -179,6 +207,9 @@ class AmpOffsetTask(Task):
                 "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set "
                 "to zero."
             )
+            print(
+                "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set"
+            )
             pedestals = np.zeros(len(amps))
         else:
             # Set up amp offset inputs.
@@ -191,13 +222,6 @@ class AmpOffsetTask(Task):
                     "edge length exceeds 1. This leads to complications downstream, after convolution in "
                     "the `getSideAmpOffset()` method. Please modify the `ampEdgeWindowFrac` value in the "
                     "config to be 1 or less and rerun."
-                )
-
-            # Determine amplifier geometry.
-            ampAreas = {amp.getBBox().getArea() for amp in amps}
-            if len(ampAreas) > 1:
-                raise NotImplementedError(
-                    "Amp offset correction is not yet implemented for detectors with differing amp sizes."
                 )
 
             # Obtain association and offset matrices.
@@ -277,7 +301,12 @@ class AmpOffsetTask(Task):
 
         for ampId in ampIds.ravel():
             neighbors, sides = self.getNeighbors(ampIds, ampId)
-            ampAssociations[ampId, neighbors] = -1
+            interfaceWeights = (
+                1
+                if not self.config.applyWeights
+                else np.array([self.interfaceLengthLookupBySide[side] for side in sides])
+            )
+            ampAssociations[ampId, neighbors] = -1 * interfaceWeights
             ampSides[ampId, neighbors] = sides
             ampAssociations[ampId, ampId] = -ampAssociations[ampId].sum()
 
@@ -352,10 +381,14 @@ class AmpOffsetTask(Task):
         ampsOffsets = np.zeros(len(amps))
         ampsEdges = self.getAmpEdges(im, amps, sides)
         interfaceOffsetLookup = {}
+
         for ampId, ampAssociations in enumerate(associations):
             ampNeighbors = np.ravel(np.where(ampAssociations < 0))
             for ampNeighbor in ampNeighbors:
                 ampSide = sides[ampId][ampNeighbor]
+                interfaceWeight = (
+                    1 if not self.config.applyWeights else self.interfaceLengthLookupBySide[ampSide]
+                )
                 edgeA = ampsEdges[ampId][ampSide]
                 edgeB = ampsEdges[ampNeighbor][(ampSide + 2) % 4]
                 if ampId < ampNeighbor:
@@ -363,7 +396,7 @@ class AmpOffsetTask(Task):
                     interfaceOffsetLookup[f"{ampId}{ampNeighbor}"] = interfaceOffset
                 else:
                     interfaceOffset = -interfaceOffsetLookup[f"{ampNeighbor}{ampId}"]
-                ampsOffsets[ampId] += interfaceOffset
+                ampsOffsets[ampId] += interfaceWeight * interfaceOffset
         return ampsOffsets
 
     def getAmpEdges(self, im, amps, ampSides):
@@ -439,11 +472,15 @@ class AmpOffsetTask(Task):
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
         edgeDiff = edgeA - edgeB
-        window = int(self.config.ampEdgeWindowFrac * len(edgeDiff))
-        # Compute rolling averages.
-        edgeDiffSum = np.convolve(np.nan_to_num(edgeDiff), np.ones(window), "same")
-        edgeDiffNum = np.convolve(~np.isnan(edgeDiff), np.ones(window), "same")
-        edgeDiffAvg = edgeDiffSum / np.clip(edgeDiffNum, 1, None)
+        if self.config.doWindowSmoothing:
+            # Compute rolling averages.
+            window = int(self.config.ampEdgeWindowFrac * len(edgeDiff))
+            edgeDiffSum = np.convolve(np.nan_to_num(edgeDiff), np.ones(window), "same")
+            edgeDiffNum = np.convolve(~np.isnan(edgeDiff), np.ones(window), "same")
+            edgeDiffAvg = edgeDiffSum / np.clip(edgeDiffNum, 1, None)
+        else:
+            # Directly use the difference.
+            edgeDiffAvg = edgeDiff.copy()
         edgeDiffAvg[np.isnan(edgeDiff)] = np.nan
         # Take clipped mean of rolling average data as amp offset value.
         interfaceOffset = makeStatistics(edgeDiffAvg, MEANCLIP, sctrl).getValue()
@@ -457,8 +494,9 @@ class AmpOffsetTask(Task):
             interfaceOffset = 0
             self.log.warning(
                 f"The fraction of unmasked pixels for amp interface {interfaceId} is below the threshold "
-                f"({self.config.ampEdgeMinFrac}) or the absolute offset value exceeds the limit "
-                f"({self.config.ampEdgeMaxOffset} ADU). Setting the interface offset to 0."
+                f"({ampEdgeGoodFrac:.2f} <? {self.config.ampEdgeMinFrac}) or the absolute offset value "
+                f"exceeds the limit ({np.abs(interfaceOffset):.2f} >? {self.config.ampEdgeMaxOffset} ADU). "
+                f"Setting the interface offset to {interfaceOffset}."
             )
         self.log.debug(
             f"amp interface {interfaceId} : "
