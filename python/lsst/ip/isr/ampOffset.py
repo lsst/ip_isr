@@ -112,6 +112,11 @@ class AmpOffsetConfig(Config):
         dtype=bool,
         default=True,
     )
+    doWindowSmoothing = Field(
+        doc="Smooth amp edge differences by taking a rolling average.",
+        dtype=bool,
+        default=True,
+    )
 
 
 class AmpOffsetTask(Task):
@@ -467,11 +472,15 @@ class AmpOffsetTask(Task):
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
         edgeDiff = edgeA - edgeB
-        window = int(self.config.ampEdgeWindowFrac * len(edgeDiff))
-        # Compute rolling averages.
-        edgeDiffSum = np.convolve(np.nan_to_num(edgeDiff), np.ones(window), "same")
-        edgeDiffNum = np.convolve(~np.isnan(edgeDiff), np.ones(window), "same")
-        edgeDiffAvg = edgeDiffSum / np.clip(edgeDiffNum, 1, None)
+        if self.config.doWindowSmoothing:
+            # Compute rolling averages.
+            window = int(self.config.ampEdgeWindowFrac * len(edgeDiff))
+            edgeDiffSum = np.convolve(np.nan_to_num(edgeDiff), np.ones(window), "same")
+            edgeDiffNum = np.convolve(~np.isnan(edgeDiff), np.ones(window), "same")
+            edgeDiffAvg = edgeDiffSum / np.clip(edgeDiffNum, 1, None)
+        else:
+            # Directly use the difference.
+            edgeDiffAvg = edgeDiff.copy()
         edgeDiffAvg[np.isnan(edgeDiff)] = np.nan
         # Take clipped mean of rolling average data as amp offset value.
         interfaceOffset = makeStatistics(edgeDiffAvg, MEANCLIP, sctrl).getValue()
