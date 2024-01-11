@@ -104,6 +104,12 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         }
     )
 
+    doCalibDistributionStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Copy calibration distribution statistics to output?",
+        default=False,
+    )
+
     stat = pexConfig.Field(
         dtype=str,
         default='MEANCLIP',
@@ -200,10 +206,15 @@ class IsrStatisticsTask(pipeBase.Task):
         if self.config.doProjectionStatistics:
             projectionResults = self.measureProjectionStatistics(inputExp, overscanResults)
 
+        calibDistributionResults = None
+        if self.config.doCalibDistributionStatistics:
+            calibDistributionResults = self.copyCalibDistributionStatistics(inputExp, **kwargs)
+
         return pipeBase.Struct(
             results={'CTI': ctiResults,
                      'BANDING': bandingResults,
                      'PROJECTION': projectionResults,
+                     'CALIBDIST': calibDistributionResults,
                      },
         )
 
@@ -457,5 +468,36 @@ class IsrStatisticsTask(pipeBase.Task):
                 outputStats['AMP_HFFT_IMAG'][amp.getName()] = np.imag(horizontalFFT).tolist()
                 outputStats['AMP_VFFT_REAL'][amp.getName()] = np.real(verticalFFT).tolist()
                 outputStats['AMP_VFFT_IMAG'][amp.getName()] = np.imag(verticalFFT).tolist()
+
+        return outputStats
+
+    def copyCalibDistributionStatistics(self, inputExp, **kwargs):
+        """Copy calibration statistics for this exposure.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            The exposure being processed.
+        **kwargs :
+            Keyword arguments with calibrations.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        for amp in inputExp.getDetector():
+            ampStats = {}
+
+            for calibType in ('bias', 'dark', 'flat'):
+                if calibType in kwargs and kwargs[calibType] is not None:
+                    metadata = kwargs[calibType].getMetadata()
+                    for pct in (0, 5, 16, 50, 84, 95, 100):
+                        key = f"LSST CALIB {calibType.upper()} {amp.getName()} DISTRIBUTION {pct}-PCT"
+                        ampStats[key] = metadata.get(key, np.nan)
+                outputStats[amp.getName()] = ampStats
 
         return outputStats
