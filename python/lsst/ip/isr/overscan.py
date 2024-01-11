@@ -1001,9 +1001,6 @@ class OverscanCorrectionTask(OverscanCorrectionTaskBase):
             parallelOverscanBBox = amp.getRawParallelOverscanBBox()
             imageBBox = amp.getRawDataBBox()
 
-            maskIm = exposure.getMaskedImage()
-            maskIm = maskIm.Factory(maskIm, parallelOverscanBBox)
-
             # The serial overscan correction has removed some signal
             # from the parallel overscan region, but that is largely a
             # constant offset.  The collapseArray method now attempts
@@ -1270,9 +1267,6 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
         # from the data region.
         parallelOverscanBBox = amp.getRawParallelOverscanBBox()
         imageBBox = amp.getRawDataBBox()
-
-        maskIm = exposure.getMaskedImage()
-        maskIm = maskIm.Factory(maskIm, parallelOverscanBBox)
 
         # The serial overscan correction has removed some signal
         # from the parallel overscan region, but that is largely a
