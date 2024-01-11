@@ -1486,7 +1486,7 @@ class IsrTask(pipeBase.PipelineTask):
             self.debugView(ccdExposure, "doBias")
 
         if self.config.doVariance:
-            for amp, overscanResults in zip(ccd, overscans):
+            for amp in ccd:
                 if ccdExposure.getBBox().contains(amp.getBBox()):
                     self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                     ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
