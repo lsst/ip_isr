@@ -695,8 +695,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             elif badAmpDict[ampName] or not ccdExposure.getBBox().contains(amp.getBBox()):
                 results = None
             else:
-                # Question: should this be something else when in PARALLEL
-                # mode?
+                # This check is to confirm that we are not trying to run
+                # overscan on an already trimmed image. Therefore, always
+                # checking just the horizontal overscan bounding box is
+                # sufficient.
                 if amp.getRawHorizontalOverscanBBox().isEmpty():
                     self.log.warning(
                         "ISR_OSCAN: No overscan region for amp %s. Not performing overscan correction.",
@@ -819,10 +821,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bad = numpy.where(exposure.getVariance().getArray() <= 0.0)
         exposure.mask.array[bad] |= maskPlane
 
-    # TODO check make stats is necessary or not
-    def variancePlane(self, ccdExposure, ccd, overscans, ptc):
-        # NOTE: overscanResults is not used here? (or in original IsrTask).
-        for amp, overscanResults in zip(ccd, overscans):
+    def variancePlane(self, ccdExposure, ccd, ptc):
+        for amp in ccd:
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
@@ -1268,7 +1268,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         if self.config.doVariance:
             # Input units: electrons
-            self.variancePlane(ccdExposure, detector, serialOverscans, ptc)
+            self.variancePlane(ccdExposure, detector, ptc)
 
         if self.config.doCrosstalk:
             # Input units: electrons
