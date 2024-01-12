@@ -65,6 +65,17 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         if order:
             config.overscan.order = order
 
+    def updateOverscanConfigFromKwargs(self, config, **kwargs):
+        """Common config from keywords.
+        """
+        fitType = kwargs.get('fitType', None)
+        if fitType:
+            config.fitType = fitType
+
+        order = kwargs.get('order', None)
+        if order:
+            config.order = order
+
     def makeExposure(self, addRamp=False, isTransposed=False):
         # Define the camera geometry we'll use.
         cameraBuilder = cameraGeom.Camera.Builder("Fake Camera")
@@ -115,59 +126,63 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         return exposure
 
     def checkOverscanCorrectionY(self, **kwargs):
-        exposure = self.makeExposure(isTransposed=True)
-        detector = exposure.getDetector()
+        # We check serial overscan with the "old" and "new" tasks.
+        for taskClass in (ipIsr.overscan.OverscanCorrectionTask, ipIsr.overscan.SerialOverscanCorrectionTask):
+            exposure = self.makeExposure(isTransposed=True)
+            detector = exposure.getDetector()
 
-        # These subimages are needed below.
-        overscan = exposure[detector.getAmplifiers()[0].getRawSerialOverscanBBox()]
-        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
+            # These subimages are needed below.
+            overscan = exposure[detector.getAmplifiers()[0].getRawSerialOverscanBBox()]
+            maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
 
-        config = ipIsr.IsrTask.ConfigClass()
-        self.updateConfigFromKwargs(config, **kwargs)
+            config = taskClass.ConfigClass()
+            self.updateOverscanConfigFromKwargs(config, **kwargs)
 
-        if kwargs['fitType'] == "MEDIAN_PER_ROW":
-            # Add a bad point to test outlier rejection.
-            overscan.getImage().getArray()[0, 0] = 12345
+            if kwargs['fitType'] == "MEDIAN_PER_ROW":
+                # Add a bad point to test outlier rejection.
+                overscan.getImage().getArray()[0, 0] = 12345
 
-            # Shrink the sigma clipping limit to handle the fact that the
-            # bad point is not be rejected at higher thresholds (2/0.74).
-            config.overscan.numSigmaClip = 2.7
+                # Shrink the sigma clipping limit to handle the fact that the
+                # bad point is not be rejected at higher thresholds (2/0.74).
+                config.numSigmaClip = 2.7
 
-        isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=True)
+            overscanTask = taskClass(config=config)
+            _ = overscanTask.run(exposure, detector.getAmplifiers()[0], isTransposed=True)
 
-        height = maskedImage.getHeight()
-        width = maskedImage.getWidth()
-        for j in range(height):
-            for i in range(width):
-                if j == 10 and i == 0 and kwargs['fitType'] == "MEDIAN_PER_ROW":
-                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 12343)
-                elif j >= 10 and i < 10:
-                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
-                elif i < 10:
-                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
+            height = maskedImage.getHeight()
+            width = maskedImage.getWidth()
+            for j in range(height):
+                for i in range(width):
+                    if j == 10 and i == 0 and kwargs['fitType'] == "MEDIAN_PER_ROW":
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 12343)
+                    elif j >= 10 and i < 10:
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
+                    elif i < 10:
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
     def checkOverscanCorrectionX(self, **kwargs):
-        exposure = self.makeExposure(isTransposed=False)
-        detector = exposure.getDetector()
+        # We check serial ovsercan with "old" and "new" tasks.
+        for taskClass in (ipIsr.overscan.OverscanCorrectionTask, ipIsr.overscan.SerialOverscanCorrectionTask):
+            exposure = self.makeExposure(isTransposed=False)
+            detector = exposure.getDetector()
 
-        # These subimages are needed below.
-        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
+            # These subimages are needed below.
+            maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
 
-        config = ipIsr.IsrTask.ConfigClass()
-        self.updateConfigFromKwargs(config, **kwargs)
+            config = taskClass.ConfigClass()
+            self.updateOverscanConfigFromKwargs(config, **kwargs)
 
-        isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=False)
+            overscanTask = taskClass(config=config)
+            _ = overscanTask.run(exposure, detector.getAmplifiers()[0], isTransposed=False)
 
-        height = maskedImage.getHeight()
-        width = maskedImage.getWidth()
-        for j in range(height):
-            for i in range(width):
-                if i >= 10 and j < 10:
-                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
-                elif j < 10:
-                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
+            height = maskedImage.getHeight()
+            width = maskedImage.getWidth()
+            for j in range(height):
+                for i in range(width):
+                    if i >= 10 and j < 10:
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
+                    elif j < 10:
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
 
     def checkOverscanCorrectionSineWave(self, **kwargs):
         """vertical sine wave along long direction"""
@@ -194,40 +209,41 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         camera = cameraBuilder.finish()
         detector = camera[0]
 
-        # Define image data.
-        maskedImage = afwImage.MaskedImageF(fullBBox)
-        maskedImage.set(50, 0x0, 1)
+        for taskClass in (ipIsr.overscan.OverscanCorrectionTask, ipIsr.overscan.SerialOverscanCorrectionTask):
+            # Define image data.
+            maskedImage = afwImage.MaskedImageF(fullBBox)
+            maskedImage.set(50, 0x0, 1)
 
-        overscan = afwImage.MaskedImageF(maskedImage, overscanBBox)
-        overscan.set(0, 0x0, 1)
+            overscan = afwImage.MaskedImageF(maskedImage, overscanBBox)
+            overscan.set(0, 0x0, 1)
 
-        exposure = afwImage.ExposureF(maskedImage, None)
-        exposure.setDetector(detector)
+            exposure = afwImage.ExposureF(maskedImage, None)
+            exposure.setDetector(detector)
 
-        # vertical sine wave along long direction
-        x = np.linspace(0, 2*3.14159, 500)
-        a, w = 15, 5*3.14159
-        sineWave = 20 + a*np.sin(w*x)
-        sineWave = sineWave.astype(int)
+            # vertical sine wave along long direction
+            x = np.linspace(0, 2*3.14159, 500)
+            a, w = 15, 5*3.14159
+            sineWave = 20 + a*np.sin(w*x)
+            sineWave = sineWave.astype(int)
 
-        fullImage = np.repeat(sineWave, 100).reshape((500, 100))
-        maskedImage.image.array += fullImage
+            fullImage = np.repeat(sineWave, 100).reshape((500, 100))
+            maskedImage.image.array += fullImage
 
-        config = ipIsr.IsrTask.ConfigClass()
-        self.updateConfigFromKwargs(config, **kwargs)
+            config = taskClass.ConfigClass()
+            self.updateOverscanConfigFromKwargs(config, **kwargs)
 
-        isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(exposure, detector.getAmplifiers()[0])
+            overscanTask = taskClass(config=config)
+            _ = overscanTask.run(exposure, detector.getAmplifiers()[0])
 
-        height = maskedImage.getHeight()
-        width = maskedImage.getWidth()
+            height = maskedImage.getHeight()
+            width = maskedImage.getWidth()
 
-        for j in range(height):
-            for i in range(width):
-                if i >= 70:
-                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.0)
-                else:
-                    self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 50.0)
+            for j in range(height):
+                for i in range(width):
+                    if i >= 70:
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.0)
+                    else:
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 50.0)
 
     def test_MedianPerRowOverscanCorrection(self):
         self.checkOverscanCorrectionY(fitType="MEDIAN_PER_ROW")
@@ -239,73 +255,100 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         self.checkOverscanCorrectionX(fitType="MEDIAN")
 
     def checkPolyOverscanCorrectionX(self, **kwargs):
-        exposure = self.makeExposure(isTransposed=False)
-        detector = exposure.getDetector()
+        for taskClass in (ipIsr.overscan.OverscanCorrectionTask, ipIsr.overscan.SerialOverscanCorrectionTask):
+            exposure = self.makeExposure(isTransposed=False)
+            detector = exposure.getDetector()
 
-        # These subimages are needed below.
-        overscan = exposure[detector.getAmplifiers()[0].getRawSerialOverscanBBox()]
-        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
+            # Fill the full serial overscan region with a polynomial,
+            # all the way into the parallel overscan region.
+            amp = detector.getAmplifiers()[0]
+            serialOverscanBBox = amp.getRawSerialOverscanBBox()
+            imageBBox = amp.getRawDataBBox()
+            parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+            imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
 
-        bbox = detector.getAmplifiers()[0].getRawSerialOverscanBBox()
-        overscan.getMaskedImage().set(2, 0x0, 1)
-        for i in range(bbox.getDimensions()[1]):
-            for j, off in enumerate([-0.5, 0.0, 0.5]):
-                overscan.image[j, i, afwImage.LOCAL] = 2+i+off
+            serialOverscanBBox = lsst.geom.Box2I(
+                lsst.geom.Point2I(serialOverscanBBox.getMinX(),
+                                  imageBBox.getMinY()),
+                lsst.geom.Extent2I(serialOverscanBBox.getWidth(),
+                                   imageBBox.getHeight()),
+            )
 
-        config = ipIsr.IsrTask.ConfigClass()
-        self.updateConfigFromKwargs(config, **kwargs)
+            overscan = exposure[serialOverscanBBox]
+            maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
 
-        isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=False)
+            bbox = serialOverscanBBox
+            overscan.getMaskedImage().set(2, 0x0, 1)
+            for i in range(bbox.getDimensions()[1]):
+                for j, off in enumerate([-0.5, 0.0, 0.5]):
+                    overscan.image[j, i, afwImage.LOCAL] = 2+i+off
 
-        height = maskedImage.getHeight()
-        width = maskedImage.getWidth()
-        for j in range(height):
-            for i in range(width):
-                if j < 10:
-                    if i == 10:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], -0.5)
-                    elif i == 11:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
-                    elif i == 12:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.5)
-                    else:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - j)
+            config = taskClass.ConfigClass()
+            self.updateOverscanConfigFromKwargs(config, **kwargs)
+
+            overscanTask = taskClass(config=config)
+            _ = overscanTask.run(exposure, detector.getAmplifiers()[0], isTransposed=False)
+
+            height = maskedImage.getHeight()
+            width = maskedImage.getWidth()
+            for j in range(height):
+                for i in range(width):
+                    if j < 10:
+                        if i == 10:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], -0.5)
+                        elif i == 11:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
+                        elif i == 12:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.5)
+                        else:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - j)
 
     def checkPolyOverscanCorrectionY(self, **kwargs):
-        exposure = self.makeExposure(isTransposed=True)
-        detector = exposure.getDetector()
+        for taskClass in (ipIsr.overscan.OverscanCorrectionTask, ipIsr.overscan.SerialOverscanCorrectionTask):
+            exposure = self.makeExposure(isTransposed=True)
+            detector = exposure.getDetector()
 
-        # These subimages are needed below.
-        overscan = exposure[detector.getAmplifiers()[0].getRawSerialOverscanBBox()]
-        maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
+            # Fill the full serial overscan region with a polynomial,
+            # all the way into the parallel overscan region.
+            amp = detector.getAmplifiers()[0]
+            serialOverscanBBox = amp.getRawSerialOverscanBBox()
+            imageBBox = amp.getRawDataBBox()
+            parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+            imageBBox = imageBBox.expandedTo(parallelOverscanBBox)
 
-        bbox = detector.getAmplifiers()[0].getRawSerialOverscanBBox()
-        overscan.getMaskedImage().set(2, 0x0, 1)
-        for i in range(bbox.getDimensions()[0]):
-            for j, off in enumerate([-0.5, 0.0, 0.5]):
-                overscan.image[i, j, afwImage.LOCAL] = 2+i+off
-        # maskedImage.getMaskedImage().set(10, 0x0, 1)
+            serialOverscanBBox = lsst.geom.Box2I(
+                lsst.geom.Point2I(serialOverscanBBox.getMinX(), imageBBox.getEndY()),
+                lsst.geom.Extent2I(imageBBox.getWidth(), serialOverscanBBox.getHeight()),
+            )
 
-        config = ipIsr.IsrTask.ConfigClass()
-        self.updateConfigFromKwargs(config, **kwargs)
+            overscan = exposure[serialOverscanBBox]
+            maskedImage = exposure[detector.getAmplifiers()[0].getRawBBox()]
 
-        isrTask = ipIsr.IsrTask(config=config)
-        isrTask.overscan.run(exposure, detector.getAmplifiers()[0], isTransposed=True)
+            bbox = serialOverscanBBox
+            overscan.getMaskedImage().set(2, 0x0, 1)
+            for i in range(bbox.getDimensions()[0]):
+                for j, off in enumerate([-0.5, 0.0, 0.5]):
+                    overscan.image[i, j, afwImage.LOCAL] = 2+i+off
 
-        height = maskedImage.getHeight()
-        width = maskedImage.getWidth()
-        for j in range(height):
-            for i in range(width):
-                if i < 10:
-                    if j == 10:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], -0.5)
-                    elif j == 11:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
-                    elif j == 12:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.5)
-                    else:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - i)
+            config = taskClass.ConfigClass()
+            self.updateOverscanConfigFromKwargs(config, **kwargs)
+
+            overscanTask = taskClass(config=config)
+            _ = overscanTask.run(exposure, detector.getAmplifiers()[0], isTransposed=True)
+
+            height = maskedImage.getHeight()
+            width = maskedImage.getWidth()
+            for j in range(height):
+                for i in range(width):
+                    if i < 10:
+                        if j == 10:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], -0.5)
+                        elif j == 11:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
+                        elif j == 12:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0.5)
+                        else:
+                            self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 10 - 2 - i)
 
     def test_PolyOverscanCorrection(self):
         for fitType in ("POLY", "CHEB", "LEG"):
@@ -325,23 +368,24 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
         The output types may be different when fitType != MEDIAN.
         """
-        exposure = self.makeExposure(isTransposed=False)
-        detector = exposure.getDetector()
-        amp = detector.getAmplifiers()[0]
+        for taskClass in (ipIsr.overscan.OverscanCorrectionTask, ipIsr.overscan.SerialOverscanCorrectionTask):
+            exposure = self.makeExposure(isTransposed=False)
+            detector = exposure.getDetector()
+            amp = detector.getAmplifiers()[0]
 
-        statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
+            statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
 
-        config = ipIsr.IsrTask.ConfigClass()
-        isrTask = ipIsr.IsrTask(config=config)
-        oscanResults = isrTask.overscan.run(exposure, amp)
+            config = taskClass.ConfigClass()
+            overscanTask = taskClass(config=config)
+            oscanResults = overscanTask.run(exposure, amp)
 
-        self.assertIsInstance(oscanResults, pipeBase.Struct)
-        self.assertIsInstance(oscanResults.imageFit, float)
-        self.assertIsInstance(oscanResults.overscanFit, float)
-        self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+            self.assertIsInstance(oscanResults, pipeBase.Struct)
+            self.assertIsInstance(oscanResults.imageFit, float)
+            self.assertIsInstance(oscanResults.overscanFit, float)
+            self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
 
-        statAfter = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
-        self.assertLess(statAfter[0], statBefore[0])
+            statAfter = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
+            self.assertLess(statAfter[0], statBefore[0])
 
     def test_parallelOverscanCorrection(self):
         """Expect that this should reduce the image variance with a full fit.
@@ -353,45 +397,67 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         overscan is the trivial value (2.0), and that the parallel
         overscan is the median of the ramp inserted (4.5)
         """
-        exposure = self.makeExposure(addRamp=True, isTransposed=False)
-        detector = exposure.getDetector()
-        amp = detector.getAmplifiers()[0]
+        for taskType in ("combined", "separate"):
+            exposure = self.makeExposure(addRamp=True, isTransposed=False)
+            detector = exposure.getDetector()
+            amp = detector.getAmplifiers()[0]
 
-        statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
+            statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
 
-        for fitType in ('MEDIAN', 'MEDIAN_PER_ROW'):
-            # This tests these two types to cover scalar and vector
-            # calculations.
-            exposureCopy = exposure.clone()
-            config = ipIsr.IsrTask.ConfigClass()
-            config.overscan.doParallelOverscan = True
-            config.overscan.fitType = fitType
-            isrTask = ipIsr.IsrTask(config=config)
+            for fitType in ('MEDIAN', 'MEDIAN_PER_ROW'):
+                # This tests these two types to cover scalar and vector
+                # calculations.
+                exposureCopy = exposure.clone()
 
-            oscanResults = isrTask.overscan.run(exposureCopy, amp)
+                if taskType == "combined":
+                    config = ipIsr.overscan.OverscanCorrectionTask.ConfigClass()
+                    config.doParallelOverscan = True
+                    config.fitType = fitType
 
-            self.assertIsInstance(oscanResults, pipeBase.Struct)
-            if fitType == 'MEDIAN':
-                self.assertIsInstance(oscanResults.imageFit, float)
-                self.assertIsInstance(oscanResults.overscanFit, float)
-            else:
-                self.assertIsInstance(oscanResults.imageFit, np.ndarray)
-                self.assertIsInstance(oscanResults.overscanFit, np.ndarray)
-            self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+                    overscanTask = ipIsr.overscan.OverscanCorrectionTask(config=config)
+                    oscanResults = overscanTask.run(exposureCopy, amp)
+                else:
+                    configSerial = ipIsr.overscan.SerialOverscanCorrectionTask.ConfigClass()
+                    configSerial.fitType = fitType
 
-            statAfter = computeImageMedianAndStd(exposureCopy.image[amp.getRawDataBBox()])
-            self.assertLess(statAfter[0], statBefore[0])
+                    serialOverscanTask = ipIsr.overscan.SerialOverscanCorrectionTask(config=configSerial)
+                    serialResults = serialOverscanTask.run(exposureCopy, amp)
 
-            # Test the output value for the serial and parallel overscans
-            self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
-            self.assertAlmostEqual(oscanResults.overscanMean[1], 4.5, delta=0.001)
-            if fitType != 'MEDIAN':
-                # The ramp that has been inserted should be fully
-                # removed by the overscan fit, removing all of the
-                # signal.  This isn't true of the constant fit, so do
-                # not test that here.
-                self.assertLess(statAfter[1], statBefore[1])
-                self.assertAlmostEqual(statAfter[1], 0.0, delta=0.001)
+                    configParallel = ipIsr.overscan.ParallelOverscanCorrectionTask.ConfigClass()
+                    configParallel.fitType = fitType
+
+                    parallelOverscanTask = ipIsr.overscan.ParallelOverscanCorrectionTask(
+                        config=configParallel,
+                    )
+                    oscanResults = parallelOverscanTask.run(exposureCopy, amp)
+
+                self.assertIsInstance(oscanResults, pipeBase.Struct)
+                if fitType == 'MEDIAN':
+                    self.assertIsInstance(oscanResults.imageFit, float)
+                    self.assertIsInstance(oscanResults.overscanFit, float)
+                else:
+                    self.assertIsInstance(oscanResults.imageFit, np.ndarray)
+                    self.assertIsInstance(oscanResults.overscanFit, np.ndarray)
+                self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+
+                statAfter = computeImageMedianAndStd(exposureCopy.image[amp.getRawDataBBox()])
+                self.assertLess(statAfter[0], statBefore[0])
+
+                # Test the output value for the serial and parallel overscans
+                if taskType == "combined":
+                    self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
+                    self.assertAlmostEqual(oscanResults.overscanMean[1], 4.5, delta=0.001)
+                else:
+                    self.assertAlmostEqual(serialResults.overscanMean, 2.0, delta=0.001)
+                    self.assertAlmostEqual(oscanResults.overscanMean, 4.5, delta=0.001)
+
+                if fitType != 'MEDIAN':
+                    # The ramp that has been inserted should be fully
+                    # removed by the overscan fit, removing all of the
+                    # signal.  This isn't true of the constant fit, so do
+                    # not test that here.
+                    self.assertLess(statAfter[1], statBefore[1])
+                    self.assertAlmostEqual(statAfter[1], 0.0, delta=0.001)
 
     def test_bleedParallelOverscanCorrection(self):
         """Expect that this should reduce the image variance with a full fit.
@@ -403,63 +469,89 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         which should be masked and patched with the median of the
         other pixels.
         """
-        exposure = self.makeExposure(addRamp=True, isTransposed=False)
-        detector = exposure.getDetector()
-        amp = detector.getAmplifiers()[0]
+        for taskType in ("combined", "separate"):
+            exposure = self.makeExposure(addRamp=True, isTransposed=False)
+            detector = exposure.getDetector()
+            amp = detector.getAmplifiers()[0]
 
-        maskedImage = exposure.getMaskedImage()
-        overscanBleedBox = lsst.geom.Box2I(lsst.geom.Point2I(4, 10),
-                                           lsst.geom.Extent2I(2, 3))
-        overscanBleed = afwImage.MaskedImageF(maskedImage, overscanBleedBox)
-        overscanBleed.set(110000, 0x0, 1)
+            maskedImage = exposure.getMaskedImage()
+            overscanBleedBox = lsst.geom.Box2I(lsst.geom.Point2I(4, 10),
+                                               lsst.geom.Extent2I(2, 3))
+            overscanBleed = afwImage.MaskedImageF(maskedImage, overscanBleedBox)
+            overscanBleed.set(110000, 0x0, 1)
 
-        statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
+            statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
 
-        for fitType in ('MEDIAN', 'MEDIAN_PER_ROW', 'POLY'):
-            # We only test these three types as this should cover the
-            # scalar calculations, the generic vector calculations,
-            # and the specific C++ MEDIAN_PER_ROW case.
-            exposureCopy = exposure.clone()
-            config = ipIsr.IsrTask.ConfigClass()
-            config.overscan.doParallelOverscan = True
-            config.overscan.parallelOverscanMaskGrowSize = 1
-            config.overscan.fitType = fitType
-            isrTask = ipIsr.IsrTask(config=config)
+            for fitType in ('MEDIAN', 'MEDIAN_PER_ROW', 'POLY'):
+                # We only test these three types as this should cover the
+                # scalar calculations, the generic vector calculations,
+                # and the specific C++ MEDIAN_PER_ROW case.
+                exposureCopy = exposure.clone()
 
-            # This next line is usually run as part of IsrTask:
-            isrTask.overscan.maskParallelOverscan(exposureCopy, detector)
-            oscanResults = isrTask.overscan.run(exposureCopy, amp)
+                if taskType == "combined":
+                    config = ipIsr.overscan.OverscanCorrectionTask.ConfigClass()
+                    config.doParallelOverscan = True
+                    config.parallelOverscanMaskGrowSize = 1
+                    config.fitType = fitType
 
-            self.assertIsInstance(oscanResults, pipeBase.Struct)
-            if fitType == 'MEDIAN':
-                self.assertIsInstance(oscanResults.imageFit, float)
-                self.assertIsInstance(oscanResults.overscanFit, float)
-            else:
-                self.assertIsInstance(oscanResults.imageFit, np.ndarray)
-                self.assertIsInstance(oscanResults.overscanFit, np.ndarray)
-            self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+                    overscanTask = ipIsr.overscan.OverscanCorrectionTask(config=config)
+                    # This next line is usually run as part of IsrTask
+                    overscanTask.maskParallelOverscan(exposureCopy, detector)
+                    oscanResults = overscanTask.run(exposureCopy, amp)
+                else:
+                    configSerial = ipIsr.overscan.SerialOverscanCorrectionTask.ConfigClass()
+                    configSerial.fitType = fitType
 
-            statAfter = computeImageMedianAndStd(exposureCopy.image[amp.getRawDataBBox()])
-            self.assertLess(statAfter[0], statBefore[0])
+                    serialOverscanTask = ipIsr.overscan.SerialOverscanCorrectionTask(config=configSerial)
+                    serialResults = serialOverscanTask.run(exposureCopy, amp)
 
-            # Test the output value for the serial and parallel
-            # overscans.
-            self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
-            self.assertAlmostEqual(oscanResults.overscanMean[1], 4.5, delta=0.001)
-            self.assertAlmostEqual(oscanResults.residualMean[1], 0.0, delta=0.001)
-            if fitType != 'MEDIAN':
-                # Check the bleed isn't oversubtracted.  This is the
-                # average of the two mid-bleed pixels as the patching
-                # uses the median correction value there, and there is
-                # still a residual ramp in this region.  The large
-                # delta allows the POLY fit to pass, which has sub-ADU
-                # differences.
-                self.assertAlmostEqual(exposureCopy.image.array[5][0],
-                                       0.5 * (exposureCopy.image.array[5][4]
-                                              + exposureCopy.image.array[5][5]), delta=0.3)
-                # These fits should also reduce the image stdev, as
-                # they are modeling the ramp.
-                self.assertLess(statAfter[1], statBefore[1])
+                    configParallel = ipIsr.overscan.ParallelOverscanCorrectionTask.ConfigClass()
+                    configParallel.parallelOverscanMaskGrowSize = 1
+                    configParallel.fitType = fitType
+
+                    parallelOverscanTask = ipIsr.overscan.ParallelOverscanCorrectionTask(
+                        config=configParallel,
+                    )
+                    # This next line is usually run as part of IsrTask
+                    parallelOverscanTask.maskParallelOverscan(exposureCopy, detector, saturationLevel=100000.)
+                    oscanResults = parallelOverscanTask.run(exposureCopy, amp)
+
+                self.assertIsInstance(oscanResults, pipeBase.Struct)
+                if fitType == 'MEDIAN':
+                    self.assertIsInstance(oscanResults.imageFit, float)
+                    self.assertIsInstance(oscanResults.overscanFit, float)
+                else:
+                    self.assertIsInstance(oscanResults.imageFit, np.ndarray)
+                    self.assertIsInstance(oscanResults.overscanFit, np.ndarray)
+                self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+
+                statAfter = computeImageMedianAndStd(exposureCopy.image[amp.getRawDataBBox()])
+                self.assertLess(statAfter[0], statBefore[0])
+
+                # Test the output value for the serial and parallel
+                # overscans.
+                if taskType == "combined":
+                    self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
+                    self.assertAlmostEqual(oscanResults.overscanMean[1], 4.5, delta=0.001)
+                    self.assertAlmostEqual(oscanResults.residualMean[1], 0.0, delta=0.001)
+                else:
+                    self.assertAlmostEqual(serialResults.overscanMean, 2.0, delta=0.001)
+                    self.assertAlmostEqual(oscanResults.overscanMean, 4.5, delta=0.001)
+                    self.assertAlmostEqual(oscanResults.residualMean, 0.0, delta=0.001)
+
+                if fitType != 'MEDIAN':
+                    # Check the bleed isn't oversubtracted.  This is the
+                    # average of the two mid-bleed pixels as the patching
+                    # uses the median correction value there, and there is
+                    # still a residual ramp in this region.  The large
+                    # delta allows the POLY fit to pass, which has sub-ADU
+                    # differences.
+                    self.assertAlmostEqual(exposureCopy.image.array[5][0],
+                                           0.5 * (exposureCopy.image.array[5][4]
+                                                  + exposureCopy.image.array[5][5]), delta=0.3)
+                    # These fits should also reduce the image stdev, as
+                    # they are modeling the ramp.
+                    self.assertLess(statAfter[1], statBefore[1])
 
     def test_bleedParallelOverscanCorrectionFailure(self):
         """Expect that this should reduce the image variance with a full fit.
@@ -471,100 +563,130 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         which should be masked and patched with the median of the
         other pixels.
         """
-        exposure = self.makeExposure(addRamp=True, isTransposed=False)
-        detector = exposure.getDetector()
-        amp = detector.getAmplifiers()[0]
+        for taskType in ("combined", "separate"):
+            exposure = self.makeExposure(addRamp=True, isTransposed=False)
+            detector = exposure.getDetector()
+            amp = detector.getAmplifiers()[0]
 
-        maskedImage = exposure.getMaskedImage()
-        overscanBleedBox = lsst.geom.Box2I(lsst.geom.Point2I(4, 10),
-                                           lsst.geom.Extent2I(2, 3))
-        overscanBleed = afwImage.MaskedImageF(maskedImage, overscanBleedBox)
-        overscanBleed.set(10000, 0x0, 1)  # This level is below the mask threshold.
+            maskedImage = exposure.getMaskedImage()
+            overscanBleedBox = lsst.geom.Box2I(lsst.geom.Point2I(4, 10),
+                                               lsst.geom.Extent2I(2, 3))
+            overscanBleed = afwImage.MaskedImageF(maskedImage, overscanBleedBox)
+            overscanBleed.set(10000, 0x0, 1)  # This level is below the mask threshold.
 
-        statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
+            statBefore = computeImageMedianAndStd(exposure.image[amp.getRawDataBBox()])
 
-        for fitType in ('MEDIAN', 'MEDIAN_PER_ROW'):
-            # We only test these three types as this should cover the
-            # scalar calculations, the generic vector calculations,
-            # and the specific C++ MEDIAN_PER_ROW case.
-            exposureCopy = exposure.clone()
-            config = ipIsr.IsrTask.ConfigClass()
-            config.overscan.doParallelOverscan = True
-            config.overscan.parallelOverscanMaskGrowSize = 1
-            # Ensure we don't mask anything
-            config.overscan.maxDeviation = 100000
-            config.overscan.fitType = fitType
-            isrTask = ipIsr.IsrTask(config=config)
+            for fitType in ('MEDIAN', 'MEDIAN_PER_ROW'):
+                # We only test these three types as this should cover the
+                # scalar calculations, the generic vector calculations,
+                # and the specific C++ MEDIAN_PER_ROW case.
+                exposureCopy = exposure.clone()
 
-            # isrTask.overscan.maskParallelOverscan(exposureCopy, detector)
-            oscanResults = isrTask.overscan.run(exposureCopy, amp)
+                if taskType == "combined":
+                    config = ipIsr.overscan.OverscanCorrectionTask.ConfigClass()
+                    config.doParallelOverscan = True
+                    config.parallelOverscanMaskGrowSize = 1
+                    # Ensure we don't mask anything
+                    config.maxDeviation = 100000
+                    config.fitType = fitType
 
-            self.assertIsInstance(oscanResults, pipeBase.Struct)
-            if fitType == 'MEDIAN':
-                self.assertIsInstance(oscanResults.imageFit, float)
-                self.assertIsInstance(oscanResults.overscanFit, float)
-            else:
-                self.assertIsInstance(oscanResults.imageFit, np.ndarray)
-                self.assertIsInstance(oscanResults.overscanFit, np.ndarray)
-            self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+                    overscanTask = ipIsr.overscan.OverscanCorrectionTask(config=config)
+                    oscanResults = overscanTask.run(exposureCopy, amp)
 
-            statAfter = computeImageMedianAndStd(exposureCopy.image[amp.getRawDataBBox()])
-            self.assertLess(statAfter[0], statBefore[0])
+                    oscanMeanSerial, oscanMeanParallel = oscanResults.overscanMean
+                    oscanMedianParallel = oscanResults.overscanMedian[1]
+                else:
+                    configSerial = ipIsr.overscan.SerialOverscanCorrectionTask.ConfigClass()
+                    # Ensure we don't mask anything
+                    configSerial.maxDeviation = 100000
+                    configSerial.fitType = fitType
 
-            # Test the output value for the serial and parallel
-            # overscans.
-            self.assertAlmostEqual(oscanResults.overscanMean[0], 2.0, delta=0.001)
-            # These are the wrong values:
-            if fitType == 'MEDIAN':
-                # Check that the constant case is now biased, at 6.5
-                # instead of 4.5:
-                self.assertAlmostEqual(oscanResults.overscanMean[1], 6.5, delta=0.001)
-            else:
-                # This is not correcting the bleed, so it will be printed
-                # onto the image, making the stdev after correction worse
-                # than before.
-                self.assertGreater(statAfter[1], statBefore[1])
+                    serialOverscanTask = ipIsr.overscan.SerialOverscanCorrectionTask(config=configSerial)
+                    serialResults = serialOverscanTask.run(exposureCopy, amp)
 
-                # Check that the median overscan value matches the
-                # constant fit:
-                self.assertAlmostEqual(oscanResults.overscanMedian[1], 6.5, delta=0.001)
-                # Check that the mean isn't what we found before, and
-                # is larger:
-                self.assertNotEqual(oscanResults.overscanMean[1], 4.5)
-                self.assertGreater(oscanResults.overscanMean[1], 4.5)
-                self.assertGreater(exposureCopy.image.array[5][0],
-                                   0.5 * (exposureCopy.image.array[5][4]
-                                          + exposureCopy.image.array[5][5]))
+                    configParallel = ipIsr.overscan.ParallelOverscanCorrectionTask.ConfigClass()
+                    configParallel.maxDeviation = 100000
+                    configParallel.parallelOverscanMaskGrowSize = 1
+                    configParallel.fitType = fitType
+
+                    parallelOverscanTask = ipIsr.overscan.ParallelOverscanCorrectionTask(
+                        config=configParallel,
+                    )
+                    oscanResults = parallelOverscanTask.run(exposureCopy, amp)
+
+                    oscanMeanSerial = serialResults.overscanMean
+                    oscanMeanParallel = oscanResults.overscanMean
+                    oscanMedianParallel = oscanResults.overscanMedian
+
+                self.assertIsInstance(oscanResults, pipeBase.Struct)
+                if fitType == 'MEDIAN':
+                    self.assertIsInstance(oscanResults.imageFit, float)
+                    self.assertIsInstance(oscanResults.overscanFit, float)
+                else:
+                    self.assertIsInstance(oscanResults.imageFit, np.ndarray)
+                    self.assertIsInstance(oscanResults.overscanFit, np.ndarray)
+                self.assertIsInstance(oscanResults.overscanImage, afwImage.ExposureF)
+
+                statAfter = computeImageMedianAndStd(exposureCopy.image[amp.getRawDataBBox()])
+                self.assertLess(statAfter[0], statBefore[0])
+
+                # Test the output value for the serial and parallel
+                # overscans.
+                self.assertAlmostEqual(oscanMeanSerial, 2.0, delta=0.001)
+                # These are the wrong values:
+                if fitType == 'MEDIAN':
+                    # Check that the constant case is now biased, at 6.5
+                    # instead of 4.5:
+                    self.assertAlmostEqual(oscanMeanParallel, 6.5, delta=0.001)
+                else:
+                    # This is not correcting the bleed, so it will be printed
+                    # onto the image, making the stdev after correction worse
+                    # than before.
+                    self.assertGreater(statAfter[1], statBefore[1])
+
+                    # Check that the median overscan value matches the
+                    # constant fit:
+                    self.assertAlmostEqual(oscanMedianParallel, 6.5, delta=0.001)
+                    # Check that the mean isn't what we found before, and
+                    # is larger:
+                    self.assertNotEqual(oscanMeanParallel, 4.5)
+                    self.assertGreater(oscanMeanParallel, 4.5)
+                    self.assertGreater(exposureCopy.image.array[5][0],
+                                       0.5 * (exposureCopy.image.array[5][4]
+                                              + exposureCopy.image.array[5][5]))
 
     def test_overscanCorrection_isNotInt(self):
         """Expect smaller median/smaller std after.
         Expect exception if overscan fit type isn't known.
         """
-        exposure = self.makeExposure(isTransposed=False)
-        detector = exposure.getDetector()
-        amp = detector.getAmplifiers()[0]
+        for taskClass in (ipIsr.overscan.OverscanCorrectionTask, ipIsr.overscan.SerialOverscanCorrectionTask):
+            exposure = self.makeExposure(isTransposed=False)
+            detector = exposure.getDetector()
+            amp = detector.getAmplifiers()[0]
 
-        for fitType in ('MEAN', 'MEDIAN', 'MEDIAN_PER_ROW', 'MEANCLIP', 'POLY', 'CHEB',
-                        'NATURAL_SPLINE', 'CUBIC_SPLINE'):
-            if fitType in ('NATURAL_SPLINE', 'CUBIC_SPLINE'):
-                order = 3
-            else:
-                order = 1
-                config = ipIsr.IsrTask.ConfigClass()
-                config.overscan.order = order
-                config.overscan.fitType = fitType
-                isrTask = ipIsr.IsrTask(config=config)
+            for fitType in ('MEAN', 'MEDIAN', 'MEDIAN_PER_ROW', 'MEANCLIP', 'POLY', 'CHEB',
+                            'NATURAL_SPLINE', 'CUBIC_SPLINE'):
+                if fitType in ('NATURAL_SPLINE', 'CUBIC_SPLINE'):
+                    order = 3
+                else:
+                    order = 1
 
-            response = isrTask.overscan.run(exposure, amp)
+                config = taskClass.ConfigClass()
+                config.order = order
+                config.fitType = fitType
 
-            self.assertIsInstance(response, pipeBase.Struct,
-                                  msg=f"overscanCorrection overscanIsNotInt Bad response: {fitType}")
-            self.assertIsNotNone(response.imageFit,
-                                 msg=f"overscanCorrection overscanIsNotInt Bad imageFit: {fitType}")
-            self.assertIsNotNone(response.overscanFit,
-                                 msg=f"overscanCorrection overscanIsNotInt Bad overscanFit: {fitType}")
-            self.assertIsInstance(response.overscanImage, afwImage.ExposureF,
-                                  msg=f"overscanCorrection overscanIsNotInt Bad overscanImage: {fitType}")
+                overscanTask = taskClass(config=config)
+
+                response = overscanTask.run(exposure, amp)
+
+                self.assertIsInstance(response, pipeBase.Struct,
+                                      msg=f"overscanCorrection overscanIsNotInt Bad response: {fitType}")
+                self.assertIsNotNone(response.imageFit,
+                                     msg=f"overscanCorrection overscanIsNotInt Bad imageFit: {fitType}")
+                self.assertIsNotNone(response.overscanFit,
+                                     msg=f"overscanCorrection overscanIsNotInt Bad overscanFit: {fitType}")
+                self.assertIsInstance(response.overscanImage, afwImage.ExposureF,
+                                      msg=f"overscanCorrection overscanIsNotInt Bad overscanImage: {fitType}")
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

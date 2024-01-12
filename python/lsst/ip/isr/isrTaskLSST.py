@@ -13,10 +13,12 @@ from lsst.afw.cameraGeom import NullLinearityType
 import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
+import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
-from .overscan import OverscanCorrectionTask
+from .overscan import SerialOverscanCorrectionTask, ParallelOverscanCorrectionTask
+from .overscanAmpConfig import OverscanCameraConfig
 from .assembleCcdTask import AssembleCcdTask
 from .deferredCharge import DeferredChargeTask
 from .crosstalk import CrosstalkTask
@@ -148,7 +150,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.deferredChargeCalib
         if config.doLinearize is not True:
             del self.linearizer
-        if config.doCrosstalk is not True:
+        if not config.doCrosstalk and not config.overscanCamera.doAnyParallelOverscanCrosstalk:
             del self.crosstalk
         if config.doDefect is not True:
             del self.defects
@@ -192,17 +194,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doDiffNonLinearCorrection = pexConfig.Field(
         dtype=bool,
         doc="Do differential non-linearity correction?",
-        default=True,
+        default=False,
     )
 
-    doOverscan = pexConfig.Field(
-        dtype=bool,
-        doc="Do overscan subtraction?",
-        default=True,
-    )
-    overscan = pexConfig.ConfigurableField(
-        target=OverscanCorrectionTask,
-        doc="Overscan subtraction task for image segments.",
+    overscanCamera = pexConfig.ConfigField(
+        dtype=OverscanCameraConfig,
+        doc="Per-detector and per-amplifier overscan configurations.",
     )
 
     # Amplifier to CCD assembly configuration.
@@ -452,6 +449,9 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             #      self.isrStats.doApplyGainsForCtiStatistics:
             raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
 
+    def setDefaults(self):
+        super().setDefaults()
+
 
 class IsrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig
@@ -459,7 +459,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.makeSubtask("overscan")
         self.makeSubtask("assembleCcd")
         self.makeSubtask("deferredChargeCorrection")
         self.makeSubtask("crosstalk")
@@ -478,12 +477,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         are available.
         """
 
+        doCrosstalk = self.config.doCrosstalk or self.config.overscanCamera.doAnyParallelOverscanCrosstalk
+
         inputMap = {'dnlLUT': self.config.doDiffNonLinearCorrection,
                     'bias': self.config.doBias,
                     'deferredChargeCalib': self.config.doDeferredCharge,
                     'linearizer': self.config.doLinearize,
                     'ptc': self.config.doGainNormalize,
-                    'crosstalk': self.config.doCrosstalk,
+                    'crosstalk': doCrosstalk,
                     'defects': self.config.doDefect,
                     'bfKernel': self.config.doBrighterFatter,
                     'dark': self.config.doDark,
@@ -498,26 +499,238 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # isrFunctions.diffNonLinearCorrection
         pass
 
-    def overscanCorrection(self, ccd, ccdExposure):
-        # TODO DM 36637 for per amp
+    def maskFullDefectAmplifiers(self, ccdExposure, detector, defects):
+        """
+        Check for fully masked bad amplifiers and mask them.
 
+        Full defect masking happens later to allow for defects which
+        cross amplifier boundaries.
+
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.Exposure`
+            Input exposure to be masked.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector object.
+        defects : `lsst.ip.isr.Defects`
+            List of defects.  Used to determine if an entire
+            amplifier is bad.
+
+        Returns
+        -------
+        badAmpDict : `str`[`bool`]
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
+        """
+        badAmpDict = {}
+
+        maskedImage = ccdExposure.getMaskedImage()
+
+        for amp in detector:
+            ampName = amp.getName()
+            badAmpDict[ampName] = False
+
+            # Check if entire amp region is defined as a defect
+            # NB: need to use amp.getBBox() for correct comparison with current
+            # defects definition.
+            if defects is not None:
+                badAmpDict[ampName] = bool(sum([v.getBBox().contains(amp.getBBox()) for v in defects]))
+
+            # In the case of a bad amp, we will set mask to "BAD"
+            # (here use amp.getRawBBox() for correct association with pixels in
+            # current ccdExposure).
+            if badAmpDict[ampName]:
+                dataView = afwImage.MaskedImageF(maskedImage, amp.getRawBBox(),
+                                                 afwImage.PARENT)
+                maskView = dataView.getMask()
+                maskView |= maskView.getPlaneBitMask("BAD")
+                del maskView
+
+                self.log.warning("Amplifier %s is bad (completely covered with defects)", ampName)
+
+        return badAmpDict
+
+    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector):
+        """
+        Mask SATURATED and SUSPECT pixels and check if any amplifiers
+        are fully masked.
+
+        Parameters
+        ----------
+        badAmpDict : `str` [`bool`]
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
+        ccdExposure : `lsst.afw.image.Exposure`
+            Input exposure to be masked.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector object.
+        defects : `lsst.ip.isr.Defects`
+            List of defects.  Used to determine if an entire
+            amplifier is bad.
+
+        Returns
+        -------
+        badAmpDict : `str`[`bool`]
+            Dictionary of amplifiers, keyed by name.
+        """
+        maskedImage = ccdExposure.getMaskedImage()
+
+        for amp in detector:
+            ampName = amp.getName()
+
+            if badAmpDict[ampName]:
+                # No need to check fully bad amplifiers.
+                continue
+
+            # Mask saturated and suspect pixels.
+            limits = {}
+            if self.config.doSaturation:
+                limits.update({self.config.saturatedMaskName: amp.getSaturation()})
+            if self.config.doSuspect:
+                limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
+            if math.isfinite(self.config.saturation):
+                limits.update({self.config.saturatedMaskName: self.config.saturation})
+
+            for maskName, maskThreshold in limits.items():
+                if not math.isnan(maskThreshold):
+                    dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
+                    isrFunctions.makeThresholdMask(
+                        maskedImage=dataView,
+                        threshold=maskThreshold,
+                        growFootprints=0,
+                        maskName=maskName
+                    )
+
+            # Determine if we've fully masked this amplifier with SUSPECT and
+            # SAT pixels.
+            maskView = afwImage.Mask(maskedImage.getMask(), amp.getRawDataBBox(),
+                                     afwImage.PARENT)
+            maskVal = maskView.getPlaneBitMask([self.config.saturatedMaskName,
+                                                self.config.suspectMaskName])
+            if numpy.all(maskView.getArray() & maskVal > 0):
+                self.log.warning("Amplifier %s is bad (completely SATURATED or SUSPECT)", ampName)
+                badAmpDict[ampName] = True
+                maskView |= maskView.getPlaneBitMask("BAD")
+
+        return badAmpDict
+
+    def overscanCorrection(self, mode, detectorConfig, detector, badAmpDict, ccdExposure):
+        """Apply serial overscan correction in place to all amps.
+
+        The actual overscan subtraction is performed by the
+        `lsst.ip.isr.overscan.OverscanTask`, which is called here.
+
+        Parameters
+        ----------
+        mode : `str`
+            Must be `SERIAL` or `PARALLEL`.
+        detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`
+            Per-amplifier configurations.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector object.
+        badAmpDict : `dict`
+            Dictionary of amp name to whether it is a bad amp.
+        ccdExposure : `lsst.afw.image.Exposure`
+            Exposure to have overscan correction performed.
+
+        Returns
+        -------
+        overscans : `list` [`lsst.pipe.base.Struct` or None]
+            Each result struct has components:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data.
+                (scalar or `lsst.afw.image.Image`)
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data.
+                (scalar or `lsst.afw.image.Image`)
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied. This quantity is used to estimate
+                the amplifier read noise empirically.
+                (`lsst.afw.image.Image`)
+            ``overscanMean``
+                Mean overscan fit value. (`float`)
+            ``overscanMedian``
+                Median overscan fit value. (`float`)
+            ``overscanSigma``
+                Clipped standard deviation of the overscan fit. (`float`)
+            ``residualMean``
+                Mean of the overscan after fit subtraction. (`float`)
+            ``residualMedian``
+                Median of the overscan after fit subtraction. (`float`)
+            ``residualSigma``
+                Clipped standard deviation of the overscan after fit
+                subtraction. (`float`)
+
+        See Also
+        --------
+        lsst.ip.isr.overscan.OverscanTask
+        """
+        if mode not in ["SERIAL", "PARALLEL"]:
+            raise ValueError("Mode must be SERIAL or PARALLEL")
+
+        # This returns a list in amp order, with None for uncorrected amps.
         overscans = []
-        for amp in ccd:
 
-            # Overscan correction on amp-by-amp basis.
-            if amp.getRawHorizontalOverscanBBox().isEmpty():
-                self.log.info("ISR_OSCAN: No overscan region.  Not performing overscan correction.")
-                overscans.append(None)
+        for i, amp in enumerate(detector):
+            ampName = amp.getName()
+
+            ampConfig = detectorConfig.getOverscanAmpConfig(ampName)
+
+            if mode == "SERIAL" and not ampConfig.doSerialOverscan:
+                self.log.debug(
+                    "ISR_OSCAN: Amplifier %s/%s configured to skip serial overscan.",
+                    detector.getName(),
+                    ampName,
+                )
+                results = None
+            elif mode == "PARALLEL" and not ampConfig.doParallelOverscan:
+                self.log.debug(
+                    "ISR_OSCAN: Amplifier %s configured to skip parallel overscan.",
+                    detector.getName(),
+                    ampName,
+                )
+                results = None
+            elif badAmpDict[ampName] or not ccdExposure.getBBox().contains(amp.getBBox()):
+                results = None
             else:
+                # This check is to confirm that we are not trying to run
+                # overscan on an already trimmed image. Therefore, always
+                # checking just the horizontal overscan bounding box is
+                # sufficient.
+                if amp.getRawHorizontalOverscanBBox().isEmpty():
+                    self.log.warning(
+                        "ISR_OSCAN: No overscan region for amp %s. Not performing overscan correction.",
+                        ampName,
+                    )
+                    results = None
+                else:
+                    if mode == "SERIAL":
+                        # We need to set up the subtask here with a custom
+                        # configuration.
+                        serialOverscan = SerialOverscanCorrectionTask(config=ampConfig.serialOverscanConfig)
+                        results = serialOverscan.run(ccdExposure, amp)
+                    else:
+                        parallelOverscan = ParallelOverscanCorrectionTask(
+                            config=ampConfig.parallelOverscanConfig,
+                        )
+                        results = parallelOverscan.run(ccdExposure, amp)
 
-                # Perform overscan correction on subregions.
-                overscanResults = self.overscan.run(ccdExposure, amp)
+                    metadata = ccdExposure.getMetadata()
+                    keyBase = "LSST ISR OVERSCAN"
+                    metadata[f"{keyBase} {mode} MEAN {ampName}"] = results.overscanMean
+                    metadata[f"{keyBase} {mode} MEDIAN {ampName}"] = results.overscanMedian
+                    metadata[f"{keyBase} {mode} STDEV {ampName}"] = results.overscanSigma
 
-                self.log.debug("Corrected overscan for amplifier %s.", amp.getName())
-                if len(overscans) == 0:
-                    ccdExposure.getMetadata().set('OVERSCAN', "Overscan corrected")
+                    metadata[f"{keyBase} RESIDUAL {mode} MEAN {ampName}"] = results.residualMean
+                    metadata[f"{keyBase} RESIDUAL {mode} MEDIAN {ampName}"] = results.residualMedian
+                    metadata[f"{keyBase} RESIDUAL {mode} STDEV {ampName}"] = results.residualSigma
 
-                overscans.append(overscanResults if overscanResults is not None else None)
+            overscans[i] = results
+
+        # Question: should this be finer grained?
+        ccdExposure.getMetadata().set("OVERSCAN", "Overscan corrected")
 
         return overscans
 
@@ -608,9 +821,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bad = numpy.where(exposure.getVariance().getArray() <= 0.0)
         exposure.mask.array[bad] |= maskPlane
 
-    # TODO check make stats is necessary or not
-    def variancePlane(self, ccdExposure, ccd, overscans, ptc):
-        for amp, overscanResults in zip(ccd, overscans):
+    def variancePlane(self, ccdExposure, ccd, ptc):
+        for amp in ccd:
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
@@ -947,15 +1159,18 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
     def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
-            flat=None, **kwargs
+            flat=None, camera=None, **kwargs
             ):
 
         detector = ccdExposure.getDetector()
+
+        overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
 
         if self.config.doHeaderProvenance:
             # Inputs have been validated, so we can add their date
             # information to the output header.
             exposureMetadata = ccdExposure.getMetadata()
+            exposureMetadata["LSST CALIB OVERSCAN HASH"] = overscanDetectorConfig.md5
             exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
             if self.config.doDiffNonLinearCorrection:
                 exposureMetadata["LSST CALIB DATE DNL"] = self.extractCalibDate(dnlLUT)
@@ -965,7 +1180,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
             if self.doLinearize(detector):
                 exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-            if self.config.doCrosstalk:
+            if self.config.doCrosstalk or overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
                 exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
             if self.config.doDefect:
                 exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
@@ -974,12 +1189,51 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if self.config.doDark:
                 exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
 
+        # First we mark which amplifiers are completely bad from defects.
+        badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
+
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
-        if self.config.doOverscan:
+        if overscanDetectorConfig.doAnySerialOverscan:
             # Input units: ADU
-            overscans = self.overscanCorrection(detector, ccdExposure)
+            serialOverscans = self.overscanCorrection(
+                "SERIAL",
+                overscanDetectorConfig,
+                detector,
+                badAmpDict,
+                ccdExposure,
+            )
+        else:
+            serialOverscans = [None]*len(detector)
+
+        if overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
+            # Input units: ADU
+            # Make sure that the units here are consistent with later
+            # application.
+            self.crosstalk.run(
+                ccdExposure,
+                crosstalk=crosstalk,
+                camera=camera,
+                parallelOverscanRegion=True,
+                detectorConfig=overscanDetectorConfig,
+            )
+
+        # After serial overscan correction, we can mask SATURATED and
+        # SUSPECT pixels. This updates badAmpDict if any amplifier
+        # is fully saturated after serial overscan correction.
+        badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector)
+
+        if overscanDetectorConfig.doAnyParallelOverscan:
+            # Input units: ADU
+            # At the moment we do not use the parallelOverscans return value.
+            _ = self.overscanCorrection(
+                "PARALLEL",
+                overscanDetectorConfig,
+                detector,
+                badAmpDict,
+                ccdExposure,
+            )
 
         if self.config.doAssembleCcd:
             # Input units: ADU
@@ -1014,7 +1268,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         if self.config.doVariance:
             # Input units: electrons
-            self.variancePlane(ccdExposure, detector, overscans, ptc)
+            self.variancePlane(ccdExposure, detector, ptc)
 
         if self.config.doCrosstalk:
             # Input units: electrons
@@ -1087,7 +1341,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                 k1 = f"LSST ISR FINAL MEDIAN {ampName}"
                 k2 = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
-                if self.config.doOverscan and k1 in metadata and k2 in metadata:
+                if overscanDetectorConfig.doAnySerialOverscan and k1 in metadata and k2 in metadata:
                     metadata[f"LSST ISR LEVEL {ampName}"] = metadata[k1] - metadata[k2]
                 else:
                     metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
@@ -1095,7 +1349,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # calculate additional statistics.
         outputStatistics = None
         if self.config.doCalculateStatistics:
-            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
+            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=serialOverscans,
                                                  ptc=ptc).results
 
         # do image binning.

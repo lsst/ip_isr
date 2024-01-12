@@ -567,6 +567,74 @@ class CrosstalkCalib(IsrCalib):
         mask.clearMaskPlane(crosstalkPlane)
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
+    def subtractCrosstalkParallelOverscanRegion(self, thisExposure, crosstalkCoeffs=None,
+                                                badPixels=["BAD"], crosstalkStr="CROSSTALK",
+                                                detectorConfig=None):
+        """Subtract crosstalk just from the parallel overscan region.
+
+        This assumes that serial overscan has been previously subtracted.
+
+        Parameters
+        ----------
+        thisExposure : `lsst.afw.image.Exposure`
+            Exposure for which to subtract crosstalk.
+        crosstalkCoeffs : `numpy.ndarray`, optional.
+            Coefficients to use to correct crosstalk.
+        badPixels : `list` of `str`
+            Mask planes to ignore.
+        crosstalkStr : `str`
+            Mask plane name for pixels greatly modified by crosstalk
+            (above minPixelToMask).
+        detectorConfig : `lsst.ip.isr.overscanDetectorConfig`, optional
+            Per-amplifier configs to use.
+        """
+        mi = thisExposure.getMaskedImage()
+        mask = mi.getMask()
+        detector = thisExposure.getDetector()
+        if self.hasCrosstalk is False:
+            self.fromDetector(detector, coeffVector=crosstalkCoeffs)
+
+        numAmps = len(detector)
+        if numAmps != self.nAmp:
+            raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
+                               f"{numAmps} in {detector.getName()}")
+
+        source = mi
+        sourceDetector = detector
+
+        if crosstalkCoeffs is not None:
+            coeffs = crosstalkCoeffs
+        else:
+            coeffs = self.coeffs
+
+        crosstalkPlane = mask.addMaskPlane(crosstalkStr)
+        crosstalk = mask.getPlaneBitMask(crosstalkStr)
+
+        subtrahend = source.Factory(source.getBBox())
+        subtrahend.set((0, 0, 0))
+
+        coeffs = coeffs.transpose()
+        for ss, sAmp in enumerate(sourceDetector):
+            if detectorConfig is not None:
+                ampConfig = detectorConfig.getOverscanAmpconfig(sAmp.getName())
+                if not ampConfig.doParallelOverscanCrosstalk:
+                    # Skip crosstalk correction for this amplifier.
+                    continue
+
+            sImage = subtrahend[sAmp.getRawParallelOverscanBBox()]
+            for tt, tAmp in enumerate(detector):
+                if coeffs[ss, tt] == 0.0:
+                    continue
+                tImage = self.extractAmp(mi, tAmp, sAmp, False, parallelOverscan=True)
+                tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
+                sImage.scaledPlus(coeffs[ss, tt], tImage)
+
+        # Set crosstalkStr bit only for those pixels that have been
+        # significantly modified (i.e., those masked as such in 'subtrahend'),
+        # not necessarily those that are bright originally.
+        mask.clearMaskPlane(crosstalkPlane)
+        mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
+
 
 class CrosstalkConfig(Config):
     """Configuration for intra-detector crosstalk removal."""
@@ -670,8 +738,11 @@ class CrosstalkTask(Task):
     ConfigClass = CrosstalkConfig
     _DefaultName = 'isrCrosstalk'
 
-    def run(self, exposure, crosstalk=None,
-            crosstalkSources=None, isTrimmed=False, camera=None):
+    def run(self,
+            exposure, crosstalk=None,
+            crosstalkSources=None, isTrimmed=False, camera=None, parallelOverscanRegion=False,
+            detectorConfig=None,
+            ):
         """Apply intra-detector crosstalk correction
 
         Parameters
@@ -694,6 +765,10 @@ class CrosstalkTask(Task):
         camera : `lsst.afw.cameraGeom.Camera`, optional
             Camera associated with this exposure.  Only used for
             inter-chip matching.
+        parallelOverscanRegion : `bool`, optional
+            Do subtraction in parallel overscan region (only)?
+        detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`, optional
+            Per-amplifier configs used when parallelOverscanRegion=True.
 
         Raises
         ------
@@ -710,7 +785,13 @@ class CrosstalkTask(Task):
             crosstalk.log = self.log
         if not crosstalk.hasCrosstalk:
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients.")
-
+        elif parallelOverscanRegion:
+            self.log.info("Applying crosstalk correction to parallel overscan region.")
+            crosstalk.subtractCrosstalkParallelOverscanRegion(
+                exposure,
+                crosstalkCoeffs=crosstalk.coeffs,
+                detectorConfig=detectorConfig,
+            )
         else:
             self.log.info("Applying crosstalk correction.")
             crosstalk.subtractCrosstalk(exposure, crosstalkCoeffs=crosstalk.coeffs,
