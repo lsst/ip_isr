@@ -1235,6 +1235,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ccdExposure,
             )
 
+        if self.config.doAssembleCcd:
+            # Input units: electrons
+            self.log.info("Assembling CCD from amplifiers.")
+            ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
+
+            if self.config.expectWcs and not ccdExposure.getWcs():
+                self.log.warning("No WCS found in input exposure.")
+
         if self.config.doLinearize:
             # Input units: ADU
             self.log.info("Applying linearizer.")
@@ -1262,14 +1270,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Input units: electrons
             self.log.info("Applying deferred charge/CTI correction.")
             self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
-
-        if self.config.doAssembleCcd:
-            # Input units: electrons
-            self.log.info("Assembling CCD from amplifiers.")
-            ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
-
-            if self.config.expectWcs and not ccdExposure.getWcs():
-                self.log.warning("No WCS found in input exposure.")
 
         if self.config.doVariance:
             # Input units: electrons
