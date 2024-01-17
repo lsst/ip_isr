@@ -87,6 +87,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertEqual(ptcDataset.rawMeans[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.rawVars[ampName], np.ndarray)
             self.assertEqual(ptcDataset.rawVars[ampName].dtype, np.float64)
+            self.assertEqual(ptcDataset.rowMeanVariance[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.gain[ampName], float)
             self.assertIsInstance(ptcDataset.gainErr[ampName], float)
             self.assertIsInstance(ptcDataset.noise[ampName], float)

@@ -86,6 +86,10 @@ class PhotonTransferCurveDataset(IsrCalib):
     rawVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         difference image of the exposures in each flat pair.
+    rowMeanVariance : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the variance of the
+        means of the rows of the difference image of the exposures
+        in each flat pair.
     histVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         difference image of the exposures in each flat pair estimated
@@ -176,11 +180,12 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.3 adds the `noiseMatrix` and `noiseMatrixNoB` attributes.
     Version 1.4 adds the `auxValues` attribute.
     Version 1.5 adds the `covMatrixSideFullCovFit` attribute.
+    Version 1.6 adds the `rowMeanVariance` attribute.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.5
+    _VERSION = 1.6
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -199,6 +204,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawExpTimes = {ampName: np.array([]) for ampName in ampNames}
         self.rawMeans = {ampName: np.array([]) for ampName in ampNames}
         self.rawVars = {ampName: np.array([]) for ampName in ampNames}
+        self.rowMeanVariance = {ampName: np.array([]) for ampName in ampNames}
         self.photoCharges = {ampName: np.array([]) for ampName in ampNames}
 
         self.gain = {ampName: np.nan for ampName in ampNames}
@@ -234,7 +240,8 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'expIdMask', 'rawExpTimes',
-                                        'rawMeans', 'rawVars', 'gain', 'gainErr', 'noise', 'noiseErr',
+                                        'rawMeans', 'rawVars', 'rowMeanVariance', 'gain',
+                                        'gainErr', 'noise', 'noiseErr',
                                         'ptcFitPars', 'ptcFitParsError', 'ptcFitChiSq', 'ptcTurnoff',
                                         'aMatrixNoB', 'covariances', 'covariancesModel',
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
@@ -252,6 +259,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             rawExpTime=np.nan,
             rawMean=np.nan,
             rawVar=np.nan,
+            rowMeanVariance=np.nan,
             photoCharge=np.nan,
             expIdMask=False,
             covariance=None,
@@ -278,6 +286,9 @@ class PhotonTransferCurveDataset(IsrCalib):
             Average of the means of the exposures in this pair.
         rawVar : `float`, optional
             Variance of the difference of the exposures in this pair.
+        rowMeanVariance : `float`, optional
+            Variance of the means of the rows in the difference image
+            of the exposures in this pair.
         photoCharge : `float`, optional
             Integrated photocharge for flat pair for linearity calibration.
         expIdMask : `bool`, optional
@@ -310,6 +321,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawExpTimes[ampName] = np.array([rawExpTime])
         self.rawMeans[ampName] = np.array([rawMean])
         self.rawVars[ampName] = np.array([rawVar])
+        self.rowMeanVariance[ampName] = np.array([rowMeanVariance])
         self.photoCharges[ampName] = np.array([photoCharge])
         self.expIdMask[ampName] = np.array([expIdMask])
         self.covariances[ampName] = np.array([covariance])
@@ -402,6 +414,8 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName], dtype=np.float64)
             calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName], dtype=np.float64)
             calib.rawVars[ampName] = np.array(dictionary['rawVars'][ampName], dtype=np.float64)
+            calib.rowMeanVariance[ampName] = np.array(dictionary['rowMeanVariance'][ampName],
+                                                      dtype=np.float64)
             calib.gain[ampName] = float(dictionary['gain'][ampName])
             calib.gainErr[ampName] = float(dictionary['gainErr'][ampName])
             calib.noise[ampName] = float(dictionary['noise'][ampName])
@@ -501,6 +515,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['rawExpTimes'] = _dictOfArraysToDictOfLists(self.rawExpTimes)
         outDict['rawMeans'] = _dictOfArraysToDictOfLists(self.rawMeans)
         outDict['rawVars'] = _dictOfArraysToDictOfLists(self.rawVars)
+        outDict['rowMeanVariance'] = _dictOfArraysToDictOfLists(self.rowMeanVariance)
         outDict['gain'] = self.gain
         outDict['gainErr'] = self.gainErr
         outDict['noise'] = self.noise
@@ -560,6 +575,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['rawExpTimes'] = dict()
         inDict['rawMeans'] = dict()
         inDict['rawVars'] = dict()
+        inDict['rowMeanVariance'] = dict()
         inDict['gain'] = dict()
         inDict['gainErr'] = dict()
         inDict['noise'] = dict()
@@ -601,6 +617,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['rawExpTimes'][ampName] = record['RAW_EXP_TIMES']
             inDict['rawMeans'][ampName] = record['RAW_MEANS']
             inDict['rawVars'][ampName] = record['RAW_VARS']
+            inDict['rowMeanVariance'][ampName] = record['ROW_MEAN_VARIANCE']
             inDict['gain'][ampName] = record['GAIN']
             inDict['gainErr'][ampName] = record['GAIN_ERR']
             inDict['noise'][ampName] = record['NOISE']
@@ -649,6 +666,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['covMatrixSideFullCovFit'] = inDict['covMatrixSide']
             else:
                 inDict['covMatrixSideFullCovFit'] = record['COV_MATRIX_SIDE_FULL_COV_FIT']
+            if calibVersion < 1.6:
+                inDict['rowMeanVariance'][ampName] = np.array([np.nan])
+            else:
+                inDict['rowMeanVariance'][ampName] = record['ROW_MEAN_VARIANCE']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -689,6 +710,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'RAW_EXP_TIMES': self.rawExpTimes[ampName],
                 'RAW_MEANS': self.rawMeans[ampName],
                 'RAW_VARS': self.rawVars[ampName],
+                'ROW_MEAN_VARIANCE': self.rowMeanVariance[ampName],
                 'GAIN': self.gain[ampName],
                 'GAIN_ERR': self.gainErr[ampName],
                 'NOISE': self.noise[ampName],
