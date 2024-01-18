@@ -117,7 +117,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
 
     stat = pexConfig.Field(
         dtype=str,
-        default='MEANCLIP',
+        default="MEANCLIP",
         doc="Statistic name to use to measure regions.",
     )
     nSigmaClip = pexConfig.Field(
@@ -212,14 +212,14 @@ class IsrStatisticsTask(pipeBase.Task):
             projectionResults = self.measureProjectionStatistics(inputExp, overscanResults)
 
         calibDistributionResults = None
-        if self.config.doCalibDistributionStatistics:
+        if self.config.doCopyCalibDistributionStatistics:
             calibDistributionResults = self.copyCalibDistributionStatistics(inputExp, **kwargs)
 
         return pipeBase.Struct(
-            results={'CTI': ctiResults,
-                     'BANDING': bandingResults,
-                     'PROJECTION': projectionResults,
-                     'CALIBDIST': calibDistributionResults,
+            results={"CTI": ctiResults,
+                     "BANDING": bandingResults,
+                     "PROJECTION": projectionResults,
+                     "CALIBDIST": calibDistributionResults,
                      },
         )
 
@@ -267,7 +267,7 @@ class IsrStatisticsTask(pipeBase.Task):
             readoutCorner = amp.getReadoutCorner()
             # Full data region.
             dataRegion = image[amp.getBBox()]
-            ampStats['IMAGE_MEAN'] = afwMath.makeStatistics(dataRegion, self.statType,
+            ampStats["IMAGE_MEAN"] = afwMath.makeStatistics(dataRegion, self.statType,
                                                             self.statControl).getValue()
 
             # First and last image columns.
@@ -281,11 +281,11 @@ class IsrStatisticsTask(pipeBase.Task):
             # We want these relative to the readout corner.  If that's
             # on the right side, we need to swap them.
             if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                ampStats['FIRST_MEAN'] = pixelZ
-                ampStats['LAST_MEAN'] = pixelA
+                ampStats["FIRST_MEAN"] = pixelZ
+                ampStats["LAST_MEAN"] = pixelA
             else:
-                ampStats['FIRST_MEAN'] = pixelA
-                ampStats['LAST_MEAN'] = pixelZ
+                ampStats["FIRST_MEAN"] = pixelA
+                ampStats["LAST_MEAN"] = pixelZ
 
             # Measure the columns of the overscan.
             if overscans[ampIter] is None:
@@ -294,8 +294,8 @@ class IsrStatisticsTask(pipeBase.Task):
                 self.log.warning("No overscan information available for ISR statistics for amp %s.",
                                  amp.getName())
                 nCols = amp.getSerialOverscanBBox().getWidth()
-                ampStats['OVERSCAN_COLUMNS'] = np.full((nCols, ), np.nan)
-                ampStats['OVERSCAN_VALUES'] = np.full((nCols, ), np.nan)
+                ampStats["OVERSCAN_COLUMNS"] = np.full((nCols, ), np.nan)
+                ampStats["OVERSCAN_VALUES"] = np.full((nCols, ), np.nan)
             else:
                 overscanImage = overscans[ampIter].overscanImage
                 columns = []
@@ -312,11 +312,11 @@ class IsrStatisticsTask(pipeBase.Task):
                 # We want these relative to the readout corner.  If that's
                 # on the right side, we need to swap them.
                 if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                    ampStats['OVERSCAN_COLUMNS'] = list(reversed(columns))
-                    ampStats['OVERSCAN_VALUES'] = list(reversed(values))
+                    ampStats["OVERSCAN_COLUMNS"] = list(reversed(columns))
+                    ampStats["OVERSCAN_VALUES"] = list(reversed(values))
                 else:
-                    ampStats['OVERSCAN_COLUMNS'] = columns
-                    ampStats['OVERSCAN_VALUES'] = values
+                    ampStats["OVERSCAN_COLUMNS"] = columns
+                    ampStats["OVERSCAN_VALUES"] = values
 
             outputStats[amp.getName()] = ampStats
 
@@ -375,23 +375,23 @@ class IsrStatisticsTask(pipeBase.Task):
         detector = inputExp.getDetector()
         kernel = self.makeKernel(self.config.bandingKernelSize)
 
-        outputStats['AMP_BANDING'] = []
+        outputStats["AMP_BANDING"] = []
         for amp, overscanData in zip(detector.getAmplifiers(), overscans):
             overscanFit = np.array(overscanData.overscanFit)
             overscanArray = overscanData.overscanImage.image.array
             rawOverscan = np.mean(overscanArray + overscanFit, axis=1)
 
-            smoothedOverscan = np.convolve(rawOverscan, kernel, mode='valid')
+            smoothedOverscan = np.convolve(rawOverscan, kernel, mode="valid")
 
             low, high = np.quantile(smoothedOverscan, [self.config.bandingFractionLow,
                                                        self.config.bandingFractionHigh])
-            outputStats['AMP_BANDING'].append(float(high - low))
+            outputStats["AMP_BANDING"].append(float(high - low))
 
         if self.config.bandingUseHalfDetector:
-            fullLength = len(outputStats['AMP_BANDING'])
-            outputStats['DET_BANDING'] = float(np.nanmedian(outputStats['AMP_BANDING'][0:fullLength//2]))
+            fullLength = len(outputStats["AMP_BANDING"])
+            outputStats["DET_BANDING"] = float(np.nanmedian(outputStats["AMP_BANDING"][0:fullLength//2]))
         else:
-            outputStats['DET_BANDING'] = float(np.nanmedian(outputStats['AMP_BANDING']))
+            outputStats["DET_BANDING"] = float(np.nanmedian(outputStats["AMP_BANDING"]))
 
         return outputStats
 
@@ -428,15 +428,15 @@ class IsrStatisticsTask(pipeBase.Task):
         detector = inputExp.getDetector()
         kernel = self.makeKernel(self.config.projectionKernelSize)
 
-        outputStats['AMP_VPROJECTION'] = {}
-        outputStats['AMP_HPROJECTION'] = {}
-        convolveMode = 'valid'
+        outputStats["AMP_VPROJECTION"] = {}
+        outputStats["AMP_HPROJECTION"] = {}
+        convolveMode = "valid"
         if self.config.doProjectionFft:
-            outputStats['AMP_VFFT_REAL'] = {}
-            outputStats['AMP_VFFT_IMAG'] = {}
-            outputStats['AMP_HFFT_REAL'] = {}
-            outputStats['AMP_HFFT_IMAG'] = {}
-            convolveMode = 'same'
+            outputStats["AMP_VFFT_REAL"] = {}
+            outputStats["AMP_VFFT_IMAG"] = {}
+            outputStats["AMP_HFFT_REAL"] = {}
+            outputStats["AMP_HFFT_IMAG"] = {}
+            convolveMode = "same"
 
         for amp in detector.getAmplifiers():
             ampArray = inputExp.image[amp.getBBox()].array
@@ -447,8 +447,8 @@ class IsrStatisticsTask(pipeBase.Task):
             horizontalProjection = np.convolve(horizontalProjection, kernel, mode=convolveMode)
             verticalProjection = np.convolve(verticalProjection, kernel, mode=convolveMode)
 
-            outputStats['AMP_HPROJECTION'][amp.getName()] = horizontalProjection.tolist()
-            outputStats['AMP_VPROJECTION'][amp.getName()] = verticalProjection.tolist()
+            outputStats["AMP_HPROJECTION"][amp.getName()] = horizontalProjection.tolist()
+            outputStats["AMP_VPROJECTION"][amp.getName()] = verticalProjection.tolist()
 
             if self.config.doProjectionFft:
                 horizontalWindow = np.ones_like(horizontalProjection)
@@ -469,10 +469,10 @@ class IsrStatisticsTask(pipeBase.Task):
 
                 horizontalFFT = np.fft.rfft(np.multiply(horizontalProjection, horizontalWindow))
                 verticalFFT = np.fft.rfft(np.multiply(verticalProjection, verticalWindow))
-                outputStats['AMP_HFFT_REAL'][amp.getName()] = np.real(horizontalFFT).tolist()
-                outputStats['AMP_HFFT_IMAG'][amp.getName()] = np.imag(horizontalFFT).tolist()
-                outputStats['AMP_VFFT_REAL'][amp.getName()] = np.real(verticalFFT).tolist()
-                outputStats['AMP_VFFT_IMAG'][amp.getName()] = np.imag(verticalFFT).tolist()
+                outputStats["AMP_HFFT_REAL"][amp.getName()] = np.real(horizontalFFT).tolist()
+                outputStats["AMP_HFFT_IMAG"][amp.getName()] = np.imag(horizontalFFT).tolist()
+                outputStats["AMP_VFFT_REAL"][amp.getName()] = np.real(verticalFFT).tolist()
+                outputStats["AMP_VFFT_IMAG"][amp.getName()] = np.imag(verticalFFT).tolist()
 
         return outputStats
 
