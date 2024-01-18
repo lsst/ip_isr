@@ -104,10 +104,15 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         }
     )
 
-    doCalibDistributionStatistics = pexConfig.Field(
+    doCopyCalibDistributionStatistics = pexConfig.Field(
         dtype=bool,
         doc="Copy calibration distribution statistics to output?",
         default=False,
+    )
+    expectedDistributionLevels = pexConfig.ListField(
+        dtype=float,
+        doc="Percentile levels expected in the calibration header.",
+        default=[0, 5, 16, 50, 84, 95, 100],
     )
 
     stat = pexConfig.Field(
@@ -492,10 +497,10 @@ class IsrStatisticsTask(pipeBase.Task):
         for amp in inputExp.getDetector():
             ampStats = {}
 
-            for calibType in ('bias', 'dark', 'flat'):
-                if calibType in kwargs and kwargs[calibType] is not None:
+            for calibType in ("bias", "dark", "flat"):
+                if kwargs.get(calibType, None) is not None:
                     metadata = kwargs[calibType].getMetadata()
-                    for pct in (0, 5, 16, 50, 84, 95, 100):
+                    for pct in self.config.expectedDistributionLevels:
                         key = f"LSST CALIB {calibType.upper()} {amp.getName()} DISTRIBUTION {pct}-PCT"
                         ampStats[key] = metadata.get(key, np.nan)
                 outputStats[amp.getName()] = ampStats
