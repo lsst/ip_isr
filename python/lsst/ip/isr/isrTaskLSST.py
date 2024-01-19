@@ -1236,7 +1236,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             )
 
         if self.config.doAssembleCcd:
-            # Input units: electrons
+            # Input units: ADU
             self.log.info("Assembling CCD from amplifiers.")
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
