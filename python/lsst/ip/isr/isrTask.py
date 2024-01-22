@@ -1753,7 +1753,7 @@ class IsrTask(pipeBase.PipelineTask):
         outputStatistics = None
         if self.config.doCalculateStatistics:
             outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
-                                                 ptc=ptc).results
+                                                 bias=bias, dark=dark, flat=flat, ptc=ptc).results
 
         # do any binning.
         outputBin1Exposure = None
