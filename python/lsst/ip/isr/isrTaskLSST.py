@@ -1243,16 +1243,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warning("No WCS found in input exposure.")
 
-        if self.config.doBias:
-            # Input units: ADU
-            self.log.info("Applying bias correction.")
-            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage())
-
-        if self.config.doDeferredCharge:
-            # Input units: ADU
-            self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
-
         if self.config.doLinearize:
             # Input units: ADU
             self.log.info("Applying linearizer.")
@@ -1260,20 +1250,30 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             linearizer.applyLinearity(image=ccdExposure.getMaskedImage().getImage(),
                                       detector=detector, log=self.log)
 
+        if self.config.doCrosstalk:
+            # Input units: ADU
+            self.log.info("Applying crosstalk correction.")
+            self.crosstalk.run(ccdExposure, crosstalk=crosstalk)
+
+        if self.config.doBias:
+            # Input units: ADU
+            self.log.info("Applying bias correction.")
+            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage())
+
         if self.config.doGainNormalize:
             # Input units: ADU
             # Output units: electrons
             # TODO DM 36639
             gains, readNoise = self.gainNormalize(**kwargs)
 
+        if self.config.doDeferredCharge:
+            # Input units: electrons
+            self.log.info("Applying deferred charge/CTI correction.")
+            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
+
         if self.config.doVariance:
             # Input units: electrons
             self.variancePlane(ccdExposure, detector, ptc)
-
-        if self.config.doCrosstalk:
-            # Input units: electrons
-            self.log.info("Applying crosstalk correction.")
-            self.crosstalk.run(ccdExposure, crosstalk=crosstalk)
 
         # Masking block (defects, NAN pixels and trails).
         # Saturated and suspect pixels have already been masked.
@@ -1307,16 +1307,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskNameList=list(self.config.maskListToInterpolate)
             )
 
+        if self.config.doDark:
+            # Input units: electrons
+            self.log.info("Applying dark subtraction.")
+            self.darkCorrection(ccdExposure, dark)
+
         if self.config.doBrighterFatter:
             # Input units: electrons
             self.log.info("Applying Bright-Fatter kernels.")
             bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
             ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut, bfGains)
-
-        if self.config.doDark:
-            # Input units: electrons
-            self.log.info("Applying dark subtraction.")
-            self.darkCorrection(ccdExposure, dark)
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
