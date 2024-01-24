@@ -115,6 +115,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         dtype=float,
         doc="Percentile levels expected in the calibration header.",
         default=[0, 5, 16, 50, 84, 95, 100],
+    )
 
     doBiasShiftStatistics = pexConfig.Field(
         dtype=bool,
