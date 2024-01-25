@@ -267,6 +267,8 @@ class IsrStatisticsTask(pipeBase.Task):
         if self.config.doAmplifierCorrelationStatistics:
             ampCorrelationResults = self.measureAmpCorrelations(inputExp, overscanResults)
 
+        mjd = inputExp.getMetadata().get("MJD", None)
+
         return pipeBase.Struct(
             results={"CTI": ctiResults,
                      "BANDING": bandingResults,
@@ -274,6 +276,7 @@ class IsrStatisticsTask(pipeBase.Task):
                      "CALIBDIST": calibDistributionResults,
                      "BIASSHIFT": biasShiftResults,
                      "AMPCORR": ampCorrelationResults,
+                     "MJD": mjd,
                      },
         )
 
