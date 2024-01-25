@@ -105,6 +105,21 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
             "NONE": "No window."
         }
     )
+    doDivisaderoStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure divisadero tearing statistics?",
+        default=False,
+    )
+    divisaderoEdgePixels = pexConfig.Field(
+        dtype=int,
+        doc="Number of edge pixels excluded from divisadero linear fit.",
+        default=25,
+    )
+    divisaderoImpactPixels = pexConfig.Field(
+        dtype=int,
+        doc="Number of edge pixels to examine for divisadero tearing.",
+        default=2,
+    )
 
     doCopyCalibDistributionStatistics = pexConfig.Field(
         dtype=bool,
@@ -222,6 +237,9 @@ class IsrStatisticsTask(pipeBase.Task):
                 correction applied (`lsst.afw.image.Image`). This
                 quantity is used to estimate the amplifier read noise
                 empirically.
+        **kwargs :
+             Keyword arguments.  Calibrations being passed in should
+             have an entry here.
 
         Returns
         -------
@@ -255,6 +273,10 @@ class IsrStatisticsTask(pipeBase.Task):
         if self.config.doProjectionStatistics:
             projectionResults = self.measureProjectionStatistics(inputExp, overscanResults)
 
+        divisaderoResults = None
+        if self.config.doDivisaderoStatistics:
+            divisaderoResults = self.measureDivisaderoStatistics(inputExp, **kwargs)
+
         calibDistributionResults = None
         if self.config.doCopyCalibDistributionStatistics:
             calibDistributionResults = self.copyCalibDistributionStatistics(inputExp, **kwargs)
@@ -277,6 +299,7 @@ class IsrStatisticsTask(pipeBase.Task):
                      "BIASSHIFT": biasShiftResults,
                      "AMPCORR": ampCorrelationResults,
                      "MJD": mjd,
+                     'DIVISADERO': divisaderoResults,
                      },
         )
 
@@ -779,5 +802,49 @@ class IsrStatisticsTask(pipeBase.Task):
 
         outputStats["OVERSCAN_CORR"] = serialOSCorr.tolist()
         outputStats["IMAGE_CORR"] = imageCorr.tolist()
+
+        return outputStats
+
+    def measureDivisaderoStatistics(self, inputExp, **kwargs):
+        """Task to measure metrics from image slicing.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        **kwargs :
+            The flat will be selected from here.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        # Get profiles from existing projection code.
+        myStats = self.measureProjectionStatistics(kwargs['flat'], None)
+
+        for amp in inputExp.getDetector():
+            ampStats = {}
+            horizontalProjection = myStats['AMP_VPROJECTION'][amp.getName()]
+            horizontalProjection /= np.median(horizontalProjection)
+            columns = np.arange(len(horizontalProjection))
+
+            segment = slice(self.config.divisaderoEdgePixels, -self.config.divisaderoEdgePixels)
+            model = np.polyfit(columns[segment], horizontalProjection[segment], 1)
+            modelProjection = model[0] * columns[segment] + model[1]
+            divisaderoProfile = horizontalProjection[segment] / modelProjection
+
+            # look for max at the edges:
+            leftMax = np.nanmax(np.abs(divisaderoProfile[0:self.config.divisaderoImpactPixels] - 1.0))
+            rightMax = np.nanmax(np.abs(divisaderoProfile[-self.config.divisaderoImpactPixels:] - 1.0))
+
+            ampStats['DIVISADERO_PROFILE'] = np.array(divisaderoProfile).tolist()
+            # eoPipe matches edges for the max in the two amplifiers
+            # that touch.
+            ampStats['DIVISADERO_MAX'] = [leftMax, rightMax]
+            outputStats[amp.getName()] = ampStats
 
         return outputStats
