@@ -130,7 +130,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
     biasShiftCutoff = pexConfig.Field(
         dtype=float,
         doc="Cutoff frequency for highpass filter.",
-        default=1.0/60.0,
+        default=1.0/15.0,
     )
     biasShiftWindow = pexConfig.Field(
         dtype=int,
@@ -141,6 +141,11 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         dtype=float,
         doc="Threshold for bias shift detection.",
         default=3.0,
+    )
+    biasShiftSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of rows to skip for the bias shift detection.",
+        default=30,
     )
 
     doAmplifierCorrelationStatistics = pexConfig.Field(
@@ -590,15 +595,15 @@ class IsrStatisticsTask(pipeBase.Task):
         for amp, overscans in zip(detector, overscanResults):
             ampStats = {}
             # Add fit back to data
-            rawOverscan = overscans.overscanImage + overscans.overscanFit
+            rawOverscan = overscans.overscanImage.image.array + overscans.overscanFit
 
             # Collapse array, skipping first three columns
-            rawOverscan = np.mean(rawOverscan.image.array[:, self.config.biasShiftSkip:], axis=1)
+            rawOverscan = np.mean(rawOverscan[:, 3:], axis=1)
 
             # Scan for shifts
             noise, shift_peaks = self._scan_for_shifts(rawOverscan)
-            ampStats['LOCAL_NOISE'] = noise
-            ampStats['BIAS_SHIFTS'] = shift_peaks.tolist()
+            ampStats['LOCAL_NOISE'] = float(noise)
+            ampStats['BIAS_SHIFTS'] = shift_peaks
 
             outputStats[amp.getName()] = ampStats
         return outputStats
@@ -607,7 +612,7 @@ class IsrStatisticsTask(pipeBase.Task):
         """
         """
         numerator, denominator = butter(self.config.biasShiftFilterOrder,
-                                        self.config.biasCutoff,
+                                        self.config.biasShiftCutoff,
                                         btype='high', analog=False)
         noise = np.std(filtfilt(numerator, denominator, overscanData))
         kernel = np.concatenate([np.arange(self.config.biasShiftWindow),
@@ -619,7 +624,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         shift_check = np.abs(convolved)/noise
         shift_mask = shift_check > self.config.biasShiftThreshold
-        shift_mask[:self.config.biasShiftRowSkip] = False
+        shift_mask[:self.config.biasShiftSkip] = False
 
         shift_regions = np.flatnonzero(np.diff(np.r_[np.int8(0),
                                                      shift_mask.view(np.int8),
@@ -629,7 +634,8 @@ class IsrStatisticsTask(pipeBase.Task):
             region_peak = np.argmax(shift_check[region[0]:region[1]]) + region[0]
             if self._satisfies_flatness(region_peak, convolved[region_peak], overscanData):
                 shift_peaks.append(
-                    [convolved[region_peak], region_peak, region[0], region[1]])
+                    [float(convolved[region_peak]), float(region_peak),
+                     int(region[0]), int(region[1])])
         return noise, shift_peaks
 
     def _satisfies_flatness(self, shiftRow, shiftPeak, overscanData):
@@ -687,12 +693,11 @@ class IsrStatisticsTask(pipeBase.Task):
 
         detector = inputExp.getDetector()
 
-        serialOSCorr = np.array(len(detector), len(detector))
-        imageCorr = np.array(len(detector), len(detector))
-
+        serialOSCorr = np.empty((len(detector), len(detector)))
+        imageCorr = np.empty((len(detector), len(detector)))
         for ampId, overscan in enumerate(overscanResults):
-            rawOverscan = overscan.overscanImage + overscan.overscanFit
-            rawOverscan = rawOverscan.image.array.ravel()
+            rawOverscan = overscan.overscanImage.image.array + overscan.overscanFit
+            rawOverscan = rawOverscan.ravel()
 
             ampImage = inputExp[detector[ampId].getBBox()]
             ampImage = ampImage.image.array.ravel()
@@ -702,21 +707,18 @@ class IsrStatisticsTask(pipeBase.Task):
                 if ampId2 == ampId:
                     serialOSCorr[ampId, ampId2] = 1.0
                     imageCorr[ampId, ampId2] = 1.0
-                elif ampId2 < ampId:
-                    serialOSCorr[ampId2, ampId] = serialOSCorr[ampId, ampId2]
-                    imageCorr[ampId2, ampId] = imageCorr[ampId, ampId2]
                 else:
-                    rawOverscan2 = overscan2.overscanImage + overscan2.overscanFit
-                    rawOverscan2 = rawOverscan2.image.array.ravel()
+                    rawOverscan2 = overscan2.overscanImage.image.array + overscan2.overscanFit
+                    rawOverscan2 = rawOverscan2.ravel()
 
-                    serialOSCorr[ampId, ampId2] = np.corrcoef(rawOverscan, rawOverscan2)
+                    serialOSCorr[ampId, ampId2] = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
 
                     ampImage2 = inputExp[detector[ampId2].getBBox()]
                     ampImage2 = ampImage2.image.array.ravel()
 
-                    imageCorr[ampId, ampId2] = np.corrcoef(ampImage, ampImage2)
+                    imageCorr[ampId, ampId2] = np.corrcoef(ampImage, ampImage2)[0, 1]
 
-        outputStats['OVERSCAN_CORR'] = serialOSCorr
-        outputStats['IMAGE_CORR'] = imageCorr
+        outputStats['OVERSCAN_CORR'] = serialOSCorr.tolist()
+        outputStats['IMAGE_CORR'] = imageCorr.tolist()
 
         return outputStats
