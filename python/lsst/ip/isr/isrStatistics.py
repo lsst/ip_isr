@@ -103,6 +103,37 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
             "NONE": "No window."
         }
     )
+    doProjectionInCameraCoords = pexConfig.Field(
+        dtype=bool,
+        doc="Flip pixels to match readout before measurement?",
+        default=False,
+    )
+    projectionMinimum = pexConfig.Field(
+        dtype=int,
+        doc="Minimum coordinate to consider.",
+        default=0,
+    )
+    projectionMaximum = pexConfig.Field(
+        dtype=int,
+        doc="Maximum coordinate to consider.",
+        default=-1,
+    )
+
+    doDivisaderoStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure divisadero tearing statistics?",
+        default=False,
+    )
+    divisaderoEdgePixels = pexConfig.Field(
+        dtype=int,
+        doc="Number of edge pixels excluded from divisadero linear fit.",
+        default=25,
+    )
+    divisaderoImpactPixels = pexConfig.Field(
+        dtype=int,
+        doc="Number of edge pixels to examine for divisadero tearing.",
+        default=2,
+    )
 
     doCopyCalibDistributionStatistics = pexConfig.Field(
         dtype=bool,
@@ -152,7 +183,7 @@ class IsrStatisticsTask(pipeBase.Task):
                                                      afwImage.Mask.getPlaneBitMask(self.config.badMask))
         self.statType = afwMath.stringToStatisticsProperty(self.config.stat)
 
-    def run(self, inputExp, ptc=None, overscanResults=None, **kwargs):
+    def run(self, inputExp, overscanResults=None, **kwargs):
         """Task to run arbitrary statistics.
 
         The statistics should be measured by individual methods, and
@@ -162,8 +193,6 @@ class IsrStatisticsTask(pipeBase.Task):
         ----------
         inputExp : `lsst.afw.image.Exposure`
             The exposure to measure.
-        ptc : `lsst.ip.isr.PtcDataset`, optional
-            A PTC object containing gains to use.
         overscanResults : `list` [`lsst.pipe.base.Struct`], optional
             List of overscan results.  Expected fields are:
 
@@ -178,6 +207,9 @@ class IsrStatisticsTask(pipeBase.Task):
                 correction applied (`lsst.afw.image.Image`). This
                 quantity is used to estimate the amplifier read noise
                 empirically.
+        **kwargs :
+             Keyword arguments.  Calibrations being passed in shoule
+             have an entry here.
 
         Returns
         -------
@@ -189,11 +221,12 @@ class IsrStatisticsTask(pipeBase.Task):
         ------
         RuntimeError
             Raised if the amplifier gains could not be found.
+
         """
         # Find gains.
         detector = inputExp.getDetector()
-        if ptc is not None:
-            gains = ptc.gain
+        if kwargs['ptc'] is not None:
+            gains = kwargs['ptc'].gain
         elif detector is not None:
             gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
         else:
@@ -209,7 +242,11 @@ class IsrStatisticsTask(pipeBase.Task):
 
         projectionResults = None
         if self.config.doProjectionStatistics:
-            projectionResults = self.measureProjectionStatistics(inputExp, overscanResults)
+            projectionResults = self.measureProjectionStatistics(inputExp)
+
+        divisaderoResults = None
+        if self.config.doDivisaderoStatistics:
+            divisaderoResults = self.measureDivisaderoStatistics(inputExp, **kwargs)
 
         calibDistributionResults = None
         if self.config.doCopyCalibDistributionStatistics:
@@ -220,6 +257,7 @@ class IsrStatisticsTask(pipeBase.Task):
                      "BANDING": bandingResults,
                      "PROJECTION": projectionResults,
                      "CALIBDIST": calibDistributionResults,
+                     'DIVISADERO': divisaderoResults,
                      },
         )
 
@@ -441,8 +479,15 @@ class IsrStatisticsTask(pipeBase.Task):
         for amp in detector.getAmplifiers():
             ampArray = inputExp.image[amp.getBBox()].array
 
-            horizontalProjection = np.mean(ampArray, axis=0)
-            verticalProjection = np.mean(ampArray, axis=1)
+            if self.config.doProjectionInCameraCoords:
+                if amp.getRawFlipX():
+                    ampArray[:] = ampArray[:, ::-1]
+                if amp.getRawFlipY():
+                    ampArray[:] = ampArray[::-1, :]
+
+            segment = slice(self.config.projectionMinimum, self.config.projectionMaximum)
+            horizontalProjection = np.mean(ampArray[:, segment], axis=1)
+            verticalProjection = np.mean(ampArray[segment, :], axis=0)
 
             horizontalProjection = np.convolve(horizontalProjection, kernel, mode=convolveMode)
             verticalProjection = np.convolve(verticalProjection, kernel, mode=convolveMode)
@@ -504,5 +549,43 @@ class IsrStatisticsTask(pipeBase.Task):
                         key = f"LSST CALIB {calibType.upper()} {amp.getName()} DISTRIBUTION {pct}-PCT"
                         ampStats[key] = metadata.get(key, np.nan)
                 outputStats[amp.getName()] = ampStats
+
+        return outputStats
+
+    def measureDivisaderoStatistics(self, inputExp, **kwargs):
+        """Task to measure metrics from image slicing.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        **kwargs :
+            The flat will be selected from here.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        myStats = self.measureProjectionStatistics(kwargs['flat'])
+
+        for amp in inputExp.getExposure():
+            horizontalProjection = myStats['AMP_HPROJECTION'][amp.getName()]
+            columns = np.arange(len(horizontalProjection))
+            horizontalProjection /= np.median(horizontalProjection)
+
+            segment = slice(self.config.divisaderoEdgePixels, -self.config.divisaderoEdgePixels)
+            model = np.polyfit(columns[segment], horizontalProjection[segment], 1)
+            divisaderoProfile = horizontalProjection / model
+
+            # look for max at the edges:
+            leftMax = np.nanmax(np.abs(divisaderoProfile[0:self.config.divisaderoImpactPixels]))
+            rightMax = np.nanmax(np.abs(divisaderoProfile[-self.config.divisaderoImpactPixels:]))
+
+            outputStats['DIVISADERO_PROFILE'][amp.getName()] = np.array(divisaderoProfile).tolist()
+            outputStats['DIVISADERO_MAX'][amp.getName()] = [leftMax, rightMax]
 
         return outputStats
