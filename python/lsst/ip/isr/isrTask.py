@@ -345,18 +345,18 @@ class IsrTaskConnections(pipeBase.PipelineTaskConnections,
             self.outputs.remove("outputStatistics")
             self.outputs.remove("outputBin1Exposure")
             self.outputs.remove("outputBin2Exposure")
-
-        if config.doBinnedExposures is not True:
-            self.outputs.remove("outputBin1Exposure")
-            self.outputs.remove("outputBin2Exposure")
-        if config.doSaveInterpPixels is not True:
-            self.outputs.remove("preInterpExposure")
-        if config.qa.doThumbnailOss is not True:
-            self.outputs.remove("outputOssThumbnail")
-        if config.qa.doThumbnailFlattened is not True:
-            self.outputs.remove("outputFlattenedThumbnail")
-        if config.doCalculateStatistics is not True:
-            self.outputs.remove("outputStatistics")
+        else:
+            if config.doBinnedExposures is not True:
+                self.outputs.remove("outputBin1Exposure")
+                self.outputs.remove("outputBin2Exposure")
+            if config.doSaveInterpPixels is not True:
+                self.outputs.remove("preInterpExposure")
+            if config.qa.doThumbnailOss is not True:
+                self.outputs.remove("outputOssThumbnail")
+            if config.qa.doThumbnailFlattened is not True:
+                self.outputs.remove("outputFlattenedThumbnail")
+            if config.doCalculateStatistics is not True:
+                self.outputs.remove("outputStatistics")
 
 
 class IsrTaskConfig(pipeBase.PipelineTaskConfig,
