@@ -24,6 +24,8 @@ __all__ = ["IsrStatisticsTaskConfig", "IsrStatisticsTask"]
 import numpy as np
 
 from scipy.signal.windows import hamming, hann, gaussian
+from scipy.signal import butter, filtfilt
+from scipy.stats import linregress
 
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
@@ -113,6 +115,48 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         dtype=float,
         doc="Percentile levels expected in the calibration header.",
         default=[0, 5, 16, 50, 84, 95, 100],
+    )
+
+    doBiasShiftStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure number of image shifts in overscan?",
+        default=False,
+    )
+    biasShiftFilterOrder = pexConfig.Field(
+        dtype=int,
+        doc="Filter order for Butterworth highpass filter.",
+        default=5,
+    )
+    biasShiftCutoff = pexConfig.Field(
+        dtype=float,
+        doc="Cutoff frequency for highpass filter.",
+        default=1.0/15.0,
+    )
+    biasShiftWindow = pexConfig.Field(
+        dtype=int,
+        doc="Filter window size in pixels for highpass filter.",
+        default=30,
+    )
+    biasShiftThreshold = pexConfig.Field(
+        dtype=float,
+        doc="S/N threshold for bias shift detection.",
+        default=3.0,
+    )
+    biasShiftRowSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of rows to skip for the bias shift detection.",
+        default=30,
+    )
+    biasShiftColumnSkip = pexConfig.Field(
+        dtype=int,
+        doc="Number of columns to skip when averaging the overscan region.",
+        default=3,
+    )
+
+    doAmplifierCorrelationStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Measure amplifier correlations?",
+        default=False,
     )
 
     stat = pexConfig.Field(
@@ -215,11 +259,21 @@ class IsrStatisticsTask(pipeBase.Task):
         if self.config.doCopyCalibDistributionStatistics:
             calibDistributionResults = self.copyCalibDistributionStatistics(inputExp, **kwargs)
 
+        biasShiftResults = None
+        if self.config.doBiasShiftStatistics:
+            biasShiftResults = self.measureBiasShifts(inputExp, overscanResults)
+
+        ampCorrelationResults = None
+        if self.config.doAmplifierCorrelationStatistics:
+            ampCorrelationResults = self.measureAmpCorrelations(inputExp, overscanResults)
+
         return pipeBase.Struct(
             results={"CTI": ctiResults,
                      "BANDING": bandingResults,
                      "PROJECTION": projectionResults,
                      "CALIBDIST": calibDistributionResults,
+                     "BIASSHIFT": biasShiftResults,
+                     "AMPCORR": ampCorrelationResults,
                      },
         )
 
@@ -469,6 +523,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
                 horizontalFFT = np.fft.rfft(np.multiply(horizontalProjection, horizontalWindow))
                 verticalFFT = np.fft.rfft(np.multiply(verticalProjection, verticalWindow))
+
                 outputStats["AMP_HFFT_REAL"][amp.getName()] = np.real(horizontalFFT).tolist()
                 outputStats["AMP_HFFT_IMAG"][amp.getName()] = np.imag(horizontalFFT).tolist()
                 outputStats["AMP_VFFT_REAL"][amp.getName()] = np.real(verticalFFT).tolist()
@@ -504,5 +559,199 @@ class IsrStatisticsTask(pipeBase.Task):
                         key = f"LSST CALIB {calibType.upper()} {amp.getName()} DISTRIBUTION {pct}-PCT"
                         ampStats[key] = metadata.get(key, np.nan)
                 outputStats[amp.getName()] = ampStats
+        return outputStats
+
+    def measureBiasShifts(self, inputExp, overscanResults):
+        """Measure number of bias shifts from overscan data.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        overscans : `list` [`lsst.pipe.base.Struct`]
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+
+        Notes
+        -----
+        Based on eop_pipe implementation:
+        https://github.com/lsst-camera-dh/eo_pipe/blob/main/python/lsst/eo/pipe/biasShiftsTask.py  # noqa: E501 W505
+        """
+        outputStats = {}
+
+        detector = inputExp.getDetector()
+        for amp, overscans in zip(detector, overscanResults):
+            ampStats = {}
+            # Add fit back to data
+            rawOverscan = overscans.overscanImage.image.array + overscans.overscanFit
+
+            # Collapse array, skipping first three columns
+            rawOverscan = np.mean(rawOverscan[:, self.config.biasShiftColumnSkip:], axis=1)
+
+            # Scan for shifts
+            noise, shift_peaks = self._scan_for_shifts(rawOverscan)
+            ampStats["LOCAL_NOISE"] = float(noise)
+            ampStats["BIAS_SHIFTS"] = shift_peaks
+
+            outputStats[amp.getName()] = ampStats
+        return outputStats
+
+    def _scan_for_shifts(self, overscanData):
+        """Scan overscan data for shifts.
+
+        Parameters
+        ----------
+        overscanData : `list` [`float`]
+             Overscan data to search for shifts.
+
+        Returns
+        -------
+        noise : `float`
+            Noise estimated from Butterworth filtered overscan data.
+        peaks : `list` [`float`, `float`, `int`, `int`]
+            Shift peak information, containing the convolved peak
+            value, the raw peak value, and the lower and upper bounds
+            of the region checked.
+        """
+        numerator, denominator = butter(self.config.biasShiftFilterOrder,
+                                        self.config.biasShiftCutoff,
+                                        btype="high", analog=False)
+        noise = np.std(filtfilt(numerator, denominator, overscanData))
+        kernel = np.concatenate([np.arange(self.config.biasShiftWindow),
+                                 np.arange(-self.config.biasShiftWindow + 1, 0)])
+        kernel = kernel/np.sum(kernel[:self.config.biasShiftWindow])
+
+        convolved = np.convolve(overscanData, kernel, mode="valid")
+        convolved = np.pad(convolved, (self.config.biasShiftWindow - 1, self.config.biasShiftWindow))
+
+        shift_check = np.abs(convolved)/noise
+        shift_mask = shift_check > self.config.biasShiftThreshold
+        shift_mask[:self.config.biasShiftRowSkip] = False
+
+        shift_regions = np.flatnonzero(np.diff(np.r_[np.int8(0),
+                                                     shift_mask.view(np.int8),
+                                                     np.int8(0)])).reshape(-1, 2)
+        shift_peaks = []
+        for region in shift_regions:
+            region_peak = np.argmax(shift_check[region[0]:region[1]]) + region[0]
+            if self._satisfies_flatness(region_peak, convolved[region_peak], overscanData):
+                shift_peaks.append(
+                    [float(convolved[region_peak]), float(region_peak),
+                     int(region[0]), int(region[1])])
+        return noise, shift_peaks
+
+    def _satisfies_flatness(self, shiftRow, shiftPeak, overscanData):
+        """Determine if a region is flat.
+
+        Parameters
+        ----------
+        shiftRow : `int`
+            Row with possible peak.
+        shiftPeak : `float`
+            Value at the possible peak.
+        overscanData : `list` [`float`]
+            Overscan data used to fit around the possible peak.
+
+        Returns
+        -------
+        isFlat : `bool`
+            Indicates if the region is flat, and so the peak is valid.
+        """
+        prerange = np.arange(shiftRow - self.config.biasShiftWindow, shiftRow)
+        postrange = np.arange(shiftRow, shiftRow + self.config.biasShiftWindow)
+
+        preFit = linregress(prerange, overscanData[prerange])
+        postFit = linregress(postrange, overscanData[postrange])
+
+        if shiftPeak > 0:
+            preTrend = (2*preFit[0]*len(prerange) < shiftPeak)
+            postTrend = (2*postFit[0]*len(postrange) < shiftPeak)
+        else:
+            preTrend = (2*preFit[0]*len(prerange) > shiftPeak)
+            postTrend = (2*postFit[0]*len(postrange) > shiftPeak)
+
+        return (preTrend and postTrend)
+
+    def measureAmpCorrelations(self, inputExp, overscanResults):
+        """Measure correlations between amplifier segments.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        overscans : `list` [`lsst.pipe.base.Struct`]
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float`]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+
+        Notes
+        -----
+        Based on eo_pipe implementation:
+        https://github.com/lsst-camera-dh/eo_pipe/blob/main/python/lsst/eo/pipe/raft_level_correlations.py  # noqa: E501 W505
+        """
+        outputStats = {}
+
+        detector = inputExp.getDetector()
+
+        serialOSCorr = np.empty((len(detector), len(detector)))
+        imageCorr = np.empty((len(detector), len(detector)))
+        for ampId, overscan in enumerate(overscanResults):
+            rawOverscan = overscan.overscanImage.image.array + overscan.overscanFit
+            rawOverscan = rawOverscan.ravel()
+
+            ampImage = inputExp[detector[ampId].getBBox()]
+            ampImage = ampImage.image.array.ravel()
+
+            for ampId2, overscan2 in enumerate(overscanResults):
+
+                if ampId2 == ampId:
+                    serialOSCorr[ampId, ampId2] = 1.0
+                    imageCorr[ampId, ampId2] = 1.0
+                else:
+                    rawOverscan2 = overscan2.overscanImage.image.array + overscan2.overscanFit
+                    rawOverscan2 = rawOverscan2.ravel()
+
+                    serialOSCorr[ampId, ampId2] = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
+
+                    ampImage2 = inputExp[detector[ampId2].getBBox()]
+                    ampImage2 = ampImage2.image.array.ravel()
+
+                    imageCorr[ampId, ampId2] = np.corrcoef(ampImage, ampImage2)[0, 1]
+
+        outputStats["OVERSCAN_CORR"] = serialOSCorr.tolist()
+        outputStats["IMAGE_CORR"] = imageCorr.tolist()
 
         return outputStats
