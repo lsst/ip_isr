@@ -290,13 +290,13 @@ class Defects(IsrCalib):
         """
         mdSupplemental = dict()
         if columns:
-            mdSupplemental["N_BAD_COLUMNS"] = columns
+            mdSupplemental["LSST CALIB DEFECTS N_BAD_COLUMNS"] = columns
         if hot:
             for amp, count in hot.items():
-                mdSupplemental[f"N_HOT {amp}"] = count
+                mdSupplemental[f"LSST CALIB DEFECTS {amp} N_HOT"] = count
         if cold:
             for amp, count in cold.items():
-                mdSupplemental[f"N_COLD {amp}"] = count
+                mdSupplemental[f"LSST CALIB DEFECTS {amp} N_COLD"] = count
         self.getMetadata().update(mdSupplemental)
 
     def toFitsRegionTable(self):

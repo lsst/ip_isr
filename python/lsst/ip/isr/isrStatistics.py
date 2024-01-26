@@ -559,6 +559,7 @@ class IsrStatisticsTask(pipeBase.Task):
         """
         outputStats = {}
 
+        # Amp level elements
         for amp in inputExp.getDetector():
             ampStats = {}
 
@@ -568,7 +569,22 @@ class IsrStatisticsTask(pipeBase.Task):
                     for pct in self.config.expectedDistributionLevels:
                         key = f"LSST CALIB {calibType.upper()} {amp.getName()} DISTRIBUTION {pct}-PCT"
                         ampStats[key] = metadata.get(key, np.nan)
-                outputStats[amp.getName()] = ampStats
+
+            for calibType in ("defects"):
+                if kwargs.get(calibType, None) is not None:
+                    metadata = kwargs[calibType].getMetadata()
+                    for key in (f"LSST CALIB {calibType.upper()} {amp.getName()} N_HOT",
+                                f"LSST CALIB {calibType.upper()} {amp.getName()} N_COLD"):
+                        ampStats[key] = metadata.get(key, np.nan)
+            outputStats[amp.getName()] = ampStats
+
+        # Detector level elements
+        for calibType in ("defects"):
+            if kwargs.get(calibType, None) is not None:
+                metadata = kwargs[calibType].getMetadata()
+                for key in (f"LSST CALIB {calibType.upper()} N_BAD_COLUMNS"):
+                    outputStats["detector"][key] = metadata.get(key, np.nan)
+
         return outputStats
 
     def measureBiasShifts(self, inputExp, overscanResults):
