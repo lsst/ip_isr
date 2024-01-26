@@ -257,7 +257,7 @@ class IsrStatisticsTask(pipeBase.Task):
                      "BANDING": bandingResults,
                      "PROJECTION": projectionResults,
                      "CALIBDIST": calibDistributionResults,
-                     'DIVISADERO': divisaderoResults,
+                     "DIVISADERO": divisaderoResults,
                      },
         )
 
@@ -570,22 +570,28 @@ class IsrStatisticsTask(pipeBase.Task):
         """
         outputStats = {}
 
-        myStats = self.measureProjectionStatistics(kwargs['flat'])
+        # Get profiles from existing projection code.
+        myStats = self.measureProjectionStatistics(kwargs['flat'], None)
 
-        for amp in inputExp.getExposure():
-            horizontalProjection = myStats['AMP_HPROJECTION'][amp.getName()]
-            columns = np.arange(len(horizontalProjection))
+        for amp in inputExp.getDetector():
+            ampStats = {}
+            horizontalProjection = myStats['AMP_VPROJECTION'][amp.getName()]
             horizontalProjection /= np.median(horizontalProjection)
+            columns = np.arange(len(horizontalProjection))
 
             segment = slice(self.config.divisaderoEdgePixels, -self.config.divisaderoEdgePixels)
             model = np.polyfit(columns[segment], horizontalProjection[segment], 1)
-            divisaderoProfile = horizontalProjection / model
+            modelProjection = model[0] * columns[segment] + model[1]
+            divisaderoProfile = horizontalProjection[segment] / modelProjection
 
             # look for max at the edges:
-            leftMax = np.nanmax(np.abs(divisaderoProfile[0:self.config.divisaderoImpactPixels]))
-            rightMax = np.nanmax(np.abs(divisaderoProfile[-self.config.divisaderoImpactPixels:]))
+            leftMax = np.nanmax(np.abs(divisaderoProfile[0:self.config.divisaderoImpactPixels] - 1.0))
+            rightMax = np.nanmax(np.abs(divisaderoProfile[-self.config.divisaderoImpactPixels:] - 1.0))
 
-            outputStats['DIVISADERO_PROFILE'][amp.getName()] = np.array(divisaderoProfile).tolist()
-            outputStats['DIVISADERO_MAX'][amp.getName()] = [leftMax, rightMax]
+            ampStats['DIVISADERO_PROFILE'] = np.array(divisaderoProfile).tolist()
+            # eoPipe matches edges for the max in the two amplifiers
+            # that touch.
+            ampStats['DIVISADERO_MAX'] = [leftMax, rightMax]
+            outputStats[amp.getName()] = ampStats
 
         return outputStats
