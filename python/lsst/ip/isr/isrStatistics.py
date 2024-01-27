@@ -350,7 +350,7 @@ class IsrStatisticsTask(pipeBase.Task):
                 # be skipped.
                 self.log.warning("No overscan information available for ISR statistics for amp %s.",
                                  amp.getName())
-                nCols = amp.getSerialOverscanBBox().getWidth()
+                nCols = amp.getRawSerialOverscanBBox().getWidth()
                 ampStats["OVERSCAN_COLUMNS"] = np.full((nCols, ), np.nan)
                 ampStats["OVERSCAN_VALUES"] = np.full((nCols, ), np.nan)
             else:
@@ -358,7 +358,14 @@ class IsrStatisticsTask(pipeBase.Task):
                 columns = []
                 values = []
                 for column in range(0, overscanImage.getWidth()):
-                    osMean = afwMath.makeStatistics(overscanImage.image.array[:, column],
+                    # If overscan.doParallelOverscan=True, the overscanImage
+                    # will contain both the serial and parallel overscan
+                    # regions.
+                    # Only the serial overscan correction is implemented,
+                    # so we must select only the serial overscan rows
+                    # for a given column.
+                    nRows = amp.getRawSerialOverscanBBox().getHeight()
+                    osMean = afwMath.makeStatistics(overscanImage.image.array[:nRows, column],
                                                     self.statType, self.statControl).getValue()
                     columns.append(column)
                     if self.config.doApplyGainsForCtiStatistics:
