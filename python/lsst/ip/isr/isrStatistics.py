@@ -22,7 +22,7 @@
 __all__ = ["IsrStatisticsTaskConfig", "IsrStatisticsTask"]
 
 import numpy as np
-
+import astropy.stats
 from scipy.signal.windows import hamming, hann, gaussian
 
 import lsst.afw.math as afwMath
@@ -134,7 +134,16 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Number of edge pixels to examine for divisadero tearing.",
         default=2,
     )
-
+    divisaderoProjectionMinimum = pexConfig.Field(
+        dtype=int,
+        doc="Minimum row to consider when taking mean of columns.",
+        default=10,
+    )
+    divisaderoProjectionMaximum = pexConfig.Field(
+        dtype=int,
+        doc="Maximum row to consider when takening mean of columns",
+        default=210,
+    )
     doCopyCalibDistributionStatistics = pexConfig.Field(
         dtype=bool,
         doc="Copy calibration distribution statistics to output?",
@@ -570,28 +579,76 @@ class IsrStatisticsTask(pipeBase.Task):
         """
         outputStats = {}
 
-        # Get profiles from existing projection code.
-        myStats = self.measureProjectionStatistics(kwargs['flat'], None)
-
         for amp in inputExp.getDetector():
-            ampStats = {}
-            horizontalProjection = myStats['AMP_VPROJECTION'][amp.getName()]
-            horizontalProjection /= np.median(horizontalProjection)
-            columns = np.arange(len(horizontalProjection))
+            ampArray = inputExp.image[amp.getBBox()].array.copy()
+            # slice the top or the bottom of the amp, which is the readout side
+            if amp.getReadoutCorner().name in ('UL', 'UR'):
+                minRow = amp.getBBox().getHeight() - self.config.divisaderoProjectionMaximum
+                maxRow = amp.getBBox().getHeight() - self.config.divisaderoProjectionMinimum
+            else:
+                minRow = self.config.divisaderoProjectionMinimum
+                maxRow = self.config.divisaderoProjectionMaximum
 
-            segment = slice(self.config.divisaderoEdgePixels, -self.config.divisaderoEdgePixels)
-            model = np.polyfit(columns[segment], horizontalProjection[segment], 1)
-            modelProjection = model[0] * columns[segment] + model[1]
-            divisaderoProfile = horizontalProjection[segment] / modelProjection
+            segment = slice(minRow, maxRow)
+            projection, _, _ = astropy.stats.sigma_clipped_stats(ampArray[segment, :], axis=0)
+
+            ampStats = {}
+            projection = projection
+            projection /= np.median(projection)
+            columns = np.arange(len(projection))
+
+            segment = slice(self.config.divisaderoEdgePixels, - self.config.divisaderoEdgePixels)
+            model = np.polyfit(columns[segment], projection[segment], 1)
+            modelProjection = model[0] * columns + model[1]
+            divisaderoProfile = projection / modelProjection
 
             # look for max at the edges:
             leftMax = np.nanmax(np.abs(divisaderoProfile[0:self.config.divisaderoImpactPixels] - 1.0))
             rightMax = np.nanmax(np.abs(divisaderoProfile[-self.config.divisaderoImpactPixels:] - 1.0))
 
             ampStats['DIVISADERO_PROFILE'] = np.array(divisaderoProfile).tolist()
-            # eoPipe matches edges for the max in the two amplifiers
-            # that touch.
-            ampStats['DIVISADERO_MAX'] = [leftMax, rightMax]
+            ampStats['DIVISADERO_MAX_PAIR'] = [leftMax, rightMax]
             outputStats[amp.getName()] = ampStats
+
+        detector = inputExp.getDetector()
+        xCenters = [amp.getBBox().getCenterX() for amp in detector]
+        yCenters = [amp.getBBox().getCenterY() for amp in detector]
+        xIndices = np.ceil(xCenters / np.min(xCenters) / 2).astype(int) - 1
+        yIndices = np.ceil(yCenters / np.min(yCenters) / 2).astype(int) - 1
+        ampIds = np.zeros((len(set(yIndices)), len(set(xIndices))), dtype=int)
+        for ampId, xIndex, yIndex in zip(np.arange(len(detector)), xIndices, yIndices):
+            ampIds[yIndex, xIndex] = ampId
+
+        # Loop over amps again because the DIVISIDERO_MAX will be the max
+        # of the profile on its boundary with its neighboring amps
+        for i, amp in enumerate(detector):
+            y, x = np.where(ampIds == i)
+            end = ampIds.shape[1] - 1
+            xInd = x[0]
+            yInd = y[0]
+            thisAmpsPair = outputStats[amp.getName()]['DIVISADERO_MAX_PAIR']
+
+            if x == 0:
+                # leftmost amp: take the max of your right side and
+                myMax = thisAmpsPair[1]
+                # your neighbor's left side
+                neighborMax = outputStats[detector[ampIds[yInd, 1]].getName()]['DIVISADERO_MAX_PAIR'][0]
+            elif x == end:
+                # rightmost amp: take the max of your left side and
+                myMax = thisAmpsPair[0]
+                # your neighbor's right side
+                neighborMax = outputStats[detector[ampIds[yInd, end - 1]].getName()]['DIVISADERO_MAX_PAIR'][1]
+            else:
+                # Middle amp: take the max of both your own sides and the
+                myMax = max(thisAmpsPair)
+                leftName = detector[ampIds[yInd, max(xInd - 1, 0)]].getName()
+                rightName = detector[ampIds[yInd, min(xInd + 1, ampIds.shape[1] - 1)]].getName()
+                # right side of the neighbor to your left
+                # and left side of your neighbor to your right
+                neighborMax = max(outputStats[leftName]['DIVISADERO_MAX_PAIR'][1],
+                                  outputStats[rightName]['DIVISADERO_MAX_PAIR'][0])
+
+            divisaderoMax = max([myMax, neighborMax])
+            outputStats[amp.getName()]['DIVISADERO_MAX'] = divisaderoMax
 
         return outputStats
