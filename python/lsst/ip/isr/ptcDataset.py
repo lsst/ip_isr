@@ -617,7 +617,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['rawExpTimes'][ampName] = record['RAW_EXP_TIMES']
             inDict['rawMeans'][ampName] = record['RAW_MEANS']
             inDict['rawVars'][ampName] = record['RAW_VARS']
-            inDict['rowMeanVariance'][ampName] = record['ROW_MEAN_VARIANCE']
             inDict['gain'][ampName] = record['GAIN']
             inDict['gainErr'][ampName] = record['GAIN_ERR']
             inDict['noise'][ampName] = record['NOISE']
