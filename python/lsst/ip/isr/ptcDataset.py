@@ -666,7 +666,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             else:
                 inDict['covMatrixSideFullCovFit'] = record['COV_MATRIX_SIDE_FULL_COV_FIT']
             if calibVersion < 1.6:
-                inDict['rowMeanVariance'][ampName] = np.array([np.nan])
+                inDict['rowMeanVariance'][ampName] = np.full((len(inDict['expIdMask'][ampName]),), np.nan)
             else:
                 inDict['rowMeanVariance'][ampName] = record['ROW_MEAN_VARIANCE']
 
