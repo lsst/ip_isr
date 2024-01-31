@@ -780,12 +780,9 @@ class IsrStatisticsTask(pipeBase.Task):
         Based on eo_pipe implementation:
         https://github.com/lsst-camera-dh/eo_pipe/blob/main/python/lsst/eo/pipe/raft_level_correlations.py  # noqa: E501 W505
         """
-        outputStats = {}
-
         detector = inputExp.getDetector()
+        rows = []
 
-        serialOSCorr = np.empty((len(detector), len(detector)))
-        imageCorr = np.empty((len(detector), len(detector)))
         for ampId, overscan in enumerate(overscanResults):
             rawOverscan = overscan.overscanImage.image.array + overscan.overscanFit
             rawOverscan = rawOverscan.ravel()
@@ -794,25 +791,26 @@ class IsrStatisticsTask(pipeBase.Task):
             ampImage = ampImage.image.array.ravel()
 
             for ampId2, overscan2 in enumerate(overscanResults):
-
-                if ampId2 == ampId:
-                    serialOSCorr[ampId, ampId2] = 1.0
-                    imageCorr[ampId, ampId2] = 1.0
-                else:
+                osC = 1.0
+                imC = 1.0
+                if ampId2 != ampId:
                     rawOverscan2 = overscan2.overscanImage.image.array + overscan2.overscanFit
                     rawOverscan2 = rawOverscan2.ravel()
 
-                    serialOSCorr[ampId, ampId2] = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
+                    osC = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
 
                     ampImage2 = inputExp[detector[ampId2].getBBox()]
                     ampImage2 = ampImage2.image.array.ravel()
 
-                    imageCorr[ampId, ampId2] = np.corrcoef(ampImage, ampImage2)[0, 1]
-
-        outputStats["OVERSCAN_CORR"] = serialOSCorr.tolist()
-        outputStats["IMAGE_CORR"] = imageCorr.tolist()
-
-        return outputStats
+                    imC = np.corrcoef(ampImage, ampImage2)[0, 1]
+                rows.append(
+                    {'ampName': detector[ampId],
+                     'ampComp': detector[ampId2],
+                     'imageCorr': imC,
+                     'overscanCorr': osC,
+                     }
+                )
+        return rows
 
     def measureDivisaderoStatistics(self, inputExp, **kwargs):
         """Measure Max Divisadero Tearing effect per amp.
