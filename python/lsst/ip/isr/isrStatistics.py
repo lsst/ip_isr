@@ -804,10 +804,11 @@ class IsrStatisticsTask(pipeBase.Task):
 
                     imC = np.corrcoef(ampImage, ampImage2)[0, 1]
                 rows.append(
-                    {'ampName': detector[ampId],
-                     'ampComp': detector[ampId2],
-                     'imageCorr': imC,
-                     'overscanCorr': osC,
+                    {'detector' : detector.getId(),
+                     'ampName': detector[ampId].getName(),
+                     'ampComp': detector[ampId2].getName(),
+                     'imageCorr': float(imC),
+                     'overscanCorr': float(osC),
                      }
                 )
         return rows
