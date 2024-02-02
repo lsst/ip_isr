@@ -679,7 +679,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             else:
                 inDict['rowMeanVariance'][ampName] = record['ROW_MEAN_VARIANCE']
             if calibVersion < 1.7:
-                inDict['noiseList'][ampName] = np.array([np.nan])
+                inDict['noiseList'][ampName] = np.full_like(inDict['rawMeans'][ampName], np.nan)
             else:
                 inDict['noiseList'][ampName] = record['NOISE_LIST']
 
