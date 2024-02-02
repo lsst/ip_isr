@@ -115,7 +115,8 @@ class FringeTask(Task):
         if expId is None:
             seed = self.config.stats.rngSeedOffset
         else:
-            print(f"{self.config.stats.rngSeedOffset} {expId}")
+            self.log.debug("Seeding with offset %d and ccdExposureId %d.",
+                           self.config.stats.rngSeedOffset, expId)
             seed = self.config.stats.rngSeedOffset + expId
 
         # Seed for numpy.random.RandomState must be convertable to a 32 bit
