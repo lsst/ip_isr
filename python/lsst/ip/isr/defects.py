@@ -276,6 +276,29 @@ class Defects(IsrCalib):
             bbox = defect.getBBox()
             lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
 
+    def updateCounters(self, columns=None, hot=None, cold=None):
+        """Update metadata with pixel and column counts.
+
+        Parameters
+        ----------
+        columns : `int`, optional
+            Number of full columns masked.
+        hot : `dict` [`str`, `int`], optional
+            Dictionary with the count of hot pixels, indexed by amplifier name.
+        cold : `dict` [`str`, `int`], optional
+            Dictionary with the count of hot pixels, indexed by amplifier name.
+        """
+        mdSupplemental = dict()
+        if columns:
+            mdSupplemental["LSST CALIB DEFECTS N_BAD_COLUMNS"] = columns
+        if hot:
+            for amp, count in hot.items():
+                mdSupplemental[f"LSST CALIB DEFECTS {amp} N_HOT"] = count
+        if cold:
+            for amp, count in cold.items():
+                mdSupplemental[f"LSST CALIB DEFECTS {amp} N_COLD"] = count
+        self.getMetadata().update(mdSupplemental)
+
     def toFitsRegionTable(self):
         """Convert defect list to `~lsst.afw.table.BaseCatalog` using the
         FITS region standard.
