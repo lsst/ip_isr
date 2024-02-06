@@ -627,7 +627,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['rawVars'][ampName] = record['RAW_VARS']
             inDict['gain'][ampName] = record['GAIN']
             inDict['gainErr'][ampName] = record['GAIN_ERR']
-            inDict['noiseList'][ampName] = record['NOISE_LIST']
             inDict['noise'][ampName] = record['NOISE']
             inDict['noiseErr'][ampName] = record['NOISE_ERR']
             inDict['ptcFitPars'][ampName] = record['PTC_FIT_PARS']
