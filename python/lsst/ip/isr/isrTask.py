@@ -1062,11 +1062,12 @@ class IsrTask(pipeBase.PipelineTask):
                     self.log.warning("Bare lookup table linearizers will be deprecated in DM-28741.")
                 else:
                     linearizer = inputs['linearizer']
+                    self.log.info("Loading linearizer from the Butler.")
                     linearizer.log = self.log
                 inputs['linearizer'] = linearizer
             else:
                 inputs['linearizer'] = linearize.Linearizer(detector=detector, log=self.log)
-                self.log.warning("Constructing linearizer from cameraGeom information.")
+                self.log.info("Constructing linearizer from cameraGeom information.")
 
         if self.config.doDefect is True:
             if "defects" in inputs and inputs['defects'] is not None:
