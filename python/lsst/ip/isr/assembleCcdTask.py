@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["AssembleCcdTask"]
+__all__ = ["AssembleCcdTask", "AssembleCcdConfig"]
 
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.cameraGeom.utils as cameraGeomUtils
@@ -42,63 +42,46 @@ class AssembleCcdConfig(pexConfig.Config):
         default=(),
     )
 
-## @addtogroup LSST_task_documentation
-## @{
-## @page page_AssembleCcdTask AssembleCcdTask
-## @ref AssembleCcdTask_ "AssembleCcdTask"
-## @copybrief AssembleCcdTask
-## @}
-
 
 class AssembleCcdTask(pipeBase.Task):
-    r"""!
-    @anchor AssembleCcdTask_
-
-    @brief Assemble a set of amplifier images into a full detector size set of
+    """Assemble a set of amplifier images into a full detector size set of
     pixels.
 
-    @section ip_isr_assemble_Initialize Task initialization
-
-    @copydoc __init__
+    The keys for removal specified in
+    `lsst.ip.isr.AssembleCcdConfig.keysToRemove` are added to a default set:
+    ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN').
     """
     ConfigClass = AssembleCcdConfig
     _DefaultName = "assembleCcd"
 
     def __init__(self, **kwargs):
-        """!Initialize the AssembleCcdTask
-
-        The keys for removal specified in the config are added to a default
-        set: ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN')
-        """
         pipeBase.Task.__init__(self, **kwargs)
 
         self.allKeysToRemove = ('DATASEC', 'BIASSEC', 'TRIMSEC', 'GAIN') + tuple(self.config.keysToRemove)
 
     def assembleCcd(self, assembleInput):
-        """!Assemble a set of amps into a single CCD size image
-        @param[in] assembleInput -- Either a dictionary of amp
-                                    lsst.afw.image.Exposures or a single
-                                    lsst.afw.image.Exposure containing all raw
-                                    amps.  If a dictionary of amp exposures,
-                                    the key should be the amp name.
-        @return assembledCcd -- An lsst.afw.image.Exposure of the assembled
-                                amp sections.
+        """Assemble a set of amps into a single CCD size image.
 
-        @throws TypeError with the following string:
+        Parameters
+        ----------
+        assembleInput : `dict` [`str`, `lsst.afw.image.Exposure`] or \
+                        `lsst.afw.image.Exposure`
+            Either a dictionary of amp exposures, or a single exposure
+            containing all raw amps. If a dictionary of amp exposures, the key
+            should be the amp name.
 
-        <DL>
-          <DT> Expected either a dictionary of amp exposures or a single raw
-               exposure.
-          <DD> The input exposures to be assembled do not adhere to the
-               required format.
-        </DL>
+        Returns
+        -------
+        assembledCcd : `lsst.afw.image.Exposure`
+            An exposure of the assembled amp sections.
 
-        @throws RuntimeError with the following string:
-
-        <DL>
-          <DT> No ccd detector found
-          <DD> The detector set on the input exposure is not set.
-        </DL>
+        Raises
+        ------
+        TypeError
+            Raised if the input exposures to be assembled do not adhere to the
+            required format.
+        RuntimeError
+            Raised if the detector set on the input exposure is not set.
         """
         ccd = None
         if isinstance(assembleInput, dict):
@@ -153,14 +136,17 @@ class AssembleCcdTask(pipeBase.Task):
 
     def postprocessExposure(self, outExposure, inExposure):
         """Set exposure non-image attributes, including wcs and metadata and
-        display exposure (if requested)
+        display exposure (if requested).
 
-        Call after assembling the pixels
+        Call after assembling the pixels.
 
-        @param[in,out]  outExposure assembled exposure:
-                                    - removes unwanted keywords
-                                    - sets wcs, filter, and detector
-        @param[in]      inExposure  input exposure
+        Parameters
+        ----------
+        outExposure : `lsst.afw.image.Exposure`
+            The exposure to modify by copying metadata (after removing unwanted
+            keywords), wcs, filter, and detector from ``inExposure``.
+        inExposure : `lsst.afw.image.Exposure`
+            The input exposure providing metadata, wcs, filter, and detector.
         """
         if inExposure.hasWcs():
             outExposure.setWcs(inExposure.getWcs())
