@@ -57,79 +57,9 @@ class AssembleCcdTask(pipeBase.Task):
     @brief Assemble a set of amplifier images into a full detector size set of
     pixels.
 
-    @section ip_isr_assemble_Contents Contents
-
-     - @ref ip_isr_assemble_Purpose
-     - @ref ip_isr_assemble_Initialize
-     - @ref ip_isr_assemble_IO
-     - @ref ip_isr_assemble_Config
-     - @ref ip_isr_assemble_Debug
-     - @ref ip_isr_assemble_Example
-
-    @section ip_isr_assemble_Purpose Description
-
-    This task assembles sections of an image into a larger mosaic.  The
-    sub-sections are typically amplifier sections and are to be assembled
-    into a detector size pixel grid. The assembly is driven by the entries in
-    the raw amp information.  The task can be configured to return a detector
-    image with non-data (e.g. overscan) pixels included.  The task can also
-    renormalize the pixel values to a nominal gain of 1.  The task also
-    removes exposure metadata that has context in raw amps, but not in trimmed
-    detectors (e.g. 'BIASSEC').
-
     @section ip_isr_assemble_Initialize Task initialization
 
     @copydoc __init__
-
-    @section ip_isr_assemble_IO Inputs/Outputs to the assembleCcd method
-
-    @copydoc assembleCcd
-
-    @section ip_isr_assemble_Config Configuration parameters
-
-    See @ref AssembleCcdConfig
-
-    @section ip_isr_assemble_Debug Debug variables
-
-    The command line task interface supports a flag @c -d to import @b debug.py from your
-    @c PYTHONPATH; see <a
-    href="https://developer.lsst.io/stack/debug.html">Debugging Tasks with
-    lsstDebug</a> for more about @b debug.py files.
-
-    The available variables in AssembleCcdTask are:
-    <DL>
-      <DT> @c display
-      <DD> A dictionary containing debug point names as keys with frame number
-           as value. Valid keys are:
-        <DL>
-          <DT> assembledExposure
-          <DD> display assembled exposure
-        </DL>
-    </DL>
-
-    @section ip_isr_assemble_Example A complete example of using
-    AssembleCcdTask
-
-    <HR>
-    To investigate the @ref ip_isr_assemble_Debug, put something like
-    @code{.py}
-    import lsstDebug
-    def DebugInfo(name):
-        di = lsstDebug.getInfo(name)  # N.b. lsstDebug.Info(name) would call
-                                      # us recursively
-        if name == "lsst.ip.isr.assembleCcdTask":
-            di.display = {'assembledExposure':2}
-        return di
-
-    lsstDebug.Info = DebugInfo
-    @endcode
-    into your debug.py file and run runAssembleTask.py with the @c --debug
-    flag.
-
-
-    Conversion notes:
-        Display code should be updated once we settle on a standard way of
-        controlling what is displayed.
     """
     ConfigClass = AssembleCcdConfig
     _DefaultName = "assembleCcd"
