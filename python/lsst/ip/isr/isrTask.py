@@ -1784,7 +1784,7 @@ class IsrTask(pipeBase.PipelineTask):
         with nominal gains and noise.
 
         Parameters
-        ------
+        ----------
         ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`
             Input Photon Transfer Curve dataset.
         detector : `lsst.afw.cameraGeom.Detector`

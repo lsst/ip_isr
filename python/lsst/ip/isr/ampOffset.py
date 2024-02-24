@@ -267,20 +267,23 @@ class AmpOffsetTask(Task):
             and column index corresponds to the ampIds of a specific pair of
             amplifiers, and the matrix elements indicate their associations as
             follows:
-            0: No association
-            -1: Association exists (direction specified in the ampSides matrix)
-            n >= 1: Diagonal elements indicate the number of neighboring
-                    amplifiers for the corresponding ampId==row==column number.
+
+            * 0: No association
+            * -1: Association exists (direction specified in the ampSides
+              matrix)
+            * n >= 1: Diagonal elements indicate the number of neighboring
+              amplifiers for the corresponding ampId==row==column number.
 
         ampSides : `numpy.ndarray`
             An N x N matrix (N = the number of amplifiers) representing the amp
             side information corresponding to the `ampAssociations`
             matrix. The elements are integers defined as below:
-            -1: No side due to no association or the same amp (diagonals)
-            0: Side on the bottom
-            1: Side on the right
-            2: Side on the top
-            3: Side on the left
+
+            * -1: No side due to no association or the same amp (diagonals)
+            * 0: Side on the bottom
+            * 1: Side on the right
+            * 2: Side on the top
+            * 3: Side on the left
         """
         xCenters = [amp.getBBox().getCenterX() for amp in amps]
         yCenters = [amp.getBBox().getCenterY() for amp in amps]
