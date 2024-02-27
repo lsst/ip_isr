@@ -43,6 +43,12 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Measure CTI statistics from image and overscans?",
         default=False,
     )
+    doCtiEper = pexConfig.Field(
+        dtype=bool,
+        doc="Measure serial and parallel Charge Transfer Inefficiency "
+            "using the Extended Pixel Edge Response (EPER) method?",
+        default=False,
+    )
     doApplyGainsForCtiStatistics = pexConfig.Field(
         dtype=bool,
         doc="Apply gain to the overscan region when measuring CTI statistics?",
@@ -274,6 +280,10 @@ class IsrStatisticsTask(pipeBase.Task):
         if self.config.doCtiStatistics:
             ctiResults = self.measureCti(inputExp, overscanResults, gains)
 
+        ctiEperResults = None
+        if self.config.doCtiEper:
+            ctiEperResults = self.measureCtiEper(inputExp, overscanResults)
+
         bandingResults = None
         if self.config.doBandingStatistics:
             bandingResults = self.measureBanding(inputExp, overscanResults)
@@ -302,13 +312,14 @@ class IsrStatisticsTask(pipeBase.Task):
 
         return pipeBase.Struct(
             results={"CTI": ctiResults,
+                     "CTIEPER": ctiEperResults,
                      "BANDING": bandingResults,
                      "PROJECTION": projectionResults,
                      "CALIBDIST": calibDistributionResults,
                      "BIASSHIFT": biasShiftResults,
                      "AMPCORR": ampCorrelationResults,
                      "MJD": mjd,
-                     'DIVISADERO': divisaderoResults,
+                     "DIVISADERO": divisaderoResults,
                      },
         )
 
