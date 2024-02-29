@@ -49,6 +49,12 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
             "using the Extended Pixel Edge Response (EPER) method?",
         default=False,
     )
+    nPixelsOverscanCtiEper = pexConfig.Field(
+        dtype=int,
+        doc="Number of overscan rows or columns to use for "
+            "evaluating the trailed signal in the overscan regions.",
+        default=3,
+    )
     doApplyGainsForCtiStatistics = pexConfig.Field(
         dtype=bool,
         doc="Apply gain to the overscan region when measuring CTI statistics?",
@@ -424,6 +430,87 @@ class IsrStatisticsTask(pipeBase.Task):
                 else:
                     ampStats["OVERSCAN_COLUMNS"] = columns
                     ampStats["OVERSCAN_VALUES"] = values
+
+            outputStats[amp.getName()] = ampStats
+
+        return outputStats
+
+    def measureCtiEper(self, inputExp, overscans):
+        """Task to measure CTI using the EPER method.
+
+        Parameters
+        ----------
+        inputExp : `lsst.afw.image.Exposure`
+            Exposure to measure.
+        overscans : `list` [`lsst.pipe.base.Struct`]
+            List of overscan results.  Expected fields are:
+
+            ``imageFit``
+                Value or fit subtracted from the amplifier image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanFit``
+                Value or fit subtracted from the overscan image data
+                (scalar or `lsst.afw.image.Image`).
+            ``overscanImage``
+                Image of the overscan region with the overscan
+                correction applied (`lsst.afw.image.Image`). This
+                quantity is used to estimate the amplifier read noise
+                empirically.
+
+        Returns
+        -------
+        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+            Dictionary of measurements, keyed by amplifier name and
+            statistics segment.
+        """
+        outputStats = {}
+
+        detector = inputExp.getDetector()
+        image = inputExp.image
+
+        # Ensure we have the same number of overscans as amplifiers.
+        assert len(overscans) == len(detector.getAmplifiers())
+
+        # Number of pixels in the overscan for trailed signal
+        nPixOs = self.config.nPixelsOverscanCtiEper
+
+        for ampIter, amp in enumerate(detector.getAmplifiers()):
+            ampStats = {}
+            # Full data region.
+            dataBox = amp.getBBox()
+            firstCol = dataBox.minX
+            lastCol = dataBox.maxX
+            firstRow = dataBox.minY
+            lastRow = dataBox.maxY
+            dataRegion = image[dataBox]
+
+            # Overscan
+            overscanBox = amp.getRawSerialOverscanBBox()
+            firstColOs = overscanBox.minX
+            lastColOs = overscanBox.maxX
+
+            if overscans[ampIter] is None:
+                # The amplifier is likely entirely bad, and needs to
+                # be skipped.
+                self.log.warning("No overscan information available for EPER CTI for amp %s.",
+                                 amp.getName())
+                ampStats["SERIAL_CTI_EPER"] = np.nan
+                ampStats["PARALLEL_CTI_EPER"] = np.nan
+            else:
+                overscanImage = overscans[ampIter].overscanImage
+
+            # serial CTI with EPER
+            signal = np.nansum(dataRegion[firstRow:lastRow + 1, lastCol])
+            trailed = np.nansum(overscanImage[firstRow:lastRow + 1, firstColOs:firstColOs + nPixOs])
+            serialCTI = (trailed/signal)/(dataBox.width + 1)
+
+            # parallel CTI with EPER
+            signal = np.nansum(dataRegion[lastRow, firstCol:lastCol + 1])
+            trailed = np.nansum(overscanImage[lastRow:lastRow + 1 + nPixOs, firstColOs:lastColOs + 1])
+            parallelCTI = (trailed/signal)/(dataBox.height + 1)
+
+            ampStats["SERIAL_CTI_EPER"] = serialCTI
+            ampStats["PARALLEL_CTI_EPER"] = parallelCTI
 
             outputStats[amp.getName()] = ampStats
 
