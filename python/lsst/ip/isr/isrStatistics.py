@@ -338,7 +338,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Returns
         -------
-        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+        outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
             statistics segment.
         """
@@ -462,7 +462,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Returns
         -------
-        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+        outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
             statistics segment.
         """
@@ -515,7 +515,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Returns
         -------
-        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+        outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
             statistics segment.
         """
@@ -585,7 +585,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Returns
         -------
-        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+        outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
             statistics segment.
         """
@@ -643,7 +643,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Returns
         -------
-        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+        outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
             statistics segment.
 
@@ -771,7 +771,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Returns
         -------
-        outputStats : `dict` [`str`, [`dict` [`str`,`float`]]
+        outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
             statistics segment.
 
@@ -826,20 +826,21 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Returns
         -------
-        outputStats : `dict` [`str`, [`dict` [`str`,`float]]
+        outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
             statistics segment.
             Measurements include
+
             - DIVISADERO_PROFILE: Robust mean of rows between
-                divisaderoProjection<Maximum|Minumum> on readout edge of ccd
-                normalized by a linear fit to the same rows.
+              divisaderoProjection<Maximum|Minumum> on readout edge of ccd
+              normalized by a linear fit to the same rows.
             - DIVISADERO_MAX_PAIR: Tuple of maximum of the absolute values of
-                the DIVISADERO_PROFILE, for number of pixels (specified by
-                divisaderoNumImpactPixels on left and right side of amp.
+              the DIVISADERO_PROFILE, for number of pixels (specified by
+              divisaderoNumImpactPixels on left and right side of amp.
             - DIVISADERO_MAX: Maximum of the absolute values of the
-                the DIVISADERO_PROFILE, for the divisaderoNumImpactPixels on
-                boundaries of neighboring amps (including the pixels in those
-                neighborboring amps).
+              the DIVISADERO_PROFILE, for the divisaderoNumImpactPixels on
+              boundaries of neighboring amps (including the pixels in those
+              neighborboring amps).
         """
         outputStats = {}
 

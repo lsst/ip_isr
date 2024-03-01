@@ -59,7 +59,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     covMatrixSide : `int`, optional
         Maximum lag of measured covariances (size of square covariance
         matrices).
-    covMatrixSideFullCovFit : `int, optional
+    covMatrixSideFullCovFit : `int`, optional
         Maximum covariances lag for FULLCOVARIANCE fit. It should be less or
         equal than covMatrixSide.
     kwargs : `dict`, optional
