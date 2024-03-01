@@ -317,15 +317,6 @@ class IsrMockLSST(pipeBase.Task):
                                        np.sqrt(self.config.darkRate
                                                * self.config.darkTime))
 
-        # for amp in exposure.getDetector():
-        #     bbox = None
-        #     if self.config.isTrimmed is True:
-        #         bbox = amp.getBBox()
-        #     else:
-        #         bbox = amp.getRawDataBBox()
-
-        #     ampData = exposure.image[bbox]
-
             # 2. Gain normalize  (from e- to ADU)
             # TODO: DM-??? gain from PTC per amplifier
             # TODO: DM-??? gain with temperature dependence
@@ -333,7 +324,7 @@ class IsrMockLSST(pipeBase.Task):
                 ampData = ampData / self.config.gain
 
 
-        # 3. Add bias frame (make fake bias frame - could be 0)
+        # 3. TODO: Add bias frame (make fake bias frame - could be 0)
 
         # 4. Apply cross-talk in ADU
         if self.config.doAddCrosstalk:
@@ -708,7 +699,7 @@ class RawMock(IsrMockLSST):
         self.config.doAddSerialOverscan = True
         self.config.doAddSky = True
         self.config.doAddSource = True
-        self.config.doAddCrosstalk = False
+        self.config.doAddCrosstalk = True
         self.config.doAddBias = True
         self.config.doAddDark = True
 
@@ -758,15 +749,27 @@ class MasterMock(IsrMockLSST):
         super().__init__(**kwargs)
         self.config.isTrimmed = True
         self.config.doGenerateImage = True
-        self.config.doAddOverscan = False
         self.config.doAddSky = False
         self.config.doAddSource = False
-        self.config.doAddCrosstalk = False
 
+        self.config.doAddOverscan = False
+        self.config.doAddCrosstalk = False
         self.config.doAddBias = False
         self.config.doAddDark = False
+        self.config.doAddGain = False
         self.config.doAddFlat = False
         self.config.doAddFringe = False
+
+
+# Classes to generate calibration products mocks.
+class DarkMock(MasterMock):
+    """Simulated master dark calibration.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doAddDark = True
+        # TODO: DM-??? set doAddBF to true.
+        self.config.darkTime = 1.0
 
 
 class BiasMock(MasterMock):
@@ -775,16 +778,8 @@ class BiasMock(MasterMock):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doAddBias = True
+        self.config.doAddGain = True
         self.config.readNoise = 10.0
-
-
-class DarkMock(MasterMock):
-    """Simulated master dark calibration.
-    """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.config.doAddDark = True
-        self.config.darkTime = 1.0
 
 
 class FlatMock(MasterMock):
@@ -819,7 +814,7 @@ class BfKernelMock(IsrMockLSST):
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
         self.config.doBrighterFatter = True
-        self.config.doDefects = False
+        self.config.doDefects = True
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
 
