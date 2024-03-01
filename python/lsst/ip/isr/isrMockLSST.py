@@ -28,6 +28,7 @@ import tempfile
 import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
+import lsst.geom as geom
 
 import lsst.afw.cameraGeom.utils as afwUtils
 import lsst.afw.cameraGeom.testUtils as afwTestUtils
@@ -281,7 +282,7 @@ class IsrMockLSST(pipeBase.Task):
             allbbox = amp.getRawBBox()
 
             ampData = exposure.image[bbox]
-            ampImageData = exposure.image[allbbox]
+            ampAllData = exposure.image[allbbox]
 
             # Sky effects in e-
             if self.config.doAddSky:
@@ -351,6 +352,11 @@ class IsrMockLSST(pipeBase.Task):
                 oscanBBox = amp.getRawParallelOverscanBBox()
                 oscanData = exposure.image[oscanBBox]
 
+                # Add noise to the parallel overscan region.
+                self.amplifierAddNoise(oscanData, 0.0,
+                                    self.config.readNoise / self.config.gain)
+
+                # Apply gradient along Y axis to the image and parallel overscan regions.
                 self.amplifierAddYGradient(ampData, -1.0 * self.config.overscanScale,
                                            1.0 * self.config.overscanScale)
                 self.amplifierAddYGradient(oscanData, -1.0 * self.config.overscanScale,
@@ -367,16 +373,30 @@ class IsrMockLSST(pipeBase.Task):
 
         # 8. Apply serial overscan in ADU
         if self.config.doAddSerialOverscan:
-            oscanBBox = amp.getRawSerialOverscanBBox()
-            oscanData = exposure.image[oscanBBox]
-            self.amplifierAddNoise(oscanData, self.config.biasLevel,
+            serialOscanBBox = amp.getRawSerialOverscanBBox()
+            # Extend serial overscan region to include corners.
+            serialOscanBBox = geom.Box2I(
+                geom.Point2I(serialOscanBBox.getMinX(),
+                             allbbox.getMinY()),
+                geom.Extent2I(serialOscanBBox.getWidth(),
+                              allbbox.getHeight()),
+            )
+            serialOscanData = exposure.image[serialOscanBBox]
+
+            parallelOscanBBox = amp.getRawParallelOverscanBBox()
+            parallelOscanData = exposure.image[parallelOscanBBox]
+
+            # Add noise to the serial overscan region.
+            self.amplifierAddNoise(serialOscanData, 0.0,
                                     self.config.readNoise / self.config.gain)
 
+            # Apply gradient along X axis to the whole amp (image, corners, parallel and serial).
             self.amplifierAddXGradient(ampData, -1.0 * self.config.overscanScale,
                                         1.0 * self.config.overscanScale)
-            self.amplifierAddXGradient(oscanData, -1.0 * self.config.overscanScale,
+            self.amplifierAddXGradient(serialOscanData, -1.0 * self.config.overscanScale,
                                         1.0 * self.config.overscanScale)
-
+            self.amplifierAddXGradient(parallelOscanData, -1.0 * self.config.overscanScale,
+                                        1.0 * self.config.overscanScale)
 
         if self.config.doGenerateAmpDict:
             expDict = dict()
@@ -438,9 +458,9 @@ class IsrMockLSST(pipeBase.Task):
         exposure.getInfo().setVisitInfo(visitInfo)
 
         metadata = exposure.getMetadata()
-        metadata.add("SHEEP", 7.3, "number of sheep on farm")
-        metadata.add("MONKEYS", 155, "monkeys per tree")
-        metadata.add("VAMPIRES", 4, "How scary are vampires.")
+#        metadata.add("SHEEP", 7.3, "number of sheep on farm")
+#        metadata.add("MONKEYS", 155, "monkeys per tree")
+#        metadata.add("VAMPIRES", 4, "How scary are vampires.")
 
         ccd = exposure.getDetector()
         newCcd = ccd.rebuild()
@@ -562,7 +582,7 @@ class IsrMockLSST(pipeBase.Task):
         """
         nPixX = ampData.getDimensions().getX()
         ampArr = ampData.array
-        ampArr[:] = ampArr[:] + (np.interp(range(nPixX), (0, nPixX - 1), (start, end)).reshape(nPixX, 1)
+        ampArr[:] = ampArr[:] + (np.interp(range(nPixX), (0, nPixX - 1), (start, end)).reshape(1, nPixX)
                                  + np.zeros(ampData.getDimensions()).transpose())
 
     def amplifierAddSource(self, ampData, scale, x0, y0):
