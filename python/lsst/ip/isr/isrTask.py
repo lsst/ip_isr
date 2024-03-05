@@ -1889,7 +1889,7 @@ class IsrTask(pipeBase.PipelineTask):
             else:
                 ptcTurnoff = 2e19
 
-            if (isinstance(ptcTurnoff, (int, float)) and ptcTurnoff > 0):
+            if (isinstance(ptcTurnoff, numbers.Real) and ptcTurnoff > 0):
                 effectivePtc.ptcTurnoff[ampName] = ptcTurnoff
             elif math.isnan(ptcTurnoff):
                 effectivePtc.ptcTurnoff[ampName] = 2e19
