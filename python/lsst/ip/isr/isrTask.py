@@ -23,6 +23,7 @@ __all__ = ["IsrTask", "IsrTaskConfig"]
 
 import math
 import numpy
+import numbers
 
 import lsst.geom
 import lsst.afw.image as afwImage
