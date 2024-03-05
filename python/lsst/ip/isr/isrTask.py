@@ -1884,7 +1884,11 @@ class IsrTask(pipeBase.PipelineTask):
             # PTC Turnoff:
             # Copy it over from the input PTC if it's positive. If it's a nan
             # set it to a high value.
-            ptcTurnoff = ptcDataset.ptcTurnoff[ampName]
+            if ptcDataset is not None:
+                ptcTurnoff = ptcDataset.ptcTurnoff[ampName]
+            else:
+                ptcTurnoff = 2e19
+
             if (isinstance(ptcTurnoff, (int, float)) and ptcTurnoff > 0):
                 effectivePtc.ptcTurnoff[ampName] = ptcTurnoff
             elif math.isnan(ptcTurnoff):
