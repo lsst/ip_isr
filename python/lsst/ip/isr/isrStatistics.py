@@ -484,6 +484,13 @@ class IsrStatisticsTask(pipeBase.Task):
             lastRow = dataBox.maxY
             dataRegion = image[dataBox]
 
+            # If readout corner is on the right side,
+            # we need to swap the first and last columns
+            # of teh data region
+            readoutCorner = amp.getReadoutCorner()
+            if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
+                firstCol, lastCol = lastCol, firstCol
+
             # Overscan
             overscanBox = amp.getRawSerialOverscanBBox()
             firstColOs = overscanBox.minX
