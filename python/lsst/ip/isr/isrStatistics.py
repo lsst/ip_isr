@@ -495,6 +495,7 @@ class IsrStatisticsTask(pipeBase.Task):
             overscanBox = amp.getRawSerialOverscanBBox()
             firstColOs = overscanBox.minX
             lastColOs = overscanBox.maxX
+            firstRowOs = overscanBox.minY
 
             if overscans[ampIter] is None:
                 # The amplifier is likely entirely bad, and needs to
@@ -513,7 +514,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
             # parallel CTI with EPER
             signal = np.nansum(dataRegion[lastRow, firstCol:lastCol + 1])
-            trailed = np.nansum(overscanImage[lastRow:lastRow + 1 + nPixOs, firstColOs:lastColOs + 1])
+            trailed = np.nansum(overscanImage[firstRowOs:firstRowOs + 1 + nPixOs, firstColOs:lastColOs + 1])
             parallelCTI = (trailed/signal)/(dataBox.height + 1)
 
             ampStats["SERIAL_CTI_EPER"] = serialCTI
