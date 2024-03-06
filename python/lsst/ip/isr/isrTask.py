@@ -23,6 +23,7 @@ __all__ = ["IsrTask", "IsrTaskConfig"]
 
 import math
 import numpy
+import numbers
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -1860,7 +1861,7 @@ class IsrTask(pipeBase.PipelineTask):
                     noise = overscanResults.residualSigma[0]
             elif self.config.usePtcReadNoise:
                 # Try then with the PTC noise.
-                noise = ptcDataset.noise[amp.getName()]
+                noise = ptcDataset.noise[ampName]
                 noiseProvenanceString = "ptc"
                 self.log.debug("Using noise from Photon Transfer Curve.")
             else:
@@ -1880,6 +1881,19 @@ class IsrTask(pipeBase.PipelineTask):
                 self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
                                  ampName, gain, patchedGain)
                 gain = patchedGain
+
+            # PTC Turnoff:
+            # Copy it over from the input PTC if it's positive. If it's a nan
+            # set it to a high value.
+            if ptcDataset is not None:
+                ptcTurnoff = ptcDataset.ptcTurnoff[ampName]
+            else:
+                ptcTurnoff = 2e19
+
+            if (isinstance(ptcTurnoff, numbers.Real) and ptcTurnoff > 0):
+                effectivePtc.ptcTurnoff[ampName] = ptcTurnoff
+            elif math.isnan(ptcTurnoff):
+                effectivePtc.ptcTurnoff[ampName] = 2e19
 
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
