@@ -36,7 +36,7 @@ import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from .crosstalk import CrosstalkCalib
 from .defects import Defects
-from .isrMock import IsrMockConfig
+from .isrMock import IsrMockConfig, IsrMock
 
 
 class IsrMockLSSTConfig(IsrMockConfig):
@@ -109,7 +109,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
     # Inclusion parameters are inherited from isrMock.
 
 
-class IsrMockLSST(pipeBase.Task):
+class IsrMockLSST(IsrMock):
     """Class to generate consistent mock images for ISR testing.
 
     ISR testing currently relies on one-off fake images that do not
@@ -122,22 +122,8 @@ class IsrMockLSST(pipeBase.Task):
     _DefaultName = "isrMockLSST"
 
     def __init__(self, **kwargs):
+        # cross-talk coeffs, bf kernel are defined in the parent class.
         super().__init__(**kwargs)
-        self.rng = np.random.RandomState(self.config.rngSeed)
-        self.crosstalkCoeffs = np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -1e-3, 0.0, 0.0],
-                                         [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                         [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                         [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                         [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                         [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                         [1e-2, 0.0, 0.0, 2.2e-2, 0.0, 0.0, 0.0, 0.0],
-                                         [1e-2, 5e-3, 5e-4, 3e-3, 4e-2, 5e-3, 5e-3, 0.0]])
-
-        self.bfKernel = np.array([[1., 4., 7., 4., 1.],
-                                  [4., 16., 26., 16., 4.],
-                                  [7., 26., 41., 26., 7.],
-                                  [4., 16., 26., 16., 4.],
-                                  [1., 4., 7., 4., 1.]]) / 273.0
 
     def run(self):
         """Generate a mock ISR product following LSSTCam ISR, and return it.
@@ -164,77 +150,6 @@ class IsrMockLSST(pipeBase.Task):
             return self.makeData()
         else:
             return None
-
-    def makeData(self):
-        """Generate simulated ISR LSST data.
-
-        Currently, only the class defined crosstalk coefficient
-        matrix, brighter-fatter kernel, a constant unity transmission
-        curve, or a simple single-entry defect list can be generated.
-
-        Returns
-        -------
-        dataProduct :
-            Simulated ISR data product.
-        """
-        if sum(map(bool, [self.config.doBrighterFatter,
-                          self.config.doDefects,
-                          self.config.doTransmissionCurve,
-                          self.config.doCrosstalkCoeffs])) != 1:
-            raise RuntimeError("Only one data product can be generated at a time.")
-        elif self.config.doBrighterFatter is True:
-            return self.makeBfKernel()
-        elif self.config.doDefects is True:
-            return self.makeDefectList()
-        elif self.config.doTransmissionCurve is True:
-            return self.makeTransmissionCurve()
-        elif self.config.doCrosstalkCoeffs is True:
-            return self.crosstalkCoeffs
-        else:
-            return None
-
-    def makeBfKernel(self):
-        """Generate a simple Gaussian brighter-fatter kernel.
-
-        Returns
-        -------
-        kernel : `numpy.ndarray`
-            Simulated brighter-fatter kernel.
-        """
-        return self.bfKernel
-
-    def makeDefectList(self):
-        """Generate a simple single-entry defect list.
-
-        Returns
-        -------
-        defectList : `lsst.meas.algorithms.Defects`
-            Simulated defect list
-        """
-        return Defects([lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                                        lsst.geom.Extent2I(40, 50))])
-
-    def makeCrosstalkCoeff(self):
-        """Generate the simulated crosstalk coefficients.
-
-        Returns
-        -------
-        coeffs : `numpy.ndarray`
-            Simulated crosstalk coefficients.
-        """
-
-        return self.crosstalkCoeffs
-
-    def makeTransmissionCurve(self):
-        """Generate a simulated flat transmission curve.
-
-        Returns
-        -------
-        transmission : `lsst.afw.image.TransmissionCurve`
-            Simulated transmission curve.
-        """
-
-        return afwImage.TransmissionCurve.makeIdentity()
 
     def makeImage(self):
         """Generate a simulated ISR LSST image.
@@ -278,11 +193,9 @@ class IsrMockLSST(pipeBase.Task):
 
         for idx, amp in enumerate(exposure.getDetector()):
 
-            bbox = amp.getRawDataBBox()
-            allbbox = amp.getRawBBox()
-
-            ampData = exposure.image[bbox]
-            ampAllData = exposure.image[allbbox]
+            # Get image bbox and data
+            imageBBox = amp.getRawDataBBox()
+            ampData = exposure.image[imageBBox]
 
             # Sky effects in e-
             if self.config.doAddSky:
@@ -337,57 +250,61 @@ class IsrMockLSST(pipeBase.Task):
                     self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
 
 
-        # 5. Apply parallel overscan in ADU
         for amp in exposure.getDetector():
-            if self.config.doAddParallelOverscan:
-                oscanBBox = amp.getRawParallelOverscanBBox()
-                oscanData = exposure.image[oscanBBox]
 
+            parallelOscanBBox = amp.getRawParallelOverscanBBox()
+            parallelOscanData = exposure.image[parallelOscanBBox]
+
+            serialOscanBBox = amp.getRawSerialOverscanBBox()
+
+            # 5. Apply parallel overscan in ADU
+            if self.config.doAddParallelOverscan:
                 # Add noise to the parallel overscan region.
-                self.amplifierAddNoise(oscanData, 0.0,
+                self.amplifierAddNoise(parallelOscanData, 0.0,
                                     self.config.readNoise / self.config.gain)
 
                 # Apply gradient along Y axis to the image and parallel overscan regions.
                 self.amplifierAddYGradient(ampData, -1.0 * self.config.overscanScale,
                                            1.0 * self.config.overscanScale)
-                self.amplifierAddYGradient(oscanData, -1.0 * self.config.overscanScale,
+                self.amplifierAddYGradient(parallelOscanData, -1.0 * self.config.overscanScale,
                                            1.0 * self.config.overscanScale)
 
         # 6. Add Parallel overscan xtalk.
         # TODO: DM-???
 
-        # 7. Add bias in ADU
-        # The bias level is in ADU and readNoise in electrons.
-        if self.config.doAddBiasLevel:
-            self.amplifierAddNoise(ampData, self.config.biasLevel,
-                                    self.config.readNoise / self.config.gain)
+            # 7. Add bias level to each amplifier in ADU
+            # The bias level is in ADU and readNoise in electrons.
+            if self.config.doAddBiasLevel:
+                self.amplifierAddNoise(ampData, self.config.biasLevel,
+                                        self.config.readNoise / self.config.gain)
 
-        # 8. Apply serial overscan in ADU
-        if self.config.doAddSerialOverscan:
-            serialOscanBBox = amp.getRawSerialOverscanBBox()
-            # Extend serial overscan region to include corners.
-            serialOscanBBox = geom.Box2I(
-                geom.Point2I(serialOscanBBox.getMinX(),
-                             allbbox.getMinY()),
-                geom.Extent2I(serialOscanBBox.getWidth(),
-                              allbbox.getHeight()),
-            )
-            serialOscanData = exposure.image[serialOscanBBox]
+            # 8. Apply serial overscan in ADU
+            if self.config.doAddSerialOverscan:
+                # 1. We grow the image to the parallel oversan region
+                # (we do this in case there are prescan regions)
+                grownImageBBox = imageBBox.expandedTo(parallelOscanBBox)
+                # 2. Now we grow the serial overscan region to include the corners
+                serialOscanBBox = geom.Box2I(
+                    geom.Point2I(serialOscanBBox.getMinX(),
+                                grownImageBBox.getMinY()),
+                    geom.Extent2I(serialOscanBBox.getWidth(),
+                                grownImageBBox.getHeight()),
+                )
+                serialOscanData = exposure.image[serialOscanBBox]
 
-            parallelOscanBBox = amp.getRawParallelOverscanBBox()
-            parallelOscanData = exposure.image[parallelOscanBBox]
+                # Add noise to the serial overscan region.
+                self.amplifierAddNoise(serialOscanData, 0.0,
+                                        self.config.readNoise / self.config.gain)
 
-            # Add noise to the serial overscan region.
-            self.amplifierAddNoise(serialOscanData, 0.0,
-                                    self.config.readNoise / self.config.gain)
-
-            # Apply gradient along X axis to the whole amp (image, corners, parallel and serial).
-            self.amplifierAddXGradient(ampData, -1.0 * self.config.overscanScale,
-                                        1.0 * self.config.overscanScale)
-            self.amplifierAddXGradient(serialOscanData, -1.0 * self.config.overscanScale,
-                                        1.0 * self.config.overscanScale)
-            self.amplifierAddXGradient(parallelOscanData, -1.0 * self.config.overscanScale,
-                                        1.0 * self.config.overscanScale)
+                # Apply gradient along X axis to the whole amp
+                # First the serial overscan and corners region
+                self.amplifierAddXGradient(serialOscanData, -1.0 * self.config.overscanScale,
+                                            1.0 * self.config.overscanScale)
+                # And second the image and parallel overscan region
+                self.amplifierAddXGradient(ampData, -1.0 * self.config.overscanScale,
+                                            1.0 * self.config.overscanScale)
+                self.amplifierAddXGradient(parallelOscanData, -1.0 * self.config.overscanScale,
+                                            1.0 * self.config.overscanScale)
 
         if self.config.doGenerateAmpDict:
             expDict = dict()
@@ -396,166 +313,6 @@ class IsrMockLSST(pipeBase.Task):
             return expDict
         else:
             return exposure
-
-    # afw primatives to construct the image structure
-    def getCamera(self):
-        """Construct a test camera object.
-
-        Returns
-        -------
-        camera : `lsst.afw.cameraGeom.camera`
-            Test camera.
-        """
-        cameraWrapper = afwTestUtils.CameraWrapper(
-            plateScale=self.config.plateScale,
-            radialDistortion=self.config.radialDistortion,
-            isLsstLike=self.config.isLsstLike,
-        )
-        camera = cameraWrapper.camera
-        return camera
-
-    def getExposure(self):
-        """Construct a test exposure.
-
-        The test exposure has a simple WCS set, as well as a list of
-        unlikely header keywords that can be removed during ISR
-        processing to exercise that code.
-
-        Returns
-        -------
-        exposure : `lsst.afw.exposure.Exposure`
-            Construct exposure containing masked image of the
-            appropriate size.
-        """
-        camera = self.getCamera()
-        detector = camera[self.config.detectorIndex]
-        image = afwUtils.makeImageFromCcd(detector,
-                                          isTrimmed=self.config.isTrimmed,
-                                          showAmpGain=False,
-                                          rcMarkSize=0,
-                                          binSize=1,
-                                          imageFactory=afwImage.ImageF)
-
-        var = afwImage.ImageF(image.getDimensions())
-        mask = afwImage.Mask(image.getDimensions())
-        image.assign(0.0)
-
-        maskedImage = afwImage.makeMaskedImage(image, mask, var)
-        exposure = afwImage.makeExposure(maskedImage)
-        exposure.setDetector(detector)
-        exposure.setWcs(self.getWcs())
-
-        visitInfo = afwImage.VisitInfo(exposureTime=self.config.expTime, darkTime=self.config.darkTime)
-        exposure.getInfo().setVisitInfo(visitInfo)
-
-        metadata = exposure.getMetadata()
-#        metadata.add("SHEEP", 7.3, "number of sheep on farm")
-#        metadata.add("MONKEYS", 155, "monkeys per tree")
-#        metadata.add("VAMPIRES", 4, "How scary are vampires.")
-
-        ccd = exposure.getDetector()
-        newCcd = ccd.rebuild()
-        newCcd.clear()
-        for amp in ccd:
-            newAmp = amp.rebuild()
-            newAmp.setLinearityCoeffs((0., 1., 0., 0.))
-            newAmp.setLinearityType("Polynomial")
-            newAmp.setGain(self.config.gain)
-            newAmp.setSuspectLevel(25000.0)
-            newAmp.setSaturation(32000.0)
-            newCcd.append(newAmp)
-        exposure.setDetector(newCcd.finish())
-
-        exposure.image.array[:] = np.zeros(exposure.getImage().getDimensions()).transpose()
-        exposure.mask.array[:] = np.zeros(exposure.getMask().getDimensions()).transpose()
-        exposure.variance.array[:] = np.zeros(exposure.getVariance().getDimensions()).transpose()
-
-        return exposure
-
-    def getWcs(self):
-        """Construct a dummy WCS object.
-
-        Taken from the deprecated ip_isr/examples/exampleUtils.py.
-
-        This is not guaranteed, given the distortion and pixel scale
-        listed in the afwTestUtils camera definition.
-
-        Returns
-        -------
-        wcs : `lsst.afw.geom.SkyWcs`
-            Test WCS transform.
-        """
-        return afwGeom.makeSkyWcs(crpix=lsst.geom.Point2D(0.0, 100.0),
-                                  crval=lsst.geom.SpherePoint(45.0, 25.0, lsst.geom.degrees),
-                                  cdMatrix=afwGeom.makeCdMatrix(scale=1.0*lsst.geom.degrees))
-
-    def localCoordToExpCoord(self, ampData, x, y):
-        """Convert between a local amplifier coordinate and the full
-        exposure coordinate.
-
-        Parameters
-        ----------
-        ampData : `lsst.afw.image.ImageF`
-            Amplifier image to use for conversions.
-        x : `int`
-            X-coordinate of the point to transform.
-        y : `int`
-            Y-coordinate of the point to transform.
-
-        Returns
-        -------
-        u : `int`
-            Transformed x-coordinate.
-        v : `int`
-            Transformed y-coordinate.
-
-        Notes
-        -----
-        The output is transposed intentionally here, to match the
-        internal transpose between numpy and afw.image coordinates.
-        """
-        u = x + ampData.getBBox().getBeginX()
-        v = y + ampData.getBBox().getBeginY()
-
-        return (v, u)
-
-    # Simple data values.
-    def amplifierAddNoise(self, ampData, mean, sigma):
-        """Add Gaussian noise to an amplifier's image data.
-
-         This method operates in the amplifier coordinate frame.
-
-        Parameters
-        ----------
-        ampData : `lsst.afw.image.ImageF`
-            Amplifier image to operate on.
-        mean : `float`
-            Mean value of the Gaussian noise.
-        sigma : `float`
-            Sigma of the Gaussian noise.
-        """
-        ampArr = ampData.array
-        ampArr[:] = ampArr[:] + self.rng.normal(mean, sigma,
-                                                size=ampData.getDimensions()).transpose()
-
-    def amplifierAddYGradient(self, ampData, start, end):
-        """Add a y-axis linear gradient to an amplifier's image data.
-
-         This method operates in the amplifier coordinate frame.
-
-        Parameters
-        ----------
-        ampData : `lsst.afw.image.ImageF`
-            Amplifier image to operate on.
-        start : `float`
-            Start value of the gradient (at y=0).
-        end : `float`
-            End value of the gradient (at y=ymax).
-        """
-        nPixY = ampData.getDimensions().getY()
-        ampArr = ampData.array
-        ampArr[:] = ampArr[:] + (np.interp(range(nPixY), (0, nPixY - 1), (start, end)).reshape(nPixY, 1)
-                                 + np.zeros(ampData.getDimensions()).transpose())
 
     def amplifierAddXGradient(self, ampData, start, end):
         """Add a x-axis linear gradient to an amplifier's image data.
@@ -576,117 +333,6 @@ class IsrMockLSST(pipeBase.Task):
         ampArr[:] = ampArr[:] + (np.interp(range(nPixX), (0, nPixX - 1), (start, end)).reshape(1, nPixX)
                                  + np.zeros(ampData.getDimensions()).transpose())
 
-    def amplifierAddSource(self, ampData, scale, x0, y0):
-        """Add a single Gaussian source to an amplifier.
-
-         This method operates in the amplifier coordinate frame.
-
-        Parameters
-        ----------
-        ampData : `lsst.afw.image.ImageF`
-            Amplifier image to operate on.
-        scale : `float`
-            Peak flux of the source to add.
-        x0 : `float`
-            X-coordinate of the source peak.
-        y0 : `float`
-            Y-coordinate of the source peak.
-        """
-        for x in range(0, ampData.getDimensions().getX()):
-            for y in range(0, ampData.getDimensions().getY()):
-                ampData.array[y][x] = (ampData.array[y][x]
-                                       + scale * np.exp(-0.5 * ((x - x0)**2 + (y - y0)**2) / 3.0**2))
-
-    def amplifierAddCT(self, ampDataSource, ampDataTarget, scale):
-        """Add a scaled copy of an amplifier to another, simulating crosstalk.
-
-         This method operates in the amplifier coordinate frame.
-
-        Parameters
-        ----------
-        ampDataSource : `lsst.afw.image.ImageF`
-            Amplifier image to add scaled copy from.
-        ampDataTarget : `lsst.afw.image.ImageF`
-            Amplifier image to add scaled copy to.
-        scale : `float`
-            Flux scale of the copy to add to the target.
-
-        Notes
-        -----
-        This simulates simple crosstalk between amplifiers.
-        """
-        ampDataTarget.array[:] = (ampDataTarget.array[:]
-                                  + scale * ampDataSource.array[:])
-
-    # Functional form data values.
-    def amplifierAddFringe(self, amp, ampData, scale, x0=100, y0=0):
-        """Add a fringe-like ripple pattern to an amplifier's image data.
-
-        Parameters
-        ----------
-        amp : `~lsst.afw.ampInfo.AmpInfoRecord`
-            Amplifier to operate on. Needed for amp<->exp coordinate
-            transforms.
-        ampData : `lsst.afw.image.ImageF`
-            Amplifier image to operate on.
-        scale : `numpy.array` or `float`
-            Peak intensity scaling for the ripple.
-        x0 : `numpy.array` or `float`, optional
-            Fringe center
-        y0 : `numpy.array` or `float`, optional
-            Fringe center
-
-        Notes
-        -----
-        This uses an offset sinc function to generate a ripple
-        pattern. True fringes have much finer structure, but this
-        pattern should be visually identifiable. The (x, y)
-        coordinates are in the frame of the amplifier, and (u, v) in
-        the frame of the full trimmed image.
-        """
-        for x in range(0, ampData.getDimensions().getX()):
-            for y in range(0, ampData.getDimensions().getY()):
-                (u, v) = self.localCoordToExpCoord(amp, x, y)
-                ampData.getArray()[y][x] = np.sum((ampData.getArray()[y][x]
-                                                   + scale * np.sinc(((u - x0) / 50)**2
-                                                                     + ((v - y0) / 50)**2)))
-
-    def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
-        """Multiply an amplifier's image data by a flat-like pattern.
-
-        Parameters
-        ----------
-        amp : `lsst.afw.ampInfo.AmpInfoRecord`
-            Amplifier to operate on. Needed for amp<->exp coordinate
-            transforms.
-        ampData : `lsst.afw.image.ImageF`
-            Amplifier image to operate on.
-        fracDrop : `float`
-            Fractional drop from center to edge of detector along x-axis.
-        u0 : `float`
-            Peak location in detector coordinates.
-        v0 : `float`
-            Peak location in detector coordinates.
-
-        Notes
-        -----
-        This uses a 2-d Gaussian to simulate an illumination pattern
-        that falls off towards the edge of the detector. The (x, y)
-        coordinates are in the frame of the amplifier, and (u, v) in
-        the frame of the full trimmed image.
-        """
-        if fracDrop >= 1.0:
-            raise RuntimeError("Flat fractional drop cannot be greater than 1.0")
-
-        sigma = u0 / np.sqrt(-2.0 * np.log(fracDrop))
-
-        for x in range(0, ampData.getDimensions().getX()):
-            for y in range(0, ampData.getDimensions().getY()):
-                (u, v) = self.localCoordToExpCoord(amp, x, y)
-                f = np.exp(-0.5 * ((u - u0)**2 + (v - v0)**2) / sigma**2)
-                ampData.array[y][x] = (ampData.array[y][x] * f)
-
-
 class RawMock(IsrMockLSST):
     """Generate a raw exposure suitable for ISR.
     """
@@ -695,23 +341,17 @@ class RawMock(IsrMockLSST):
         self.config.isTrimmed = False
         self.config.doGenerateImage = True
         self.config.doGenerateAmpDict = False
-        self.config.doAddParallelOverscan = True
-        self.config.doAddSerialOverscan = True
+
+        # Add astro effects
         self.config.doAddSky = True
         self.config.doAddSource = True
+
+        # Add instru effects
+        self.config.doAddParallelOverscan = True
+        self.config.doAddSerialOverscan = True
         self.config.doAddCrosstalk = True
         self.config.doAddBias = True
         self.config.doAddDark = True
-
-
-class TrimmedRawMock(RawMock):
-    """Generate a trimmed raw exposure.
-    """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.config.isTrimmed = True
-        self.config.doAddOverscan = False
-
 
 class CalibratedRawMock(RawMock):
     """Generate a trimmed raw exposure.
