@@ -19,85 +19,30 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["IsrMockLSSTConfig","IsrMockLSST"]
+__all__ = ["IsrMockLSSTConfig", "IsrMockLSST"]
 
 import copy
 import numpy as np
 import tempfile
 
-import lsst.geom
-import lsst.afw.geom as afwGeom
-import lsst.afw.image as afwImage
 import lsst.geom as geom
-
-import lsst.afw.cameraGeom.utils as afwUtils
-import lsst.afw.cameraGeom.testUtils as afwTestUtils
 import lsst.pex.config as pexConfig
-import lsst.pipe.base as pipeBase
 from .crosstalk import CrosstalkCalib
-from .defects import Defects
 from .isrMock import IsrMockConfig, IsrMock
 
 
 class IsrMockLSSTConfig(IsrMockConfig):
     """Configuration parameters for isrMockLSST.
-
-    These parameters produce generic fixed position signals from
-    various sources, and combine them in a way that matches how those
-    signals are combined to create real data. The camera used is the
-    test camera defined by the afwUtils code.
-    They mostly are inherited from isrMock but some of them are updated.
     """
-    # Detector parameters and "Exposure" parameters.
+    # Detector parameters and "Exposure" parameters,
+    # mostly inherited from IsrMockConfig.
     isLsstLike = pexConfig.Field(
         dtype=bool,
         default=True,
         doc="If True, products have one raw image per amplifier, otherwise, one raw image per detector.",
     )
-    plateScale = pexConfig.Field(
-        dtype=float,
-        default=20.0,
-        doc="Plate scale used in constructing mock camera.",
-    )
-    radialDistortion = pexConfig.Field(
-        dtype=float,
-        default=0.925,
-        doc="Radial distortion term used in constructing mock camera.",
-    )
-    isTrimmed = pexConfig.Field(
-        dtype=bool,
-        default=True,
-        doc="If True, amplifiers have been trimmed and mosaicked to remove regions outside the data BBox.",
-    )
-    detectorIndex = pexConfig.Field(
-        dtype=int,
-        default=20,
-        doc="Index for the detector to use. The default value uses a standard 2x4 array of amps.",
-    )
-    rngSeed = pexConfig.Field(
-        dtype=int,
-        default=20000913,
-        doc="Seed for random number generator used to add noise.",
-    )
-    # TODO: DM-18345 Check that mocks scale correctly when gain != 1.0
-    gain = pexConfig.Field(
-        dtype=float,
-        default=1.0,
-        doc="Gain for simulated data in e^-/DN.",
-    )
-    readNoise = pexConfig.Field(
-        dtype=float,
-        default=5.0,
-        doc="Read noise of the detector in e-.",
-    )
-    expTime = pexConfig.Field(
-        dtype=float,
-        default=5.0,
-        doc="Exposure time for simulated data.",
-    )
-
     # Signal parameters.
-    # Most of them are inherited from isrMock but we update
+    # Most of them are inherited from isrMockConfig but we update
     # some to LSSTcam expected values.
     # TODO: DM-42880 Update values to what is expected in LSSTCam.
     biasLevel = pexConfig.Field(
@@ -105,8 +50,22 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=30000.0,
         doc="Background contribution to be generated from the bias offset in ADU.",
     )
-
     # Inclusion parameters are inherited from isrMock.
+    doAddParallelOverscan = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add overscan ramp to parallel overscan and data regions.",
+    )
+    doAddSerialOverscan = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add overscan ramp to serial overscan and data regions.",
+    )
+    doAddGain = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add gain to data.",
+    )
 
 
 class IsrMockLSST(IsrMock):
@@ -234,11 +193,9 @@ class IsrMockLSST(IsrMock):
             # TODO: DM-??? gain from PTC per amplifier
             # TODO: DM-??? gain with temperature dependence
             if self.config.doAddGain:
-                ampData = ampData / self.config.gain
-
+                self.addGain(ampData, self.config.gain)
 
         # 3. TODO: Add bias frame (make fake bias frame - could be 0)
-
         # 4. Apply cross-talk in ADU
         if self.config.doAddCrosstalk:
             ctCalib = CrosstalkCalib()
@@ -249,9 +206,7 @@ class IsrMockLSST(IsrMock):
                                                 isTrimmed=False)
                     self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
 
-
         for amp in exposure.getDetector():
-
             parallelOscanBBox = amp.getRawParallelOverscanBBox()
             parallelOscanData = exposure.image[parallelOscanBBox]
 
@@ -261,9 +216,10 @@ class IsrMockLSST(IsrMock):
             if self.config.doAddParallelOverscan:
                 # Add noise to the parallel overscan region.
                 self.amplifierAddNoise(parallelOscanData, 0.0,
-                                    self.config.readNoise / self.config.gain)
+                                       self.config.readNoise / self.config.gain)
 
-                # Apply gradient along Y axis to the image and parallel overscan regions.
+                # Apply gradient along Y axis to the image
+                # and parallel overscan regions.
                 self.amplifierAddYGradient(ampData, -1.0 * self.config.overscanScale,
                                            1.0 * self.config.overscanScale)
                 self.amplifierAddYGradient(parallelOscanData, -1.0 * self.config.overscanScale,
@@ -274,37 +230,38 @@ class IsrMockLSST(IsrMock):
 
             # 7. Add bias level to each amplifier in ADU
             # The bias level is in ADU and readNoise in electrons.
-            if self.config.doAddBiasLevel:
+            # We always want to do this when adding overscans.
                 self.amplifierAddNoise(ampData, self.config.biasLevel,
-                                        self.config.readNoise / self.config.gain)
+                                       self.config.readNoise / self.config.gain)
 
             # 8. Apply serial overscan in ADU
             if self.config.doAddSerialOverscan:
                 # 1. We grow the image to the parallel oversan region
                 # (we do this in case there are prescan regions)
                 grownImageBBox = imageBBox.expandedTo(parallelOscanBBox)
-                # 2. Now we grow the serial overscan region to include the corners
+                # 2. Now we grow the serial overscan region
+                # to include the corners
                 serialOscanBBox = geom.Box2I(
                     geom.Point2I(serialOscanBBox.getMinX(),
-                                grownImageBBox.getMinY()),
+                                 grownImageBBox.getMinY()),
                     geom.Extent2I(serialOscanBBox.getWidth(),
-                                grownImageBBox.getHeight()),
+                                  grownImageBBox.getHeight()),
                 )
                 serialOscanData = exposure.image[serialOscanBBox]
 
                 # Add noise to the serial overscan region.
                 self.amplifierAddNoise(serialOscanData, 0.0,
-                                        self.config.readNoise / self.config.gain)
+                                       self.config.readNoise / self.config.gain)
 
                 # Apply gradient along X axis to the whole amp
                 # First the serial overscan and corners region
                 self.amplifierAddXGradient(serialOscanData, -1.0 * self.config.overscanScale,
-                                            1.0 * self.config.overscanScale)
+                                           1.0 * self.config.overscanScale)
                 # And second the image and parallel overscan region
                 self.amplifierAddXGradient(ampData, -1.0 * self.config.overscanScale,
-                                            1.0 * self.config.overscanScale)
+                                           1.0 * self.config.overscanScale)
                 self.amplifierAddXGradient(parallelOscanData, -1.0 * self.config.overscanScale,
-                                            1.0 * self.config.overscanScale)
+                                           1.0 * self.config.overscanScale)
 
         if self.config.doGenerateAmpDict:
             expDict = dict()
@@ -313,6 +270,10 @@ class IsrMockLSST(IsrMock):
             return expDict
         else:
             return exposure
+
+    def addGain(self, ampData, gain):
+        ampArr = ampData.array
+        ampArr[:] = ampArr[:] / gain
 
     def amplifierAddXGradient(self, ampData, start, end):
         """Add a x-axis linear gradient to an amplifier's image data.
@@ -333,7 +294,8 @@ class IsrMockLSST(IsrMock):
         ampArr[:] = ampArr[:] + (np.interp(range(nPixX), (0, nPixX - 1), (start, end)).reshape(1, nPixX)
                                  + np.zeros(ampData.getDimensions()).transpose())
 
-class RawMock(IsrMockLSST):
+
+class RawMockLSST(IsrMockLSST):
     """Generate a raw exposure suitable for ISR.
     """
     def __init__(self, **kwargs):
@@ -346,6 +308,9 @@ class RawMock(IsrMockLSST):
         self.config.doAddSky = True
         self.config.doAddSource = True
 
+        # Add optical effects
+        self.config.doAddFringe = True
+
         # Add instru effects
         self.config.doAddParallelOverscan = True
         self.config.doAddSerialOverscan = True
@@ -353,66 +318,66 @@ class RawMock(IsrMockLSST):
         self.config.doAddBias = True
         self.config.doAddDark = True
 
-class CalibratedRawMock(RawMock):
+        self.config.doAddFlat = True
+
+
+class CalibratedRawMockLSST(RawMockLSST):
     """Generate a trimmed raw exposure.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config.isTrimmed = True
+#        self.config.isTrimmed = True
         self.config.doGenerateImage = True
-        self.config.doAddOverscan = False
+
         self.config.doAddSky = True
         self.config.doAddSource = True
-        self.config.doAddCrosstalk = False
 
-        self.config.doAddBias = False
-        self.config.doAddDark = False
-        self.config.doAddFlat = False
         self.config.doAddFringe = True
 
-        self.config.biasLevel = 0.0
-        self.config.readNoise = 10.0
-
-
-class RawDictMock(RawMock):
-    """Generate a raw exposure dict suitable for ISR.
-    """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.config.doGenerateAmpDict = True
-
-
-class MasterMock(IsrMockLSST):
-    """Parent class for those that make master calibrations.
-    """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.config.isTrimmed = True
-        self.config.doGenerateImage = True
-        self.config.doAddSky = False
-        self.config.doAddSource = False
-
-        self.config.doAddOverscan = False
+        self.config.doAddParallelOverscan = False
+        self.config.doAddSerialOverscan = False
         self.config.doAddCrosstalk = False
         self.config.doAddBias = False
         self.config.doAddDark = False
         self.config.doAddGain = False
         self.config.doAddFlat = False
+
+        self.config.biasLevel = 0.0
+        self.config.readNoise = 10.0
+
+
+class ReferenceMockLSST(IsrMockLSST):
+    """Parent class for those that make reference calibrations.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doGenerateImage = True
+
+        self.config.doAddSky = False
+        self.config.doAddSource = False
+
         self.config.doAddFringe = False
+
+        self.config.doAddParallelOverscan = False
+        self.config.doAddSerialOverscan = False
+        self.config.doAddCrosstalk = False
+        self.config.doAddBias = False
+        self.config.doAddDark = False
+        self.config.doAddGain = False
+        self.config.doAddFlat = False
 
 
 # Classes to generate calibration products mocks.
-class DarkMock(MasterMock):
+class DarkMockLSST(ReferenceMockLSST):
     """Simulated master dark calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doAddDark = True
-        # TODO: DM-??? set doAddBF to true.
         self.config.darkTime = 1.0
 
 
-class BiasMock(MasterMock):
+class BiasMockLSST(ReferenceMockLSST):
     """Simulated master bias calibration.
     """
     def __init__(self, **kwargs):
@@ -422,7 +387,7 @@ class BiasMock(MasterMock):
         self.config.readNoise = 10.0
 
 
-class FlatMock(MasterMock):
+class FlatMockLSST(ReferenceMockLSST):
     """Simulated master flat calibration.
     """
     def __init__(self, **kwargs):
@@ -430,7 +395,7 @@ class FlatMock(MasterMock):
         self.config.doAddFlat = True
 
 
-class FringeMock(MasterMock):
+class FringeMockLSST(ReferenceMockLSST):
     """Simulated master fringe calibration.
     """
     def __init__(self, **kwargs):
@@ -438,67 +403,64 @@ class FringeMock(MasterMock):
         self.config.doAddFringe = True
 
 
-class UntrimmedFringeMock(FringeMock):
-    """Simulated untrimmed master fringe calibration.
-    """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.config.isTrimmed = False
-
-
-class BfKernelMock(IsrMockLSST):
+class BfKernelMockLSST(IsrMockLSST):
     """Simulated brighter-fatter kernel.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
+
+        # calibration products configs
         self.config.doBrighterFatter = True
-        self.config.doDefects = True
+        self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
 
 
-class DefectMock(IsrMockLSST):
+class DefectMockLSST(IsrMockLSST):
     """Simulated defect list.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
+
         self.config.doBrighterFatter = False
         self.config.doDefects = True
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
 
 
-class CrosstalkCoeffMock(IsrMockLSST):
+class CrosstalkCoeffMockLSST(IsrMockLSST):
     """Simulated crosstalk coefficient matrix.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
+
         self.config.doBrighterFatter = False
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = True
         self.config.doTransmissionCurve = False
 
 
-class TransmissionMock(IsrMockLSST):
+class TransmissionMockLSST(IsrMockLSST):
     """Simulated transmission curve.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
+
         self.config.doBrighterFatter = False
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = True
 
 
-class MockDataContainer(object):
+class MockLSSTDataContainer(object):
     """Container for holding ISR LSST mock objects.
     """
     dataId = "isrMockLSST Fake Data"
@@ -516,13 +478,13 @@ class MockDataContainer(object):
 
     def expectImage(self):
         if self.config is None:
-            self.config = IsrMockConfig()
+            self.config = IsrMockLSSTConfig()
         self.config.doGenerateImage = True
         self.config.doGenerateData = False
 
     def expectData(self):
         if self.config is None:
-            self.config = IsrMockConfig()
+            self.config = IsrMockLSSTConfig()
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
 
@@ -544,7 +506,7 @@ class MockDataContainer(object):
             return tempfile.mktemp(), "mock"
         elif 'transmission_' in dataType:
             self.expectData()
-            return TransmissionMock(config=self.config).run()
+            return TransmissionMockLSST(config=self.config).run()
         elif dataType == 'ccdExposureId':
             self.expectData()
             return 20090913
@@ -553,25 +515,25 @@ class MockDataContainer(object):
             return IsrMockLSST(config=self.config).getCamera()
         elif dataType == 'raw':
             self.expectImage()
-            return RawMock(config=self.config).run()
+            return RawMockLSST(config=self.config).run()
         elif dataType == 'bias':
             self.expectImage()
-            return BiasMock(config=self.config).run()
+            return BiasMockLSST(config=self.config).run()
         elif dataType == 'dark':
             self.expectImage()
-            return DarkMock(config=self.config).run()
+            return DarkMockLSST(config=self.config).run()
         elif dataType == 'flat':
             self.expectImage()
-            return FlatMock(config=self.config).run()
+            return FlatMockLSST(config=self.config).run()
         elif dataType == 'fringe':
             self.expectImage()
-            return FringeMock(config=self.config).run()
+            return FringeMockLSST(config=self.config).run()
         elif dataType == 'defects':
             self.expectData()
-            return DefectMock(config=self.config).run()
+            return DefectMockLSST(config=self.config).run()
         elif dataType == 'bfKernel':
             self.expectData()
-            return BfKernelMock(config=self.config).run()
+            return BfKernelMockLSST(config=self.config).run()
         elif dataType == 'linearizer':
             return None
         elif dataType == 'crosstalkSources':
@@ -580,7 +542,7 @@ class MockDataContainer(object):
             raise RuntimeError("ISR DataRefMock cannot return %s.", dataType)
 
 
-class MockFringeContainer(object):
+class MockFringeLSSTContainer(object):
     """Container for mock fringe data.
     """
     dataId = "isrMockLSST Fake Data"
@@ -594,8 +556,7 @@ class MockFringeContainer(object):
         if 'config' in kwargs.keys():
             self.config = kwargs['config']
         else:
-            self.config = IsrMockConfig()
-            self.config.isTrimmed = True
+            self.config = IsrMockLSSTConfig()
             self.config.doAddFringe = True
             self.config.readNoise = 10.0
 
@@ -615,19 +576,19 @@ class MockFringeContainer(object):
         if "_filename" in dataType:
             return tempfile.mktemp(), "mock"
         elif 'transmission_' in dataType:
-            return TransmissionMock(config=self.config).run()
+            return TransmissionMockLSST(config=self.config).run()
         elif dataType == 'ccdExposureId':
             return 20090913
         elif dataType == 'camera':
             return IsrMockLSST(config=self.config).getCamera()
         elif dataType == 'raw':
-            return CalibratedRawMock(config=self.config).run()
+            return CalibratedRawMockLSST(config=self.config).run()
         elif dataType == 'bias':
-            return BiasMock(config=self.config).run()
+            return BiasMockLSST(config=self.config).run()
         elif dataType == 'dark':
-            return DarkMock(config=self.config).run()
+            return DarkMockLSST(config=self.config).run()
         elif dataType == 'flat':
-            return FlatMock(config=self.config).run()
+            return FlatMockLSST(config=self.config).run()
         elif dataType == 'fringe':
             fringes = []
             configCopy = copy.deepcopy(self.config)
@@ -635,12 +596,12 @@ class MockFringeContainer(object):
                 configCopy.fringeScale = [1.0]
                 configCopy.fringeX0 = [x]
                 configCopy.fringeY0 = [y]
-                fringes.append(FringeMock(config=configCopy).run())
+                fringes.append(FringeMockLSST(config=configCopy).run())
             return fringes
         elif dataType == 'defects':
-            return DefectMock(config=self.config).run()
+            return DefectMockLSST(config=self.config).run()
         elif dataType == 'bfKernel':
-            return BfKernelMock(config=self.config).run()
+            return BfKernelMockLSST(config=self.config).run()
         elif dataType == 'linearizer':
             return None
         elif dataType == 'crosstalkSources':
