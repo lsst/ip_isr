@@ -131,7 +131,7 @@ class IsrMockLSST(IsrMock):
         for idx, amp in enumerate(exposure.getDetector()):
 
             # Get image bbox and data
-            imageBBox = amp.getRawDataBBox()
+            imageBBox = amp.getRawDataBBox().shiftedBy(amp.getRawXYOffset())
             ampData = exposure.image[imageBBox]
 
             # Sky effects in e-
@@ -182,16 +182,16 @@ class IsrMockLSST(IsrMock):
             ctCalib = CrosstalkCalib()
             for idxS, ampS in enumerate(exposure.getDetector()):
                 for idxT, ampT in enumerate(exposure.getDetector()):
-                    ampDataT = exposure.image[ampT.getRawDataBBox()]
+                    ampDataT = exposure.image[ampT.getRawDataBBox().shiftedBy(ampT.getRawXYOffset())]
                     outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
                                                 isTrimmed=False)
                     self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
 
         for amp in exposure.getDetector():
-            parallelOscanBBox = amp.getRawParallelOverscanBBox()
+            parallelOscanBBox = amp.getRawParallelOverscanBBox().shiftedBy(amp.getRawXYOffset())
             parallelOscanData = exposure.image[parallelOscanBBox]
 
-            serialOscanBBox = amp.getRawSerialOverscanBBox()
+            serialOscanBBox = amp.getRawSerialOverscanBBox().shiftedBy(amp.getRawXYOffset())
 
             # 5. Apply parallel overscan in ADU
             if self.config.doAddParallelOverscan:
