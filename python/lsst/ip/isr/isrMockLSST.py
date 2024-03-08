@@ -19,8 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["IsrMockLSSTConfig", "IsrMockLSST"]
-
+__all__ = ["IsrMockLSSTConfig", "IsrMockLSST", "RawMockLSST",
+           "CalibratedRawMockLSST", "ReferenceMockLSST",
+           "BiasMockLSST", "DarkMockLSST", "FlatMockLSST", "FringeMockLSST",
+           "BfKernelMockLSST", "DefectMockLSST", "CrosstalkCoeffMockLSST",
+           "TransmissionMockLSST", "MockLSSTDataContainer",
+           "MockFringeLSSTContainer"]
 import copy
 import numpy as np
 import tempfile
@@ -120,33 +124,7 @@ class IsrMockLSST(IsrMock):
 
         Notes
         -----
-        This method currently constructs a "raw" data image by:
-
-        * Generating a simulated sky with noise
-        * Adding a single Gaussian "star"
-        * Adding the fringe signal
-        * Multiplying the frame by the simulated flat
-        * Adding dark current (and noise)
-        * Adding a bias offset (and noise)
-        * Adding an overscan gradient parallel to the pixel y-axis
-        * Simulating crosstalk by adding a scaled version of each
-          amplifier to each other amplifier.
-
-        The exposure with image data constructed this way is in one of
-        three formats.
-
-        * A single image, with overscan and prescan regions retained
-        * A single image, with overscan and prescan regions trimmed
-        * A `dict`, containing the amplifer data indexed by the
-          amplifier name.
-
-        The nonlinearity, CTE, and brighter fatter are currently not
-        implemented.
-
-        Note that this method generates an image in the reverse
-        direction as the ISR processing, as the output image here has
-        had a series of instrument effects added to an idealized
-        exposure.
+        This method constructs a "raw" data image.
         """
         exposure = self.getExposure()
 
@@ -195,7 +173,10 @@ class IsrMockLSST(IsrMock):
             if self.config.doAddGain:
                 self.addGain(ampData, self.config.gain)
 
-        # 3. TODO: Add bias frame (make fake bias frame - could be 0)
+            # 3. TODO: Add bias frame (make fake bias frame - could be 0)
+            if self.config.doAddBias:
+                continue
+
         # 4. Apply cross-talk in ADU
         if self.config.doAddCrosstalk:
             ctCalib = CrosstalkCalib()
@@ -312,8 +293,8 @@ class RawMockLSST(IsrMockLSST):
         self.config.doAddFringe = True
 
         # Add instru effects
-        self.config.doAddParallelOverscan = True
-        self.config.doAddSerialOverscan = True
+        self.config.doAddParallelOverscan = False
+        self.config.doAddSerialOverscan = False
         self.config.doAddCrosstalk = True
         self.config.doAddBias = True
         self.config.doAddDark = True
@@ -351,6 +332,7 @@ class ReferenceMockLSST(IsrMockLSST):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.config.isTrimmed = False
         self.config.doGenerateImage = True
 
         self.config.doAddSky = False
@@ -369,7 +351,7 @@ class ReferenceMockLSST(IsrMockLSST):
 
 # Classes to generate calibration products mocks.
 class DarkMockLSST(ReferenceMockLSST):
-    """Simulated master dark calibration.
+    """Simulated reference dark calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -378,7 +360,7 @@ class DarkMockLSST(ReferenceMockLSST):
 
 
 class BiasMockLSST(ReferenceMockLSST):
-    """Simulated master bias calibration.
+    """Simulated reference bias calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -388,7 +370,7 @@ class BiasMockLSST(ReferenceMockLSST):
 
 
 class FlatMockLSST(ReferenceMockLSST):
-    """Simulated master flat calibration.
+    """Simulated reference flat calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -396,7 +378,7 @@ class FlatMockLSST(ReferenceMockLSST):
 
 
 class FringeMockLSST(ReferenceMockLSST):
-    """Simulated master fringe calibration.
+    """Simulated reference fringe calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -28,9 +28,8 @@ import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.ip.isr.isrMockLSST as isrMockLSST
 
-
-class IsrMockCases(lsst.utils.tests.TestCase):
-    """Test the generation of IsrMock data.
+class IsrMockLSSTCases(lsst.utils.tests.TestCase):
+    """Test the generation of IsrMockLSST data.
     """
     def setUp(self):
         self.inputExp = isrMockLSST.RawMockLSST().run()
