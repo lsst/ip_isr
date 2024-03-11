@@ -349,6 +349,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Save a copy of the pre-interpolated pixel values?",
         default=False,
     )
+    useLegacyInterp = pexConfig.Field(
+        dtype=bool,
+        doc="Use the legacy interpolation algorithm. If False use Gaussian Process.",
+        default=True,
+    )
 
     # Initial masking options.
     doSetBadRegions = pexConfig.Field(
@@ -1053,7 +1058,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskedImage=interpExp.getMaskedImage(),
                 fwhm=self.config.brighterFatterFwhmForInterpolation,
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
+                maskNameList=list(self.config.brighterFatterMaskListToInterpolate),
+                useLegacyInterp=self.config.useLegacyInterp,
             )
         bfExp = interpExp.clone()
         self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
@@ -1402,7 +1408,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskedImage=ccdExposure.getMaskedImage(),
                 fwhm=self.config.brighterFatterFwhmForInterpolation,
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                maskNameList=list(self.config.maskListToInterpolate)
+                maskNameList=list(self.config.maskListToInterpolate),
+                useLegacyInterp=self.config.useLegacyInterp,
             )
 
         # Calculate standard image quality statistics
