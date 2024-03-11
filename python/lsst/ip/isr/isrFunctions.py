@@ -101,7 +101,8 @@ def transposeMaskedImage(maskedImage):
     return transposed
 
 
-def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
+def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None,
+                          maskNameList=None, useLegacyInterp=True):
     """Interpolate over defects specified in a defect list.
 
     Parameters
@@ -115,19 +116,46 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     fallbackValue : scalar, optional
         Fallback value if an interpolated value cannot be determined.
         If None, then the clipped mean of the image is used.
+    maskNameList : `list [string]`
+        List of the defects to interpolate over (used for GP interpolator).
+    useLegacyInterp : `bool`
+        Use the legacy interpolation (polynomial interpolation) if True. Use
+        Gaussian Process interpolation if False.
 
     Notes
     -----
     The ``fwhm`` parameter is used to create a PSF, but the underlying
     interpolation code (`lsst.meas.algorithms.interpolateOverDefects`) does
-    not currently make use of this information.
+    not currently make use of this information in legacy Interpolation, but use
+    if for the Gaussian Process as an estimation of the correlation lenght.
     """
     psf = createPsf(fwhm)
     if fallbackValue is None:
         fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict():
         maskedImage.getMask().addMaskPlane('INTRP')
-    measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
+
+    # Hardcoded fwhm value. PSF estimated latter in step1,
+    # not in ISR.
+    if useLegacyInterp:
+        kwargs = {}
+        fwhm = fwhm
+    else:
+        # tested on a dozens of images and looks a good set of
+        # hyperparameters, but cannot guarrenty this is optimal,
+        # need further testing.
+        kwargs = {"bin_spacing": 20,
+                  "threshold_dynamic_binning": 2000,
+                  "threshold_subdivide": 20000,
+                  "method": "jax"}
+        fwhm = 15
+
+    measAlg.interpolateOverDefects(maskedImage, psf, defectList,
+                                   fallbackValue=fallbackValue,
+                                   useFallbackValueAtEdge=True,
+                                   fwhm=fwhm,
+                                   useLegacyInterp=useLegacyInterp,
+                                   maskNameList=maskNameList, **kwargs)
     return maskedImage
 
 
@@ -188,7 +216,7 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
 
 
 def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
-                        maskNameList=['SAT'], fallbackValue=None):
+                        maskNameList=['SAT'], fallbackValue=None, useLegacyInterp=True):
     """Interpolate over defects identified by a particular set of mask planes.
 
     Parameters
@@ -222,13 +250,14 @@ def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
     fpSet = afwDetection.FootprintSet(mask, thresh)
     defectList = Defects.fromFootprintList(fpSet.getFootprints())
 
-    interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
+    interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue,
+                          maskNameList=maskNameList, useLegacyInterp=useLegacyInterp)
 
     return maskedImage
 
 
 def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interpolate=True, maskName='SAT',
-                         fallbackValue=None):
+                         fallbackValue=None, useLegacyInterp=True):
     """Mark saturated pixels and optionally interpolate over them
 
     Parameters
@@ -261,7 +290,8 @@ def saturationCorrection(maskedImage, saturation, fwhm, growFootprints=1, interp
         maskName=maskName,
     )
     if interpolate:
-        interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue)
+        interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=fallbackValue,
+                              maskNameList=[maskName], useLegacyInterp=useLegacyInterp)
 
     return maskedImage
 
