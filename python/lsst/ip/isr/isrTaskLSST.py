@@ -585,11 +585,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Mask saturated and suspect pixels.
             limits = {}
             if self.config.doSaturation:
+                # Set to the default from the camera model.
                 limits.update({self.config.saturatedMaskName: amp.getSaturation()})
+                # And update if it is set in the config.
+                if math.isfinite(self.config.saturation):
+                    limits.update({self.config.saturatedMaskName: self.config.saturation})
             if self.config.doSuspect:
                 limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
-            if math.isfinite(self.config.saturation):
-                limits.update({self.config.saturatedMaskName: self.config.saturation})
 
             for maskName, maskThreshold in limits.items():
                 if not math.isnan(maskThreshold):
