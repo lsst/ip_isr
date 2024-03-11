@@ -127,7 +127,32 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
         fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict():
         maskedImage.getMask().addMaskPlane('INTRP')
+    # TO DO: Pierre-Francois Leget --> write in / out of
+    # interpolation in order to test in NoteBook other type
+    # interpolation such as GP.
+    import pickle
+    import copy
+    dic = {
+        'in':
+        {
+            'maskedImage':copy.deecopy(maskedImage),
+            'psf':psf,
+            'defectList':defectList,
+            'fallbackValue':fallbackValue,
+        }
+        }
     measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
+    dic.update(
+        {
+        'out':
+        {
+            'maskedImage':maskedImage,
+        }
+        })
+    filteout = open('out_test.pkl', 'wb')
+    pickle.dump(dic, fileout)
+    fileout.close()
+    import pdb; pdb.set_trace()
     return maskedImage
 
 
