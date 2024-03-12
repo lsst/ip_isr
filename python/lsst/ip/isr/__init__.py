@@ -36,6 +36,7 @@ from .overscan import *
 from .straylight import *
 from .isrQa import *
 from .isrMock import *
+from .isrMockLSST import *
 from .ptcDataset import *
 from .defects import *
 from .brighterFatterKernel import *
