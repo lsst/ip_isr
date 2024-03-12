@@ -28,6 +28,7 @@ import lsst.utils.tests
 import lsst.afw.image as afwImage
 import lsst.ip.isr.isrMockLSST as isrMockLSST
 
+
 class IsrMockLSSTCases(lsst.utils.tests.TestCase):
     """Test the generation of IsrMockLSST data.
     """
@@ -36,8 +37,8 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         self.mi = self.inputExp.getMaskedImage()
 
     def test_simple(self):
-        """Taking the same approach as in test_isrMock
-        which check if the raw data is generated as expected.
+        """Check the raw data is generated as expected,
+        taking the same approach as in test_isrMock.
         """
 
         initialMean = np.median(self.mi.getImage().getArray()[:])
@@ -49,7 +50,9 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
-        self.assertLess(newMean, initialMean)
+        # here we do a check on the standard deviation, instead of the mean
+        # as done in other tests because the bias mock has mean 0
+        self.assertLess(newStd, initialStd)
 
         initialMean = newMean
         initialStd = newStd
@@ -77,7 +80,7 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         initialMean = newMean
         initialStd = newStd
 
-        fringe = isrMockLSST.FringeMock().run()
+        fringe = isrMockLSST.FringeMockLSST().run()
         self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
                                             - fringe.getMaskedImage().getImage().getArray()[:])
         newMean = np.median(self.mi.getImage().getArray()[:])
@@ -86,8 +89,8 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         self.assertLess(newMean, initialMean)
 
     def test_productTypes(self):
-        """Taking the same approach as in test_isrMock
-        which tests non-image data are returned as the expected type.
+        """Tests non-image data are returned as the expected type,
+        taking the same approach as in test_isrMock.
         """
         self.assertIsInstance(isrMockLSST.BfKernelMockLSST().run(), np.ndarray)
         self.assertIsInstance(isrMockLSST.CrosstalkCoeffMockLSST().run(), np.ndarray)
@@ -96,8 +99,8 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         self.assertIsInstance(isrMockLSST.TransmissionMockLSST().run(), afwImage.TransmissionCurve)
 
     def test_edgeCases(self):
-        """Taking the same approach as in test_isrMock
-        which ests that improperly specified configurations do not return data.
+        """Tests that improperly specified configurations do not return data,
+        taking the same approach as in test_isrMock
         """
         config = isrMockLSST.IsrMockLSSTConfig()
         self.assertIsNone(isrMockLSST.IsrMockLSST(config=config).run())
