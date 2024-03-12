@@ -2106,11 +2106,13 @@ class IsrTask(pipeBase.PipelineTask):
         # masked now, though.
         limits = dict()
         if self.config.doSaturation and not badAmp:
+            # Set to the default from the camera model.
             limits.update({self.config.saturatedMaskName: amp.getSaturation()})
+            # And update if it is set in the config.
+            if math.isfinite(self.config.saturation):
+                limits.update({self.config.saturatedMaskName: self.config.saturation})
         if self.config.doSuspect and not badAmp:
             limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
-        if math.isfinite(self.config.saturation):
-            limits.update({self.config.saturatedMaskName: self.config.saturation})
 
         for maskName, maskThreshold in limits.items():
             if not math.isnan(maskThreshold):
