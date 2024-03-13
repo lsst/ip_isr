@@ -35,6 +35,7 @@ import lsst.afw.image as afwImage
 
 import lsst.afw.cameraGeom.utils as afwUtils
 import lsst.afw.cameraGeom.testUtils as afwTestUtils
+from lsst.afw.cameraGeom import ReadoutCorner
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 from .crosstalk import CrosstalkCalib
@@ -556,6 +557,12 @@ class IsrMock(pipeBase.Task):
         ccd = exposure.getDetector()
         newCcd = ccd.rebuild()
         newCcd.clear()
+        readoutMap = {
+            'LL': ReadoutCorner.LL,
+            'LR': ReadoutCorner.LR,
+            'UR': ReadoutCorner.UR,
+            'UL': ReadoutCorner.UL,
+        }
         for amp in ccd:
             newAmp = amp.rebuild()
             newAmp.setLinearityCoeffs((0., 1., 0., 0.))
@@ -563,7 +570,47 @@ class IsrMock(pipeBase.Task):
             newAmp.setGain(self.config.gain)
             newAmp.setSuspectLevel(25000.0)
             newAmp.setSaturation(32000.0)
+            readcorner = 'LL'
+
+            # Apply flips to bbox where needed
+            imageBBox = amp.getRawDataBBox()
+            rawBbox = amp.getRawBBox()
+            parallelOscanBBox = amp.getRawParallelOverscanBBox()
+            serialOscanBBox = amp.getRawSerialOverscanBBox()
+            prescanBBox = amp.getRawPrescanBBox()
+            flipx = bool(amp.getRawFlipX())
+            flipy = bool(amp.getRawFlipY())
+            if flipx:
+                xExt = rawBbox.getDimensions().getX()
+                rawBbox.flipLR(xExt)
+                imageBBox.flipLR(xExt)
+                parallelOscanBBox.flipLR(xExt)
+                serialOscanBBox.flipLR(xExt)
+                prescanBBox.flipLR(xExt)
+            if flipy:
+                yExt = rawBbox.getDimensions().getY()
+                rawBbox.flipTB(yExt)
+                imageBBox.flipTB(yExt)
+                parallelOscanBBox.flipTB(yExt)
+                serialOscanBBox.flipTB(yExt)
+                prescanBBox.flipTB(yExt)
+            if not flipx and not flipy:
+                readcorner = 'LL'
+            elif flipx and not flipy:
+                readcorner = 'LR'
+            elif flipx and flipy:
+                readcorner = 'UR'
+            elif not flipx and flipy:
+                readcorner = 'UL'
+            newAmp.setReadoutCorner(readoutMap[readcorner])
+            newAmp.setRawBBox(rawBbox)
+            newAmp.setRawDataBBox(imageBBox)
+            newAmp.setRawParallelOverscanBBox(parallelOscanBBox)
+            newAmp.setRawSerialOverscanBBox(serialOscanBBox)
+            newAmp.setRawPrescanBBox(prescanBBox)
+
             newCcd.append(newAmp)
+
         exposure.setDetector(newCcd.finish())
 
         exposure.image.array[:] = np.zeros(exposure.getImage().getDimensions()).transpose()
