@@ -216,7 +216,7 @@ class IsrMockLSST(IsrMock):
         # TODO: DM-43286
 
             if self.config.doAddSerialOverscan:
-                # 1. We grow the image to the parallel oversan region
+                # 1. We grow the image to the parallel overscan region
                 # (we do this instead of using the whole raw region
                 # in case there are prescan regions)
                 grownImageBBox = imageBBox.expandedTo(parallelOscanBBox)

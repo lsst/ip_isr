@@ -570,7 +570,7 @@ class IsrMock(pipeBase.Task):
             newAmp.setGain(self.config.gain)
             newAmp.setSuspectLevel(25000.0)
             newAmp.setSaturation(32000.0)
-            readcorner = 'LL'
+            readoutCorner = 'LL'
 
             # Apply flips to bbox where needed
             imageBBox = amp.getRawDataBBox()
@@ -595,14 +595,14 @@ class IsrMock(pipeBase.Task):
                 serialOscanBBox.flipTB(yExt)
                 prescanBBox.flipTB(yExt)
             if not flipx and not flipy:
-                readcorner = 'LL'
+                readoutCorner = 'LL'
             elif flipx and not flipy:
-                readcorner = 'LR'
+                readoutCorner = 'LR'
             elif flipx and flipy:
-                readcorner = 'UR'
+                readoutCorner = 'UR'
             elif not flipx and flipy:
-                readcorner = 'UL'
-            newAmp.setReadoutCorner(readoutMap[readcorner])
+                readoutCorner = 'UL'
+            newAmp.setReadoutCorner(readoutMap[readoutCorner])
             newAmp.setRawBBox(rawBbox)
             newAmp.setRawDataBBox(imageBBox)
             newAmp.setRawParallelOverscanBBox(parallelOscanBBox)
