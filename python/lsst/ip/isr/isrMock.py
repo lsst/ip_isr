@@ -578,6 +578,7 @@ class IsrMock(pipeBase.Task):
             parallelOscanBBox = amp.getRawParallelOverscanBBox()
             serialOscanBBox = amp.getRawSerialOverscanBBox()
             prescanBBox = amp.getRawPrescanBBox()
+            # This follows cameraGeom.testUtils
             flipx = bool(amp.getRawFlipX())
             flipy = bool(amp.getRawFlipY())
             if flipx:
@@ -608,6 +609,8 @@ class IsrMock(pipeBase.Task):
             newAmp.setRawParallelOverscanBBox(parallelOscanBBox)
             newAmp.setRawSerialOverscanBBox(serialOscanBBox)
             newAmp.setRawPrescanBBox(prescanBBox)
+            newAmp.setRawFlipX(False)
+            newAmp.setRawFlipY(False)
 
             newCcd.append(newAmp)
 

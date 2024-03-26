@@ -33,7 +33,7 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
     """Test the generation of IsrMockLSST data.
     """
     def setUp(self):
-        self.inputExp = isrMockLSST.RawMockLSST().run()
+        self.inputExp = isrMockLSST.CalibratedRawMockLSST().run()
         self.mi = self.inputExp.getMaskedImage()
 
     def test_simple(self):
@@ -87,6 +87,26 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         newStd = np.std(self.mi.getImage().getArray()[:])
 
         self.assertLess(newMean, initialMean)
+
+
+    def test_untrimmedSimple(self):
+        """Confirm untrimmed data classes are generated consistently.
+        """
+        exposureLowNoise = isrMockLSST.RawMockLSST().run()
+
+        rawMock = isrMockLSST.RawMockLSST()
+        rawMock.config.readNoise = 10.
+        exposureHighNoise = rawMock.run()
+
+
+        initialStd = np.std(exposureLowNoise.getMaskedImage().getImage().getArray()[:])
+
+        diff = (exposureHighNoise.getMaskedImage().getImage().getArray()[:]
+                - exposureLowNoise.getMaskedImage().getImage().getArray()[:])
+
+        newStd = np.std(diff[:])
+
+        self.assertLess(newStd, initialStd)
 
     def test_productTypes(self):
         """Tests non-image data are returned as the expected type,
