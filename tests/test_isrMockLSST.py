@@ -33,26 +33,25 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
     """Test the generation of IsrMockLSST data.
     """
     def setUp(self):
-        self.inputExp = isrMockLSST.CalibratedRawMockLSST().run()
+        self.inputExp = isrMockLSST.TrimmedRawMockLSST().run()
         self.mi = self.inputExp.getMaskedImage()
 
     def test_simple(self):
-        """Check the raw data is generated as expected,
+        """Check trimmed raw data are generated as expected,
         taking the same approach as in test_isrMock.
         """
 
         initialMean = np.median(self.mi.getImage().getArray()[:])
         initialStd = np.std(self.mi.getImage().getArray()[:])
 
+        # Build and subtract a bias calibration
         bias = isrMockLSST.BiasMockLSST().run()
         self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
                                             - bias.getMaskedImage().getImage().getArray()[:])
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
-        # here we do a check on the standard deviation, instead of the mean
-        # as done in other tests because the bias mock has mean 0
-        self.assertLess(newStd, initialStd)
+        self.assertLess(newMean, initialMean)
 
         initialMean = newMean
         initialStd = newStd
@@ -88,25 +87,19 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
 
         self.assertLess(newMean, initialMean)
 
-
     def test_untrimmedSimple(self):
-        """Confirm untrimmed data classes are generated consistently.
+        """Test untrimmed mocks are genetared.
         """
         exposureLowNoise = isrMockLSST.RawMockLSST().run()
 
         rawMock = isrMockLSST.RawMockLSST()
-        rawMock.config.readNoise = 10.
+        rawMock.config.readNoise = 100.
         exposureHighNoise = rawMock.run()
 
+        lowNoiseStd = np.std(exposureLowNoise.getMaskedImage().getImage().getArray()[:])
+        highNoiseStd = np.std(exposureHighNoise.getMaskedImage().getImage().getArray()[:])
 
-        initialStd = np.std(exposureLowNoise.getMaskedImage().getImage().getArray()[:])
-
-        diff = (exposureHighNoise.getMaskedImage().getImage().getArray()[:]
-                - exposureLowNoise.getMaskedImage().getImage().getArray()[:])
-
-        newStd = np.std(diff[:])
-
-        self.assertLess(newStd, initialStd)
+        self.assertLess(lowNoiseStd, highNoiseStd)
 
     def test_productTypes(self):
         """Tests non-image data are returned as the expected type,
