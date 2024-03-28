@@ -177,7 +177,7 @@ class IsrMockLSST(IsrMock):
             if self.config.doApplyGain:
                 self.applyGain(ampData, self.config.gain)
 
-            # 3. We either add the bias frame or only the read noise
+            # 3. Add read noise with or without a bias level
             # to the image region in ADU.
             self.amplifierAddNoise(ampData, self.config.biasLevel if self.config.doAddBias else 0.0,
                                    self.config.readNoise / self.config.gain)
@@ -213,7 +213,7 @@ class IsrMockLSST(IsrMock):
             # 5. Apply parallel overscan in ADU
             if self.config.doAddParallelOverscan:
                 if not self.config.isTrimmed:
-                    # Add bias frame or read noise
+                    # Add read noise with or without a bias level
                     # to the parallel overscan region.
                     self.amplifierAddNoise(parallelOscanData, self.config.biasLevel
                                            if self.config.doAddBias else 0.0,
@@ -246,7 +246,7 @@ class IsrMockLSST(IsrMock):
                     )
                     serialOscanData = exposure.image[serialOscanBBox]
 
-                    # Add bias frame or read noise
+                    # Add read noise with or without a bias level
                     # to the serial overscan region.
                     self.amplifierAddNoise(serialOscanData, self.config.biasLevel
                                            if self.config.doAddBias else 0.0,
