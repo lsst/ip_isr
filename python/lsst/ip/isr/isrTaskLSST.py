@@ -404,6 +404,13 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
+    # Flat correction.
+    doFlat = pexConfig.Field(
+        dtype=bool,
+        doc="Apply flat field correction.",
+        default=True,
+    )
+
     # Calculate image quality statistics?
     doStandardStatistics = pexConfig.Field(
         dtype=bool,
@@ -1190,6 +1197,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
             if self.config.doDark:
                 exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
+            if self.config.doFlat:
+                exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
 
         # First we mark which amplifiers are completely bad from defects.
         badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
@@ -1319,6 +1328,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Applying Bright-Fatter kernels.")
             bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
             ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut, bfGains)
+
+        if self.config.doFlat:
+            # Input units: electrons
+            self.log.info("Applying flat correction.")
+            self.flatCorrection(ccdExposure, flat)
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
