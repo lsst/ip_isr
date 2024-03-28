@@ -77,15 +77,25 @@ class CrosstalkCalib(IsrCalib):
     coeffValid : `numpy.ndarray`, optional
         A matrix of Boolean values indicating if the coefficient is
         valid, defined as abs(coeff) > coeffErr / sqrt(coeffNum).
+    coeffsSqr : `numpy.ndarray`
+        A matrix containing potential quadratic crosstalk coefficients
+        (see e.g., Snyder+21, 2001.03223). coeffsSqr[i][j]
+        contains the coefficients to calculate the contribution
+        amplifier_j has on amplifier_i (each row[i] contains the
+        corrections for detector_i).
+    coeffErrSqr : `numpy.ndarray`, optional
+        A matrix (as defined by ``coeffsSqr``) containing the standard
+        distribution of the quadratic term of the crosstalk measurements.
     interChip : `dict` [`numpy.ndarray`]
         A dictionary keyed by detectorName containing ``coeffs``
         matrices used to correct for inter-chip crosstalk with a
         source on the detector indicated.
 
+    Version 1.1 adds quadratic coefficients.
     """
     _OBSTYPE = 'CROSSTALK'
     _SCHEMA = 'Gen3 Crosstalk'
-    _VERSION = 1.0
+    _VERSION = 1.1
 
     def __init__(self, detector=None, nAmp=0, **kwargs):
         self.hasCrosstalk = False
@@ -98,11 +108,16 @@ class CrosstalkCalib(IsrCalib):
                                  dtype=int) if self.nAmp else None
         self.coeffValid = np.zeros(self.crosstalkShape,
                                    dtype=bool) if self.nAmp else None
+        # Quadratic terms, if any.
+        self.coeffsSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
+        self.coeffErrSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
+        
         self.interChip = {}
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['hasCrosstalk', 'nAmp', 'coeffs',
                                         'coeffErr', 'coeffNum', 'coeffValid',
+                                        'coeffsSqr', 'coeffErrSqr',
                                         'interChip'])
         if detector:
             self.fromDetector(detector)
