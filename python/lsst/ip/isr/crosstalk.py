@@ -77,7 +77,7 @@ class CrosstalkCalib(IsrCalib):
     coeffValid : `numpy.ndarray`, optional
         A matrix of Boolean values indicating if the coefficient is
         valid, defined as abs(coeff) > coeffErr / sqrt(coeffNum).
-    coeffsSqr : `numpy.ndarray`
+    coeffsSqr : `numpy.ndarray`, optional
         A matrix containing potential quadratic crosstalk coefficients
         (see e.g., Snyder+21, 2001.03223). coeffsSqr[i][j]
         contains the coefficients to calculate the contribution
@@ -91,7 +91,10 @@ class CrosstalkCalib(IsrCalib):
         matrices used to correct for inter-chip crosstalk with a
         source on the detector indicated.
 
-    Version 1.1 adds quadratic coefficients.
+    Version 1.1 adds quadratic coefficients, a matrix with the ratios
+    of amplifiers gains per detector, and a field to indicate the units
+    of the numerator and denominator of the source and target signals, with
+    "ADU" meaning "ADU / ADU" and "electrons" meaning "e- / e-".
     """
     _OBSTYPE = 'CROSSTALK'
     _SCHEMA = 'Gen3 Crosstalk'
@@ -112,12 +115,19 @@ class CrosstalkCalib(IsrCalib):
         self.coeffsSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
         self.coeffErrSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
 
+        # Gain ratios
+        self.ampGainRatios = np.zeros(self.crosstalkShape) if self.nAmp else None
+
+        # Units
+        self.crosstalkRatiosUnits = 'ADU' if self.nAmp else None
+
         self.interChip = {}
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['hasCrosstalk', 'nAmp', 'coeffs',
                                         'coeffErr', 'coeffNum', 'coeffValid',
                                         'coeffsSqr', 'coeffErrSqr',
+                                        'ampGainRatios', 'crosstalkRatiosUnits',
                                         'interChip'])
         if detector:
             self.fromDetector(detector)
@@ -143,6 +153,7 @@ class CrosstalkCalib(IsrCalib):
         kwargs['NAMP'] = self.nAmp
         self.crosstalkShape = (self.nAmp, self.nAmp)
         kwargs['CROSSTALK_SHAPE'] = self.crosstalkShape
+        kwargs['CROSSTALK_RATIOS_UNITS'] = self.crosstalkRatiosUnits
 
         super().updateMetadata(setDate=setDate, **kwargs)
 
@@ -266,6 +277,9 @@ class CrosstalkCalib(IsrCalib):
             calib.nAmp = dictionary.get('nAmp', dictionary['metadata'].get('NAMP', 0))
             calib.crosstalkShape = (calib.nAmp, calib.nAmp)
             calib.coeffs = np.array(dictionary['coeffs']).reshape(calib.crosstalkShape)
+            calib.crosstalkRatiosUnits = dictionary.get(
+                'crosstalkRatiosUnits',
+                dictionary['metadata'].get('CROSSTALK_RATIOS_UNITS', None))
             if 'coeffErr' in dictionary:
                 calib.coeffErr = np.array(dictionary['coeffErr']).reshape(calib.crosstalkShape)
             else:
@@ -278,6 +292,22 @@ class CrosstalkCalib(IsrCalib):
                 calib.coeffValid = np.array(dictionary['coeffValid']).reshape(calib.crosstalkShape)
             else:
                 calib.coeffValid = np.ones_like(calib.coeffs, dtype=bool)
+            if 'coeffsSqr' in dictionary:
+                calib.coeffsSqr = np.array(dictionary['coeffsSqr']).reshape(calib.crosstalkShape)
+            else:
+                calib.coeffsSqr = np.zeros_like(calib.coeffs)
+            if 'coeffErrSqr' in dictionary:
+                calib.coeffErrSqr = np.array(dictionary['coeffErrSqr']).reshape(calib.crosstalkShape)
+            else:
+                calib.coeffErrSqr = np.zeros_like(calib.coeffs)
+            if 'ampGainRatios' in dictionary:
+                calib.ampGainRatios = np.array(dictionary['ampGainRatios']).reshape(calib.crosstalkShape)
+            else:
+                calib.ampGainRatios = np.zeros_like(calib.coeffs)
+            if 'crosstalkRatiosUnits' in dictionary:
+                calib.crosstalkRatiosUnits = dictionary['crosstalkRatiosUnits']
+            else:
+                calib.crosstalkRatiosUnits = None
 
             calib.interChip = dictionary.get('interChip', None)
             if calib.interChip:
@@ -308,6 +338,7 @@ class CrosstalkCalib(IsrCalib):
         outDict['hasCrosstalk'] = self.hasCrosstalk
         outDict['nAmp'] = self.nAmp
         outDict['crosstalkShape'] = self.crosstalkShape
+        outDict['crosstalkRatiosUnits'] = self.crosstalkRatiosUnits
 
         ctLength = self.nAmp*self.nAmp
         outDict['coeffs'] = self.coeffs.reshape(ctLength).tolist()
@@ -318,6 +349,12 @@ class CrosstalkCalib(IsrCalib):
             outDict['coeffNum'] = self.coeffNum.reshape(ctLength).tolist()
         if self.coeffValid is not None:
             outDict['coeffValid'] = self.coeffValid.reshape(ctLength).tolist()
+        if self.coeffsSqr is not None:
+            outDict['coeffsSqr'] = self.coeffsSqr.reshape(ctLength).tolist()
+        if self.coeffErrSqr is not None:
+            outDict['coeffErrSqr'] = self.coeffErrSqr.reshape(ctLength).tolist()
+        if self.ampGainRatios is not None:
+            outDict['ampGainRatios'] = self.ampGainRatios.reshape(ctLength).tolist()
 
         if self.interChip:
             outDict['interChip'] = dict()
@@ -353,6 +390,7 @@ class CrosstalkCalib(IsrCalib):
         inDict['metadata'] = metadata
         inDict['hasCrosstalk'] = metadata['HAS_CROSSTALK']
         inDict['nAmp'] = metadata['NAMP']
+        inDict['crosstalkRatiosUnits'] = metadata['CROSSTALK_RATIOS_UNITS']
 
         inDict['coeffs'] = coeffTable['CT_COEFFS']
         if 'CT_ERRORS' in coeffTable.columns:
@@ -361,6 +399,12 @@ class CrosstalkCalib(IsrCalib):
             inDict['coeffNum'] = coeffTable['CT_COUNTS']
         if 'CT_VALID' in coeffTable.columns:
             inDict['coeffValid'] = coeffTable['CT_VALID']
+        if 'CT_COEFFS_SQR' in coeffTable.columns:
+            inDict['coeffsSqr'] = coeffTable['CT_COEFFS_SQR']
+        if 'CT_ERRORS_SQR' in coeffTable.columns:
+            inDict['coeffErrSqr'] = coeffTable['CT_ERRORS_SQR']
+        if 'CT_AMP_GAIN_RATIOS' in coeffTable.columns:
+            inDict['ampGainRatios'] = coeffTable['CT_AMP_GAIN_RATIOS']
 
         if len(tableList) > 1:
             inDict['interChip'] = dict()
@@ -390,6 +434,9 @@ class CrosstalkCalib(IsrCalib):
                           'CT_ERRORS': self.coeffErr.reshape(self.nAmp*self.nAmp),
                           'CT_COUNTS': self.coeffNum.reshape(self.nAmp*self.nAmp),
                           'CT_VALID': self.coeffValid.reshape(self.nAmp*self.nAmp),
+                          'CT_COEFFS_SQR': self.coeffsSqr.reshape(self.nAmp*self.nAmp),
+                          'CT_ERRORS_SQR': self.coeffErrSqr.reshape(self.nAmp*self.nAmp),
+                          'CT_AMP_GAIN_RATIOS': self.ampGainRatios.reshape(self.nAmp*self.nAmp),
                           }])
         # filter None, because astropy can't deal.
         inMeta = self.getMetadata().toDict()
