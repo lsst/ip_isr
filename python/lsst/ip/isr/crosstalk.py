@@ -111,7 +111,7 @@ class CrosstalkCalib(IsrCalib):
         # Quadratic terms, if any.
         self.coeffsSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
         self.coeffErrSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
-        
+
         self.interChip = {}
 
         super().__init__(**kwargs)
@@ -164,33 +164,34 @@ class CrosstalkCalib(IsrCalib):
             The calibration constructed from the detector.
 
         """
-        if detector.hasCrosstalk() or coeffVector:
-            self._detectorId = detector.getId()
-            self._detectorName = detector.getName()
-            self._detectorSerial = detector.getSerial()
+        self._detectorId = detector.getId()
+        self._detectorName = detector.getName()
+        self._detectorSerial = detector.getSerial()
 
-            self.nAmp = len(detector)
-            self.crosstalkShape = (self.nAmp, self.nAmp)
+        self.nAmp = len(detector)
+        self.crosstalkShape = (self.nAmp, self.nAmp)
 
-            if coeffVector is not None:
-                crosstalkCoeffs = coeffVector
-            else:
-                crosstalkCoeffs = detector.getCrosstalk()
-            if len(crosstalkCoeffs) == 1 and crosstalkCoeffs[0] == 0.0:
-                return self
-            self.coeffs = np.array(crosstalkCoeffs).reshape(self.crosstalkShape)
+        if coeffVector is not None:
+            crosstalkCoeffs = coeffVector
+        else:
+            crosstalkCoeffs = detector.getCrosstalk()
+        if len(crosstalkCoeffs) == 1 and crosstalkCoeffs[0] == 0.0:
+            return self
+        self.coeffs = np.zeros(self.crosstalkShape)
 
-            if self.coeffs.shape != self.crosstalkShape:
-                raise RuntimeError("Crosstalk coefficients do not match detector shape. "
-                                   f"{self.crosstalkShape} {self.nAmp}")
+        if self.coeffs.shape != self.crosstalkShape:
+            raise RuntimeError("Crosstalk coefficients do not match detector shape. "
+                               f"{self.crosstalkShape} {self.nAmp}")
 
-            self.coeffErr = np.zeros(self.crosstalkShape)
-            self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
-            self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
-            self.interChip = {}
+        self.coeffErr = np.zeros(self.crosstalkShape)
+        self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
+        self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
 
-            self.hasCrosstalk = True
-            self.updateMetadata()
+        self.interChip = {}
+
+        self.hasCrosstalk = True
+        self.updateMetadata()
+
         return self
 
     @classmethod
