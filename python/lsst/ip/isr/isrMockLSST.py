@@ -172,8 +172,8 @@ class IsrMockLSST(IsrMock):
                                        np.sqrt(self.config.darkRate * self.config.darkTime))
 
             # 2. Gain normalize  (from e- to ADU)
-            # TODO: DM-??? gain from PTC per amplifier
-            # TODO: DM-??? gain with temperature dependence
+            # TODO: DM-43601 gain from PTC per amplifier
+            # TODO: DM-36639 gain with temperature dependence
             if self.config.doApplyGain:
                 self.applyGain(ampData, self.config.gain)
 
@@ -403,7 +403,13 @@ class BiasMockLSST(ReferenceMockLSST):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # A combined bias has mean 0
+        # so we set its bias level to 0.
+        # This is equivalent to doAddBias = False
+        # but we do the following instead to be consistent
+        # with any other bias products we might want to produce.
         self.config.doAddBias = True
+        self.config.biasLevel - 0.0
         self.config.doApplyGain = True
         # Assume combined calibrations are made with 16 inputs.
         self.config.readNoise = 10.0*0.25
