@@ -238,10 +238,15 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
-    # Normalize gain.
-    doGainNormalize = pexConfig.Field(
+    # Gains.
+    doGainsCorrection = pexConfig.Field(
         dtype=bool,
-        doc="Normalize by the gain.",
+        doc="Apply temperature correction to the gains?",
+        default=False,
+    )
+    doApplyGains = pexConfig.Field(
+        dtype=bool,
+        doc="Apply gains to the image?",
         default=True,
     )
 
@@ -505,7 +510,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     'bias': self.config.doBias,
                     'deferredChargeCalib': self.config.doDeferredCharge,
                     'linearizer': self.config.doLinearize,
-                    'ptc': self.config.doGainNormalize,
+                    'ptc': self.config.doApplyGains,
                     'crosstalk': doCrosstalk,
                     'defects': self.config.doDefect,
                     'bfKernel': self.config.doBrighterFatter,
@@ -768,7 +773,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return linearizer
 
-    def gainNormalize(self, **kwargs):
+    def gainsCorrection(self, **kwargs):
         # TODO DM 36639
         gains = []
         readNoise = []
@@ -1214,6 +1219,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
 
+        gains = ptc.gain
+
         if self.config.doHeaderProvenance:
             # Inputs have been validated, so we can add their date
             # information to the output header.
@@ -1310,11 +1317,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Applying bias correction.")
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage())
 
-        if self.config.doGainNormalize:
+        if self.config.doGainsCorrection:
+            # TODO DM 36639
+            self.log.info("Apply temperature dependence to the gains.")
+            gains, readNoise = self.gainsCorrection(**kwargs)
+
+        if self.config.doApplyGains:
             # Input units: ADU
             # Output units: electrons
-            # TODO DM 36639
-            gains, readNoise = self.gainNormalize(**kwargs)
+            self.log.info("Apply PTC gains (temperature corrected or not) to the image.")
+            isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains)
 
         if self.config.doDeferredCharge:
             # Input units: electrons
