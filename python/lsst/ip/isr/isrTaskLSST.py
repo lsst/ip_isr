@@ -404,6 +404,28 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
 
+    # Flat correction.
+    doFlat = pexConfig.Field(
+        dtype=bool,
+        doc="Apply flat field correction.",
+        default=True,
+    )
+    flatScalingType = pexConfig.ChoiceField(
+        dtype=str,
+        doc="The method for scaling the flat on the fly.",
+        default='USER',
+        allowed={
+            "USER": "Scale by flatUserScale",
+            "MEAN": "Scale by the inverse of the mean",
+            "MEDIAN": "Scale by the inverse of the median",
+        },
+    )
+    flatUserScale = pexConfig.Field(
+        dtype=float,
+        doc="If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise.",
+        default=1.0,
+    )
+
     # Calculate image quality statistics?
     doStandardStatistics = pexConfig.Field(
         dtype=bool,
@@ -1137,6 +1159,30 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         return self.config.doLinearize and \
             detector.getAmplifiers()[0].getLinearityType() != NullLinearityType
 
+    def flatCorrection(self, exposure, flatExposure, invert=False):
+        """Apply flat correction in place.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        flatExposure : `lsst.afw.image.Exposure`
+            Flat exposure of the same size as ``exposure``.
+        invert : `Bool`, optional
+            If True, unflatten an already flattened image.
+
+        See Also
+        --------
+        lsst.ip.isr.isrFunctions.flatCorrection
+        """
+        isrFunctions.flatCorrection(
+            maskedImage=exposure.getMaskedImage(),
+            flatMaskedImage=flatExposure.getMaskedImage(),
+            scalingType=self.config.flatScalingType,
+            userScale=self.config.flatUserScale,
+            invert=invert
+        )
+
     def makeBinnedImages(self, exposure):
         """Make visualizeVisit style binned exposures.
 
@@ -1190,6 +1236,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
             if self.config.doDark:
                 exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
+            if self.config.doFlat:
+                exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
 
         # First we mark which amplifiers are completely bad from defects.
         badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
@@ -1319,6 +1367,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Applying Bright-Fatter kernels.")
             bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
             ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut, bfGains)
+
+        if self.config.doFlat:
+            # Input units: electrons
+            self.log.info("Applying flat correction.")
+            # Placeholder while the LSST flat procedure is done.
+            # The flat here would be a background flat.
+            self.flatCorrection(ccdExposure, flat)
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
