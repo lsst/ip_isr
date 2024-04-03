@@ -273,6 +273,9 @@ class IsrMockLSST(IsrMock):
 
     def applyGain(self, ampData, gain):
         """Apply gain to the amplifier's data.
+        This method divides the data by the gain
+        because the mocks need to convert the data in electron to ADU,
+        so it does the inverse operation to applyGains in isrFunctions.
 
         Parameters
         ----------
