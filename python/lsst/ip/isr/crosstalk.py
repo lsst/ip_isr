@@ -519,6 +519,7 @@ class CrosstalkCalib(IsrCalib):
         return lsst.afw.math.makeStatistics(mi, lsst.afw.math.MEDIAN, stats).getValue()
 
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
+                          crosstalkCoeffsSqr=None,
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
                           backgroundMethod="None"):
@@ -544,6 +545,8 @@ class CrosstalkCalib(IsrCalib):
             thisExposure is used as the source (intra-detector crosstalk).
         crosstalkCoeffs : `numpy.ndarray`, optional.
             Coefficients to use to correct crosstalk.
+        crosstalkCoeffsSqr : `numpy.ndarray`, optional.
+            Quadratic coefficients to use to correct crosstalk.
         badPixels : `list` of `str`
             Mask planes to ignore.
         minPixelToMask : `float`
@@ -561,6 +564,33 @@ class CrosstalkCalib(IsrCalib):
             amplifier-by-amplifier background levels, "DETECTOR" uses full
             exposure/maskedImage levels.  Any other value results in no
             background subtraction.
+
+        Notes
+        -----
+
+        For a given image I, we want to find the crosstalk subtrahend
+        image CT, such that
+                         I_corrected = I - CT
+        The subtrahend image is the sum of all crosstalk contributions
+        that appear in I, so we can build it up by amplifier. Each
+        amplifier A in image I sees the contributions from all other
+        amplifiers B_v != A.  For the current linear model, we set `sImage`
+        equal to the segment of the subtrahend image CT corresponding to
+        amplifier A, and then build it up as:
+        simage_linear = sum_v coeffsA_v * (B_v - bkg_v) where coeffsA_v
+        is the vector of crosstalk coefficients for sources that cause
+        images in amplifier A.  The bkg_v term in this equation is
+        identically 0.0 for all cameras except obs_subaru (and is only
+        non-zero there for historical reasons).
+        To include the non-linear term, we can again add to the subtrahend
+        image using the same loop, as:
+
+        simage_nonlinear = sum_v (coeffsA_v * B_v) + (NLcoeffsA_v * B_v * B_v)
+                         = sum_v   linear_term_v   +    nonlinear_term_v
+
+        where coeffsA_v is the linear term, and NLcoeffsA_v are the quadratic
+        component. For LSSTCam, it has been observed that the linear_term_v >>
+        nonlinear_term_v.
         """
         mi = thisExposure.getMaskedImage()
         mask = mi.getMask()
@@ -585,6 +615,12 @@ class CrosstalkCalib(IsrCalib):
         else:
             coeffs = self.coeffs
         self.log.debug("CT COEFF: %s", coeffs)
+
+        if crosstalkCoeffsSqr is not None:
+            coeffsSqr = crosstalkCoeffsSqr
+        else:
+            coeffsSqr = self.coeffsSqr
+        self.log.debug("CT COEFF SQR: %s", coeffsSqr)
         # Set background level based on the requested method.  The
         # thresholdBackground holds the offset needed so that we only mask
         # pixels high relative to the background, not in an absolute
@@ -623,6 +659,10 @@ class CrosstalkCalib(IsrCalib):
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 tImage -= backgrounds[tt]
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
+                # Add the nonlinear term
+                doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
+                if doSqrCrosstalk and crosstalkCoeffsSqr is not None:
+                    sImage.scaledPlus(coeffsSqr[ss, tt], tImage*tImage)
 
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
@@ -631,6 +671,7 @@ class CrosstalkCalib(IsrCalib):
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
     def subtractCrosstalkParallelOverscanRegion(self, thisExposure, crosstalkCoeffs=None,
+                                                crosstalkCoeffsSqr=None,
                                                 badPixels=["BAD"], crosstalkStr="CROSSTALK",
                                                 detectorConfig=None):
         """Subtract crosstalk just from the parallel overscan region.
@@ -643,6 +684,8 @@ class CrosstalkCalib(IsrCalib):
             Exposure for which to subtract crosstalk.
         crosstalkCoeffs : `numpy.ndarray`, optional.
             Coefficients to use to correct crosstalk.
+        crosstalkCoeffsSqr : `numpy.ndarray`, optional.
+            Quadratic coefficients to use to correct crosstalk.
         badPixels : `list` of `str`
             Mask planes to ignore.
         crosstalkStr : `str`
@@ -670,6 +713,11 @@ class CrosstalkCalib(IsrCalib):
         else:
             coeffs = self.coeffs
 
+        if crosstalkCoeffsSqr is not None:
+            coeffsSqr = crosstalkCoeffsSqr
+        else:
+            coeffsSqr = self.coeffsSqr
+
         crosstalkPlane = mask.addMaskPlane(crosstalkStr)
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
@@ -691,6 +739,10 @@ class CrosstalkCalib(IsrCalib):
                 tImage = self.extractAmp(mi, tAmp, sAmp, False, parallelOverscan=True)
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
+                # Add the nonlinear term
+                doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
+                if doSqrCrosstalk and crosstalkCoeffsSqr is not None:
+                    sImage.scaledPlus(coeffsSqr[ss, tt], tImage*tImage)
 
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
@@ -738,6 +790,11 @@ class CrosstalkConfig(Config):
         dtype=int,
         doc="Shape of the coefficient array.  This should be equal to [nAmp, nAmp].",
         default=[1],
+    )
+    doQuadraticCrosstalkCorrection = Field(
+        dtype=bool,
+        doc="Use quadratic crosstalk coefficients in the crosstalk correction",
+        default=False,
     )
 
     def getCrosstalk(self, detector=None):
