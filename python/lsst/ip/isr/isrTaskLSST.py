@@ -969,31 +969,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if badPixelCount > 0:
             self.log.info("Set %d BAD pixels to %f.", badPixelCount, badPixelValue)
 
-    def flatCorrection(self, exposure, flatExposure, invert=False):
-        """Apply flat correction in place.
-
-        Parameters
-        ----------
-        exposure : `lsst.afw.image.Exposure`
-            Exposure to process.
-        flatExposure : `lsst.afw.image.Exposure`
-            Flat exposure of the same size as ``exposure``.
-        invert : `Bool`, optional
-            If True, unflatten an already flattened image.
-
-        See Also
-        --------
-        lsst.ip.isr.isrFunctions.flatCorrection
-        """
-        isrFunctions.flatCorrection(
-            maskedImage=exposure.getMaskedImage(),
-            flatMaskedImage=flatExposure.getMaskedImage(),
-            scalingType='USER',
-            userScale=1.0,
-            invert=invert,
-            trimToFit=False
-        )
-
     @contextmanager
     def flatContext(self, exp, flat, dark=None):
         """Context manager that applies and removes flats and darks,
@@ -1015,11 +990,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         """
         if self.config.doDark and dark is not None:
             self.darkCorrection(exp, dark)
-        self.flatCorrection(exp, flat)
+        if self.config.doFlat and flat is not None:
+            self.flatCorrection(exp, flat)
         try:
             yield exp
         finally:
-            self.flatCorrection(exp, flat, invert=True)
+            if self.config.doFlat and flat is not None:
+                self.flatCorrection(exp, flat, invert=True)
             if self.config.doDark and dark is not None:
                 self.darkCorrection(exp, dark, invert=True)
 
@@ -1233,7 +1210,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return bin1, bin2
 
-    def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
+    def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
             flat=None, camera=None, **kwargs
             ):
