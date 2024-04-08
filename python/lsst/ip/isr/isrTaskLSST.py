@@ -273,10 +273,27 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Mask plane to use to mark pixels with negative variance, if `maskNegativeVariance` is True.",
         default="BAD",
     )
+    doSaturation = pexConfig.Field(
+        dtype=bool,
+        doc="Mask saturated pixels? NB: this is totally independent of the"
+        " interpolation option - this is ONLY setting the bits in the mask."
+        " To have them interpolated make sure doSaturationInterpolation=True",
+        default=True,
+    )
+    saturation = pexConfig.Field(
+        dtype=float,
+        doc="The saturation level to use if no Detector is present in the Exposure (ignored if NaN)",
+        default=float("NaN"),
+    )
     saturatedMaskName = pexConfig.Field(
         dtype=str,
         doc="Name of mask plane to use in saturation detection and interpolation.",
         default="SAT",
+    )
+    doSuspect = pexConfig.Field(
+        dtype=bool,
+        doc="Mask suspect pixels?",
+        default=False,
     )
     suspectMaskName = pexConfig.Field(
         dtype=str,
@@ -1210,7 +1227,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return bin1, bin2
 
-    def run(self, *, ccdExposure, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
+    def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
             flat=None, camera=None, **kwargs
             ):
