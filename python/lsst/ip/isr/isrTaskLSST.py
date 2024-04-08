@@ -705,7 +705,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         for i, amp in enumerate(detector):
             ampName = amp.getName()
 
-            ampConfig = detectorConfig.getOverscanAmpConfig(ampName)
+            ampConfig = detectorConfig.getOverscanAmpConfig(amp)
 
             if mode == "SERIAL" and not ampConfig.doSerialOverscan:
                 self.log.debug(
@@ -756,7 +756,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     metadata[f"{keyBase} RESIDUAL {mode} MEDIAN {ampName}"] = results.residualMedian
                     metadata[f"{keyBase} RESIDUAL {mode} STDEV {ampName}"] = results.residualSigma
 
-            overscans[i] = results
+            overscans.append(results)
 
         # Question: should this be finer grained?
         ccdExposure.getMetadata().set("OVERSCAN", "Overscan corrected")
