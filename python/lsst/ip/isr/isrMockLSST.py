@@ -51,6 +51,11 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=30000.0,
         doc="Background contribution to be generated from the bias offset in ADU.",
     )
+    flatMode = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Set to true for producing mock flats.",
+    )
     # Inclusion parameters are inherited from isrMock.
     doAddParallelOverscan = pexConfig.Field(
         dtype=bool,
@@ -135,7 +140,7 @@ class IsrMockLSST(IsrMock):
             if self.config.isTrimmed:
                 bbox = amp.getBBox()
             else:
-                bbox = amp.getRawDataBBox().shiftedBy(amp.getRawXYOffset())
+                bbox = amp.getRawDataBBox()
 
             ampData = exposure.image[bbox]
 
@@ -179,8 +184,9 @@ class IsrMockLSST(IsrMock):
 
             # 3. Add read noise with or without a bias level
             # to the image region in ADU.
-            self.amplifierAddNoise(ampData, self.config.biasLevel if self.config.doAddBias else 0.0,
-                                   self.config.readNoise / self.config.gain)
+            if not self.config.flatMode:
+                self.amplifierAddNoise(ampData, self.config.biasLevel if self.config.doAddBias else 0.0,
+                                    self.config.readNoise / self.config.gain)
 
         # 4. Apply cross-talk in ADU
         if self.config.doAddCrosstalk:
@@ -188,7 +194,7 @@ class IsrMockLSST(IsrMock):
             for idxS, ampS in enumerate(exposure.getDetector()):
                 for idxT, ampT in enumerate(exposure.getDetector()):
                     ampDataT = exposure.image[ampT.getBBox() if self.config.isTrimmed
-                                              else ampT.getRawDataBBox().shiftedBy(ampT.getRawXYOffset())]
+                                              else ampT.getRawDataBBox()]
                     outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
                                                 isTrimmed=self.config.isTrimmed)
                     self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
@@ -200,15 +206,15 @@ class IsrMockLSST(IsrMock):
             if self.config.isTrimmed:
                 bbox = amp.getBBox()
             else:
-                bbox = amp.getRawDataBBox().shiftedBy(amp.getRawXYOffset())
+                bbox = amp.getRawDataBBox()
             ampData = exposure.image[bbox]
 
             # Get overscan bbox and data
             if not self.config.isTrimmed:
-                parallelOscanBBox = amp.getRawParallelOverscanBBox().shiftedBy(amp.getRawXYOffset())
+                parallelOscanBBox = amp.getRawParallelOverscanBBox()
                 parallelOscanData = exposure.image[parallelOscanBBox]
 
-                serialOscanBBox = amp.getRawSerialOverscanBBox().shiftedBy(amp.getRawXYOffset())
+                serialOscanBBox = amp.getRawSerialOverscanBBox()
 
             # 5. Apply parallel overscan in ADU
             if self.config.doAddParallelOverscan:
@@ -220,11 +226,11 @@ class IsrMockLSST(IsrMock):
                                            self.config.readNoise / self.config.gain)
                     # Apply gradient along the Y axis
                     # to the parallel overscan region.
-                    self.amplifierAddYGradient(parallelOscanData, -1.0 * self.config.overscanScale,
+                    self.amplifierAddXGradient(parallelOscanData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
 
                 # Apply gradient along the Y axis to the image region
-                self.amplifierAddYGradient(ampData, -1.0 * self.config.overscanScale,
+                self.amplifierAddXGradient(ampData, -1.0 * self.config.overscanScale,
                                            1.0 * self.config.overscanScale)
 
         # 6. Add Parallel overscan xtalk.
@@ -254,13 +260,13 @@ class IsrMockLSST(IsrMock):
 
                     # 7. Apply serial overscan in ADU
                     # Apply gradient along the X axis to both overscan regions.
-                    self.amplifierAddXGradient(serialOscanData, -1.0 * self.config.overscanScale,
+                    self.amplifierAddYGradient(serialOscanData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
-                    self.amplifierAddXGradient(parallelOscanData, -1.0 * self.config.overscanScale,
+                    self.amplifierAddYGradient(parallelOscanData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
 
                 # Apply gradient along the X axis to the image region.
-                self.amplifierAddXGradient(ampData, -1.0 * self.config.overscanScale,
+                self.amplifierAddYGradient(ampData, -1.0 * self.config.overscanScale,
                                            1.0 * self.config.overscanScale)
 
         if self.config.doGenerateAmpDict:
@@ -412,7 +418,7 @@ class BiasMockLSST(ReferenceMockLSST):
         # but we do the following instead to be consistent
         # with any other bias products we might want to produce.
         self.config.doAddBias = True
-        self.config.biasLevel - 0.0
+        self.config.biasLevel = 0.0
         self.config.doApplyGain = True
         # Assume combined calibrations are made with 16 inputs.
         self.config.readNoise = 10.0*0.25
@@ -424,6 +430,7 @@ class FlatMockLSST(ReferenceMockLSST):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doAddFlat = True
+        self.config.flatMode = True
 
 
 class FringeMockLSST(ReferenceMockLSST):

@@ -578,31 +578,40 @@ class IsrMock(pipeBase.Task):
             parallelOscanBBox = amp.getRawParallelOverscanBBox()
             serialOscanBBox = amp.getRawSerialOverscanBBox()
             prescanBBox = amp.getRawPrescanBBox()
-            # This follows cameraGeom.testUtils
-            flipx = bool(amp.getRawFlipX())
-            flipy = bool(amp.getRawFlipY())
-            if flipx:
-                xExt = rawBbox.getDimensions().getX()
-                rawBbox.flipLR(xExt)
-                imageBBox.flipLR(xExt)
-                parallelOscanBBox.flipLR(xExt)
-                serialOscanBBox.flipLR(xExt)
-                prescanBBox.flipLR(xExt)
-            if flipy:
-                yExt = rawBbox.getDimensions().getY()
-                rawBbox.flipTB(yExt)
-                imageBBox.flipTB(yExt)
-                parallelOscanBBox.flipTB(yExt)
-                serialOscanBBox.flipTB(yExt)
-                prescanBBox.flipTB(yExt)
-            if not flipx and not flipy:
-                readoutCorner = 'LL'
-            elif flipx and not flipy:
-                readoutCorner = 'LR'
-            elif flipx and flipy:
-                readoutCorner = 'UR'
-            elif not flipx and flipy:
-                readoutCorner = 'UL'
+
+            if self.config.isLsstLike:
+                # This follows cameraGeom.testUtils
+                xoffset, yoffset = amp.getRawXYOffset()
+                offext = lsst.geom.Extent2I(xoffset, yoffset)
+                flipx = bool(amp.getRawFlipX())
+                flipy = bool(amp.getRawFlipY())
+                if flipx:
+                    xExt = rawBbox.getDimensions().getX()
+                    rawBbox.flipLR(xExt)
+                    imageBBox.flipLR(xExt)
+                    parallelOscanBBox.flipLR(xExt)
+                    serialOscanBBox.flipLR(xExt)
+                    prescanBBox.flipLR(xExt)
+                if flipy:
+                    yExt = rawBbox.getDimensions().getY()
+                    rawBbox.flipTB(yExt)
+                    imageBBox.flipTB(yExt)
+                    parallelOscanBBox.flipTB(yExt)
+                    serialOscanBBox.flipTB(yExt)
+                    prescanBBox.flipTB(yExt)
+                if not flipx and not flipy:
+                    readoutCorner = 'LL'
+                elif flipx and not flipy:
+                    readoutCorner = 'LR'
+                elif flipx and flipy:
+                    readoutCorner = 'UR'
+                elif not flipx and flipy:
+                    readoutCorner = 'UL'
+                rawBbox.shift(offext)
+                imageBBox.shift(offext)
+                parallelOscanBBox.shift(offext)
+                serialOscanBBox.shift(offext)
+                prescanBBox.shift(offext)
             newAmp.setReadoutCorner(readoutMap[readoutCorner])
             newAmp.setRawBBox(rawBbox)
             newAmp.setRawDataBBox(imageBBox)
@@ -611,6 +620,8 @@ class IsrMock(pipeBase.Task):
             newAmp.setRawPrescanBBox(prescanBBox)
             newAmp.setRawFlipX(False)
             newAmp.setRawFlipY(False)
+            no_offset = lsst.geom.Extent2I(0,0)
+            newAmp.setRawXYOffset(no_offset)
 
             newCcd.append(newAmp)
 
