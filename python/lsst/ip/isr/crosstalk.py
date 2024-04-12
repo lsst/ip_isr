@@ -119,7 +119,7 @@ class CrosstalkCalib(IsrCalib):
         self.ampGainRatios = np.zeros(self.crosstalkShape) if self.nAmp else None
 
         # Units
-        self.crosstalkRatiosUnits = 'ADU' if self.nAmp else None
+        self.crosstalkRatiosUnits = 'electrons' if self.nAmp else None
 
         self.interChip = {}
 
