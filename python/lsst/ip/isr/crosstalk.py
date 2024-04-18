@@ -903,6 +903,16 @@ class CrosstalkTask(Task):
                                                coeffVector=self.config.crosstalkValues)
         if not crosstalk.log:
             crosstalk.log = self.log
+
+        doSqrCrosstalk = self.config.doSqrCrosstalk
+        if doSqrCrosstalk and crosstalk.crosstalkCoeffsSqr is None:
+            raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
+                               "crosstalk coefficients.")
+        if doSqrCrosstalk:
+            crosstalkCoeffsSqr = crosstalk.coeffsSqr
+        else:
+            crosstalkCoeffsSqr = None
+
         if not crosstalk.hasCrosstalk:
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients.")
         elif parallelOverscanRegion:
@@ -910,11 +920,13 @@ class CrosstalkTask(Task):
             crosstalk.subtractCrosstalkParallelOverscanRegion(
                 exposure,
                 crosstalkCoeffs=crosstalk.coeffs,
+                crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                 detectorConfig=detectorConfig,
             )
         else:
             self.log.info("Applying crosstalk correction.")
             crosstalk.subtractCrosstalk(exposure, crosstalkCoeffs=crosstalk.coeffs,
+                                        crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                                         minPixelToMask=self.config.minPixelToMask,
                                         crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
                                         backgroundMethod=self.config.crosstalkBackgroundMethod)
