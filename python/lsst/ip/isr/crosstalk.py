@@ -739,10 +739,11 @@ class CrosstalkCalib(IsrCalib):
                 tImage = self.extractAmp(mi, tAmp, sAmp, False, parallelOverscan=True)
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
-                # Add the nonlinear term
-                doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
-                if doSqrCrosstalk and crosstalkCoeffsSqr is not None:
-                    sImage.scaledPlus(coeffsSqr[ss, tt], tImage*tImage)
+                # Add the nonlinear term, if any.
+                if crosstalkCoeffsSqr is not None:
+                    tImageSqr = tImage.clone()
+                    tImageSqr *= tImage
+                    sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
