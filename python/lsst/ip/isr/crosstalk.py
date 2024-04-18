@@ -94,7 +94,7 @@ class CrosstalkCalib(IsrCalib):
     Version 1.1 adds quadratic coefficients, a matrix with the ratios
     of amplifiers gains per detector, and a field to indicate the units
     of the numerator and denominator of the source and target signals, with
-    "ADU" meaning "ADU / ADU" and "electrons" meaning "e- / e-".
+    "adu" meaning "ADU / ADU" and "electron" meaning "e- / e-".
     """
     _OBSTYPE = 'CROSSTALK'
     _SCHEMA = 'Gen3 Crosstalk'
@@ -119,7 +119,7 @@ class CrosstalkCalib(IsrCalib):
         self.ampGainRatios = np.zeros(self.crosstalkShape) if self.nAmp else None
 
         # Units
-        self.crosstalkRatiosUnits = 'electrons' if self.nAmp else None
+        self.crosstalkRatiosUnits = 'adu' if self.nAmp else None
 
         self.interChip = {}
 
