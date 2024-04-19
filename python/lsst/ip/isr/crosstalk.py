@@ -650,6 +650,12 @@ class CrosstalkCalib(IsrCalib):
         subtrahend.set((0, 0, 0))
 
         coeffs = coeffs.transpose()
+        # Apply NL coefficients
+        if coeffsSqr is not None:
+            coeffsSqr = coeffsSqr.transpose()
+            mi2 = mi.clone()
+            mi2.scaledMultiplies(1.0, mi)
+            doSqrCrosstalk = True
         for ss, sAmp in enumerate(sourceDetector):
             sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
             for tt, tAmp in enumerate(detector):
@@ -660,9 +666,9 @@ class CrosstalkCalib(IsrCalib):
                 tImage -= backgrounds[tt]
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
                 # Add the nonlinear term
-                doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
-                if doSqrCrosstalk and crosstalkCoeffsSqr is not None:
-                    sImage.scaledPlus(coeffsSqr[ss, tt], tImage*tImage)
+                if doSqrCrosstalk:
+                    tImageSqr = self.extractAmp(mi2, tAmp, sAmp, isTrimmed)
+                    sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
@@ -725,6 +731,12 @@ class CrosstalkCalib(IsrCalib):
         subtrahend.set((0, 0, 0))
 
         coeffs = coeffs.transpose()
+        # Apply NL coefficients
+        if coeffsSqr is not None:
+            coeffsSqr = coeffsSqr.transpose()
+            mi2 = mi.clone()
+            mi2.scaledMultiplies(1.0, mi)
+            doSqrCrosstalk = True
         for ss, sAmp in enumerate(sourceDetector):
             if detectorConfig is not None:
                 ampConfig = detectorConfig.getOverscanAmpconfig(sAmp.getName())
@@ -740,11 +752,9 @@ class CrosstalkCalib(IsrCalib):
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
                 # Add the nonlinear term, if any.
-                if crosstalkCoeffsSqr is not None:
-                    tImageSqr = tImage.clone()
-                    tImageSqr *= tImage
+                if doSqrCrosstalk:
+                    tImageSqr = self.extractAmp(mi2, tAmp, sAmp, False, parallelOverscan=True)
                     sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
-
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
         # not necessarily those that are bright originally.
