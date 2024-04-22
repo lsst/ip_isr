@@ -523,7 +523,7 @@ class CrosstalkCalib(IsrCalib):
                           crosstalkCoeffsSqr=None,
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
-                          backgroundMethod="None"):
+                          backgroundMethod="None", doSqrCrosstalk=False):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -548,23 +548,26 @@ class CrosstalkCalib(IsrCalib):
             Coefficients to use to correct crosstalk.
         crosstalkCoeffsSqr : `numpy.ndarray`, optional.
             Quadratic coefficients to use to correct crosstalk.
-        badPixels : `list` of `str`
+        badPixels : `list` of `str`, optional
             Mask planes to ignore.
-        minPixelToMask : `float`
+        minPixelToMask : `float`, optional
             Minimum pixel value (relative to the background level) in
             source amplifier for which to set ``crosstalkStr`` mask plane
             in target amplifier.
-        crosstalkStr : `str`
+        crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
-        isTrimmed : `bool`
+        isTrimmed : `bool`, optional
             The image is already trimmed.
             This should no longer be needed once DM-15409 is resolved.
-        backgroundMethod : `str`
+        backgroundMethod : `str`, optional
             Method used to subtract the background.  "AMP" uses
             amplifier-by-amplifier background levels, "DETECTOR" uses full
             exposure/maskedImage levels.  Any other value results in no
             background subtraction.
+        doSqrCrosstalk: `bool`, optional
+            Should the quadratic crosstalk coefficients be used for the
+            crosstalk correction?
 
         Notes
         -----
@@ -604,6 +607,10 @@ class CrosstalkCalib(IsrCalib):
             raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
                                f"{numAmps} in {detector.getName()}")
 
+        if doSqrCrosstalk and crosstalkCoeffsSqr is None:
+            raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
+                               "crosstalk coefficients.")
+
         if sourceExposure:
             source = sourceExposure.getMaskedImage()
             sourceDetector = sourceExposure.getDetector()
@@ -617,11 +624,12 @@ class CrosstalkCalib(IsrCalib):
             coeffs = self.coeffs
         self.log.debug("CT COEFF: %s", coeffs)
 
-        if crosstalkCoeffsSqr is not None:
-            coeffsSqr = crosstalkCoeffsSqr
-        else:
-            coeffsSqr = self.coeffsSqr
-        self.log.debug("CT COEFF SQR: %s", coeffsSqr)
+        if doSqrCrosstalk:
+            if crosstalkCoeffsSqr is not None:
+                coeffsSqr = crosstalkCoeffsSqr
+            else:
+                coeffsSqr = self.coeffsSqr
+            self.log.debug("CT COEFF SQR: %s", coeffsSqr)
         # Set background level based on the requested method.  The
         # thresholdBackground holds the offset needed so that we only mask
         # pixels high relative to the background, not in an absolute
@@ -652,11 +660,10 @@ class CrosstalkCalib(IsrCalib):
 
         coeffs = coeffs.transpose()
         # Apply NL coefficients
-        if coeffsSqr is not None:
+        if doSqrCrosstalk:
             coeffsSqr = coeffsSqr.transpose()
             mi2 = mi.clone()
             mi2.scaledMultiplies(1.0, mi)
-            doSqrCrosstalk = True
         for ss, sAmp in enumerate(sourceDetector):
             sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
             for tt, tAmp in enumerate(detector):
@@ -680,7 +687,7 @@ class CrosstalkCalib(IsrCalib):
     def subtractCrosstalkParallelOverscanRegion(self, thisExposure, crosstalkCoeffs=None,
                                                 crosstalkCoeffsSqr=None,
                                                 badPixels=["BAD"], crosstalkStr="CROSSTALK",
-                                                detectorConfig=None):
+                                                detectorConfig=None, doSqrCrosstalk=False):
         """Subtract crosstalk just from the parallel overscan region.
 
         This assumes that serial overscan has been previously subtracted.
@@ -693,13 +700,16 @@ class CrosstalkCalib(IsrCalib):
             Coefficients to use to correct crosstalk.
         crosstalkCoeffsSqr : `numpy.ndarray`, optional.
             Quadratic coefficients to use to correct crosstalk.
-        badPixels : `list` of `str`
+        badPixels : `list` of `str`, optional
             Mask planes to ignore.
-        crosstalkStr : `str`
+        crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
         detectorConfig : `lsst.ip.isr.overscanDetectorConfig`, optional
             Per-amplifier configs to use.
+        doSqrCrosstalk: `bool`, optional
+            Should the quadratic crosstalk coefficients be used for the
+            crosstalk correction?
         """
         mi = thisExposure.getMaskedImage()
         mask = mi.getMask()
@@ -712,6 +722,10 @@ class CrosstalkCalib(IsrCalib):
             raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
                                f"{numAmps} in {detector.getName()}")
 
+        if doSqrCrosstalk and crosstalkCoeffsSqr is None:
+            raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
+                               "crosstalk coefficients.")
+
         source = mi
         sourceDetector = detector
 
@@ -719,11 +733,12 @@ class CrosstalkCalib(IsrCalib):
             coeffs = crosstalkCoeffs
         else:
             coeffs = self.coeffs
-
-        if crosstalkCoeffsSqr is not None:
-            coeffsSqr = crosstalkCoeffsSqr
-        else:
-            coeffsSqr = self.coeffsSqr
+        if doSqrCrosstalk:
+            if crosstalkCoeffsSqr is not None:
+                coeffsSqr = crosstalkCoeffsSqr
+            else:
+                coeffsSqr = self.coeffsSqr
+            self.log.debug("CT COEFF SQR: %s", coeffsSqr)
 
         crosstalkPlane = mask.addMaskPlane(crosstalkStr)
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
@@ -733,11 +748,10 @@ class CrosstalkCalib(IsrCalib):
 
         coeffs = coeffs.transpose()
         # Apply NL coefficients
-        if coeffsSqr is not None:
+        if doSqrCrosstalk:
             coeffsSqr = coeffsSqr.transpose()
             mi2 = mi.clone()
             mi2.scaledMultiplies(1.0, mi)
-            doSqrCrosstalk = True
         for ss, sAmp in enumerate(sourceDetector):
             if detectorConfig is not None:
                 ampConfig = detectorConfig.getOverscanAmpconfig(sAmp.getName())
