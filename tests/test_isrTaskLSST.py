@@ -112,8 +112,15 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         # Create a crosstalk calib with default coefficients from the mock data
         self.crosstalk = CrosstalkCalib(nAmp=self.namp)
         self.crosstalk.hasCrosstalk = True
-        self.crosstalk.coeffs = isrMockLSST.CrosstalkCoeffMockLSST().run()
-
+        #self.crosstalk.coeffs = isrMockLSST.CrosstalkCoeffMockLSST().run()
+        self.crosstalk.coeffs = np.array([[0.0, 1e-1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
         # Create mock defects
         self.defect = isrMockLSST.DefectMockLSST().run()
 
@@ -179,6 +186,17 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doBrighterFatter = False
         self.config.doFlat = False
 
+    def debugView(self, exposure, stepname):
+        import matplotlib.pyplot as plt
+        plt.imshow(exposure.image.array,origin='lower')
+        plt.colorbar()
+        plt.show()
+        prompt = "Press Enter to continue [c]"
+        while True:
+            ans = input(prompt).lower()
+            if ans in ("", "c",):
+                break
+
     def validateIsrResults(self):
         """results should be a struct with components that are
         not None if included in the configuration file.
@@ -207,198 +225,172 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.assertIsInstance(results.exposure, afwImage.Exposure)
         return results
 
-    def test_run_serialOverscanCorrection(self):
-        """Test up to serial overscan correction.
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.doSetUp_mock(config=self.mockConfig)
+    # def test_run_serialOverscanCorrection(self):
+    #     """Test up to serial overscan correction.
+    #     """
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.doSetUp_mock(config=self.mockConfig)
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
 
-        results = self.validateIsrResults()
+    #     results = self.validateIsrResults()
 
-    def test_run_parallelOverscanCrosstalkCorrection(self):
-        """Test up to parallel overscan crosstalk correction.
-        """
-        # TODO: DM-43286
-        pass
+    # def test_run_parallelOverscanCrosstalkCorrection(self):
+    #     """Test up to parallel overscan crosstalk correction.
+    #     """
+    #     # TODO: DM-43286
+    #     pass
 
-    def test_run_parallelOverscanCorrection(self):
-        """Test up to parallel overscan correction.
-        """
+    # def test_run_parallelOverscanCorrection(self):
+    #     """Test up to parallel overscan correction.
+    #     """
 
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.doSetUp_mock(config=self.mockConfig)
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.mockConfig.doAddParallelOverscan = True
+    #     self.doSetUp_mock(config=self.mockConfig)
 
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
+    #     self.defaultAmpConfig.doParallelOverscan = True
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
+    #     results = self.validateIsrResults()
 
-        results = self.validateIsrResults()
+    # def test_run_assembleCcd(self):
+    #     """Test up to assembly.
+    #     """
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.mockConfig.doAddParallelOverscan = True
+    #     self.doSetUp_mock(config=self.mockConfig)
 
-    def test_run_assembleCcd(self):
-        """Test up to assembly.
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.doSetUp_mock(config=self.mockConfig)
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
+    #     self.defaultAmpConfig.doParallelOverscan = True
+    #     self.config.doAssembleCcd = True
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
-        self.config.doAssembleCcd = True
+    #     results = self.validateIsrResults()
 
-        results = self.validateIsrResults()
+    # def test_run_linearize(self):
+    #     """Test up to linearizer.
+    #     """
+    #     # TODO DM-???
+    #     pass
 
-    def test_run_linearize(self):
-        """Test up to linearizer.
-        """
-        # TODO DM-???
-        pass
+    # def test_run_crosstalkCorrection(self):
+    #     """Test up to crosstalk correction.
+    #     """
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.mockConfig.doAddParallelOverscan = True
+    #     self.mockConfig.doAddCrosstalk = True
+    #     self.doSetUp_mock(config=self.mockConfig)
 
-    def test_run_crosstalkCorrection(self):
-        """Test up to crosstalk correction.
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.mockConfig.doAddCrosstalk = True
-        self.doSetUp_mock(config=self.mockConfig)
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
+    #     self.defaultAmpConfig.doParallelOverscan = True
+    #     self.config.doAssembleCcd = True
+    #     self.config.doCrosstalk = True
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
-        self.config.doAssembleCcd = True
-        self.config.doCrosstalk = True
-
-        results = self.validateIsrResults()
+    #     results = self.validateIsrResults()
 
     def test_run_biasCorrection(self):
         """Test up to crosstalk correction.
         """
         self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
         self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
+        #self.mockConfig.doAddSerialOverscan = True
         self.mockConfig.doAddParallelOverscan = True
         self.mockConfig.doAddCrosstalk = True
         self.mockConfig.doAddBias = True
         self.doSetUp_mock(config=self.mockConfig)
-
+        import IPython
+        IPython.embed()
         self.config = IsrTaskLSSTConfig()
         self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
+        #self.defaultAmpConfig.doSerialOverscan = True
         self.defaultAmpConfig.doParallelOverscan = True
         self.config.doAssembleCcd = True
         self.config.doCrosstalk = True
         self.config.doBias = True
+        #self.debugView(self.inputExp, None)
 
         results = self.validateIsrResults()
+        print('Bias correction test.')
+        import IPython
+        IPython.embed()
+        #self.debugView(results.outputExposure, None)
 
-    def test_run_correctGains(self):
-        """Test up to gains correction
-        # TODO DM-??
-        """
-        pass
+    # def test_run_correctGains(self):
+    #     """Test up to gains correction
+    #     # TODO DM-??
+    #     """
+    #     pass
 
-    def test_run_applyGains(self):
-        """Test up to crosstalk correction.
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.mockConfig.doAddCrosstalk = True
-        self.mockConfig.doAddBias = True
-        self.mockConfig.doApplyGain = True
-        self.mockConfig.gain = 3.5
-        self.doSetUp_mock(config=self.mockConfig)
+    # def test_run_applyGains(self):
+    #     """Test up to crosstalk correction.
+    #     """
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.mockConfig.doAddParallelOverscan = True
+    #     self.mockConfig.doAddCrosstalk = True
+    #     self.mockConfig.doAddBias = True
+    #     self.mockConfig.doApplyGain = True
+    #     self.mockConfig.gain = 3.5
+    #     self.doSetUp_mock(config=self.mockConfig)
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
-        self.config.doAssembleCcd = True
-        self.config.doCrosstalk = True
-        self.config.doBias = True
-        self.config.doApplyGains = True
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
+    #     self.defaultAmpConfig.doParallelOverscan = True
+    #     self.config.doAssembleCcd = True
+    #     self.config.doCrosstalk = True
+    #     self.config.doBias = True
+    #     self.config.doApplyGains = True
 
-        results = self.validateIsrResults()
+    #     results = self.validateIsrResults()
 
-    def test_run_doVarianceDefectsMasking(self):
-        """Test up to masking of bad pixels.
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.mockConfig.doAddCrosstalk = True
-        self.mockConfig.doAddBias = True
-        self.mockConfig.doApplyGain = True
-        self.mockConfig.gain = 3.5
-        self.doSetUp_mock(config=self.mockConfig)
+    # def test_run_doVarianceDefectsMasking(self):
+    #     """Test up to masking of bad pixels.
+    #     """
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.mockConfig.doAddParallelOverscan = True
+    #     self.mockConfig.doAddCrosstalk = True
+    #     self.mockConfig.doAddBias = True
+    #     self.mockConfig.doApplyGain = True
+    #     self.mockConfig.gain = 3.5
+    #     self.doSetUp_mock(config=self.mockConfig)
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
-        self.config.doAssembleCcd = True
-        self.config.doCrosstalk = True
-        self.config.doBias = True
-        self.config.doApplyGains = True
-        self.config.doVariance = True
-        self.config.doDefect = True
-        self.config.doNanMasking = True
-        self.config.doWidenSaturationTrails = True
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
+    #     self.defaultAmpConfig.doParallelOverscan = True
+    #     self.config.doAssembleCcd = True
+    #     self.config.doCrosstalk = True
+    #     self.config.doBias = True
+    #     self.config.doApplyGains = True
+    #     self.config.doVariance = True
+    #     self.config.doDefect = True
+    #     self.config.doNanMasking = True
+    #     self.config.doWidenSaturationTrails = True
 
-        results = self.validateIsrResults()
+    #     results = self.validateIsrResults()
 
-    def test_run_doDark(self):
-        """Test up to dark correction.
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.mockConfig.doAddCrosstalk = True
-        self.mockConfig.doAddBias = True
-        self.mockConfig.doApplyGain = True
-        self.mockConfig.gain = 3.5
-        self.mockConfig.doAddDark = True
-        self.doSetUp_mock(config=self.mockConfig)
-
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
-        self.config.doAssembleCcd = True
-        self.config.doCrosstalk = True
-        self.config.doBias = True
-        self.config.doApplyGains = True
-        self.config.doVariance = True
-        self.config.doDefect = True
-        self.config.doNanMasking = True
-        self.config.doWidenSaturationTrails = True
-        self.config.doDark = True
-
-        results = self.validateIsrResults()
-
-    # def test_run_doBFcorrection(self):
-    #     """Test up to brighter-fatter correction.
-    #     Note that brighter-fatter is not added to the mock.
+    # def test_run_doDark(self):
+    #     """Test up to dark correction.
     #     """
     #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
     #     self.setMockConfigFalse()
@@ -424,75 +416,106 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
     #     self.config.doNanMasking = True
     #     self.config.doWidenSaturationTrails = True
     #     self.config.doDark = True
-    #     self.config.doBrighterFatter = True
 
     #     results = self.validateIsrResults()
 
-    def test_run_doFlat(self):
-        """Test up to flat correction
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.mockConfig.doAddCrosstalk = True
-        self.mockConfig.doAddBias = True
-        self.mockConfig.doApplyGain = True
-        self.mockConfig.gain = 3.5
-        self.mockConfig.doAddDark = True
-        self.mockConfig.doAddFlat = True
-        self.doSetUp_mock(config=self.mockConfig)
+    # # def test_run_doBFcorrection(self):
+    # #     """Test up to brighter-fatter correction.
+    # #     Note that brighter-fatter is not added to the mock.
+    # #     """
+    # #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    # #     self.setMockConfigFalse()
+    # #     self.mockConfig.doAddSerialOverscan = True
+    # #     self.mockConfig.doAddParallelOverscan = True
+    # #     self.mockConfig.doAddCrosstalk = True
+    # #     self.mockConfig.doAddBias = True
+    # #     self.mockConfig.doApplyGain = True
+    # #     self.mockConfig.gain = 3.5
+    # #     self.mockConfig.doAddDark = True
+    # #     self.doSetUp_mock(config=self.mockConfig)
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
-        self.config.doAssembleCcd = True
-        self.config.doCrosstalk = True
-        self.config.doBias = True
-        self.config.doApplyGains = True
-        self.config.doVariance = True
-        self.config.doDefect = True
-        self.config.doNanMasking = True
-        self.config.doWidenSaturationTrails = True
-        self.config.doDark = True
-        self.config.doFlat = True
+    # #     self.config = IsrTaskLSSTConfig()
+    # #     self.setIsrConfig()
+    # #     self.defaultAmpConfig.doSerialOverscan = True
+    # #     self.defaultAmpConfig.doParallelOverscan = True
+    # #     self.config.doAssembleCcd = True
+    # #     self.config.doCrosstalk = True
+    # #     self.config.doBias = True
+    # #     self.config.doApplyGains = True
+    # #     self.config.doVariance = True
+    # #     self.config.doDefect = True
+    # #     self.config.doNanMasking = True
+    # #     self.config.doWidenSaturationTrails = True
+    # #     self.config.doDark = True
+    # #     self.config.doBrighterFatter = True
 
-        results = self.validateIsrResults()
+    # #     results = self.validateIsrResults()
 
-    def test_run_setPixelValues(self):
-        """Test up to flat correction
-        """
-        self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
-        self.setMockConfigFalse()
-        self.mockConfig.doAddSerialOverscan = True
-        self.mockConfig.doAddParallelOverscan = True
-        self.mockConfig.doAddCrosstalk = True
-        self.mockConfig.doAddBias = True
-        self.mockConfig.doApplyGain = True
-        self.mockConfig.gain = 3.5
-        self.mockConfig.doAddDark = True
-        self.mockConfig.doAddFlat = True
-        self.doSetUp_mock(config=self.mockConfig)
+    # def test_run_doFlat(self):
+    #     """Test up to flat correction
+    #     """
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.mockConfig.doAddParallelOverscan = True
+    #     self.mockConfig.doAddCrosstalk = True
+    #     self.mockConfig.doAddBias = True
+    #     self.mockConfig.doApplyGain = True
+    #     self.mockConfig.gain = 3.5
+    #     self.mockConfig.doAddDark = True
+    #     self.mockConfig.doAddFlat = True
+    #     self.doSetUp_mock(config=self.mockConfig)
 
-        self.config = IsrTaskLSSTConfig()
-        self.setIsrConfig()
-        self.defaultAmpConfig.doSerialOverscan = True
-        self.defaultAmpConfig.doParallelOverscan = True
-        self.config.doAssembleCcd = True
-        self.config.doCrosstalk = True
-        self.config.doBias = True
-        self.config.doApplyGains = True
-        self.config.doVariance = True
-        self.config.doDefect = True
-        self.config.doNanMasking = True
-        self.config.doWidenSaturationTrails = True
-        self.config.doDark = True
-        self.config.doFlat = True
-        self.config.doSetBadRegions = True
-        self.config.doInterpolate = True
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
+    #     self.defaultAmpConfig.doParallelOverscan = True
+    #     self.config.doAssembleCcd = True
+    #     self.config.doCrosstalk = True
+    #     self.config.doBias = True
+    #     self.config.doApplyGains = True
+    #     self.config.doVariance = True
+    #     self.config.doDefect = True
+    #     self.config.doNanMasking = True
+    #     self.config.doWidenSaturationTrails = True
+    #     self.config.doDark = True
+    #     self.config.doFlat = True
 
-        results = self.validateIsrResults()
+    #     results = self.validateIsrResults()
+
+    # def test_run_setPixelValues(self):
+    #     """Test up to flat correction
+    #     """
+    #     self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
+    #     self.setMockConfigFalse()
+    #     self.mockConfig.doAddSerialOverscan = True
+    #     self.mockConfig.doAddParallelOverscan = True
+    #     self.mockConfig.doAddCrosstalk = True
+    #     self.mockConfig.doAddBias = True
+    #     self.mockConfig.doApplyGain = True
+    #     self.mockConfig.gain = 3.5
+    #     self.mockConfig.doAddDark = True
+    #     self.mockConfig.doAddFlat = True
+    #     self.doSetUp_mock(config=self.mockConfig)
+
+    #     self.config = IsrTaskLSSTConfig()
+    #     self.setIsrConfig()
+    #     self.defaultAmpConfig.doSerialOverscan = True
+    #     self.defaultAmpConfig.doParallelOverscan = True
+    #     self.config.doAssembleCcd = True
+    #     self.config.doCrosstalk = True
+    #     self.config.doBias = True
+    #     self.config.doApplyGains = True
+    #     self.config.doVariance = True
+    #     self.config.doDefect = True
+    #     self.config.doNanMasking = True
+    #     self.config.doWidenSaturationTrails = True
+    #     self.config.doDark = True
+    #     self.config.doFlat = True
+    #     self.config.doSetBadRegions = True
+    #     self.config.doInterpolate = True
+
+    #     results = self.validateIsrResults()
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

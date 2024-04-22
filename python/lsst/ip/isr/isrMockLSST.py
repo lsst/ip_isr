@@ -48,7 +48,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
     # TODO: DM-42880 Update values to what is expected in LSSTCam.
     biasLevel = pexConfig.Field(
         dtype=float,
-        default=30000.0,
+        default=25000.0,
         doc="Background contribution to be generated from the bias offset in ADU.",
     )
     flatMode = pexConfig.Field(
@@ -164,9 +164,11 @@ class IsrMockLSST(IsrMock):
 
             if self.config.doAddFlat:
                 if ampData.getArray().sum() == 0.0:
+                    # Add noise
                     self.amplifierAddNoise(ampData, 1.0, 0.0)
-                u0 = exposure.getDimensions().getX()
-                v0 = exposure.getDimensions().getY()
+                # Multiply each amplifiers by a Gaussian centered on u0 and v0
+                u0 = exposure.getDimensions().getX()/2.
+                v0 = exposure.getDimensions().getY()/2.
                 self.amplifierMultiplyFlat(amp, ampData, self.config.flatDrop, u0=u0, v0=v0)
 
             # ISR effects
@@ -190,13 +192,24 @@ class IsrMockLSST(IsrMock):
 
         # 4. Apply cross-talk in ADU
         if self.config.doAddCrosstalk:
+            # self.crosstalkCoeffs = np.array([[0.0, 1e-1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
             ctCalib = CrosstalkCalib()
+            exposureClean = exposure.clone()
             for idxS, ampS in enumerate(exposure.getDetector()):
                 for idxT, ampT in enumerate(exposure.getDetector()):
-                    ampDataT = exposure.image[ampT.getBBox() if self.config.isTrimmed
+                    ampDataT = exposureClean.image[ampT.getBBox() if self.config.isTrimmed
                                               else ampT.getRawDataBBox()]
                     outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
-                                                isTrimmed=self.config.isTrimmed)
+                                               isTrimmed=self.config.isTrimmed)
+                    # outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
+                    #                             isTrimmed=self.config.isTrimmed)
                     self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
 
         # We now apply parallel and serial overscans
@@ -210,64 +223,52 @@ class IsrMockLSST(IsrMock):
             ampData = exposure.image[bbox]
 
             # Get overscan bbox and data
-            if not self.config.isTrimmed:
+
+
+            # 5. Apply parallel overscan in ADU
+            if self.config.doAddParallelOverscan or self.config.doAddSerialOverscan:
+                # First get the parallel and serial overscan bbox
+                # and corresponding data
                 parallelOscanBBox = amp.getRawParallelOverscanBBox()
                 parallelOscanData = exposure.image[parallelOscanBBox]
 
+                grownImageBBox = bbox.expandedTo(parallelOscanBBox)
+
                 serialOscanBBox = amp.getRawSerialOverscanBBox()
-
-            # 5. Apply parallel overscan in ADU
-            if self.config.doAddParallelOverscan:
-                if not self.config.isTrimmed:
-                    # Add read noise with or without a bias level
-                    # to the parallel overscan region.
-                    self.amplifierAddNoise(parallelOscanData, self.config.biasLevel
-                                           if self.config.doAddBias else 0.0,
-                                           self.config.readNoise / self.config.gain)
-                    # Apply gradient along the Y axis
-                    # to the parallel overscan region.
-                    self.amplifierAddXGradient(parallelOscanData, -1.0 * self.config.overscanScale,
-                                               1.0 * self.config.overscanScale)
-
-                # Apply gradient along the Y axis to the image region
-                self.amplifierAddXGradient(ampData, -1.0 * self.config.overscanScale,
-                                           1.0 * self.config.overscanScale)
-
-        # 6. Add Parallel overscan xtalk.
-        # TODO: DM-43286
-
-            if self.config.doAddSerialOverscan:
-                if not self.config.isTrimmed:
-                    # We grow the image to the parallel overscan region
-                    # (we do this instead of using the whole raw region
-                    # in case there are prescan regions)
-                    grownImageBBox = bbox.expandedTo(parallelOscanBBox)
-                    # Now we grow the serial overscan region
-                    # to include the corners
-                    serialOscanBBox = geom.Box2I(
+                serialOscanBBox = geom.Box2I(
                         geom.Point2I(serialOscanBBox.getMinX(),
                                      grownImageBBox.getMinY()),
                         geom.Extent2I(serialOscanBBox.getWidth(),
                                       grownImageBBox.getHeight()),
                     )
-                    serialOscanData = exposure.image[serialOscanBBox]
+                serialOscanData = exposure.image[serialOscanBBox]
 
-                    # Add read noise with or without a bias level
-                    # to the serial overscan region.
-                    self.amplifierAddNoise(serialOscanData, self.config.biasLevel
-                                           if self.config.doAddBias else 0.0,
-                                           self.config.readNoise / self.config.gain)
 
-                    # 7. Apply serial overscan in ADU
-                    # Apply gradient along the X axis to both overscan regions.
-                    self.amplifierAddYGradient(serialOscanData, -1.0 * self.config.overscanScale,
-                                               1.0 * self.config.overscanScale)
-                    self.amplifierAddYGradient(parallelOscanData, -1.0 * self.config.overscanScale,
-                                               1.0 * self.config.overscanScale)
+                # Add read noise with or without a bias level
+                # to the parallel and serial overscan regions.
+                self.amplifierAddNoise(parallelOscanData, self.config.biasLevel
+                                        if self.config.doAddBias else 0.0,
+                                        self.config.readNoise / self.config.gain)
 
-                # Apply gradient along the X axis to the image region.
-                self.amplifierAddYGradient(ampData, -1.0 * self.config.overscanScale,
+                self.amplifierAddNoise(serialOscanData, self.config.biasLevel
+                                        if self.config.doAddBias else 0.0,
+                                        self.config.readNoise / self.config.gain)
+
+                grownImageBBoxAll = grownImageBBox.expandedTo(serialOscanBBox)
+                allData = exposure.image[grownImageBBoxAll]
+
+                if self.config.doAddParallelOverscan:
+                    # Apply gradient along the Y axis
+                    self.amplifierAddXGradient(allData, -1.0 * self.config.overscanScale,
                                            1.0 * self.config.overscanScale)
+
+        # 6. Add Parallel overscan xtalk.
+        # TODO: DM-43286
+
+                if self.config.doAddSerialOverscan:
+                    # Apply gradient along the Y axis
+                    self.amplifierAddYGradient(allData, -1.0 * self.config.overscanScale,
+                                               1.0 * self.config.overscanScale)
 
         if self.config.doGenerateAmpDict:
             expDict = dict()
