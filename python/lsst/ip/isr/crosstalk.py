@@ -157,7 +157,7 @@ class CrosstalkCalib(IsrCalib):
 
         super().updateMetadata(setDate=setDate, **kwargs)
 
-    def fromDetector(self, detector, coeffVector=None):
+    def fromDetector(self, detector, coeffVector=None, coeffSqrVector=None):
         """Set calibration parameters from the detector.
 
         Parameters
@@ -197,6 +197,7 @@ class CrosstalkCalib(IsrCalib):
         self.coeffErr = np.zeros(self.crosstalkShape)
         self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
         self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
+        self.coeffsSqr = np.zeros(self.crosstalkShape)
 
         self.interChip = {}
 
@@ -915,7 +916,7 @@ class CrosstalkTask(Task):
         if not crosstalk.log:
             crosstalk.log = self.log
 
-        doSqrCrosstalk = self.config.doSqrCrosstalk
+        doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
         if doSqrCrosstalk and crosstalk.crosstalkCoeffsSqr is None:
             raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
                                "crosstalk coefficients.")
