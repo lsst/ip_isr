@@ -188,7 +188,7 @@ class CrosstalkCalib(IsrCalib):
             crosstalkCoeffs = detector.getCrosstalk()
         if len(crosstalkCoeffs) == 1 and crosstalkCoeffs[0] == 0.0:
             return self
-        self.coeffs = np.zeros(self.crosstalkShape)
+        self.coeffs = np.array(crosstalkCoeffs).reshape(self.crosstalkShape)
 
         if self.coeffs.shape != self.crosstalkShape:
             raise RuntimeError("Crosstalk coefficients do not match detector shape. "
