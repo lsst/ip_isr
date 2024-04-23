@@ -106,6 +106,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertEqual(ptcDataset.ptcFitParsError[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.ptcFitChiSq[ampName], float)
             self.assertIsInstance(ptcDataset.ptcTurnoff[ampName], float)
+            self.assertIsInstance(ptcDataset.ptcTurnoffSamplingError[ampName], float)
             self.assertIsInstance(ptcDataset.covariances[ampName], np.ndarray)
             self.assertEqual(ptcDataset.covariances[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.covariancesModel[ampName], np.ndarray)
@@ -245,6 +246,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                         localDataset.ptcFitParsError[ampName] = np.array([1.0, 0.2, 1e-7])
                         localDataset.ptcFitChiSq[ampName] = 1.0
                         localDataset.ptcTurnoff[ampName] = localDataset.rawMeans[ampName][-1]
+                        localDataset.ptcTurnoffSamplingError[ampName] = localDataset.ptcTurnoff[ampName]/100.
 
                         localDataset.covariances[ampName] = np.full(
                             (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
@@ -271,6 +273,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                         localDataset.ptcFitParsError[ampName] = np.array([np.nan, np.nan])
                         localDataset.ptcFitChiSq[ampName] = np.nan
                         localDataset.ptcTurnoff[ampName] = np.nan
+                        localDataset.ptcTurnoffSamplingError[ampName] = np.nan
 
                         localDataset.covariances[ampName] = np.full(
                             (nSignalPoints, nSideCovMatrix, nSideCovMatrix), 105.0)
