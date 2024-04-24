@@ -193,11 +193,14 @@ class CrosstalkCalib(IsrCalib):
         if self.coeffs.shape != self.crosstalkShape:
             raise RuntimeError("Crosstalk coefficients do not match detector shape. "
                                f"{self.crosstalkShape} {self.nAmp}")
-
+        # Set default as in __init__
         self.coeffErr = np.zeros(self.crosstalkShape)
         self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
         self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
         self.coeffsSqr = np.zeros(self.crosstalkShape)
+        self.coeffErrSqr = np.zeros(self.crosstalkShape)
+        self.ampGainRatios = np.zeros(self.crosstalkShape)
+        self.crosstalkRatiosUnits = 'adu'
 
         self.interChip = {}
 
@@ -431,13 +434,13 @@ class CrosstalkCalib(IsrCalib):
         """
         tableList = []
         self.updateMetadata()
-        catalog = Table([{'CT_COEFFS': self.coeffs.reshape(self.nAmp*self.nAmp).toList(),
-                          'CT_ERRORS': self.coeffErr.reshape(self.nAmp*self.nAmp).toList(),
-                          'CT_COUNTS': self.coeffNum.reshape(self.nAmp*self.nAmp).toList(),
-                          'CT_VALID': self.coeffValid.reshape(self.nAmp*self.nAmp).toList(),
-                          'CT_COEFFS_SQR': self.coeffsSqr.reshape(self.nAmp*self.nAmp).toList(),
-                          'CT_ERRORS_SQR': self.coeffErrSqr.reshape(self.nAmp*self.nAmp).toList(),
-                          'CT_AMP_GAIN_RATIOS': self.ampGainRatios.reshape(self.nAmp*self.nAmp).toList(),
+        catalog = Table([{'CT_COEFFS': self.coeffs.reshape(self.nAmp*self.nAmp),
+                          'CT_ERRORS': self.coeffErr.reshape(self.nAmp*self.nAmp),
+                          'CT_COUNTS': self.coeffNum.reshape(self.nAmp*self.nAmp),
+                          'CT_VALID': self.coeffValid.reshape(self.nAmp*self.nAmp),
+                          'CT_COEFFS_SQR': self.coeffsSqr.reshape(self.nAmp*self.nAmp),
+                          'CT_ERRORS_SQR': self.coeffErrSqr.reshape(self.nAmp*self.nAmp),
+                          'CT_AMP_GAIN_RATIOS': self.ampGainRatios.reshape(self.nAmp*self.nAmp),
                           }])
         # filter None, because astropy can't deal.
         inMeta = self.getMetadata().toDict()
@@ -449,7 +452,7 @@ class CrosstalkCalib(IsrCalib):
         if self.interChip:
             interChipTable = Table([{'IC_SOURCE_DET': sourceDet,
                                      'IC_COEFFS':
-                                     self.interChip[sourceDet].reshape(self.nAmp*self.nAmp).toList()}
+                                     self.interChip[sourceDet].reshape(self.nAmp*self.nAmp)}
                                     for sourceDet in self.interChip.keys()])
             tableList.append(interChipTable)
         return tableList
