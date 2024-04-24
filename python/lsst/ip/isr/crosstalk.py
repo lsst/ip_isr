@@ -168,6 +168,8 @@ class CrosstalkCalib(IsrCalib):
             Use the detector geometry (bounding boxes and flip
             information), but use ``coeffVector`` instead of the
             output of ``detector.getCrosstalk()``.
+        coeffSqrVector : `numpy.array`, optional
+            Quadratic crosstalk coefficients.
 
         Returns
         -------
@@ -186,6 +188,10 @@ class CrosstalkCalib(IsrCalib):
             crosstalkCoeffs = coeffVector
         else:
             crosstalkCoeffs = detector.getCrosstalk()
+        if coeffSqrVector is not None:
+            self.coeffsSqr = coeffSqrVector
+        else:
+            self.coeffsSqr = np.zeros(self.crosstalkShape)
         if len(crosstalkCoeffs) == 1 and crosstalkCoeffs[0] == 0.0:
             return self
         self.coeffs = np.array(crosstalkCoeffs).reshape(self.crosstalkShape)
@@ -197,7 +203,6 @@ class CrosstalkCalib(IsrCalib):
         self.coeffErr = np.zeros(self.crosstalkShape)
         self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
         self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
-        self.coeffsSqr = np.zeros(self.crosstalkShape)
         self.coeffErrSqr = np.zeros(self.crosstalkShape)
         self.ampGainRatios = np.zeros(self.crosstalkShape)
         self.crosstalkRatiosUnits = 'adu'
