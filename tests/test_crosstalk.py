@@ -46,7 +46,9 @@ outputName = None    # specify a name (as a string) to save the output crosstalk
 
 
 class CrosstalkTestCase(lsst.utils.tests.TestCase):
-    def setUp(self):
+    # Define a new set up function to be able to pass
+    # NL-crosstalk correction boolean.
+    def setUp_general(self, doSqrCrosstalk=False):
         width, height = 250, 500
         self.numAmps = 4
         numPixelsPerAmp = 1000
@@ -56,6 +58,14 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
                           [3e-4, 0.0, 2e-4, 1e-4],
                           [4e-4, 5e-4, 0.0, 6e-4],
                           [7e-4, 8e-4, 9e-4, 0.0]]
+        if doSqrCrosstalk:
+            # Measured quadratic crosstalk from spots is O[-10], O[-11]
+            self.crosstalk_sqr = [[0.0, 1e-10, 2e-10, 3e-10],
+                                  [3e-10, 0.0, 2e-10, 1e-10],
+                                  [4e-10, 5e-10, 0.0, 6e-10],
+                                  [7e-10, 8e-10, 9e-10, 0.0]]
+        else:
+            self.crosstalk_sqr = np.zeros((self.numAmps, self.numAmps))
         self.value = 12345
         self.crosstalkStr = "XTLK"
 
@@ -78,6 +88,11 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
             for jj, jImage in enumerate(withoutCrosstalk):
                 value = self.crosstalk[ii][jj]
                 iImage.scaledPlus(value, jImage)
+                # NL crosstalk will be added if boolean argument is True
+                jImageSqr = jImage.clone()
+                jImageSqr.scaledMultiplies(1.0, jImage)
+                valueSqr = self.crosstalk_sqr[ii][jj]
+                iImage.scaledPlus(valueSqr, jImageSqr)
 
         # Put amp images together
         def construct(imageList):
@@ -206,6 +221,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
 
     def testDirectAPI(self):
         """Test that individual function calls work"""
+        self.setUp_general()
         calib = CrosstalkCalib()
         calib.coeffs = np.array(self.crosstalk).transpose()
         calib.subtractCrosstalk(self.exposure, crosstalkCoeffs=calib.coeffs,
@@ -222,18 +238,45 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
 
         Checks both MeasureCrosstalkTask and the CrosstalkTask.
         """
+        self.setUp_general()
         coeff = np.array(self.crosstalk).transpose()
+        coeffSqr = np.array(self.crosstalk_sqr).transpose()
         config = IsrTask.ConfigClass()
         config.crosstalk.minPixelToMask = self.value - 1
         config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
         isr = IsrTask(config=config)
-        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(), coeffVector=coeff)
+        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(),
+                                              coeffVector=coeff,
+                                              coeffSqrVector=coeffSqr)
+        isr.crosstalk.run(self.exposure, crosstalk=calib)
+        self.checkSubtracted(self.exposure)
+
+    def testTaskAPI_NL(self):
+        """Test that the Tasks work
+
+        Checks both MeasureCrosstalkTask and the CrosstalkTask.
+        This test is for the quadratic (non-linear) corsstalk
+        correction.
+        """
+        self.setUp_general(doSqrCrosstalk=True)
+        coeff = np.array(self.crosstalk).transpose()
+        coeffSqr = np.array(self.crosstalk_sqr).transpose()
+        config = IsrTask.ConfigClass()
+        config.crosstalk.minPixelToMask = self.value - 1
+        config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
+        # Turn on the NL correction
+        config.crosstalk.doQuadraticCrosstalkCorrection = True
+        isr = IsrTask(config=config)
+        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(),
+                                              coeffVector=coeff,
+                                              coeffSqrVector=coeffSqr)
         isr.crosstalk.run(self.exposure, crosstalk=calib)
         self.checkSubtracted(self.exposure)
 
     def test_nullCrosstalkTask(self):
         """Test that the null crosstalk task does not create an error.
         """
+        self.setUp_general()
         exposure = self.exposure
         task = NullCrosstalkTask()
         result = task.run(exposure, crosstalkSources=None)
@@ -243,6 +286,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         """Test that passing an external exposure as the crosstalk source
         works.
         """
+        self.setUp_general()
         exposure = self.exposure
         ctSources = [self.ctSource]
 
@@ -264,7 +308,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         """Test that crosstalk doesn't change on being converted to persistable
         formats.
         """
-
+        self.setUp_general()
         # Add the interchip crosstalk as in the previous test.
         exposure = self.exposure
 

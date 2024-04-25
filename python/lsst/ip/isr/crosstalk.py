@@ -940,7 +940,7 @@ class CrosstalkTask(Task):
             crosstalk.log = self.log
 
         doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
-        if doSqrCrosstalk and crosstalk.crosstalkCoeffsSqr is None:
+        if doSqrCrosstalk and crosstalk.coeffsSqr is None:
             raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
                                "crosstalk coefficients.")
         if doSqrCrosstalk:
@@ -957,6 +957,7 @@ class CrosstalkTask(Task):
                 crosstalkCoeffs=crosstalk.coeffs,
                 crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                 detectorConfig=detectorConfig,
+                doSqrCrosstalk=doSqrCrosstalk,
             )
         else:
             self.log.info("Applying crosstalk correction.")
@@ -964,7 +965,8 @@ class CrosstalkTask(Task):
                                         crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                                         minPixelToMask=self.config.minPixelToMask,
                                         crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
-                                        backgroundMethod=self.config.crosstalkBackgroundMethod)
+                                        backgroundMethod=self.config.crosstalkBackgroundMethod,
+                                        doSqrCrosstalk=doSqrCrosstalk)
 
             if crosstalk.interChip:
                 if crosstalkSources:
