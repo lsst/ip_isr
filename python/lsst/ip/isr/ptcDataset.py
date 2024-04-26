@@ -126,6 +126,9 @@ class PhotonTransferCurveDataset(IsrCalib):
     ptcTurnoff : `dict` [`str, `float`]
         Flux value (in ADU) where the variance of the PTC curve starts
         decreasing consistently.
+    ptcTurnoffSamplingError : `dict` [`str`, `float`]
+        ``Sampling`` error on the ptcTurnoff, based on the flux sampling
+        of the input PTC.
     covariances : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing a list of measured
         covariances per mean flux.
@@ -185,11 +188,12 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.5 adds the `covMatrixSideFullCovFit` attribute.
     Version 1.6 adds the `rowMeanVariance` attribute.
     Version 1.7 adds the `noiseList` attribute.
+    Version 1.8 adds the `ptcTurnoffSamplingError` attribute.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.7
+    _VERSION = 1.8
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -225,6 +229,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ptcFitParsError = {ampName: np.array([]) for ampName in ampNames}
         self.ptcFitChiSq = {ampName: np.nan for ampName in ampNames}
         self.ptcTurnoff = {ampName: np.nan for ampName in ampNames}
+        self.ptcTurnoffSamplingError = {ampName: np.nan for ampName in ampNames}
 
         self.covariances = {ampName: np.array([]) for ampName in ampNames}
         self.covariancesModel = {ampName: np.array([]) for ampName in ampNames}
@@ -252,7 +257,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'noiseMatrix', 'noiseMatrixNoB', 'finalVars',
                                         'finalModelVars', 'finalMeans', 'photoCharges', 'histVars',
-                                        'histChi2Dofs', 'kspValues', 'auxValues'])
+                                        'histChi2Dofs', 'kspValues', 'auxValues', 'ptcTurnoffSamplingError'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
         self._validateCovarianceMatrizSizes()
@@ -434,6 +439,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                                                       dtype=np.float64)
             calib.ptcFitChiSq[ampName] = float(dictionary['ptcFitChiSq'][ampName])
             calib.ptcTurnoff[ampName] = float(dictionary['ptcTurnoff'][ampName])
+            calib.ptcTurnoffSamplingError[ampName] = float(dictionary['ptcTurnoffSamplingError'][ampName])
             if nSignalPoints > 0:
                 # Regular dataset
                 calib.covariances[ampName] = np.array(dictionary['covariances'][ampName],
@@ -534,6 +540,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['ptcFitParsError'] = _dictOfArraysToDictOfLists(self.ptcFitParsError)
         outDict['ptcFitChiSq'] = self.ptcFitChiSq
         outDict['ptcTurnoff'] = self.ptcTurnoff
+        outDict['ptcTurnoffSamplingError'] = self.ptcTurnoffSamplingError
         outDict['covariances'] = _dictOfArraysToDictOfLists(self.covariances)
         outDict['covariancesModel'] = _dictOfArraysToDictOfLists(self.covariancesModel)
         outDict['covariancesSqrtWeights'] = _dictOfArraysToDictOfLists(self.covariancesSqrtWeights)
@@ -595,6 +602,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['ptcFitParsError'] = dict()
         inDict['ptcFitChiSq'] = dict()
         inDict['ptcTurnoff'] = dict()
+        inDict['ptcTurnoffSamplingError'] = dict()
         inDict['covariances'] = dict()
         inDict['covariancesModel'] = dict()
         inDict['covariancesSqrtWeights'] = dict()
@@ -681,6 +689,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['noiseList'][ampName] = np.full_like(inDict['rawMeans'][ampName], np.nan)
             else:
                 inDict['noiseList'][ampName] = record['NOISE_LIST']
+            if calibVersion < 1.8:
+                inDict['ptcTurnoffSamplingError'][ampName] = np.nan
+            else:
+                inDict['ptcTurnoffSamplingError'][ampName] = record['PTC_TURNOFF_SAMPLING_ERROR']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -734,6 +746,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'PTC_FIT_PARS_ERROR': np.array(self.ptcFitParsError[ampName]),
                 'PTC_FIT_CHI_SQ': self.ptcFitChiSq[ampName],
                 'PTC_TURNOFF': self.ptcTurnoff[ampName],
+                'PTC_TURNOFF_SAMPLING_ERROR': self.ptcTurnoffSamplingError[ampName],
                 'A_MATRIX': self.aMatrix[ampName].ravel(),
                 'B_MATRIX': self.bMatrix[ampName].ravel(),
                 'A_MATRIX_NO_B': self.aMatrixNoB[ampName].ravel(),
