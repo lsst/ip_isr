@@ -31,7 +31,7 @@ import lsst.afw.image
 import lsst.afw.table
 import lsst.afw.cameraGeom as cameraGeom
 
-from lsst.ip.isr import IsrTask, CrosstalkCalib, NullCrosstalkTask
+from lsst.ip.isr import IsrTask, CrosstalkCalib, NullCrosstalkTask, IsrTaskLSST
 
 try:
     display
@@ -219,6 +219,29 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.assertIn(self.crosstalkStr, mask.getMaskPlaneDict())
         self.assertGreater((mask.getArray() & mask.getPlaneBitMask(self.crosstalkStr) > 0).sum(), 0)
 
+    def checkTaskAPI_NL(self, this_isr_task):
+        """Check the the crosstalk task under different ISR tasks.
+        (e.g., IsrTask and IsrTaskLSST)
+
+        Parameters
+        ----------
+        this_isr_task : `lsst.pipe.base.PipelineTask`
+        """
+        self.setUp_general(doSqrCrosstalk=True)
+        coeff = np.array(self.crosstalk).transpose()
+        coeffSqr = np.array(self.crosstalk_sqr).transpose()
+        config = this_isr_task.ConfigClass()
+        config.crosstalk.minPixelToMask = self.value - 1
+        config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
+        # Turn on the NL correction
+        config.crosstalk.doQuadraticCrosstalkCorrection = True
+        isr = this_isr_task(config=config)
+        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(),
+                                              coeffVector=coeff,
+                                              coeffSqrVector=coeffSqr)
+        isr.crosstalk.run(self.exposure, crosstalk=calib)
+        self.checkSubtracted(self.exposure)
+
     def testDirectAPI(self):
         """Test that individual function calls work"""
         self.setUp_general()
@@ -258,20 +281,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         This test is for the quadratic (non-linear) corsstalk
         correction.
         """
-        self.setUp_general(doSqrCrosstalk=True)
-        coeff = np.array(self.crosstalk).transpose()
-        coeffSqr = np.array(self.crosstalk_sqr).transpose()
-        config = IsrTask.ConfigClass()
-        config.crosstalk.minPixelToMask = self.value - 1
-        config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
-        # Turn on the NL correction
-        config.crosstalk.doQuadraticCrosstalkCorrection = True
-        isr = IsrTask(config=config)
-        calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(),
-                                              coeffVector=coeff,
-                                              coeffSqrVector=coeffSqr)
-        isr.crosstalk.run(self.exposure, crosstalk=calib)
-        self.checkSubtracted(self.exposure)
+        for this_isr_task in [IsrTask, IsrTaskLSST]:
+            self.checkTaskAPI_NL(this_isr_task)
 
     def test_nullCrosstalkTask(self):
         """Test that the null crosstalk task does not create an error.
