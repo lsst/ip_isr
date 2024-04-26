@@ -399,8 +399,11 @@ class CrosstalkCalib(IsrCalib):
         inDict['metadata'] = metadata
         inDict['hasCrosstalk'] = metadata['HAS_CROSSTALK']
         inDict['nAmp'] = metadata['NAMP']
-        inDict['crosstalkRatiosUnits'] = metadata['CROSSTALK_RATIOS_UNITS']
-
+        calibVersion = metadata['CROSSTALK_VERSION']
+        if calibVersion < 1.1:
+            inDict['crosstalkRatiosUnits'] = ''
+        else:
+            inDict['crosstalkRatiosUnits'] = metadata['CROSSTALK_RATIOS_UNITS']
         inDict['coeffs'] = coeffTable['CT_COEFFS']
         if 'CT_ERRORS' in coeffTable.columns:
             inDict['coeffErr'] = coeffTable['CT_ERRORS']
