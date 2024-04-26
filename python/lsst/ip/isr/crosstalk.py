@@ -456,9 +456,8 @@ class CrosstalkCalib(IsrCalib):
 
         if self.interChip:
             interChipTable = Table([{'IC_SOURCE_DET': sourceDet,
-                                     'IC_COEFFS':
-                                     self.interChip[sourceDet].reshape(self.nAmp*self.nAmp)}
-                                    for sourceDet in self.interChip.keys()])
+                                     'IC_COEFFS': self.interChip[sourceDet].reshape(self.nAmp*self.nAmp)}
+                                   for sourceDet in self.interChip.keys()])
             tableList.append(interChipTable)
         return tableList
 
