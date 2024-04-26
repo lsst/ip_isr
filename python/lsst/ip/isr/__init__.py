@@ -28,6 +28,7 @@ from .isrFunctions import *
 from .assembleCcdTask import *
 from .calibType import *
 from .isrTask import *
+from .isrTaskLSST import *
 from .linearize import *
 from .crosstalk import *
 from .fringe import *
