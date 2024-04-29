@@ -77,15 +77,28 @@ class CrosstalkCalib(IsrCalib):
     coeffValid : `numpy.ndarray`, optional
         A matrix of Boolean values indicating if the coefficient is
         valid, defined as abs(coeff) > coeffErr / sqrt(coeffNum).
+    coeffsSqr : `numpy.ndarray`, optional
+        A matrix containing potential quadratic crosstalk coefficients
+        (see e.g., Snyder+21, 2001.03223). coeffsSqr[i][j]
+        contains the coefficients to calculate the contribution
+        amplifier_j has on amplifier_i (each row[i] contains the
+        corrections for detector_i).
+    coeffErrSqr : `numpy.ndarray`, optional
+        A matrix (as defined by ``coeffsSqr``) containing the standard
+        distribution of the quadratic term of the crosstalk measurements.
     interChip : `dict` [`numpy.ndarray`]
         A dictionary keyed by detectorName containing ``coeffs``
         matrices used to correct for inter-chip crosstalk with a
         source on the detector indicated.
 
+    Version 1.1 adds quadratic coefficients, a matrix with the ratios
+    of amplifiers gains per detector, and a field to indicate the units
+    of the numerator and denominator of the source and target signals, with
+    "adu" meaning "ADU / ADU" and "electron" meaning "e- / e-".
     """
     _OBSTYPE = 'CROSSTALK'
     _SCHEMA = 'Gen3 Crosstalk'
-    _VERSION = 1.0
+    _VERSION = 1.1
 
     def __init__(self, detector=None, nAmp=0, **kwargs):
         self.hasCrosstalk = False
@@ -98,11 +111,23 @@ class CrosstalkCalib(IsrCalib):
                                  dtype=int) if self.nAmp else None
         self.coeffValid = np.zeros(self.crosstalkShape,
                                    dtype=bool) if self.nAmp else None
+        # Quadratic terms, if any.
+        self.coeffsSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
+        self.coeffErrSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
+
+        # Gain ratios
+        self.ampGainRatios = np.zeros(self.crosstalkShape) if self.nAmp else None
+
+        # Units
+        self.crosstalkRatiosUnits = 'adu' if self.nAmp else None
+
         self.interChip = {}
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['hasCrosstalk', 'nAmp', 'coeffs',
                                         'coeffErr', 'coeffNum', 'coeffValid',
+                                        'coeffsSqr', 'coeffErrSqr',
+                                        'ampGainRatios', 'crosstalkRatiosUnits',
                                         'interChip'])
         if detector:
             self.fromDetector(detector)
@@ -128,10 +153,11 @@ class CrosstalkCalib(IsrCalib):
         kwargs['NAMP'] = self.nAmp
         self.crosstalkShape = (self.nAmp, self.nAmp)
         kwargs['CROSSTALK_SHAPE'] = self.crosstalkShape
+        kwargs['CROSSTALK_RATIOS_UNITS'] = self.crosstalkRatiosUnits
 
         super().updateMetadata(setDate=setDate, **kwargs)
 
-    def fromDetector(self, detector, coeffVector=None):
+    def fromDetector(self, detector, coeffVector=None, coeffSqrVector=None):
         """Set calibration parameters from the detector.
 
         Parameters
@@ -142,6 +168,8 @@ class CrosstalkCalib(IsrCalib):
             Use the detector geometry (bounding boxes and flip
             information), but use ``coeffVector`` instead of the
             output of ``detector.getCrosstalk()``.
+        coeffSqrVector : `numpy.array`, optional
+            Quadratic crosstalk coefficients.
 
         Returns
         -------
@@ -149,33 +177,41 @@ class CrosstalkCalib(IsrCalib):
             The calibration constructed from the detector.
 
         """
-        if detector.hasCrosstalk() or coeffVector:
-            self._detectorId = detector.getId()
-            self._detectorName = detector.getName()
-            self._detectorSerial = detector.getSerial()
+        self._detectorId = detector.getId()
+        self._detectorName = detector.getName()
+        self._detectorSerial = detector.getSerial()
 
-            self.nAmp = len(detector)
-            self.crosstalkShape = (self.nAmp, self.nAmp)
+        self.nAmp = len(detector)
+        self.crosstalkShape = (self.nAmp, self.nAmp)
 
-            if coeffVector is not None:
-                crosstalkCoeffs = coeffVector
-            else:
-                crosstalkCoeffs = detector.getCrosstalk()
-            if len(crosstalkCoeffs) == 1 and crosstalkCoeffs[0] == 0.0:
-                return self
-            self.coeffs = np.array(crosstalkCoeffs).reshape(self.crosstalkShape)
+        if coeffVector is not None:
+            crosstalkCoeffs = coeffVector
+        else:
+            crosstalkCoeffs = detector.getCrosstalk()
+        if coeffSqrVector is not None:
+            self.coeffsSqr = coeffSqrVector
+        else:
+            self.coeffsSqr = np.zeros(self.crosstalkShape)
+        if len(crosstalkCoeffs) == 1 and crosstalkCoeffs[0] == 0.0:
+            return self
+        self.coeffs = np.array(crosstalkCoeffs).reshape(self.crosstalkShape)
 
-            if self.coeffs.shape != self.crosstalkShape:
-                raise RuntimeError("Crosstalk coefficients do not match detector shape. "
-                                   f"{self.crosstalkShape} {self.nAmp}")
+        if self.coeffs.shape != self.crosstalkShape:
+            raise RuntimeError("Crosstalk coefficients do not match detector shape. "
+                               f"{self.crosstalkShape} {self.nAmp}")
+        # Set default as in __init__
+        self.coeffErr = np.zeros(self.crosstalkShape)
+        self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
+        self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
+        self.coeffErrSqr = np.zeros(self.crosstalkShape)
+        self.ampGainRatios = np.zeros(self.crosstalkShape)
+        self.crosstalkRatiosUnits = 'adu'
 
-            self.coeffErr = np.zeros(self.crosstalkShape)
-            self.coeffNum = np.zeros(self.crosstalkShape, dtype=int)
-            self.coeffValid = np.ones(self.crosstalkShape, dtype=bool)
-            self.interChip = {}
+        self.interChip = {}
 
-            self.hasCrosstalk = True
-            self.updateMetadata()
+        self.hasCrosstalk = True
+        self.updateMetadata()
+
         return self
 
     @classmethod
@@ -250,6 +286,9 @@ class CrosstalkCalib(IsrCalib):
             calib.nAmp = dictionary.get('nAmp', dictionary['metadata'].get('NAMP', 0))
             calib.crosstalkShape = (calib.nAmp, calib.nAmp)
             calib.coeffs = np.array(dictionary['coeffs']).reshape(calib.crosstalkShape)
+            calib.crosstalkRatiosUnits = dictionary.get(
+                'crosstalkRatiosUnits',
+                dictionary['metadata'].get('CROSSTALK_RATIOS_UNITS', None))
             if 'coeffErr' in dictionary:
                 calib.coeffErr = np.array(dictionary['coeffErr']).reshape(calib.crosstalkShape)
             else:
@@ -262,6 +301,22 @@ class CrosstalkCalib(IsrCalib):
                 calib.coeffValid = np.array(dictionary['coeffValid']).reshape(calib.crosstalkShape)
             else:
                 calib.coeffValid = np.ones_like(calib.coeffs, dtype=bool)
+            if 'coeffsSqr' in dictionary:
+                calib.coeffsSqr = np.array(dictionary['coeffsSqr']).reshape(calib.crosstalkShape)
+            else:
+                calib.coeffsSqr = np.zeros_like(calib.coeffs)
+            if 'coeffErrSqr' in dictionary:
+                calib.coeffErrSqr = np.array(dictionary['coeffErrSqr']).reshape(calib.crosstalkShape)
+            else:
+                calib.coeffErrSqr = np.zeros_like(calib.coeffs)
+            if 'ampGainRatios' in dictionary:
+                calib.ampGainRatios = np.array(dictionary['ampGainRatios']).reshape(calib.crosstalkShape)
+            else:
+                calib.ampGainRatios = np.zeros_like(calib.coeffs)
+            if 'crosstalkRatiosUnits' in dictionary:
+                calib.crosstalkRatiosUnits = dictionary['crosstalkRatiosUnits']
+            else:
+                calib.crosstalkRatiosUnits = None
 
             calib.interChip = dictionary.get('interChip', None)
             if calib.interChip:
@@ -292,6 +347,7 @@ class CrosstalkCalib(IsrCalib):
         outDict['hasCrosstalk'] = self.hasCrosstalk
         outDict['nAmp'] = self.nAmp
         outDict['crosstalkShape'] = self.crosstalkShape
+        outDict['crosstalkRatiosUnits'] = self.crosstalkRatiosUnits
 
         ctLength = self.nAmp*self.nAmp
         outDict['coeffs'] = self.coeffs.reshape(ctLength).tolist()
@@ -302,6 +358,12 @@ class CrosstalkCalib(IsrCalib):
             outDict['coeffNum'] = self.coeffNum.reshape(ctLength).tolist()
         if self.coeffValid is not None:
             outDict['coeffValid'] = self.coeffValid.reshape(ctLength).tolist()
+        if self.coeffsSqr is not None:
+            outDict['coeffsSqr'] = self.coeffsSqr.reshape(ctLength).tolist()
+        if self.coeffErrSqr is not None:
+            outDict['coeffErrSqr'] = self.coeffErrSqr.reshape(ctLength).tolist()
+        if self.ampGainRatios is not None:
+            outDict['ampGainRatios'] = self.ampGainRatios.reshape(ctLength).tolist()
 
         if self.interChip:
             outDict['interChip'] = dict()
@@ -337,7 +399,11 @@ class CrosstalkCalib(IsrCalib):
         inDict['metadata'] = metadata
         inDict['hasCrosstalk'] = metadata['HAS_CROSSTALK']
         inDict['nAmp'] = metadata['NAMP']
-
+        calibVersion = metadata['CROSSTALK_VERSION']
+        if calibVersion < 1.1:
+            inDict['crosstalkRatiosUnits'] = ''
+        else:
+            inDict['crosstalkRatiosUnits'] = metadata['CROSSTALK_RATIOS_UNITS']
         inDict['coeffs'] = coeffTable['CT_COEFFS']
         if 'CT_ERRORS' in coeffTable.columns:
             inDict['coeffErr'] = coeffTable['CT_ERRORS']
@@ -345,6 +411,12 @@ class CrosstalkCalib(IsrCalib):
             inDict['coeffNum'] = coeffTable['CT_COUNTS']
         if 'CT_VALID' in coeffTable.columns:
             inDict['coeffValid'] = coeffTable['CT_VALID']
+        if 'CT_COEFFS_SQR' in coeffTable.columns:
+            inDict['coeffsSqr'] = coeffTable['CT_COEFFS_SQR']
+        if 'CT_ERRORS_SQR' in coeffTable.columns:
+            inDict['coeffErrSqr'] = coeffTable['CT_ERRORS_SQR']
+        if 'CT_AMP_GAIN_RATIOS' in coeffTable.columns:
+            inDict['ampGainRatios'] = coeffTable['CT_AMP_GAIN_RATIOS']
 
         if len(tableList) > 1:
             inDict['interChip'] = dict()
@@ -374,6 +446,9 @@ class CrosstalkCalib(IsrCalib):
                           'CT_ERRORS': self.coeffErr.reshape(self.nAmp*self.nAmp),
                           'CT_COUNTS': self.coeffNum.reshape(self.nAmp*self.nAmp),
                           'CT_VALID': self.coeffValid.reshape(self.nAmp*self.nAmp),
+                          'CT_COEFFS_SQR': self.coeffsSqr.reshape(self.nAmp*self.nAmp),
+                          'CT_ERRORS_SQR': self.coeffErrSqr.reshape(self.nAmp*self.nAmp),
+                          'CT_AMP_GAIN_RATIOS': self.ampGainRatios.reshape(self.nAmp*self.nAmp),
                           }])
         # filter None, because astropy can't deal.
         inMeta = self.getMetadata().toDict()
@@ -385,7 +460,7 @@ class CrosstalkCalib(IsrCalib):
         if self.interChip:
             interChipTable = Table([{'IC_SOURCE_DET': sourceDet,
                                      'IC_COEFFS': self.interChip[sourceDet].reshape(self.nAmp*self.nAmp)}
-                                    for sourceDet in self.interChip.keys()])
+                                   for sourceDet in self.interChip.keys()])
             tableList.append(interChipTable)
         return tableList
 
@@ -456,9 +531,10 @@ class CrosstalkCalib(IsrCalib):
         return lsst.afw.math.makeStatistics(mi, lsst.afw.math.MEDIAN, stats).getValue()
 
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
+                          crosstalkCoeffsSqr=None,
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
-                          backgroundMethod="None"):
+                          backgroundMethod="None", doSqrCrosstalk=False):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -481,23 +557,55 @@ class CrosstalkCalib(IsrCalib):
             thisExposure is used as the source (intra-detector crosstalk).
         crosstalkCoeffs : `numpy.ndarray`, optional.
             Coefficients to use to correct crosstalk.
-        badPixels : `list` of `str`
+        crosstalkCoeffsSqr : `numpy.ndarray`, optional.
+            Quadratic coefficients to use to correct crosstalk.
+        badPixels : `list` of `str`, optional
             Mask planes to ignore.
-        minPixelToMask : `float`
+        minPixelToMask : `float`, optional
             Minimum pixel value (relative to the background level) in
             source amplifier for which to set ``crosstalkStr`` mask plane
             in target amplifier.
-        crosstalkStr : `str`
+        crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
-        isTrimmed : `bool`
+        isTrimmed : `bool`, optional
             The image is already trimmed.
             This should no longer be needed once DM-15409 is resolved.
-        backgroundMethod : `str`
+        backgroundMethod : `str`, optional
             Method used to subtract the background.  "AMP" uses
             amplifier-by-amplifier background levels, "DETECTOR" uses full
             exposure/maskedImage levels.  Any other value results in no
             background subtraction.
+        doSqrCrosstalk: `bool`, optional
+            Should the quadratic crosstalk coefficients be used for the
+            crosstalk correction?
+
+        Notes
+        -----
+
+        For a given image I, we want to find the crosstalk subtrahend
+        image CT, such that
+                         I_corrected = I - CT
+        The subtrahend image is the sum of all crosstalk contributions
+        that appear in I, so we can build it up by amplifier. Each
+        amplifier A in image I sees the contributions from all other
+        amplifiers B_v != A.  For the current linear model, we set `sImage`
+        equal to the segment of the subtrahend image CT corresponding to
+        amplifier A, and then build it up as:
+        simage_linear = sum_v coeffsA_v * (B_v - bkg_v) where coeffsA_v
+        is the vector of crosstalk coefficients for sources that cause
+        images in amplifier A.  The bkg_v term in this equation is
+        identically 0.0 for all cameras except obs_subaru (and is only
+        non-zero there for historical reasons).
+        To include the non-linear term, we can again add to the subtrahend
+        image using the same loop, as:
+
+        simage_nonlinear = sum_v (coeffsA_v * B_v) + (NLcoeffsA_v * B_v * B_v)
+                         = sum_v   linear_term_v   +    nonlinear_term_v
+
+        where coeffsA_v is the linear term, and NLcoeffsA_v are the quadratic
+        component. For LSSTCam, it has been observed that the linear_term_v >>
+        nonlinear_term_v.
         """
         mi = thisExposure.getMaskedImage()
         mask = mi.getMask()
@@ -509,6 +617,10 @@ class CrosstalkCalib(IsrCalib):
         if numAmps != self.nAmp:
             raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
                                f"{numAmps} in {detector.getName()}")
+
+        if doSqrCrosstalk and crosstalkCoeffsSqr is None:
+            raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
+                               "crosstalk coefficients.")
 
         if sourceExposure:
             source = sourceExposure.getMaskedImage()
@@ -522,6 +634,13 @@ class CrosstalkCalib(IsrCalib):
         else:
             coeffs = self.coeffs
         self.log.debug("CT COEFF: %s", coeffs)
+
+        if doSqrCrosstalk:
+            if crosstalkCoeffsSqr is not None:
+                coeffsSqr = crosstalkCoeffsSqr
+            else:
+                coeffsSqr = self.coeffsSqr
+            self.log.debug("CT COEFF SQR: %s", coeffsSqr)
         # Set background level based on the requested method.  The
         # thresholdBackground holds the offset needed so that we only mask
         # pixels high relative to the background, not in an absolute
@@ -551,6 +670,11 @@ class CrosstalkCalib(IsrCalib):
         subtrahend.set((0, 0, 0))
 
         coeffs = coeffs.transpose()
+        # Apply NL coefficients
+        if doSqrCrosstalk:
+            coeffsSqr = coeffsSqr.transpose()
+            mi2 = mi.clone()
+            mi2.scaledMultiplies(1.0, mi)
         for ss, sAmp in enumerate(sourceDetector):
             sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
             for tt, tAmp in enumerate(detector):
@@ -560,6 +684,10 @@ class CrosstalkCalib(IsrCalib):
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 tImage -= backgrounds[tt]
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
+                # Add the nonlinear term
+                if doSqrCrosstalk:
+                    tImageSqr = self.extractAmp(mi2, tAmp, sAmp, isTrimmed)
+                    sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
@@ -568,8 +696,9 @@ class CrosstalkCalib(IsrCalib):
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
     def subtractCrosstalkParallelOverscanRegion(self, thisExposure, crosstalkCoeffs=None,
+                                                crosstalkCoeffsSqr=None,
                                                 badPixels=["BAD"], crosstalkStr="CROSSTALK",
-                                                detectorConfig=None):
+                                                detectorConfig=None, doSqrCrosstalk=False):
         """Subtract crosstalk just from the parallel overscan region.
 
         This assumes that serial overscan has been previously subtracted.
@@ -580,13 +709,18 @@ class CrosstalkCalib(IsrCalib):
             Exposure for which to subtract crosstalk.
         crosstalkCoeffs : `numpy.ndarray`, optional.
             Coefficients to use to correct crosstalk.
-        badPixels : `list` of `str`
+        crosstalkCoeffsSqr : `numpy.ndarray`, optional.
+            Quadratic coefficients to use to correct crosstalk.
+        badPixels : `list` of `str`, optional
             Mask planes to ignore.
-        crosstalkStr : `str`
+        crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
         detectorConfig : `lsst.ip.isr.overscanDetectorConfig`, optional
             Per-amplifier configs to use.
+        doSqrCrosstalk: `bool`, optional
+            Should the quadratic crosstalk coefficients be used for the
+            crosstalk correction?
         """
         mi = thisExposure.getMaskedImage()
         mask = mi.getMask()
@@ -599,6 +733,10 @@ class CrosstalkCalib(IsrCalib):
             raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
                                f"{numAmps} in {detector.getName()}")
 
+        if doSqrCrosstalk and crosstalkCoeffsSqr is None:
+            raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
+                               "crosstalk coefficients.")
+
         source = mi
         sourceDetector = detector
 
@@ -606,6 +744,12 @@ class CrosstalkCalib(IsrCalib):
             coeffs = crosstalkCoeffs
         else:
             coeffs = self.coeffs
+        if doSqrCrosstalk:
+            if crosstalkCoeffsSqr is not None:
+                coeffsSqr = crosstalkCoeffsSqr
+            else:
+                coeffsSqr = self.coeffsSqr
+            self.log.debug("CT COEFF SQR: %s", coeffsSqr)
 
         crosstalkPlane = mask.addMaskPlane(crosstalkStr)
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
@@ -614,6 +758,11 @@ class CrosstalkCalib(IsrCalib):
         subtrahend.set((0, 0, 0))
 
         coeffs = coeffs.transpose()
+        # Apply NL coefficients
+        if doSqrCrosstalk:
+            coeffsSqr = coeffsSqr.transpose()
+            mi2 = mi.clone()
+            mi2.scaledMultiplies(1.0, mi)
         for ss, sAmp in enumerate(sourceDetector):
             if detectorConfig is not None:
                 ampConfig = detectorConfig.getOverscanAmpconfig(sAmp.getName())
@@ -628,7 +777,10 @@ class CrosstalkCalib(IsrCalib):
                 tImage = self.extractAmp(mi, tAmp, sAmp, False, parallelOverscan=True)
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
-
+                # Add the nonlinear term, if any.
+                if doSqrCrosstalk:
+                    tImageSqr = self.extractAmp(mi2, tAmp, sAmp, False, parallelOverscan=True)
+                    sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
         # not necessarily those that are bright originally.
@@ -675,6 +827,11 @@ class CrosstalkConfig(Config):
         dtype=int,
         doc="Shape of the coefficient array.  This should be equal to [nAmp, nAmp].",
         default=[1],
+    )
+    doQuadraticCrosstalkCorrection = Field(
+        dtype=bool,
+        doc="Use quadratic crosstalk coefficients in the crosstalk correction",
+        default=False,
     )
 
     def getCrosstalk(self, detector=None):
@@ -783,6 +940,16 @@ class CrosstalkTask(Task):
                                                coeffVector=self.config.crosstalkValues)
         if not crosstalk.log:
             crosstalk.log = self.log
+
+        doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
+        if doSqrCrosstalk and crosstalk.coeffsSqr is None:
+            raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
+                               "crosstalk coefficients.")
+        if doSqrCrosstalk:
+            crosstalkCoeffsSqr = crosstalk.coeffsSqr
+        else:
+            crosstalkCoeffsSqr = None
+
         if not crosstalk.hasCrosstalk:
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients.")
         elif parallelOverscanRegion:
@@ -790,14 +957,18 @@ class CrosstalkTask(Task):
             crosstalk.subtractCrosstalkParallelOverscanRegion(
                 exposure,
                 crosstalkCoeffs=crosstalk.coeffs,
+                crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                 detectorConfig=detectorConfig,
+                doSqrCrosstalk=doSqrCrosstalk,
             )
         else:
             self.log.info("Applying crosstalk correction.")
             crosstalk.subtractCrosstalk(exposure, crosstalkCoeffs=crosstalk.coeffs,
+                                        crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                                         minPixelToMask=self.config.minPixelToMask,
                                         crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
-                                        backgroundMethod=self.config.crosstalkBackgroundMethod)
+                                        backgroundMethod=self.config.crosstalkBackgroundMethod,
+                                        doSqrCrosstalk=doSqrCrosstalk)
 
             if crosstalk.interChip:
                 if crosstalkSources:
