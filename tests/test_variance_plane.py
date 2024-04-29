@@ -329,9 +329,130 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         config.doGenerateData = True
         config.doGenerateAmpDict = True
         self.mock = IsrMock(config=config)
+        self.pixel_scale = 0.2  # arcsec/pixel
+
+        # Get the exposure, detector, and amps from the mock.
+        exposure = self.mock.getExposure()
+        detector = exposure.getDetector()
+        amps = detector.getAmplifiers()
+
+        # Set amp-related attributes for use in the test cases.
+        self.num_amps = len(amps)
+        self.amp_name_list = [amp.getName() for amp in amps]
+        table = str.maketrans("", "", ":,")  # Remove ':' and ',' from names
+        self.amp_name_list_simplified = [name.translate(table) for name in self.amp_name_list]
+
+        # Get the bounding boxes for the exposure and amplifiers and convert
+        # them to galsim bounds.
+        exp_bbox = exposure.getBBox()
+        image_bounds = galsim.BoundsI(exp_bbox.minX, exp_bbox.maxX, exp_bbox.minY, exp_bbox.maxY)
+        self.amp_bbox_list = [amp.getBBox() for amp in amps]
+        self.amp_bounds_list = [galsim.BoundsI(b.minX, b.maxX, b.minY, b.maxY) for b in self.amp_bbox_list]
+
+        # Create a raw galsim image to potentially draw the sources onto. The
+        # exposure image that is passed to this method will be modified in
+        # place but it won't be used.
+        self.signal_free_raw_image = galsim.ImageF(exposure.image.array, bounds=image_bounds)
+        self.raw_image = self.signal_free_raw_image.copy()
+
+        # Define parameters for a mix of source types, including extended
+        # sources with assorted profiles as well as point sources simulated
+        # with minimal half-light radii to resemble hot pixels
+        # post-deconvolution. All flux values are given in electrons and
+        # half-light radii in pixels. The goal is for each amplifier to
+        # predominantly contain at least one source, enhancing the
+        # representativeness of test conditions.
+        source_params = [
+            {"type": "Sersic", "n": 3, "flux": 1.6e5, "half_light_radius": 3.5, "g1": -0.3, "g2": 0.2},
+            {"type": "Sersic", "n": 1, "flux": 9.3e5, "half_light_radius": 2.1, "g1": 0.25, "g2": 0.12},
+            {"type": "Sersic", "n": 4, "flux": 1.0e5, "half_light_radius": 1.1, "g1": 0.0, "g2": 0.0},
+            {"type": "Sersic", "n": 3, "flux": 1.1e6, "half_light_radius": 4.2, "g1": 0.0, "g2": 0.2},
+            {"type": "Sersic", "n": 5, "flux": 1.1e5, "half_light_radius": 3.6, "g1": 0.22, "g2": -0.05},
+            {"type": "Sersic", "n": 2, "flux": 4.3e5, "half_light_radius": 2.0, "g1": 0.0, "g2": 0.0},
+            {"type": "Sersic", "n": 6, "flux": 1.2e6, "half_light_radius": 11.0, "g1": -0.16, "g2": 0.7},
+            {"type": "Exponential", "flux": 1.3e6, "half_light_radius": 1.9, "g1": 0.3, "g2": -0.1},
+            {"type": "Exponential", "flux": 1.8e6, "half_light_radius": 5.0, "g1": 0.0, "g2": 0.14},
+            {"type": "Exponential", "flux": 6.6e6, "half_light_radius": 4.8, "g1": 0.26, "g2": 0.5},
+            {"type": "Exponential", "flux": 7.0e5, "half_light_radius": 3.1, "g1": -0.3, "g2": 0.0},
+            {"type": "DeVaucouleurs", "flux": 1.6e5, "half_light_radius": 3.5, "g1": 0.2, "g2": 0.4},
+            {"type": "DeVaucouleurs", "flux": 2.0e5, "half_light_radius": 1.6, "g1": -0.06, "g2": -0.2},
+            {"type": "DeVaucouleurs", "flux": 8.3e5, "half_light_radius": 5.1, "g1": 0.29, "g2": 0.0},
+            {"type": "DeVaucouleurs", "flux": 4.5e5, "half_light_radius": 2.5, "g1": 0.4, "g2": 0.3},
+            {"type": "DeVaucouleurs", "flux": 6.2e5, "half_light_radius": 4.9, "g1": -0.08, "g2": -0.01},
+            {"type": "Gaussian", "flux": 4.7e6, "half_light_radius": 2.5, "g1": 0.07, "g2": -0.35},
+            {"type": "Gaussian", "flux": 5.8e6, "half_light_radius": 3.1, "g1": 0.03, "g2": 0.4},
+            {"type": "Gaussian", "flux": 2.3e5, "half_light_radius": 0.5, "g1": 0.0, "g2": 0.0},
+            {"type": "Gaussian", "flux": 1.6e6, "half_light_radius": 3.0, "g1": 0.18, "g2": -0.29},
+            {"type": "Gaussian", "flux": 3.5e5, "half_light_radius": 4.6, "g1": 0.5, "g2": 0.35},
+            {"type": "Gaussian", "flux": 5.9e5, "half_light_radius": 9.5, "g1": 0.1, "g2": 0.55},
+            {"type": "Gaussian", "flux": 4.0e5, "half_light_radius": 1.0, "g1": 0.0, "g2": 0.0},
+        ]
+
+        # Mapping of profile types to their galsim constructors.
+        profile_constructors = {
+            "Sersic": galsim.Sersic,
+            "Exponential": galsim.Exponential,
+            "DeVaucouleurs": galsim.DeVaucouleurs,
+            "Gaussian": galsim.Gaussian,
+        }
+
+        # Generate random positions within exposure bounds, avoiding edges by a
+        # margin.
+        margin_x, margin_y = 0.05 * exp_bbox.width, 0.05 * exp_bbox.height
+        self.positions = np.random.uniform(
+            [exp_bbox.minX + margin_x, exp_bbox.minY + margin_y],
+            [exp_bbox.maxX - margin_x, exp_bbox.maxY - margin_y],
+            (len(source_params), 2),
+        ).tolist()
+
+        # Loop over the sources and draw them onto the image cutout by cutout.
+        for i, params in enumerate(source_params):
+            # Dynamically get constructor and remove type from params.
+            constructor = profile_constructors[params.pop("type")]
+
+            # Get shear parameters and remove them from params.
+            g1, g2 = params.pop("g1"), params.pop("g2")
+
+            # The extent of the cutout should be large enough to contain the
+            # entire object above the background level. Some empirical factor
+            # is used to mitigate artifacts.
+            half_extent = 10 * params["half_light_radius"] * (1 + 2 * np.sqrt(g1**2 + g2**2))
+
+            # Pass the remaining params to the constructor and apply shear.
+            galsim_object = constructor(**params).shear(galsim.Shear(g1=g1, g2=g2))
+
+            # Retrieve the position of the object.
+            x, y = self.positions[i]
+            pos = galsim.PositionD(x, y)
+
+            # Get the bounds of the sub-image based on the object position.
+            sub_image_bounds = galsim.BoundsI(
+                *map(int, [x - half_extent, x + half_extent, y - half_extent, y + half_extent])
+            )
+
+            # Identify the overlap region, which could be partially outside
+            # the image bounds.
+            sub_image_bounds = sub_image_bounds & self.raw_image.bounds
+
+            # Check that there is some overlap.
+            assert sub_image_bounds.isDefined(), "No overlap with image bounds"
+
+            # Get the sub-image cutout.
+            sub_image = self.raw_image[sub_image_bounds]
+
+            # Draw the object onto the image within the the sub-image bounds.
+            galsim_object.drawImage(
+                image=sub_image,
+                offset=pos - sub_image.true_center,
+                method="real_space",  # Saves memory, usable w/o convolution
+                add_to_image=True,  # Add flux to existing image
+                scale=self.pixel_scale,
+            )
 
     def tearDown(self):
         del self.mock
+        del self.raw_image
+        del self.signal_free_raw_image
 
     def buildExposure(
         self,
@@ -354,6 +475,9 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
             ``average_gain``.
         sky_level : `float`
             The background sky level in e-/arcsec^2.
+        add_signal : `bool`, optional
+            Whether to add sources to the exposure. If set to False, the
+            exposure will only contain background noise.
 
         Returns
         -------
@@ -367,31 +491,17 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         np.random.seed(random_seed)
         rng = galsim.BaseDeviate(random_seed)
 
-        # Get the exposure, detector, and amps from the mock.
+        # Get the exposure from the mock.
         exposure = self.mock.getExposure()
-        detector = exposure.getDetector()
-        amps = detector.getAmplifiers()
-        num_amps = len(amps)
-        self.amp_name_list = [amp.getName() for amp in amps]
-        table = str.maketrans("", "", ":,")  # Remove ':' and ',' from names
-        self.amp_name_list_simplified = [name.translate(table) for name in self.amp_name_list]
 
-        # Adjust instrument and observation parameters to some nominal values.
-        pixel_scale = 0.2  # arcsec/pixel
-        self.background = sky_level * pixel_scale**2  # e-/pixel
-
-        # Get the bounding boxes for the exposure and amplifiers and convert
-        # them to galsim bounds.
-        exp_bbox = exposure.getBBox()
-        image_bounds = galsim.BoundsI(exp_bbox.minX, exp_bbox.maxX, exp_bbox.minY, exp_bbox.maxY)
-        self.amp_bbox_list = [amp.getBBox() for amp in amps]
-        amp_bounds_list = [galsim.BoundsI(b.minX, b.maxX, b.minY, b.maxY) for b in self.amp_bbox_list]
+        # Convert the background sky level from e-/arcsec^2 to e-/pixel.
+        self.background = sky_level * self.pixel_scale**2
 
         # Generate random deviations from the average gain across amplifiers
         # and adjust them to ensure their sum equals zero. This reflects
         # real-world detectors, with amplifier gains normally distributed due
         # to manufacturing and operational variations.
-        deviations = np.random.normal(average_gain, gain_sigma_factor * average_gain, size=num_amps)
+        deviations = np.random.normal(average_gain, gain_sigma_factor * average_gain, size=self.num_amps)
         deviations -= np.mean(deviations)
 
         # Set the gain for amplifiers to be slightly different from each other
@@ -400,114 +510,15 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         # function.
         self.amp_gain_list = [average_gain + deviation for deviation in deviations]
 
-        # Create a galsim image to potentially draw the sources onto. The
-        # exposure image that is passed to this method will be modified in
-        # place.
-        image = galsim.ImageF(exposure.image.array, bounds=image_bounds)
-
-        if add_signal:
-            # Define parameters for a mix of source types, including extended
-            # sources with assorted profiles as well as point sources simulated
-            # with minimal half-light radii to resemble hot pixels
-            # post-deconvolution. All flux values are given in electrons and
-            # half-light radii in pixels. The goal is for each amplifier to
-            # predominantly contain at least one source, enhancing the
-            # representativeness of test conditions.
-            source_params = [
-                {"type": "Sersic", "n": 3, "flux": 1.6e5, "half_light_radius": 3.5, "g1": -0.3, "g2": 0.2},
-                {"type": "Sersic", "n": 1, "flux": 9.3e5, "half_light_radius": 2.1, "g1": 0.25, "g2": 0.12},
-                {"type": "Sersic", "n": 4, "flux": 1.0e5, "half_light_radius": 1.1, "g1": 0.0, "g2": 0.0},
-                {"type": "Sersic", "n": 3, "flux": 1.1e6, "half_light_radius": 4.2, "g1": 0.0, "g2": 0.2},
-                {"type": "Sersic", "n": 5, "flux": 1.1e5, "half_light_radius": 3.6, "g1": 0.22, "g2": -0.05},
-                {"type": "Sersic", "n": 2, "flux": 4.3e5, "half_light_radius": 2.0, "g1": 0.0, "g2": 0.0},
-                {"type": "Sersic", "n": 6, "flux": 1.2e6, "half_light_radius": 11.0, "g1": -0.16, "g2": 0.7},
-                {"type": "Exponential", "flux": 1.3e6, "half_light_radius": 1.9, "g1": 0.3, "g2": -0.1},
-                {"type": "Exponential", "flux": 1.8e6, "half_light_radius": 5.0, "g1": 0.0, "g2": 0.14},
-                {"type": "Exponential", "flux": 6.6e6, "half_light_radius": 4.8, "g1": 0.26, "g2": 0.5},
-                {"type": "Exponential", "flux": 7.0e5, "half_light_radius": 3.1, "g1": -0.3, "g2": 0.0},
-                {"type": "DeVaucouleurs", "flux": 1.6e5, "half_light_radius": 3.5, "g1": 0.2, "g2": 0.4},
-                {"type": "DeVaucouleurs", "flux": 2.0e5, "half_light_radius": 1.6, "g1": -0.06, "g2": -0.2},
-                {"type": "DeVaucouleurs", "flux": 8.3e5, "half_light_radius": 5.1, "g1": 0.29, "g2": 0.0},
-                {"type": "DeVaucouleurs", "flux": 4.5e5, "half_light_radius": 2.5, "g1": 0.4, "g2": 0.3},
-                {"type": "DeVaucouleurs", "flux": 6.2e5, "half_light_radius": 4.9, "g1": -0.08, "g2": -0.01},
-                {"type": "Gaussian", "flux": 4.7e6, "half_light_radius": 2.5, "g1": 0.07, "g2": -0.35},
-                {"type": "Gaussian", "flux": 5.8e6, "half_light_radius": 3.1, "g1": 0.03, "g2": 0.4},
-                {"type": "Gaussian", "flux": 2.3e5, "half_light_radius": 0.5, "g1": 0.0, "g2": 0.0},
-                {"type": "Gaussian", "flux": 1.6e6, "half_light_radius": 3.0, "g1": 0.18, "g2": -0.29},
-                {"type": "Gaussian", "flux": 3.5e5, "half_light_radius": 4.6, "g1": 0.5, "g2": 0.35},
-                {"type": "Gaussian", "flux": 5.9e5, "half_light_radius": 9.5, "g1": 0.1, "g2": 0.55},
-                {"type": "Gaussian", "flux": 4.0e5, "half_light_radius": 1.0, "g1": 0.0, "g2": 0.0},
-            ]
-
-            # Mapping of profile types to their galsim constructors.
-            profile_constructors = {
-                "Sersic": galsim.Sersic,
-                "Exponential": galsim.Exponential,
-                "DeVaucouleurs": galsim.DeVaucouleurs,
-                "Gaussian": galsim.Gaussian,
-            }
-
-            # Generate random positions within exposure bounds, avoiding edges
-            # by a margin.
-            margin_x, margin_y = 0.05 * exp_bbox.width, 0.05 * exp_bbox.height
-            self.positions = np.random.uniform(
-                [exp_bbox.minX + margin_x, exp_bbox.minY + margin_y],
-                [exp_bbox.maxX - margin_x, exp_bbox.maxY - margin_y],
-                (len(source_params), 2),
-            ).tolist()
-
-            # Loop over the sources and draw them onto the image cutout by
-            # cutout.
-            for i, params in enumerate(source_params):
-                # Dynamically get constructor and remove type from params.
-                constructor = profile_constructors[params.pop("type")]
-
-                # Get shear parameters and remove them from params.
-                g1, g2 = params.pop("g1"), params.pop("g2")
-
-                # The extent of the cutout should be large enough to contain
-                # the entire object above the background level. Some empirical
-                # factor is used to mitigate artifacts.
-                half_extent = 10 * params["half_light_radius"] * (1 + 2 * np.sqrt(g1**2 + g2**2))
-
-                # Pass the remaining params to the constructor and apply shear.
-                galsim_object = constructor(**params).shear(galsim.Shear(g1=g1, g2=g2))
-
-                # Retrieve the position of the object.
-                x, y = self.positions[i]
-                pos = galsim.PositionD(x, y)
-
-                # Get the bounds of the sub-image based on the object position.
-                sub_image_bounds = galsim.BoundsI(
-                    *map(int, [x - half_extent, x + half_extent, y - half_extent, y + half_extent])
-                )
-
-                # Identify the overlap region, which could be partially outside
-                # the image bounds.
-                sub_image_bounds = sub_image_bounds & image.bounds
-
-                # Check that there is some overlap.
-                assert sub_image_bounds.isDefined(), "No overlap with image bounds"
-
-                # Get the sub-image cutout.
-                sub_image = image[sub_image_bounds]
-
-                # Draw the object onto the image within the the sub-image
-                # bounds.
-                galsim_object.drawImage(
-                    image=sub_image,
-                    offset=pos - sub_image.true_center,
-                    method="real_space",  # Save memory, usable w/o convolution
-                    add_to_image=True,  # Add flux to existing image
-                    scale=pixel_scale,
-                )
-
         # Add a constant background to the entire image (both in e-/pixel).
-        image += self.background
+        if add_signal:
+            image = self.raw_image + self.background
+        else:
+            image = self.signal_free_raw_image + self.background
 
         # Add noise to the image which is in electrons. Note that we won't
         # specify a `sky_level` here to avoid double-counting it, as it's
-        # already included as the background.
+        # already included in the image as the background.
         image.addNoise(galsim.PoissonNoise(rng))
 
         # Subtract off the background to get the sky-subtracted image.
@@ -515,7 +526,7 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
 
         # Adjust each amplifier's image segment by its respective gain. After
         # this step, the image will be in ADUs.
-        for bounds, gain in zip(amp_bounds_list, self.amp_gain_list):
+        for bounds, gain in zip(self.amp_bounds_list, self.amp_gain_list):
             image[bounds] /= gain
 
         # We know that the exposure has already been modified in place, but
