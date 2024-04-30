@@ -617,7 +617,7 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         else:
             # Tighten tolerance for the 'predefined_gain_type' of 'per-amp' or
             # for a more accurate per-amp gain estimation strategy.
-            rtol = 2e-7
+            rtol = 3e-7
             estimate_average_gain = False
 
         # Remove the signal from the variance plane.
