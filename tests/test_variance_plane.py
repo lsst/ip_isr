@@ -331,6 +331,11 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         self.mock = IsrMock(config=config)
         self.pixel_scale = 0.2  # arcsec/pixel
 
+        # Set the random seed for reproducibility.
+        random_seed = galsim.BaseDeviate(1905).raw() + 1
+        np.random.seed(random_seed)
+        self.rng = galsim.BaseDeviate(random_seed)
+
         # Get the exposure, detector, and amps from the mock.
         exposure = self.mock.getExposure()
         detector = exposure.getDetector()
@@ -486,11 +491,6 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
             are in detector counts (ADU).
         """
 
-        # Set the random seed for reproducibility.
-        random_seed = galsim.BaseDeviate(1905).raw() + 1
-        np.random.seed(random_seed)
-        rng = galsim.BaseDeviate(random_seed)
-
         # Get the exposure from the mock.
         exposure = self.mock.getExposure()
 
@@ -519,7 +519,7 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         # Add noise to the image which is in electrons. Note that we won't
         # specify a `sky_level` here to avoid double-counting it, as it's
         # already included in the image as the background.
-        image.addNoise(galsim.PoissonNoise(rng))
+        image.addNoise(galsim.PoissonNoise(self.rng))
 
         # Subtract off the background to get the sky-subtracted image.
         image -= self.background
