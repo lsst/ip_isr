@@ -167,8 +167,8 @@ class IsrMockLSST(IsrMock):
                     # Add noise
                     self.amplifierAddNoise(ampData, 1.0, 0.0)
                 # Multiply each amplifiers by a Gaussian centered on u0 and v0
-                u0 = exposure.getDimensions().getX()/2.
-                v0 = exposure.getDimensions().getY()/2.
+                u0 = exposure.getDetector().getBBox().getDimensions().getX()/2.
+                v0 = exposure.getDetector().getBBox().getDimensions().getY()/2.
                 self.amplifierMultiplyFlat(amp, ampData, self.config.flatDrop, u0=u0, v0=v0)
 
             # ISR effects
@@ -184,33 +184,23 @@ class IsrMockLSST(IsrMock):
             if self.config.doApplyGain:
                 self.applyGain(ampData, self.config.gain)
 
-            # 3. Add read noise with or without a bias level
-            # to the image region in ADU.
+            # 3. Add read noise to the image region in ADU.
             if not self.config.flatMode:
-                self.amplifierAddNoise(ampData, self.config.biasLevel if self.config.doAddBias else 0.0,
+                self.amplifierAddNoise(ampData, 0.0,
                                     self.config.readNoise / self.config.gain)
 
         # 4. Apply cross-talk in ADU
         if self.config.doAddCrosstalk:
-            # self.crosstalkCoeffs = np.array([[0.0, 1e-1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            #                                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
             ctCalib = CrosstalkCalib()
             exposureClean = exposure.clone()
             for idxS, ampS in enumerate(exposure.getDetector()):
                 for idxT, ampT in enumerate(exposure.getDetector()):
-                    ampDataT = exposureClean.image[ampT.getBBox() if self.config.isTrimmed
-                                              else ampT.getRawDataBBox()]
-                    outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
-                                               isTrimmed=self.config.isTrimmed)
-                    # outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
-                    #                             isTrimmed=self.config.isTrimmed)
-                    self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
+                    ampDataTarget = exposure.image[ampT.getBBox() if self.config.isTrimmed
+                                                   else ampT.getRawDataBBox()]
+                    ampDataSource = ctCalib.extractAmp(exposureClean.image, ampS, ampT,
+                                                       isTrimmed=self.config.isTrimmed)
+                    self.amplifierAddCT(ampDataSource, ampDataTarget, self.crosstalkCoeffs[idxS][idxT])
+
 
         # We now apply parallel and serial overscans
         for amp in exposure.getDetector():
@@ -222,48 +212,50 @@ class IsrMockLSST(IsrMock):
                 bbox = amp.getRawDataBBox()
             ampData = exposure.image[bbox]
 
-            # Get overscan bbox and data
+            if self.config.doAddParallelOverscan or self.config.doAddSerialOverscan or self.config.doAddBias:
 
+                allData = ampData
 
-            # 5. Apply parallel overscan in ADU
-            if self.config.doAddParallelOverscan or self.config.doAddSerialOverscan:
-                # First get the parallel and serial overscan bbox
-                # and corresponding data
-                parallelOscanBBox = amp.getRawParallelOverscanBBox()
-                parallelOscanData = exposure.image[parallelOscanBBox]
+                if self.config.doAddParallelOverscan or self.config.doAddSerialOverscan:
+                    # 5. Apply parallel overscan in ADU
+                    # First get the parallel and serial overscan bbox
+                    # and corresponding data
+                    parallelOscanBBox = amp.getRawParallelOverscanBBox()
+                    parallelOscanData = exposure.image[parallelOscanBBox]
 
-                grownImageBBox = bbox.expandedTo(parallelOscanBBox)
+                    grownImageBBox = bbox.expandedTo(parallelOscanBBox)
 
-                serialOscanBBox = amp.getRawSerialOverscanBBox()
-                serialOscanBBox = geom.Box2I(
-                        geom.Point2I(serialOscanBBox.getMinX(),
-                                     grownImageBBox.getMinY()),
-                        geom.Extent2I(serialOscanBBox.getWidth(),
-                                      grownImageBBox.getHeight()),
-                    )
-                serialOscanData = exposure.image[serialOscanBBox]
+                    serialOscanBBox = amp.getRawSerialOverscanBBox()
+                    serialOscanBBox = geom.Box2I(
+                            geom.Point2I(serialOscanBBox.getMinX(),
+                                        grownImageBBox.getMinY()),
+                            geom.Extent2I(serialOscanBBox.getWidth(),
+                                        grownImageBBox.getHeight()),
+                        )
+                    serialOscanData = exposure.image[serialOscanBBox]
 
+                    # Add read noise with or without a bias level
+                    # to the parallel and serial overscan regions.
+                    self.amplifierAddNoise(parallelOscanData, 0.0,
+                                            self.config.readNoise / self.config.gain)
 
-                # Add read noise with or without a bias level
-                # to the parallel and serial overscan regions.
-                self.amplifierAddNoise(parallelOscanData, self.config.biasLevel
-                                        if self.config.doAddBias else 0.0,
-                                        self.config.readNoise / self.config.gain)
+                    self.amplifierAddNoise(serialOscanData, 0.0,
+                                            self.config.readNoise / self.config.gain)
 
-                self.amplifierAddNoise(serialOscanData, self.config.biasLevel
-                                        if self.config.doAddBias else 0.0,
-                                        self.config.readNoise / self.config.gain)
+                    grownImageBBoxAll = grownImageBBox.expandedTo(serialOscanBBox)
+                    allData = exposure.image[grownImageBBoxAll]
 
-                grownImageBBoxAll = grownImageBBox.expandedTo(serialOscanBBox)
-                allData = exposure.image[grownImageBBoxAll]
-
-                if self.config.doAddParallelOverscan:
-                    # Apply gradient along the Y axis
-                    self.amplifierAddXGradient(allData, -1.0 * self.config.overscanScale,
-                                           1.0 * self.config.overscanScale)
+                    if self.config.doAddParallelOverscan:
+                        # Apply gradient along the Y axis
+                        self.amplifierAddXGradient(allData, -1.0 * self.config.overscanScale,
+                                            1.0 * self.config.overscanScale)
 
         # 6. Add Parallel overscan xtalk.
         # TODO: DM-43286
+
+                # Add bias level to the whole image
+                # (science and overscan regions if any)
+                self.addBiasLevel(allData, self.config.biasLevel if self.config.doAddBias else 0.0)
 
                 if self.config.doAddSerialOverscan:
                     # Apply gradient along the Y axis
@@ -277,6 +269,22 @@ class IsrMockLSST(IsrMock):
             return expDict
         else:
             return exposure
+
+    # Simple data values.
+    def addBiasLevel(self, ampData, biasLevel):
+        """Add Gaussian noise to an amplifier's image data.
+
+         This method operates in the amplifier coordinate frame.
+
+        Parameters
+        ----------
+        ampData : `lsst.afw.image.ImageF`
+            Amplifier image to operate on.
+        biasLevel : `float`
+            Bias level to be added to the image
+        """
+        ampArr = ampData.array
+        ampArr[:] = ampArr[:] + biasLevel
 
     def applyGain(self, ampData, gain):
         """Apply gain to the amplifier's data.
