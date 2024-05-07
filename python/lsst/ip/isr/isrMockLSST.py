@@ -286,6 +286,41 @@ class IsrMockLSST(IsrMock):
         ampArr = ampData.array
         ampArr[:] = ampArr[:] + biasLevel
 
+    def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
+        """Multiply an amplifier's image data by a flat-like pattern.
+
+        Parameters
+        ----------
+        amp : `lsst.afw.ampInfo.AmpInfoRecord`
+            Amplifier to operate on. Needed for amp<->exp coordinate
+            transforms.
+        ampData : `lsst.afw.image.ImageF`
+            Amplifier image to operate on.
+        fracDrop : `float`
+            Fractional drop from center to edge of detector along x-axis.
+        u0 : `float`
+            Peak location in detector coordinates.
+        v0 : `float`
+            Peak location in detector coordinates.
+
+        Notes
+        -----
+        This uses a 2-d Gaussian to simulate an illumination pattern
+        that falls off towards the edge of the detector. The (x, y)
+        coordinates are in the frame of the amplifier, and (u, v) in
+        the frame of the full trimmed image.
+        """
+        if fracDrop >= 1.0:
+            raise RuntimeError("Flat fractional drop cannot be greater than 1.0")
+
+        sigma = u0 / np.sqrt(2.0 *fracDrop)
+
+        for x in range(0, ampData.getDimensions().getX()):
+            for y in range(0, ampData.getDimensions().getY()):
+                (u, v) = self.localCoordToExpCoord(amp, x, y)
+                f = np.exp(-0.5 * ((u - u0)**2 + (v - v0)**2) / sigma**2)
+                ampData.array[y][x] = (ampData.array[y][x] * f)
+
     def applyGain(self, ampData, gain):
         """Apply gain to the amplifier's data.
         This method divides the data by the gain

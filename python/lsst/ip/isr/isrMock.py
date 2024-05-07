@@ -274,7 +274,16 @@ class IsrMock(pipeBase.Task):
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 2.2e-2, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 5e-3, 5e-4, 3e-3, 4e-2, 5e-3, 5e-3, 0.0]])
-
+        # For debugging
+        # self.crosstalkCoeffs =
+        # np.array([[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
         self.bfKernel = np.array([[1., 4., 7., 4., 1.],
                                   [4., 16., 26., 16., 4.],
                                   [7., 26., 41., 26., 7.],
@@ -620,7 +629,7 @@ class IsrMock(pipeBase.Task):
             newAmp.setRawPrescanBBox(prescanBBox)
             newAmp.setRawFlipX(False)
             newAmp.setRawFlipY(False)
-            no_offset = lsst.geom.Extent2I(0,0)
+            no_offset = lsst.geom.Extent2I(0, 0)
             newAmp.setRawXYOffset(no_offset)
 
             newCcd.append(newAmp)
