@@ -1327,7 +1327,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doCrosstalk:
             # Input units: ADU
             self.log.info("Applying crosstalk correction.")
-            self.crosstalk.run(ccdExposure, crosstalk=crosstalk,isTrimmed=True)
+            self.crosstalk.run(ccdExposure, crosstalk=crosstalk, isTrimmed=True)
 
         if self.config.doBias:
             # Input units: ADU

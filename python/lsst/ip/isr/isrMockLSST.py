@@ -42,21 +42,17 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=True,
         doc="If True, products have one raw image per amplifier, otherwise, one raw image per detector.",
     )
-    # Signal parameters.
-    # Most of them are inherited from isrMockConfig but we update
-    # some to LSSTcam expected values.
-    # TODO: DM-42880 Update values to what is expected in LSSTCam.
+    # Change bias level to LSSTCam expected values.
     biasLevel = pexConfig.Field(
         dtype=float,
         default=25000.0,
         doc="Background contribution to be generated from the bias offset in ADU.",
     )
-    flatMode = pexConfig.Field(
+    calibMode = pexConfig.Field(
         dtype=bool,
         default=False,
-        doc="Set to true for producing mock flats.",
+        doc="Set to true to produce mock calibration products.",
     )
-    # Inclusion parameters are inherited from isrMock.
     doAddParallelOverscan = pexConfig.Field(
         dtype=bool,
         default=True,
@@ -76,12 +72,6 @@ class IsrMockLSSTConfig(IsrMockConfig):
 
 class IsrMockLSST(IsrMock):
     """Class to generate consistent mock images for ISR testing.
-
-    ISR testing currently relies on one-off fake images that do not
-    accurately mimic the full set of detector effects. This class
-    uses the test camera/detector/amplifier structure defined in
-    `lsst.afw.cameraGeom.testUtils` to avoid making the test data
-    dependent on any of the actual obs package formats.
     """
     ConfigClass = IsrMockLSSTConfig
     _DefaultName = "isrMockLSST"
@@ -146,7 +136,8 @@ class IsrMockLSST(IsrMock):
 
             # Sky effects in e-
             if self.config.doAddSky:
-                self.amplifierAddNoise(ampData, self.config.skyLevel, np.sqrt(self.config.skyLevel))
+                self.amplifierAddNoise(ampData, self.config.skyLevel * self.config.gain,
+                                       np.sqrt(self.config.skyLevel * self.config.gain))
 
             if self.config.doAddSource:
                 for sourceAmp, sourceFlux, sourceX, sourceY in zip(self.config.sourceAmp,
@@ -154,11 +145,11 @@ class IsrMockLSST(IsrMock):
                                                                    self.config.sourceX,
                                                                    self.config.sourceY):
                     if idx == sourceAmp:
-                        self.amplifierAddSource(ampData, sourceFlux, sourceX, sourceY)
+                        self.amplifierAddSource(ampData, sourceFlux * self.config.gain, sourceX, sourceY)
 
             # Other effects in e-
             if self.config.doAddFringe:
-                self.amplifierAddFringe(amp, ampData, np.array(self.config.fringeScale),
+                self.amplifierAddFringe(amp, ampData, np.array(self.config.fringeScale) * self.config.gain,
                                         x0=np.array(self.config.fringeX0),
                                         y0=np.array(self.config.fringeY0))
 
@@ -172,11 +163,12 @@ class IsrMockLSST(IsrMock):
                 self.amplifierMultiplyFlat(amp, ampData, self.config.flatDrop, u0=u0, v0=v0)
 
             # ISR effects
-            # 1. Add dark in e- (different from isrMock which does it in ADU)
+            # 1. Add dark in e-
             if self.config.doAddDark:
                 self.amplifierAddNoise(ampData,
                                        self.config.darkRate * self.config.darkTime,
-                                       np.sqrt(self.config.darkRate * self.config.darkTime))
+                                       0. if self.config.calibMode
+                                       else np.sqrt(self.config.darkRate * self.config.darkTime))
 
             # 2. Gain normalize  (from e- to ADU)
             # TODO: DM-43601 gain from PTC per amplifier
@@ -185,9 +177,9 @@ class IsrMockLSST(IsrMock):
                 self.applyGain(ampData, self.config.gain)
 
             # 3. Add read noise to the image region in ADU.
-            if not self.config.flatMode:
+            if not self.config.calibMode:
                 self.amplifierAddNoise(ampData, 0.0,
-                                    self.config.readNoise / self.config.gain)
+                                       self.config.readNoise / self.config.gain)
 
         # 4. Apply cross-talk in ADU
         if self.config.doAddCrosstalk:
@@ -200,7 +192,6 @@ class IsrMockLSST(IsrMock):
                     ampDataSource = ctCalib.extractAmp(exposureClean.image, ampS, ampT,
                                                        isTrimmed=self.config.isTrimmed)
                     self.amplifierAddCT(ampDataSource, ampDataTarget, self.crosstalkCoeffs[idxS][idxT])
-
 
         # We now apply parallel and serial overscans
         for amp in exposure.getDetector():
@@ -226,21 +217,22 @@ class IsrMockLSST(IsrMock):
                     grownImageBBox = bbox.expandedTo(parallelOscanBBox)
 
                     serialOscanBBox = amp.getRawSerialOverscanBBox()
+                    # Extend the serial overscan bbox to include corners
                     serialOscanBBox = geom.Box2I(
-                            geom.Point2I(serialOscanBBox.getMinX(),
-                                        grownImageBBox.getMinY()),
-                            geom.Extent2I(serialOscanBBox.getWidth(),
-                                        grownImageBBox.getHeight()),
+                        geom.Point2I(serialOscanBBox.getMinX(),
+                                     grownImageBBox.getMinY()),
+                        geom.Extent2I(serialOscanBBox.getWidth(),
+                                      grownImageBBox.getHeight())
                         )
                     serialOscanData = exposure.image[serialOscanBBox]
 
-                    # Add read noise with or without a bias level
-                    # to the parallel and serial overscan regions.
+                    # Add read noise of mean 0
+                    # to the parallel and serial overscan regions
                     self.amplifierAddNoise(parallelOscanData, 0.0,
-                                            self.config.readNoise / self.config.gain)
+                                           self.config.readNoise / self.config.gain)
 
                     self.amplifierAddNoise(serialOscanData, 0.0,
-                                            self.config.readNoise / self.config.gain)
+                                           self.config.readNoise / self.config.gain)
 
                     grownImageBBoxAll = grownImageBBox.expandedTo(serialOscanBBox)
                     allData = exposure.image[grownImageBBoxAll]
@@ -248,7 +240,7 @@ class IsrMockLSST(IsrMock):
                     if self.config.doAddParallelOverscan:
                         # Apply gradient along the Y axis
                         self.amplifierAddXGradient(allData, -1.0 * self.config.overscanScale,
-                                            1.0 * self.config.overscanScale)
+                                                   1.0 * self.config.overscanScale)
 
         # 6. Add Parallel overscan xtalk.
         # TODO: DM-43286
@@ -270,18 +262,15 @@ class IsrMockLSST(IsrMock):
         else:
             return exposure
 
-    # Simple data values.
     def addBiasLevel(self, ampData, biasLevel):
-        """Add Gaussian noise to an amplifier's image data.
-
-         This method operates in the amplifier coordinate frame.
+        """Add bias level to an amplifier's image data.
 
         Parameters
         ----------
         ampData : `lsst.afw.image.ImageF`
             Amplifier image to operate on.
         biasLevel : `float`
-            Bias level to be added to the image
+            Bias level to be added to the image.
         """
         ampArr = ampData.array
         ampArr[:] = ampArr[:] + biasLevel
@@ -302,18 +291,11 @@ class IsrMockLSST(IsrMock):
             Peak location in detector coordinates.
         v0 : `float`
             Peak location in detector coordinates.
-
-        Notes
-        -----
-        This uses a 2-d Gaussian to simulate an illumination pattern
-        that falls off towards the edge of the detector. The (x, y)
-        coordinates are in the frame of the amplifier, and (u, v) in
-        the frame of the full trimmed image.
         """
         if fracDrop >= 1.0:
             raise RuntimeError("Flat fractional drop cannot be greater than 1.0")
 
-        sigma = u0 / np.sqrt(2.0 *fracDrop)
+        sigma = u0 / np.sqrt(2.0 * fracDrop)
 
         for x in range(0, ampData.getDimensions().getX()):
             for y in range(0, ampData.getDimensions().getY()):
@@ -347,9 +329,9 @@ class IsrMockLSST(IsrMock):
         ampData : `lsst.afw.image.ImageF`
             Amplifier image to operate on.
         start : `float`
-            Start value of the gradient (at y=0).
+            Start value of the gradient (at x=0).
         end : `float`
-            End value of the gradient (at y=ymax).
+            End value of the gradient (at x=xmax).
         """
         nPixX = ampData.getDimensions().getX()
         ampArr = ampData.array
@@ -427,6 +409,8 @@ class ReferenceMockLSST(IsrMockLSST):
         self.config.isTrimmed = True
         self.config.doGenerateImage = True
 
+        self.config.calibMode = True
+
         self.config.doAddSky = False
         self.config.doAddSource = False
 
@@ -456,6 +440,7 @@ class BiasMockLSST(ReferenceMockLSST):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # We assume a perfect noiseless bias frame.
         # A combined bias has mean 0
         # so we set its bias level to 0.
         # This is equivalent to doAddBias = False
@@ -464,8 +449,6 @@ class BiasMockLSST(ReferenceMockLSST):
         self.config.doAddBias = True
         self.config.biasLevel = 0.0
         self.config.doApplyGain = True
-        # Assume combined calibrations are made with 16 inputs.
-        self.config.readNoise = 10.0*0.25
 
 
 class FlatMockLSST(ReferenceMockLSST):
@@ -474,7 +457,6 @@ class FlatMockLSST(ReferenceMockLSST):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.doAddFlat = True
-        self.config.flatMode = True
 
 
 class FringeMockLSST(ReferenceMockLSST):
@@ -493,7 +475,6 @@ class BfKernelMockLSST(IsrMockLSST):
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
 
-        # calibration products configs
         self.config.doBrighterFatter = True
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
