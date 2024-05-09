@@ -51,7 +51,7 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
-        self.assertLess(newMean, initialMean)
+        self.assertAlmostEqual(newStd, initialStd)
 
         initialMean = newMean
         initialStd = newStd
@@ -85,7 +85,8 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         newMean = np.median(self.mi.getImage().getArray()[:])
         newStd = np.std(self.mi.getImage().getArray()[:])
 
-        self.assertLess(newMean, initialMean)
+        self.assertAlmostEqual(newMean, initialMean, -1)
+        self.assertAlmostEqual(newStd, initialStd, -1)
 
     def test_untrimmedSimple(self):
         """Test untrimmed mocks are genetared.

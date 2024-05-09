@@ -222,8 +222,7 @@ class IsrMockLSST(IsrMock):
                         geom.Point2I(serialOscanBBox.getMinX(),
                                      grownImageBBox.getMinY()),
                         geom.Extent2I(serialOscanBBox.getWidth(),
-                                      grownImageBBox.getHeight())
-                        )
+                                      grownImageBBox.getHeight()))
                     serialOscanData = exposure.image[serialOscanBBox]
 
                     # Add read noise of mean 0

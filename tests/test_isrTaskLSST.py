@@ -26,64 +26,25 @@ import numpy as np
 import lsst.afw.image as afwImage
 import lsst.ip.isr.isrMockLSST as isrMockLSST
 import lsst.utils.tests
-from lsst.ip.isr.overscanAmpConfig import OverscanAmpConfig
-from lsst.ip.isr.overscanAmpConfig import OverscanDetectorConfig
 from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
 from lsst.ip.isr.crosstalk import CrosstalkCalib
-from lsst.ip.isr.deferredCharge import DeferredChargeCalib
 from lsst.pipe.base import Struct
 from lsst.ip.isr import PhotonTransferCurveDataset
 
 
-def countMaskedPixels(maskedImage, maskPlane):
-    """Function to count the number of masked pixels of a given type.
-
-    Parameters
-    ----------
-    maskedImage : `lsst.afw.image.MaskedImage`
-        Image to measure the mask on.
-    maskPlane : `str`
-        Name of the mask plane to count
-
-    Returns
-    -------
-    nMask : `int`
-        Number of masked pixels.
-    """
-    bitMask = maskedImage.getMask().getPlaneBitMask(maskPlane)
-    isBit = maskedImage.getMask().getArray() & bitMask > 0
-    numBit = np.sum(isBit)
-    return numBit
-
-
-def computeImageMedianAndStd(image):
-    """Function to calculate median and std of image data.
-
-    Parameters
-    ----------
-    image : `lsst.afw.image.Image`
-        Image to measure statistics on.
-
-    Returns
-    -------
-    median : `float`
-        Image median.
-    std : `float`
-        Image stddev.
-    """
-    median = np.nanmedian(image.getArray())
-    std = np.nanstd(image.getArray())
-    return (median, std)
-
-
 class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
-    """Test IsrTaskLSST pipeline step-by-step
-    to produce calibrations and to correct a mock image.
+    """Test IsrTaskLSST step-by-step
+    to produce mock calibrations and apply ISR correction on a mock image.
     """
+    def doSetUp_mock(self, config):
+        """Set up a mock image and calibration products with specified configs.
 
-    def doSetUp_mock(self,config):
-
-        # Create a mock image
+        Parameters
+        ----------
+        config : `lsst.ip.isr.IsrMockLSSTConfig`
+            Configs to produce the mock image and calibration products.
+        """
+        # Create mock image
         self.mock = isrMockLSST.IsrMockLSST(config=config)
         self.inputExp = self.mock.run()
         self.camera = self.mock.getCamera()
@@ -92,24 +53,24 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         # Get number of amps
         self.namp = len(self.detector.getAmplifiers())
 
-        # Create a mock bias
+        # Create mock bias
         self.bias = isrMockLSST.BiasMockLSST().run()
 
-        # Create a mock CTI, by instatianting the class with default settings
+        # Create mock CTI, by instatianting the class with default settings
         # so we can test the pipeline would run
         # TODO: Update with some mock CTI data DM-????
         # self.cti = DeferredChargeCalib()
 
-        # Create a mock flat
+        # Create mock flat
         self.flat = isrMockLSST.FlatMockLSST().run()
 
-        # Create a mock dark
+        # Create mock dark
         self.dark = isrMockLSST.DarkMockLSST().run()
 
-        # Create a mock brighter-fatter kernel
+        # Create mock brighter-fatter kernel
         self.bfkernel = isrMockLSST.BfKernelMockLSST().run()
 
-        # Create a crosstalk calib with default coefficients from the mock data
+        # Create crosstalk calib with default coefficients matrix
         self.crosstalk = CrosstalkCalib(nAmp=self.namp)
         self.crosstalk.hasCrosstalk = True
         self.crosstalk.coeffs = isrMockLSST.CrosstalkCoeffMockLSST().run()
@@ -117,11 +78,8 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         # Create mock defects
         self.defect = isrMockLSST.DefectMockLSST().run()
 
-        # We need a mock PTC
+        # Create mock PTC
         ampNames = [x.getName() for x in self.detector.getAmplifiers()]
-        print(ampNames)
-        # Make PTC.
-        # The arguments other than the ampNames aren't important for this.
         self.ptc = PhotonTransferCurveDataset(ampNames,
                                               ptcFitType='DUMMY_PTC',
                                               covMatrixSide=1)
@@ -130,7 +88,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
             self.ptc.noise[ampName] = 8.5  # read noise in ADU
 
     def setMockConfigFalse(self):
-        """Set all configs corresponding to ISR steps to False.
+        """Set all configs to produce mocks to False.
         """
         self.mockConfig.isTrimmed = False
         self.mockConfig.doGenerateImage = True
@@ -152,15 +110,14 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
     def setIsrConfig(self):
         """Set all configs corresponding to ISR steps to False.
         """
-
-        # Set up ISR task configs
-        self.defaultAmpConfig = self.config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-
+        self.defaultAmpConfig = self.config.overscanCamera.\
+            getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        # overscanDetectorConfig = self.config.overscanCamera.\
+        #     getOverscanDetectorConfig(self.detector)
+        self.defaultAmpConfig.doSerialOverscan = False
+        self.defaultAmpConfig.doParallelOverscanCrosstalk = False
+        self.defaultAmpConfig.doParallelOverscan = False
         self.config.doDiffNonLinearCorrection = False
-        overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(self.detector)
-        overscanDetectorConfig.defaultAmpConfig.doSerialOverscan = False
-        overscanDetectorConfig.defaultAmpConfig.doParallelOverscanCrosstalk = False
-        overscanDetectorConfig.defaultAmpConfig.doParallelOverscan = False
         self.config.doAssembleCcd = False
         self.config.doLinearize = False
         self.config.doCrosstalk = False
@@ -180,23 +137,21 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doFlat = False
 
     def validateIsrResults(self):
-        """results should be a struct with components that are
-        not None if included in the configuration file.
+        """Validate the ISR LSST pipeline by running it and checking the
+        results format and compare the mean before and after ISR correction.
 
         Returns
         -------
         results : `pipeBase.Struct`
             Results struct generated from the current ISR configuration.
         """
-
-
         self.task = IsrTaskLSST(config=self.config)
 
         mockMean = 0.
         for amp in self.inputExp.getDetector():
             bbox = amp.getRawDataBBox()
             ampData = self.inputExp.image[bbox]
-            mockMean += np.mean(ampData.array)
+            mockMean += np.nanmean(ampData.array)
 
         # Not testing dnlLUT (not existant yet), deferred Charge,
         # linearizer, crosstalk, bfgains
@@ -212,14 +167,13 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
                                 flat=self.flat
                                 )
 
-        outputMean = np.mean(results.outputExposure.image.array)
+        outputMean = np.nanmean(results.outputExposure.image.array)
         # Test that the output has a smaller mean than the input mock
         self.assertLess(outputMean, mockMean)
         # Test that the output is a struct
         self.assertIsInstance(results, Struct)
         # Test that the output has an exposure with expected format
         self.assertIsInstance(results.exposure, afwImage.Exposure)
-        return results
 
     def test_run_serialOverscanCorrection(self):
         """Test up to serial overscan correction.
@@ -233,7 +187,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.setIsrConfig()
         self.defaultAmpConfig.doSerialOverscan = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
     def test_run_parallelOverscanCrosstalkCorrection(self):
         """Test up to parallel overscan crosstalk correction.
@@ -256,7 +210,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.defaultAmpConfig.doSerialOverscan = True
         self.defaultAmpConfig.doParallelOverscan = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
     def test_run_linearize(self):
         """Test up to linearizer.
@@ -281,10 +235,10 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doAssembleCcd = True
         self.config.doCrosstalk = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
     def test_run_biasCorrection(self):
-        """Test up to crosstalk correction.
+        """Test up to bias correction.
         """
         self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
         self.setMockConfigFalse()
@@ -302,16 +256,10 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doCrosstalk = True
         self.config.doBias = True
 
-        results = self.validateIsrResults()
-
-    def test_run_correctGains(self):
-        """Test up to gains correction
-        # TODO DM-??
-        """
-        pass
+        self.validateIsrResults()
 
     def test_run_applyGains(self):
-        """Test up to crosstalk correction.
+        """Test up to gain correction.
         """
         self.mockConfig = isrMockLSST.IsrMockLSSTConfig()
         self.setMockConfigFalse()
@@ -332,7 +280,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doBias = True
         self.config.doApplyGains = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
     def test_run_doVarianceDefectsMasking(self):
         """Test up to masking of bad pixels.
@@ -360,7 +308,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doNanMasking = True
         self.config.doWidenSaturationTrails = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
     def test_run_doDark(self):
         """Test up to dark correction.
@@ -390,7 +338,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doWidenSaturationTrails = True
         self.config.doDark = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
     def test_run_doBFcorrection(self):
         """Test up to do BF correction
@@ -428,7 +376,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doDark = True
         self.config.doFlat = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
     def test_run_setPixelValues(self):
         """Test up to flat correction
@@ -462,7 +410,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doSetBadRegions = True
         self.config.doInterpolate = True
 
-        results = self.validateIsrResults()
+        self.validateIsrResults()
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
