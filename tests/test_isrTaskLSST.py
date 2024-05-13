@@ -112,8 +112,6 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         """
         self.defaultAmpConfig = self.config.overscanCamera.\
             getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        # overscanDetectorConfig = self.config.overscanCamera.\
-        #     getOverscanDetectorConfig(self.detector)
         self.defaultAmpConfig.doSerialOverscan = False
         self.defaultAmpConfig.doParallelOverscanCrosstalk = False
         self.defaultAmpConfig.doParallelOverscan = False
@@ -154,7 +152,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
             mockMean += np.nanmean(ampData.array)
 
         # Not testing dnlLUT (not existant yet), deferred Charge,
-        # linearizer, crosstalk, bfgains
+        # linearizer, bfgains
         results = self.task.run(self.inputExp,
                                 camera=self.camera,
                                 bias=self.bias,
@@ -215,7 +213,8 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
     def test_run_linearize(self):
         """Test up to linearizer.
         """
-        # TODO DM-???
+        # TODO DM-44314
+
         pass
 
     def test_run_crosstalkCorrection(self):
@@ -342,7 +341,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
 
     def test_run_doBFcorrection(self):
         """Test up to do BF correction
-        # TODO DM-??
+        # TODO DM-44315
         """
         pass
 

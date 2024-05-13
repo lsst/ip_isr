@@ -51,7 +51,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
     calibMode = pexConfig.Field(
         dtype=bool,
         default=False,
-        doc="Set to true to produce mock calibration products.",
+        doc="Set to true to produce mock calibration products, e.g. combined bias, dark, flat, etc.",
     )
     doAddParallelOverscan = pexConfig.Field(
         dtype=bool,
@@ -136,6 +136,9 @@ class IsrMockLSST(IsrMock):
 
             # Sky effects in e-
             if self.config.doAddSky:
+                # The sky effects are in electrons,
+                # but the skyLevel is configured in ADU
+                # TODO: DM-42880 to set configs to correct units
                 self.amplifierAddNoise(ampData, self.config.skyLevel * self.config.gain,
                                        np.sqrt(self.config.skyLevel * self.config.gain))
 
@@ -145,25 +148,32 @@ class IsrMockLSST(IsrMock):
                                                                    self.config.sourceX,
                                                                    self.config.sourceY):
                     if idx == sourceAmp:
+                        # The source flux is in electrons,
+                        # but the sourceFlux is configured in ADU
+                        # TODO: DM-42880 to set configs to correct units
                         self.amplifierAddSource(ampData, sourceFlux * self.config.gain, sourceX, sourceY)
 
             # Other effects in e-
             if self.config.doAddFringe:
+                # Fringes are added in electrons,
+                # but the fringeScale is configured in ADU
                 self.amplifierAddFringe(amp, ampData, np.array(self.config.fringeScale) * self.config.gain,
                                         x0=np.array(self.config.fringeX0),
                                         y0=np.array(self.config.fringeY0))
 
             if self.config.doAddFlat:
-                if ampData.getArray().sum() == 0.0:
-                    # Add noise
+                if self.config.calibMode:
+                    # In case we are making a combined flat,
+                    # add a non-zero signal so the mock flat can be multiplied
                     self.amplifierAddNoise(ampData, 1.0, 0.0)
-                # Multiply each amplifiers by a Gaussian centered on u0 and v0
+                # Multiply each amplifier by a Gaussian centered on u0 and v0
                 u0 = exposure.getDetector().getBBox().getDimensions().getX()/2.
                 v0 = exposure.getDetector().getBBox().getDimensions().getY()/2.
                 self.amplifierMultiplyFlat(amp, ampData, self.config.flatDrop, u0=u0, v0=v0)
 
             # ISR effects
-            # 1. Add dark in e-
+            # 1. Add dark in e- (darkRate is configured in e-/s)
+            # TODO: DM-42880 to set configs to correct units
             if self.config.doAddDark:
                 self.amplifierAddNoise(ampData,
                                        self.config.darkRate * self.config.darkTime,

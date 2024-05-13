@@ -32,6 +32,7 @@ import tempfile
 import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
+from lsstDebug import getDebugFrame
 
 import lsst.afw.cameraGeom.utils as afwUtils
 import lsst.afw.cameraGeom.testUtils as afwTestUtils
@@ -274,16 +275,15 @@ class IsrMock(pipeBase.Task):
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 2.2e-2, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 5e-3, 5e-4, 3e-3, 4e-2, 5e-3, 5e-3, 0.0]])
-        # For debugging
-        # self.crosstalkCoeffs =
-        # np.array([[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
+        if getDebugFrame(self._display, "mockCrosstalkCoeffs"):
+            self.crosstalkCoeffs = np.array([[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
         self.bfKernel = np.array([[1., 4., 7., 4., 1.],
                                   [4., 16., 26., 16., 4.],
                                   [7., 26., 41., 26., 7.],
