@@ -326,6 +326,7 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 linearizer.fitParamsErr[ampName] = np.array([])
                 linearizer.fitChiSq[ampName] = np.nan
                 linearizer.fitResiduals[ampName] = np.array([])
+                linearizer.fitResidualsSigmaMad[ampName] = np.nan
                 linearizer.linearFit[ampName] = np.array([])
 
         return linearizer
