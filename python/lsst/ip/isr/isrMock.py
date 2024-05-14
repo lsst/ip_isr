@@ -32,6 +32,7 @@ import tempfile
 import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.image as afwImage
+from lsstDebug import getDebugFrame
 
 import lsst.afw.cameraGeom.utils as afwUtils
 import lsst.afw.cameraGeom.testUtils as afwTestUtils
@@ -274,7 +275,15 @@ class IsrMock(pipeBase.Task):
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 2.2e-2, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 5e-3, 5e-4, 3e-3, 4e-2, 5e-3, 5e-3, 0.0]])
-
+        if getDebugFrame(self._display, "mockCrosstalkCoeffs"):
+            self.crosstalkCoeffs = np.array([[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
         self.bfKernel = np.array([[1., 4., 7., 4., 1.],
                                   [4., 16., 26., 16., 4.],
                                   [7., 26., 41., 26., 7.],
@@ -578,31 +587,40 @@ class IsrMock(pipeBase.Task):
             parallelOscanBBox = amp.getRawParallelOverscanBBox()
             serialOscanBBox = amp.getRawSerialOverscanBBox()
             prescanBBox = amp.getRawPrescanBBox()
-            # This follows cameraGeom.testUtils
-            flipx = bool(amp.getRawFlipX())
-            flipy = bool(amp.getRawFlipY())
-            if flipx:
-                xExt = rawBbox.getDimensions().getX()
-                rawBbox.flipLR(xExt)
-                imageBBox.flipLR(xExt)
-                parallelOscanBBox.flipLR(xExt)
-                serialOscanBBox.flipLR(xExt)
-                prescanBBox.flipLR(xExt)
-            if flipy:
-                yExt = rawBbox.getDimensions().getY()
-                rawBbox.flipTB(yExt)
-                imageBBox.flipTB(yExt)
-                parallelOscanBBox.flipTB(yExt)
-                serialOscanBBox.flipTB(yExt)
-                prescanBBox.flipTB(yExt)
-            if not flipx and not flipy:
-                readoutCorner = 'LL'
-            elif flipx and not flipy:
-                readoutCorner = 'LR'
-            elif flipx and flipy:
-                readoutCorner = 'UR'
-            elif not flipx and flipy:
-                readoutCorner = 'UL'
+
+            if self.config.isLsstLike:
+                # This follows cameraGeom.testUtils
+                xoffset, yoffset = amp.getRawXYOffset()
+                offext = lsst.geom.Extent2I(xoffset, yoffset)
+                flipx = bool(amp.getRawFlipX())
+                flipy = bool(amp.getRawFlipY())
+                if flipx:
+                    xExt = rawBbox.getDimensions().getX()
+                    rawBbox.flipLR(xExt)
+                    imageBBox.flipLR(xExt)
+                    parallelOscanBBox.flipLR(xExt)
+                    serialOscanBBox.flipLR(xExt)
+                    prescanBBox.flipLR(xExt)
+                if flipy:
+                    yExt = rawBbox.getDimensions().getY()
+                    rawBbox.flipTB(yExt)
+                    imageBBox.flipTB(yExt)
+                    parallelOscanBBox.flipTB(yExt)
+                    serialOscanBBox.flipTB(yExt)
+                    prescanBBox.flipTB(yExt)
+                if not flipx and not flipy:
+                    readoutCorner = 'LL'
+                elif flipx and not flipy:
+                    readoutCorner = 'LR'
+                elif flipx and flipy:
+                    readoutCorner = 'UR'
+                elif not flipx and flipy:
+                    readoutCorner = 'UL'
+                rawBbox.shift(offext)
+                imageBBox.shift(offext)
+                parallelOscanBBox.shift(offext)
+                serialOscanBBox.shift(offext)
+                prescanBBox.shift(offext)
             newAmp.setReadoutCorner(readoutMap[readoutCorner])
             newAmp.setRawBBox(rawBbox)
             newAmp.setRawDataBBox(imageBBox)
@@ -611,6 +629,8 @@ class IsrMock(pipeBase.Task):
             newAmp.setRawPrescanBBox(prescanBBox)
             newAmp.setRawFlipX(False)
             newAmp.setRawFlipY(False)
+            no_offset = lsst.geom.Extent2I(0, 0)
+            newAmp.setRawXYOffset(no_offset)
 
             newCcd.append(newAmp)
 
