@@ -100,6 +100,18 @@ def transposeMaskedImage(maskedImage):
     transposed.getVariance().getArray()[:] = maskedImage.getVariance().getArray().T
     return transposed
 
+# TO DO: REMOVE this helper function.
+def get_name_pkl():
+    """
+    Get name.
+    """
+    import glob
+    import os
+    rep = '/sdf/home/l/leget/rubin-user/lsst_dev/tickets/DM-44305'
+    all_pkl = glob.glob(os.path.join(rep, 'out_test_*'))
+    n_file = len(all_pkl)
+    file_name = f"out_test_{n_file}.pkl"
+    return os.path.join(rep, file_name)
 
 def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     """Interpolate over defects specified in a defect list.
@@ -132,29 +144,25 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None):
     # interpolation such as GP.
     import pickle
     import copy
+    import pdb; pdb.set_trace()
     dic = {
         'in':
         {
-            'maskedImage':copy.deecopy(maskedImage),
-            'psf':psf,
-            'defectList':defectList,
-            'fallbackValue':fallbackValue,
-        }
-        }
-    measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
-    dic.update(
-        {
-        'out':
-        {
-            'maskedImage':maskedImage,
-        }
-        })
-    filteout = open('out_test.pkl', 'wb')
+            'maskedImage': copy.deepcopy(maskedImage),
+            'fwhm': fwhm,
+            'fallbackValue': fallbackValue,
+        }}
+    # measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue, True)
+    measAlg.interpolateOverDefects(maskedImage, psf, defectList, fallbackValue=fallbackValue,
+                                   fwhm=fwhm, useNewAlgorithm=True)
+    dic.update({'out': {'maskedImage': maskedImage, }})
+    file_name_out = get_name_pkl()
+    fileout = open(file_name_out, 'wb')
+    print('JE PASSE PAR LA')
     pickle.dump(dic, fileout)
     fileout.close()
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     return maskedImage
-
 
 def makeThresholdMask(maskedImage, threshold, growFootprints=1, maskName='SAT'):
     """Mask pixels based on threshold detection.
