@@ -250,6 +250,11 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         self.checkOverscanCorrectionX(fitType="MEDIAN_PER_ROW")
         self.checkOverscanCorrectionSineWave(fitType="MEDIAN_PER_ROW")
 
+    def test_MeanPerRowOverscanCorrection(self):
+        self.checkOverscanCorrectionY(fitType="MEAN_PER_ROW")
+        self.checkOverscanCorrectionX(fitType="MEAN_PER_ROW")
+        self.checkOverscanCorrectionSineWave(fitType="MEAN_PER_ROW")
+
     def test_MedianOverscanCorrection(self):
         self.checkOverscanCorrectionY(fitType="MEDIAN")
         self.checkOverscanCorrectionX(fitType="MEDIAN")
