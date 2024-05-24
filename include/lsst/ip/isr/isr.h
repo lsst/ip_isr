@@ -99,6 +99,14 @@ namespace isr {
         bool isTransposed
         );
 
+    template<typename ImagePixelT>
+    std::vector<double> fitOverscanImageMean(
+        lsst::afw::image::MaskedImage<ImagePixelT> const& overscan,
+        std::vector<std::string> badPixelMask,
+        bool isTransposed
+        );
+
+
 }}} // namespace lsst::ip::isr
 
 #endif // !defined(LSST_IP_ISR_ISR_H)

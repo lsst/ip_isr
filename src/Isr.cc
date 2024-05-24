@@ -95,6 +95,52 @@ std::vector<double> fitOverscanImage(
     return values;
 }
 
+template<typename ImagePixelT>
+std::vector<double> fitOverscanImageMean(
+    afw::image::MaskedImage<ImagePixelT> const& overscan,
+    std::vector<std::string> badPixelMask,
+    bool isTransposed
+) {
+    typedef afw::image::MaskedImage<ImagePixelT> MaskedImage;
+
+    /**
+    This is transposed here to match the existing numpy-array ordering.
+    This effectively transposes the image for us.
+    **/
+    const int height = overscan.getHeight();
+    const int width  = overscan.getWidth();
+
+    int length = height;
+    if (isTransposed) {
+        length = width;
+    }
+
+    std::vector<double> values(length);
+
+    afw::math::StatisticsControl statControl;
+    statControl.setAndMask(overscan.getMask()->getPlaneBitMask(badPixelMask));
+
+    const int x0 = overscan.getX0();
+    const int y0 = overscan.getY0();
+    auto origin = geom::Point2I(x0, y0);
+    geom::Extent2I shifter;
+    geom::Extent2I extents;
+    if (isTransposed) {
+        shifter = geom::Extent2I(1, 0);
+        extents = geom::Extent2I(1, height);
+    } else {
+        shifter = geom::Extent2I(0, 1);
+        extents = geom::Extent2I(width, 1);
+    }
+
+    for (int x = 0; x < length; ++x) {
+        MaskedImage mi = MaskedImage(overscan, geom::Box2I(origin, extents));
+        values[x] = afw::math::makeStatistics(mi, afw::math::MEAN, statControl).getValue();
+        origin.shift(shifter);
+    }
+    return values;
+}
+
 std::string between(std::string &s, char ldelim, char rdelim) {
     std::string::iterator b(s.begin());
     std::string::iterator e(s.end());

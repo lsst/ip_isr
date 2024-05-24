@@ -31,7 +31,7 @@ import lsst.geom as geom
 import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
-from .isr import fitOverscanImage
+from .isr import fitOverscanImage, fitOverscanImageMean
 from .isrFunctions import makeThresholdMask
 
 
@@ -53,6 +53,7 @@ class OverscanCorrectionTaskConfigBase(pexConfig.Config):
             "MEANCLIP": "Correct using a clipped mean of the overscan region",
             "MEDIAN": "Correct using the median of the overscan region",
             "MEDIAN_PER_ROW": "Correct using the median per row of the overscan region",
+            "MEAN_PER_ROW": "Correct using the mean per row of the overscan region",
         },
     )
     order = pexConfig.Field(
@@ -369,7 +370,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             overscanMean = overscanValue
             overscanMedian = overscanValue
             overscanSigma = 0.0
-        elif self.config.fitType in ('MEDIAN_PER_ROW', 'POLY', 'CHEB', 'LEG',
+        elif self.config.fitType in ('MEDIAN_PER_ROW', 'MEAN_PER_ROW', 'POLY', 'CHEB', 'LEG',
                                      'NATURAL_SPLINE', 'CUBIC_SPLINE', 'AKIMA_SPLINE'):
             # Force transposes as needed
             overscanResult = self.measureVectorOverscan(overscanImage, isTransposed)
@@ -752,7 +753,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             calcImage = np.transpose(calcImage)
         masked = self.maskOutliers(calcImage)
 
-        if self.config.fitType == 'MEDIAN_PER_ROW':
+        if self.config.fitType in ('MEDIAN_PER_ROW', "MEAN_PER_ROW"):
             mi = afwImage.MaskedImageI(image.getBBox())
             masked = masked.astype(int)
             if isTransposed:
@@ -762,7 +763,11 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             if bool(masked.mask.shape):
                 mi.mask.array[:, :] = masked.mask[:, :]
 
-            overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
+            if self.config.fitType == "MEDIAN_PER_ROW":
+                overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
+            else:
+                overscanVector = fitOverscanImageMean(mi, self.config.maskPlanes, isTransposed)
+
             overscanVector = self.fillMaskedPixels(overscanVector)
             maskArray = self.maskExtrapolated(overscanVector)
         else:
