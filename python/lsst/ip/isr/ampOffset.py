@@ -76,11 +76,17 @@ class AmpOffsetConfig(Config):
         dtype=float,
         default=5.0,
     )
+    doWindowSmoothing = Field(
+        doc="Smooth amp edge differences by taking a rolling average.",
+        dtype=bool,
+        default=True,
+    )
     ampEdgeWindowFrac = Field(
         doc="Fraction of the amp edge lengths utilized as the sliding window for generating rolling average "
         "amp offset values. It should be reconfigured for every instrument (HSC, LSSTCam, etc.) and should "
         "not exceed 1. If not provided, it defaults to the fraction that recovers the pixel size of the "
-        "sliding window used in obs_subaru for compatibility with existing HSC data.",
+        "sliding window used in obs_subaru for compatibility with existing HSC data. Only relevant if "
+        "`doWindowSmoothing` is set to True.",
         dtype=float,
         default=512 / 4176,
     )
@@ -472,11 +478,15 @@ class AmpOffsetTask(Task):
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
         edgeDiff = edgeA - edgeB
-        window = int(self.config.ampEdgeWindowFrac * len(edgeDiff))
-        # Compute rolling averages.
-        edgeDiffSum = np.convolve(np.nan_to_num(edgeDiff), np.ones(window), "same")
-        edgeDiffNum = np.convolve(~np.isnan(edgeDiff), np.ones(window), "same")
-        edgeDiffAvg = edgeDiffSum / np.clip(edgeDiffNum, 1, None)
+        if self.config.doWindowSmoothing:
+            # Compute rolling averages.
+            window = int(self.config.ampEdgeWindowFrac * len(edgeDiff))
+            edgeDiffSum = np.convolve(np.nan_to_num(edgeDiff), np.ones(window), "same")
+            edgeDiffNum = np.convolve(~np.isnan(edgeDiff), np.ones(window), "same")
+            edgeDiffAvg = edgeDiffSum / np.clip(edgeDiffNum, 1, None)
+        else:
+            # Directly use the difference.
+            edgeDiffAvg = edgeDiff.copy()
         edgeDiffAvg[np.isnan(edgeDiff)] = np.nan
         # Take clipped mean of rolling average data as amp offset value.
         interfaceOffset = makeStatistics(edgeDiffAvg, MEANCLIP, sctrl).getValue()
