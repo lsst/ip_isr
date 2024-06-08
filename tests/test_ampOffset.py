@@ -268,11 +268,13 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
             exp.image[amp.getBBox()] = value
         if addBackground:
             exp.image.array += BACKGROUND_VALUE
-        if rampBackground:
-            # Add a gradient.
-            self.amplifierAddYGradient(exp.image, 0.0, RAMP_YSCALE)
-            # Add another gradient to the other direction.
-            self.amplifierAddXGradient(exp.image, 0.0, RAMP_XSCALE)
+            if rampBackground:
+                # Add a gradient.
+                self.amplifierAddYGradient(exp.image, 0.0, RAMP_YSCALE)
+                # Add another gradient to the other direction.
+                self.amplifierAddXGradient(exp.image, 0.0, RAMP_XSCALE)
+        else:
+            assert not rampBackground, "rampBackground requires addBackground=True"
         return exp
 
     def runAmpOffsetWithBackground(self, valueType, rampBackground=False):
