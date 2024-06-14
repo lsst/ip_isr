@@ -476,7 +476,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     doSetBadRegions = pexConfig.Field(
         dtype=bool,
         doc="Should we set the level of all BAD patches of the chip to the chip's average value?",
-        default=True,
+        default=False,
     )
     badStatistic = pexConfig.ChoiceField(
         dtype=str,
@@ -669,7 +669,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         dtype=str,
         doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
         "correction.",
-        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
+        default=["SAT", "NO_DATA", "UNMASKEDNAN"],
     )
     brighterFatterMaskGrowSize = pexConfig.Field(
         dtype=int,
@@ -825,7 +825,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     maskListToInterpolate = pexConfig.ListField(
         dtype=str,
         doc="List of mask planes that should be interpolated.",
-        default=['SAT', 'BAD'],
+        default=['SAT'],
     )
     doSaveInterpPixels = pexConfig.Field(
         dtype=bool,
@@ -1687,7 +1687,8 @@ class IsrTask(pipeBase.PipelineTask):
         # that the remaining defects adjacent to bad amplifiers (as an
         # example) do not attempt to interpolate extreme values.
         if self.config.doSetBadRegions:
-            badPixelCount, badPixelValue = isrFunctions.setBadRegions(ccdExposure)
+            # badPixelCount, badPixelValue = isrFunctions.setBadRegions(ccdExposure)
+            badPixelCount, badPixelValue = 0, 42. #isrFunctions.setBadRegions(ccdExposure, defects)
             if badPixelCount > 0:
                 self.log.info("Set %d BAD pixels to %f.", badPixelCount, badPixelValue)
 

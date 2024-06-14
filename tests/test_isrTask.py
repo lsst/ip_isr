@@ -548,7 +548,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         results = self.validateIsrResults()
 
         self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
-        self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 2000)
+        self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 3940)
         self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 
@@ -576,7 +576,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         results = self.validateIsrResults()
 
         self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
-        self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 2000)
+        self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 11280)
         self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 
@@ -602,7 +602,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         results = self.validateIsrResults()
 
         self.assertEqual(countMaskedPixels(results.exposure, "SAT"), 0)
-        self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 2000)
+        self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 2000)
 

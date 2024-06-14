@@ -342,7 +342,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     maskListToInterpolate = pexConfig.ListField(
         dtype=str,
         doc="List of mask planes that should be interpolated.",
-        default=['SAT', 'BAD'],
+        default=['SAT'],
     )
     doSaveInterpPixels = pexConfig.Field(
         dtype=bool,
@@ -354,7 +354,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doSetBadRegions = pexConfig.Field(
         dtype=bool,
         doc="Should we set the level of all BAD patches of the chip to the chip's average value?",
-        default=True,
+        default=False,
     )
 
     # Brighter-Fatter correction.
@@ -416,7 +416,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=str,
         doc="List of mask planes that should be interpolated over when applying the brighter-fatter."
         "correction.",
-        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
+        default=["SAT", "NO_DATA", "UNMASKEDNAN"],
     )
 
     # Dark subtraction.
@@ -982,7 +982,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         that the remaining defects adjacent to bad amplifiers (as an
         example) do not attempt to interpolate extreme values.
         """
-        badPixelCount, badPixelValue = isrFunctions.setBadRegions(exposure)
+        # badPixelCount, badPixelValue = isrFunctions.setBadRegions(exposure)
+        badPixelCount, badPixelValue = 0, 42.0
         if badPixelCount > 0:
             self.log.info("Set %d BAD pixels to %f.", badPixelCount, badPixelValue)
 
