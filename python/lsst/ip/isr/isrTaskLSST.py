@@ -389,12 +389,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Should the gain be applied when applying the brighter-fatter correction?",
         default=True,
     )
-    brighterFatterMaskListToInterpolate = pexConfig.ListField(
-        dtype=str,
-        doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
-        "correction.",
-        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
-    )
     brighterFatterMaskGrowSize = pexConfig.Field(
         dtype=int,
         doc="Number of pixels to grow the masks listed in config.brighterFatterMaskListToInterpolate "
@@ -416,7 +410,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=str,
         doc="List of mask planes that should be interpolated over when applying the brighter-fatter."
         "correction.",
-        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
+        default=["NO_DATA", "UNMASKEDNAN"],
     )
 
     # Dark subtraction.
@@ -1072,7 +1066,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         image = ccdExposure.getMaskedImage().getImage()
         bfCorr = bfExp.getMaskedImage().getImage()
-        bfCorr -= interpExp.getMaskedImage().getImage()
+        # bfCorr -= interpExp.getMaskedImage().getImage()
         image += bfCorr
 
         # Applying the brighter-fatter correction applies a

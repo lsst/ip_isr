@@ -669,7 +669,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         dtype=str,
         doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
         "correction.",
-        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
+        default= ["NO_DATA", "UNMASKEDNAN"],
     )
     brighterFatterMaskGrowSize = pexConfig.Field(
         dtype=int,
@@ -1590,7 +1590,7 @@ class IsrTask(pipeBase.PipelineTask):
                               bfResults[1])
             image = ccdExposure.getMaskedImage().getImage()
             bfCorr = bfExp.getMaskedImage().getImage()
-            bfCorr -= interpExp.getMaskedImage().getImage()
+            # bfCorr -= interpExp.getMaskedImage().getImage()
             image += bfCorr
 
             # Applying the brighter-fatter correction applies a
