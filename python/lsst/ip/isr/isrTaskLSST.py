@@ -1225,6 +1225,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bin1 = afwMath.binImage(mi, self.config.binFactor1)
         bin2 = afwMath.binImage(mi, self.config.binFactor2)
 
+        bin1 = afwImage.makeExposure(bin1)
+        bin2 = afwImage.makeExposure(bin2)
+
+        bin1.setInfo(exposure.getInfo())
+        bin2.setInfo(exposure.getInfo())
+
         return bin1, bin2
 
     def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
