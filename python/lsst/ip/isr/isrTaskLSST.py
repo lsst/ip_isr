@@ -1263,6 +1263,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if self.config.doFlat:
                 exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
 
+        # We keep track of units: start in ADU.
+        exposureMetadata["LSST ISR UNITS"] = "ADU"
+
         # First we mark which amplifiers are completely bad from defects.
         badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
 
@@ -1344,6 +1347,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Output units: electrons
             self.log.info("Apply PTC gains (temperature corrected or not) to the image.")
             isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains)
+            # The units are now electrons.
+            exposureMetadata["LSST ISR UNITS"] = "electrons"
 
         if self.config.doDeferredCharge:
             # Input units: electrons
