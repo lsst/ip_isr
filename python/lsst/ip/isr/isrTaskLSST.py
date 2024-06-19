@@ -190,6 +190,18 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Write calibration identifiers into output exposure header.",
     )
 
+    # Calib checking configuration:
+    doRaiseOnCalibMismatch = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Should IsrTaskLSST halt if exposure and calibration header values do not match?",
+    )
+    cameraKeywordsToCompare = pexConfig.ListField(
+        dtype=str,
+        doc="List of header keywords to compare between exposure and calibrations.",
+        default=[],
+    )
+
     # Differential non-linearity correction.
     doDiffNonLinearCorrection = pexConfig.Field(
         dtype=bool,
@@ -1162,6 +1174,37 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         else:
             return "Unknown Unknown"
 
+    def compareCameraKeywords(self, exposureMetadata, calib, calibName):
+        """Compare header keywords to confirm camera states match.
+
+        Parameters
+        ----------
+        exposureMetadata : `lsst.daf.base.PropertySet`
+            Header for the exposure being processed.
+        calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
+            Calibration to be applied.
+        calibName : `str`
+            Calib type for log message.
+        """
+        try:
+            calibMetadata = calib.getMetadata()
+        except AttributeError:
+            return
+        for keyword in self.config.cameraKeywordsToCompare:
+            if keyword in exposureMetadata and keyword in calibMetadata:
+                if exposureMetadata[keyword] != calibMetadata[keyword]:
+                    if self.config.doRaiseOnCalibMismatch:
+                        raise RuntimeError("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                                           calibName, keyword,
+                                           exposureMetadata[keyword], calibMetadata[keyword])
+                    else:
+                        self.log.warning("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                                         calibName, keyword,
+                                         exposureMetadata[keyword], calibMetadata[keyword])
+            else:
+                self.log.debug("Sequencer keyword %s not found.", keyword)
+
+
     def doLinearize(self, detector):
         """Check if linearization is needed for the detector cameraGeom.
 
@@ -1244,10 +1287,29 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         gains = ptc.gain
 
+        # Validation step: check inputs match exposure configuration.
+        exposureMetadata = ccdExposure.getMetadata()
+        self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+        if self.doLinearize(detector):
+            self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
+        if self.config.doBias:
+            self.compareCameraKeywords(exposureMetadata, bias, "bias")
+        if self.config.doCrosstalk:
+            self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
+        if self.config.doDeferredCharge:
+            self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
+        if self.config.doDefect:
+            self.compareCameraKeywords(exposureMetadata, defects, "defects")
+        if self.config.doDark:
+            self.compareCameraKeywords(exposureMetadata, dark, "dark")
+        if self.config.doBrighterFatter:
+            self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
+        if self.config.doFlat:
+            self.compareCameraKeywords(exposureMetadata, flat, "flat")
+
+
         if self.config.doHeaderProvenance:
-            # Inputs have been validated, so we can add their date
-            # information to the output header.
-            exposureMetadata = ccdExposure.getMetadata()
+            # Add calibration date information to the output header.
             exposureMetadata["LSST CALIB OVERSCAN HASH"] = overscanDetectorConfig.md5
             exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
             if self.config.doDiffNonLinearCorrection:
