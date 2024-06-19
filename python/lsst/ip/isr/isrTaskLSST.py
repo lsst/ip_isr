@@ -202,6 +202,13 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=[],
     )
 
+    # Image conversion configuration
+    doConvertIntToFloat = pexConfig.Field(
+        dtype=bool,
+        doc="Convert integer raw images to floating point values?",
+        default=True,
+    )
+
     # Differential non-linearity correction.
     doDiffNonLinearCorrection = pexConfig.Field(
         dtype=bool,
@@ -1204,6 +1211,42 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             else:
                 self.log.debug("Sequencer keyword %s not found.", keyword)
 
+    def convertIntToFloat(self, exposure):
+        """Convert exposure image from uint16 to float.
+
+        If the exposure does not need to be converted, the input is
+        immediately returned.  For exposures that are converted to use
+        floating point pixels, the variance is set to unity and the
+        mask to zero.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+           The raw exposure to be converted.
+
+        Returns
+        -------
+        newexposure : `lsst.afw.image.Exposure`
+           The input ``exposure``, converted to floating point pixels.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the exposure type cannot be converted to float.
+
+        """
+        if isinstance(exposure, afwImage.ExposureF):
+            # Nothing to be done
+            self.log.debug("Exposure already of type float.")
+            return exposure
+        if not hasattr(exposure, "convertF"):
+            raise RuntimeError("Unable to convert exposure (%s) to float." % type(exposure))
+
+        newexposure = exposure.convertF()
+        newexposure.variance[:] = 1
+        newexposure.mask[:] = 0x0
+
+        return newexposure
 
     def doLinearize(self, detector):
         """Check if linearization is needed for the detector cameraGeom.
@@ -1307,7 +1350,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doFlat:
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
 
-
         if self.config.doHeaderProvenance:
             # Add calibration date information to the output header.
             exposureMetadata["LSST CALIB OVERSCAN HASH"] = overscanDetectorConfig.md5
@@ -1334,9 +1376,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # We keep track of units: start in ADU.
         exposureMetadata["LSST ISR UNITS"] = "ADU"
 
-        # First we mark which amplifiers are completely bad from defects.
+        # First we convert the exposure to floating point values.
+        if self.config.doConvertIntToFloat:
+            self.log.info("Converting exposure to floating point values.")
+            ccdExposure = self.convertIntToFloat(ccdExposure)
+
+        # Then we mark which amplifiers are completely bad from defects.
         badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
 
+        # Now we go through ISR steps.
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
