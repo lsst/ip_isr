@@ -168,6 +168,16 @@ template
 std::vector<double> fitOverscanImage<double>(
     afw::image::MaskedImage<double> const&, std::vector<std::string> badPixelMask, bool isTransposed);
 
+template
+std::vector<double> fitOverscanImageMean<int>(
+    afw::image::MaskedImage<int> const&, std::vector<std::string> badPixelMask, bool isTransposed);
+template
+std::vector<double> fitOverscanImageMean<float>(
+    afw::image::MaskedImage<float> const&, std::vector<std::string> badPixelMask, bool isTransposed);
+template
+std::vector<double> fitOverscanImageMean<double>(
+    afw::image::MaskedImage<double> const&, std::vector<std::string> badPixelMask, bool isTransposed);
+
 template class CountMaskedPixels<float>;
 template class CountMaskedPixels<double>;
 template class CountMaskedPixels<int>;
