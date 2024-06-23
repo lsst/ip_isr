@@ -62,7 +62,7 @@ static void declareAll(py::module& mod, std::string const& suffix) {
     mod.def("maskNans", &maskNans<PixelT>, "maskedImage"_a, "maskVal"_a, "allow"_a = 0);
     mod.def("fitOverscanImage", &fitOverscanImage<PixelT>,
             "maskedImage"_a, "badPixelMask"_a, "isTransposed"_a);
-    mod.def("fitOverscanImageMean", &fitOverscanImage<PixelT>,
+    mod.def("fitOverscanImageMean", &fitOverscanImageMean<PixelT>,
             "maskedImage"_a, "badPixelMask"_a, "isTransposed"_a);
 }
 
