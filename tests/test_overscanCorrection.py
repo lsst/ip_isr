@@ -26,6 +26,7 @@ import numpy as np
 import lsst.utils.tests
 import lsst.geom
 import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.ip.isr as ipIsr
 import lsst.pipe.base as pipeBase
@@ -692,6 +693,74 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                                      msg=f"overscanCorrection overscanIsNotInt Bad overscanFit: {fitType}")
                 self.assertIsInstance(response.overscanImage, afwImage.ExposureF,
                                       msg=f"overscanCorrection overscanIsNotInt Bad overscanImage: {fitType}")
+
+    def test_fitOverscanImage(self):
+        """Test just the fitOverscanImage (MEDIAN_PER_ROW) routine."""
+        ctx = np.random.RandomState(seed=12345)
+        shape = (100, 20)
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(shape[1], shape[0]))
+
+        for dt in ["int", "float", "double"]:
+            array = ctx.normal(loc=100.0, scale=2.0, size=shape)
+
+            if dt == "int":
+                mi = afwImage.MaskedImageI(bbox)
+                mi.image.array[:, :] = array.astype(np.int32)
+            elif dt == "float":
+                mi = afwImage.MaskedImageF(bbox)
+                mi.image.array[:, :] = array.astype(np.float32)
+            elif dt == "double":
+                mi = afwImage.MaskedImageD(bbox)
+                mi.image.array[:, :] = array.astype(np.float64)
+
+            medianPerRow = np.asarray(ipIsr.fitOverscanImage(mi, [], False))
+
+            # And compute per-row
+            medianPerRowCompare = np.zeros_like(medianPerRow)
+            origin = lsst.geom.Point2I(mi.getX0(), mi.getY0())
+            shifter = lsst.geom.Extent2I(0, 1)
+            extents = lsst.geom.Extent2I(mi.getWidth(), 1)
+            statControl = afwMath.StatisticsControl()
+            for i in range(shape[0]):
+                miRow = mi.__class__(mi, lsst.geom.Box2I(origin, extents))
+                medianPerRowCompare[i] = afwMath.makeStatistics(miRow, afwMath.MEDIAN, statControl).getValue()
+                origin.shift(shifter)
+
+            self.assertFloatsAlmostEqual(medianPerRow, medianPerRowCompare)
+
+    def test_fitOverscanImageMean(self):
+        """Test just the fitOverscanImageMean (MEAN_PER_ROW) routine."""
+        ctx = np.random.RandomState(seed=12345)
+        shape = (100, 20)
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(shape[1], shape[0]))
+
+        for dt in ["int", "float", "double"]:
+            array = ctx.normal(loc=100.0, scale=2.0, size=shape)
+
+            if dt == "int":
+                mi = afwImage.MaskedImageI(bbox)
+                mi.image.array[:, :] = array.astype(np.int32)
+            elif dt == "float":
+                mi = afwImage.MaskedImageF(bbox)
+                mi.image.array[:, :] = array.astype(np.float32)
+            elif dt == "double":
+                mi = afwImage.MaskedImageD(bbox)
+                mi.image.array[:, :] = array.astype(np.float64)
+
+            meanPerRow = np.asarray(ipIsr.fitOverscanImageMean(mi, [], False))
+
+            # And compute per-row
+            meanPerRowCompare = np.zeros_like(meanPerRow)
+            origin = lsst.geom.Point2I(mi.getX0(), mi.getY0())
+            shifter = lsst.geom.Extent2I(0, 1)
+            extents = lsst.geom.Extent2I(mi.getWidth(), 1)
+            statControl = afwMath.StatisticsControl()
+            for i in range(shape[0]):
+                miRow = mi.__class__(mi, lsst.geom.Box2I(origin, extents))
+                meanPerRowCompare[i] = afwMath.makeStatistics(miRow, afwMath.MEAN, statControl).getValue()
+                origin.shift(shifter)
+
+            self.assertFloatsAlmostEqual(meanPerRow, meanPerRowCompare)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
