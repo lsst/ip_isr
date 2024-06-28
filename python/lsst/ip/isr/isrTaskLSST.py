@@ -532,6 +532,24 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         inputs = butlerQC.get(inputRefs)
         self.validateInput(inputs)
+
+        if self.config.doHeaderProvenance:
+            # Add calibration provenanace info to header.
+            exposureMetadata = inputs['ccdExposure'].getMetadata()
+            for inputName in sorted(list(inputs.keys())):
+                reference = getattr(inputRefs, inputName, None)
+                if reference is not None and hasattr(reference, "run"):
+                    runKey = f"LSST CALIB RUN {inputName.upper()}"
+                    runValue = reference.run
+                    idKey = f"LSST CALIB UUID {inputName.upper()}"
+                    idValue = str(reference.id)
+                    dateKey = f"LSST CALIB DATE {inputName.upper()}"
+                    dateValue = self.extractCalibDate(inputs[inputName])
+
+                    exposureMetadata[runKey] = runValue
+                    exposureMetadata[idKey] = idValue
+                    exposureMetadata[dateKey] = dateValue
+
         super().runQuantum(butlerQC, inputRefs, outputRefs)
 
     def validateInput(self, inputs):
@@ -1333,6 +1351,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Validation step: check inputs match exposure configuration.
         exposureMetadata = ccdExposure.getMetadata()
         self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+        if self.config.doDiffNonLinearCorrection:
+            self.compareCameraKeywords(exposureMetadata, dnlLUT, "dnlLUT")
         if self.doLinearize(detector):
             self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
         if self.config.doBias:
@@ -1349,29 +1369,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
         if self.config.doFlat:
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
-
-        if self.config.doHeaderProvenance:
-            # Add calibration date information to the output header.
-            exposureMetadata["LSST CALIB OVERSCAN HASH"] = overscanDetectorConfig.md5
-            exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
-            if self.config.doDiffNonLinearCorrection:
-                exposureMetadata["LSST CALIB DATE DNL"] = self.extractCalibDate(dnlLUT)
-            if self.config.doBias:
-                exposureMetadata["LSST CALIB DATE BIAS"] = self.extractCalibDate(bias)
-            if self.config.doDeferredCharge:
-                exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
-            if self.doLinearize(detector):
-                exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-            if self.config.doCrosstalk or overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
-                exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
-            if self.config.doDefect:
-                exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
-            if self.config.doBrighterFatter:
-                exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
-            if self.config.doDark:
-                exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
-            if self.config.doFlat:
-                exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
 
         # We keep track of units: start in ADU.
         exposureMetadata["LSST ISR UNITS"] = "ADU"
