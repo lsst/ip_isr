@@ -110,11 +110,21 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         ipIsr.makeThresholdMask(self.mi, 200, growFootprints=2,
                                 maskName='SAT')
         for growFootprints in range(0, 3):
-            interpMaskedImage = ipIsr.interpolateFromMask(self.mi, 2.0,
-                                                          growSaturatedFootprints=growFootprints,
-                                                          maskNameList=['SAT'])
-            numBit = ipIsr.countMaskedPixels(interpMaskedImage, "INTRP")
-            self.assertEqual(numBit, 40800, msg=f"interpolateFromMask with growFootprints={growFootprints}")
+            for useLegacyInterp in (False, True):
+                interpMaskedImage = ipIsr.interpolateFromMask(self.mi, 2.0,
+                                                              growSaturatedFootprints=growFootprints,
+                                                              maskNameList=['SAT'],
+                                                              useLegacyInterp=useLegacyInterp)
+                numBit = ipIsr.countMaskedPixels(interpMaskedImage, "INTRP")
+                if useLegacyInterp:
+                    self.assertEqual(numBit, 40800,
+                                     msg=f"interpolateFromMask with growFootprints={growFootprints}")
+                elif growFootprints == 0 and not useLegacyInterp:
+                    self.assertEqual(numBit, 0,
+                                     msg=f"interpolateFromMask with growFootprints={growFootprints}")
+                else:
+                    self.assertEqual(numBit, 40800,
+                                     msg=f"interpolateFromMask with growFootprints={growFootprints}")
 
     def test_saturationCorrectionInterpolate(self):
         """Expect number of mask pixels with SAT marked to be non-zero.
