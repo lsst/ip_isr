@@ -190,6 +190,25 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Write calibration identifiers into output exposure header.",
     )
 
+    # Calib checking configuration:
+    doRaiseOnCalibMismatch = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Should IsrTaskLSST halt if exposure and calibration header values do not match?",
+    )
+    cameraKeywordsToCompare = pexConfig.ListField(
+        dtype=str,
+        doc="List of header keywords to compare between exposure and calibrations.",
+        default=[],
+    )
+
+    # Image conversion configuration
+    doConvertIntToFloat = pexConfig.Field(
+        dtype=bool,
+        doc="Convert integer raw images to floating point values?",
+        default=True,
+    )
+
     # Differential non-linearity correction.
     doDiffNonLinearCorrection = pexConfig.Field(
         dtype=bool,
@@ -513,6 +532,24 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         inputs = butlerQC.get(inputRefs)
         self.validateInput(inputs)
+
+        if self.config.doHeaderProvenance:
+            # Add calibration provenanace info to header.
+            exposureMetadata = inputs['ccdExposure'].getMetadata()
+            for inputName in sorted(list(inputs.keys())):
+                reference = getattr(inputRefs, inputName, None)
+                if reference is not None and hasattr(reference, "run"):
+                    runKey = f"LSST CALIB RUN {inputName.upper()}"
+                    runValue = reference.run
+                    idKey = f"LSST CALIB UUID {inputName.upper()}"
+                    idValue = str(reference.id)
+                    dateKey = f"LSST CALIB DATE {inputName.upper()}"
+                    dateValue = self.extractCalibDate(inputs[inputName])
+
+                    exposureMetadata[runKey] = runValue
+                    exposureMetadata[idKey] = idValue
+                    exposureMetadata[dateKey] = dateValue
+
         super().runQuantum(butlerQC, inputRefs, outputRefs)
 
     def validateInput(self, inputs):
@@ -1162,6 +1199,73 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         else:
             return "Unknown Unknown"
 
+    def compareCameraKeywords(self, exposureMetadata, calib, calibName):
+        """Compare header keywords to confirm camera states match.
+
+        Parameters
+        ----------
+        exposureMetadata : `lsst.daf.base.PropertySet`
+            Header for the exposure being processed.
+        calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
+            Calibration to be applied.
+        calibName : `str`
+            Calib type for log message.
+        """
+        try:
+            calibMetadata = calib.getMetadata()
+        except AttributeError:
+            return
+        for keyword in self.config.cameraKeywordsToCompare:
+            if keyword in exposureMetadata and keyword in calibMetadata:
+                if exposureMetadata[keyword] != calibMetadata[keyword]:
+                    if self.config.doRaiseOnCalibMismatch:
+                        raise RuntimeError("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                                           calibName, keyword,
+                                           exposureMetadata[keyword], calibMetadata[keyword])
+                    else:
+                        self.log.warning("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                                         calibName, keyword,
+                                         exposureMetadata[keyword], calibMetadata[keyword])
+            else:
+                self.log.debug("Sequencer keyword %s not found.", keyword)
+
+    def convertIntToFloat(self, exposure):
+        """Convert exposure image from uint16 to float.
+
+        If the exposure does not need to be converted, the input is
+        immediately returned.  For exposures that are converted to use
+        floating point pixels, the variance is set to unity and the
+        mask to zero.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+           The raw exposure to be converted.
+
+        Returns
+        -------
+        newexposure : `lsst.afw.image.Exposure`
+           The input ``exposure``, converted to floating point pixels.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the exposure type cannot be converted to float.
+
+        """
+        if isinstance(exposure, afwImage.ExposureF):
+            # Nothing to be done
+            self.log.debug("Exposure already of type float.")
+            return exposure
+        if not hasattr(exposure, "convertF"):
+            raise RuntimeError("Unable to convert exposure (%s) to float." % type(exposure))
+
+        newexposure = exposure.convertF()
+        newexposure.variance[:] = 1
+        newexposure.mask[:] = 0x0
+
+        return newexposure
+
     def doLinearize(self, detector):
         """Check if linearization is needed for the detector cameraGeom.
 
@@ -1225,6 +1329,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bin1 = afwMath.binImage(mi, self.config.binFactor1)
         bin2 = afwMath.binImage(mi, self.config.binFactor2)
 
+        bin1 = afwImage.makeExposure(bin1)
+        bin2 = afwImage.makeExposure(bin2)
+
+        bin1.setInfo(exposure.getInfo())
+        bin2.setInfo(exposure.getInfo())
+
         return bin1, bin2
 
     def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
@@ -1238,34 +1348,40 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         gains = ptc.gain
 
-        if self.config.doHeaderProvenance:
-            # Inputs have been validated, so we can add their date
-            # information to the output header.
-            exposureMetadata = ccdExposure.getMetadata()
-            exposureMetadata["LSST CALIB OVERSCAN HASH"] = overscanDetectorConfig.md5
-            exposureMetadata["LSST CALIB DATE PTC"] = self.extractCalibDate(ptc)
-            if self.config.doDiffNonLinearCorrection:
-                exposureMetadata["LSST CALIB DATE DNL"] = self.extractCalibDate(dnlLUT)
-            if self.config.doBias:
-                exposureMetadata["LSST CALIB DATE BIAS"] = self.extractCalibDate(bias)
-            if self.config.doDeferredCharge:
-                exposureMetadata["LSST CALIB DATE CTI"] = self.extractCalibDate(deferredChargeCalib)
-            if self.doLinearize(detector):
-                exposureMetadata["LSST CALIB DATE LINEARIZER"] = self.extractCalibDate(linearizer)
-            if self.config.doCrosstalk or overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
-                exposureMetadata["LSST CALIB DATE CROSSTALK"] = self.extractCalibDate(crosstalk)
-            if self.config.doDefect:
-                exposureMetadata["LSST CALIB DATE DEFECTS"] = self.extractCalibDate(defects)
-            if self.config.doBrighterFatter:
-                exposureMetadata["LSST CALIB DATE BFK"] = self.extractCalibDate(bfKernel)
-            if self.config.doDark:
-                exposureMetadata["LSST CALIB DATE DARK"] = self.extractCalibDate(dark)
-            if self.config.doFlat:
-                exposureMetadata["LSST CALIB DATE FLAT"] = self.extractCalibDate(flat)
+        # Validation step: check inputs match exposure configuration.
+        exposureMetadata = ccdExposure.getMetadata()
+        self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+        if self.config.doDiffNonLinearCorrection:
+            self.compareCameraKeywords(exposureMetadata, dnlLUT, "dnlLUT")
+        if self.doLinearize(detector):
+            self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
+        if self.config.doBias:
+            self.compareCameraKeywords(exposureMetadata, bias, "bias")
+        if self.config.doCrosstalk:
+            self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
+        if self.config.doDeferredCharge:
+            self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
+        if self.config.doDefect:
+            self.compareCameraKeywords(exposureMetadata, defects, "defects")
+        if self.config.doDark:
+            self.compareCameraKeywords(exposureMetadata, dark, "dark")
+        if self.config.doBrighterFatter:
+            self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
+        if self.config.doFlat:
+            self.compareCameraKeywords(exposureMetadata, flat, "flat")
 
-        # First we mark which amplifiers are completely bad from defects.
+        # We keep track of units: start in ADU.
+        exposureMetadata["LSST ISR UNITS"] = "ADU"
+
+        # First we convert the exposure to floating point values.
+        if self.config.doConvertIntToFloat:
+            self.log.info("Converting exposure to floating point values.")
+            ccdExposure = self.convertIntToFloat(ccdExposure)
+
+        # Then we mark which amplifiers are completely bad from defects.
         badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
 
+        # Now we go through ISR steps.
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
@@ -1344,6 +1460,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Output units: electrons
             self.log.info("Apply PTC gains (temperature corrected or not) to the image.")
             isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains)
+            # The units are now electrons.
+            exposureMetadata["LSST ISR UNITS"] = "electrons"
 
         if self.config.doDeferredCharge:
             # Input units: electrons
