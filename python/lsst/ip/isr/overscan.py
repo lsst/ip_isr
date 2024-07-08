@@ -599,34 +599,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
         return collapsed
 
-    def collapseArrayMedian(self, maskedArray):
-        """Collapse overscan array (and mask) to a 1-D vector of using the
-        correct integer median of row-values.
-
-        Parameters
-        ----------
-        maskedArray : `numpy.ma.masked_array`
-            Masked array of input overscan data.
-
-        Returns
-        -------
-        collapsed : `numpy.ma.masked_array`
-            Single dimensional overscan data, combined with the afwMath median.
-        """
-        integerMI = self.integerConvert(maskedArray)
-
-        collapsed = []
-        fitType = afwMath.stringToStatisticsProperty('MEDIAN')
-        for row in integerMI:
-            newRow = row.compressed()
-            if len(newRow) > 0:
-                rowMedian = afwMath.makeStatistics(newRow, fitType, self.statControl).getValue()
-            else:
-                rowMedian = np.nan
-            collapsed.append(rowMedian)
-
-        return np.array(collapsed)
-
     def splineFit(self, indices, collapsed, numBins):
         """Wrapper function to match spline fit API to polynomial fit API.
 
