@@ -117,7 +117,7 @@ class IsrTestCases(unittest.TestCase):
 
         amp = detector[0]
         ampName = amp.getName()
-        for gain in [-1, 0, 0.1, 1, np.NaN]:
+        for gain in [-1, 0, 0.1, 1, np.nan]:
             # Because amplifiers are immutable, we can't change the gain or
             # read noise in-place. Instead, we clone, and update the clone.
             testAmp = Amplifier.Builder()
