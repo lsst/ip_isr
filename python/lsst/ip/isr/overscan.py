@@ -392,40 +392,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                                overscanSigma=overscanSigma,
                                )
 
-    @staticmethod
-    def integerConvert(image):
-        """Return an integer version of the input image.
-
-        Parameters
-        ----------
-        image : `numpy.ndarray`, `lsst.afw.image.Image` or `MaskedImage`
-            Image to convert to integers.
-
-        Returns
-        -------
-        outI : `numpy.ndarray`, `lsst.afw.image.Image` or `MaskedImage`
-            The integer converted image.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if the input image could not be converted.
-        """
-        if hasattr(image, "image"):
-            # Is a maskedImage:
-            imageI = image.image.convertI()
-            outI = afwImage.MaskedImageI(imageI, image.mask, image.variance)
-        elif hasattr(image, "convertI"):
-            # Is an Image:
-            outI = image.convertI()
-        elif hasattr(image, "astype"):
-            # Is a numpy array:
-            outI = image.astype(int)
-        else:
-            raise RuntimeError("Could not convert this to integers: %s %s %s",
-                               image, type(image), dir(image))
-        return outI
-
     def maskParallelOverscan(self, exposure, detector):
         """Mask the union of high values on all amplifiers in the parallel
         overscan.
