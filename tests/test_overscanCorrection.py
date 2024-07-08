@@ -139,13 +139,41 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             config = taskClass.ConfigClass()
             self.updateOverscanConfigFromKwargs(config, **kwargs)
 
-            if kwargs['fitType'] == "MEDIAN_PER_ROW":
+            if kwargs["fitType"] == "MEDIAN_PER_ROW":
                 # Add a bad point to test outlier rejection.
-                overscan.getImage().getArray()[0, 0] = 12345
+                overscan.image.array[0, 0] = 12345
 
                 # Shrink the sigma clipping limit to handle the fact that the
                 # bad point is not be rejected at higher thresholds (2/0.74).
                 config.numSigmaClip = 2.7
+
+            if kwargs["fitType"] in ["MEDIAN_PER_ROW", "MEAN_PER_ROW"]:
+                # Add a half ADU offset to test integerization on/off.
+                # This is not realistic, but creates a toy dataset to ensure
+                # the code is being run as expected.
+                overscan.image.array[:, :] += 0.5
+
+                integerConvert = kwargs.pop("integerConvert", True)
+                config.overscanIsInt = integerConvert
+
+                if integerConvert:
+                    # When we truncate the 0.5 for the integerized overscan,
+                    # then the overscan-subtracted-overscan values retain the
+                    # 0.5 offset, but the image is corrected to 8.0.
+                    largeCompareValue = 12343.5
+                    overscanCompareValue = 0.5
+                    imageCompareValue = 8.0
+                else:
+                    # When we don't truncate the 0.5 for the overscan, then the
+                    # overscan-subtracted-overscan values have the 0.5
+                    # subtracted, but the image is reduced by 0.5.
+                    largeCompareValue = 12343.0
+                    overscanCompareValue = 0.0
+                    imageCompareValue = 7.5
+            else:
+                largeCompareValue = 12343.0
+                overscanCompareValue = 0.0
+                imageCompareValue = 8.0
 
             overscanTask = taskClass(config=config)
             _ = overscanTask.run(exposure, detector.getAmplifiers()[0], isTransposed=True)
@@ -154,12 +182,12 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             width = maskedImage.getWidth()
             for j in range(height):
                 for i in range(width):
-                    if j == 10 and i == 0 and kwargs['fitType'] == "MEDIAN_PER_ROW":
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 12343)
+                    if j == 10 and i == 0 and kwargs["fitType"] == "MEDIAN_PER_ROW":
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], largeCompareValue)
                     elif j >= 10 and i < 10:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 0)
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], overscanCompareValue)
                     elif i < 10:
-                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 8)
+                        self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], imageCompareValue)
 
     def checkOverscanCorrectionX(self, **kwargs):
         # We check serial ovsercan with "old" and "new" tasks.
@@ -247,14 +275,16 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                         self.assertEqual(maskedImage.image[i, j, afwImage.LOCAL], 50.0)
 
     def test_MedianPerRowOverscanCorrection(self):
-        self.checkOverscanCorrectionY(fitType="MEDIAN_PER_ROW")
-        self.checkOverscanCorrectionX(fitType="MEDIAN_PER_ROW")
-        self.checkOverscanCorrectionSineWave(fitType="MEDIAN_PER_ROW")
+        for integerConvert in [True, False]:
+            self.checkOverscanCorrectionY(fitType="MEDIAN_PER_ROW", integerConvert=integerConvert)
+            self.checkOverscanCorrectionX(fitType="MEDIAN_PER_ROW", integerConvert=integerConvert)
+            self.checkOverscanCorrectionSineWave(fitType="MEDIAN_PER_ROW", integerConvert=integerConvert)
 
     def test_MeanPerRowOverscanCorrection(self):
-        self.checkOverscanCorrectionY(fitType="MEAN_PER_ROW")
-        self.checkOverscanCorrectionX(fitType="MEAN_PER_ROW")
-        self.checkOverscanCorrectionSineWave(fitType="MEAN_PER_ROW")
+        for integerConvert in [True, False]:
+            self.checkOverscanCorrectionY(fitType="MEAN_PER_ROW", integerConvert=integerConvert)
+            self.checkOverscanCorrectionX(fitType="MEAN_PER_ROW", integerConvert=integerConvert)
+            self.checkOverscanCorrectionSineWave(fitType="MEAN_PER_ROW", integerConvert=integerConvert)
 
     def test_MedianOverscanCorrection(self):
         self.checkOverscanCorrectionY(fitType="MEDIAN")
