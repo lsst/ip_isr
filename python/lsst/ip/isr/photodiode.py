@@ -40,8 +40,8 @@ class PhotodiodeCalib(IsrCalib):
         List of samples the photodiode was measured at.
     currentSamples : `list` or `numpy.ndarray`
         List of current measurements at each time sample.
-    log : `lsst.log.Log`, optional
-        Log to write messages to.
+    log : `logging.Logger`, optional
+        Log to write messages to. If `None` a default logger will be used.
     **kwargs :
         Additional parameters. These will be passed to the parent
         constructor with the exception of:
