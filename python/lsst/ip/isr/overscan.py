@@ -392,40 +392,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                                overscanSigma=overscanSigma,
                                )
 
-    @staticmethod
-    def integerConvert(image):
-        """Return an integer version of the input image.
-
-        Parameters
-        ----------
-        image : `numpy.ndarray`, `lsst.afw.image.Image` or `MaskedImage`
-            Image to convert to integers.
-
-        Returns
-        -------
-        outI : `numpy.ndarray`, `lsst.afw.image.Image` or `MaskedImage`
-            The integer converted image.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if the input image could not be converted.
-        """
-        if hasattr(image, "image"):
-            # Is a maskedImage:
-            imageI = image.image.convertI()
-            outI = afwImage.MaskedImageI(imageI, image.mask, image.variance)
-        elif hasattr(image, "convertI"):
-            # Is an Image:
-            outI = image.convertI()
-        elif hasattr(image, "astype"):
-            # Is a numpy array:
-            outI = image.astype(int)
-        else:
-            raise RuntimeError("Could not convert this to integers: %s %s %s",
-                               image, type(image), dir(image))
-        return outI
-
     def maskParallelOverscan(self, exposure, detector):
         """Mask the union of high values on all amplifiers in the parallel
         overscan.
@@ -599,34 +565,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
         return collapsed
 
-    def collapseArrayMedian(self, maskedArray):
-        """Collapse overscan array (and mask) to a 1-D vector of using the
-        correct integer median of row-values.
-
-        Parameters
-        ----------
-        maskedArray : `numpy.ma.masked_array`
-            Masked array of input overscan data.
-
-        Returns
-        -------
-        collapsed : `numpy.ma.masked_array`
-            Single dimensional overscan data, combined with the afwMath median.
-        """
-        integerMI = self.integerConvert(maskedArray)
-
-        collapsed = []
-        fitType = afwMath.stringToStatisticsProperty('MEDIAN')
-        for row in integerMI:
-            newRow = row.compressed()
-            if len(newRow) > 0:
-                rowMedian = afwMath.makeStatistics(newRow, fitType, self.statControl).getValue()
-            else:
-                rowMedian = np.nan
-            collapsed.append(rowMedian)
-
-        return np.array(collapsed)
-
     def splineFit(self, indices, collapsed, numBins):
         """Wrapper function to match spline fit API to polynomial fit API.
 
@@ -754,8 +692,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         masked = self.maskOutliers(calcImage)
 
         if self.config.fitType in ('MEDIAN_PER_ROW', "MEAN_PER_ROW"):
-            mi = afwImage.MaskedImageI(image.getBBox())
-            masked = masked.astype(int)
+            if self.config.overscanIsInt:
+                mi = afwImage.MaskedImageI(image.getBBox())
+                masked = masked.astype(int)
+            else:
+                mi = image.clone()
+
             if isTransposed:
                 masked = masked.transpose()
 
