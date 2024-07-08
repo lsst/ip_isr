@@ -726,8 +726,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         masked = self.maskOutliers(calcImage)
 
         if self.config.fitType in ('MEDIAN_PER_ROW', "MEAN_PER_ROW"):
-            mi = afwImage.MaskedImageI(image.getBBox())
-            masked = masked.astype(int)
+            if self.config.overscanIsInt:
+                mi = afwImage.MaskedImageI(image.getBBox())
+                masked = masked.astype(int)
+            else:
+                mi = image.clone()
+
             if isTransposed:
                 masked = masked.transpose()
 
