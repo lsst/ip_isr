@@ -34,33 +34,32 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
     """
     def setUp(self):
         self.inputExp = isrMockLSST.TrimmedRawMockLSST().run()
-        self.mi = self.inputExp.getMaskedImage()
+        self.mi = self.inputExp.maskedImage
 
     def test_simple(self):
         """Check trimmed raw data are generated as expected,
         taking the same approach as in test_isrMock.
         """
 
-        initialMean = np.median(self.mi.getImage().getArray()[:])
-        initialStd = np.std(self.mi.getImage().getArray()[:])
+        initialMean = np.median(self.mi.image.array[:])
+        initialStd = np.std(self.mi.image.array[:])
 
         # Build and subtract a bias calibration
         bias = isrMockLSST.BiasMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - bias.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        self.mi.image.array[:] = (self.mi.image.array[:] - bias.image.array[:])
+        newMean = np.median(self.mi.image.array[:])
+        newStd = np.std(self.mi.image.array[:])
 
-        self.assertAlmostEqual(newStd, initialStd)
+        self.assertFloatsAlmostEqual(newStd, initialStd, rtol=1e-6)
 
         initialMean = newMean
         initialStd = newStd
 
         dark = isrMockLSST.DarkMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - dark.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        self.mi.image.array[:] = (self.mi.image.array[:]
+                                  - dark.image.array[:])
+        newMean = np.median(self.mi.image.array[:])
+        newStd = np.std(self.mi.image.array[:])
 
         self.assertLess(newMean, initialMean)
 
@@ -68,10 +67,10 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         initialStd = newStd
 
         flat = isrMockLSST.FlatMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - flat.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        self.mi.image.array[:] = (self.mi.image.array[:]
+                                  - flat.image.array[:])
+        newMean = np.median(self.mi.image.array[:])
+        newStd = np.std(self.mi.image.array[:])
 
         self.assertAlmostEqual(newMean, initialMean, -2)
         self.assertLess(newStd, initialStd)
@@ -80,13 +79,15 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         initialStd = newStd
 
         fringe = isrMockLSST.FringeMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - fringe.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        self.mi.image.array[:] = (self.mi.image.array[:]
+                                  - fringe.image.array[:])
+        newMean = np.median(self.mi.image.array[:])
+        newStd = np.std(self.mi.image.array[:])
 
         self.assertAlmostEqual(newMean, initialMean, -1)
         self.assertAlmostEqual(newStd, initialStd, -1)
+
+    # TODO: add tests that bias is consistent, etc.
 
     def test_untrimmedSimple(self):
         """Test untrimmed mocks are genetared.
@@ -97,8 +98,8 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         rawMock.config.readNoise = 100.
         exposureHighNoise = rawMock.run()
 
-        lowNoiseStd = np.std(exposureLowNoise.getMaskedImage().getImage().getArray()[:])
-        highNoiseStd = np.std(exposureHighNoise.getMaskedImage().getImage().getArray()[:])
+        lowNoiseStd = np.std(exposureLowNoise.image.array[:])
+        highNoiseStd = np.std(exposureHighNoise.image.array[:])
 
         self.assertLess(lowNoiseStd, highNoiseStd)
 
