@@ -690,7 +690,7 @@ class IsrMock(pipeBase.Task):
         return (v, u)
 
     # Simple data values.
-    def amplifierAddNoise(self, ampData, mean, sigma):
+    def amplifierAddNoise(self, ampData, mean, sigma, rng=None):
         """Add Gaussian noise to an amplifier's image data.
 
          This method operates in the amplifier coordinate frame.
@@ -703,10 +703,17 @@ class IsrMock(pipeBase.Task):
             Mean value of the Gaussian noise.
         sigma : `float`
             Sigma of the Gaussian noise.
+        rng : `np.random.RandomState`, optional
+            Random state to use instead of self.rng.
         """
+        if rng is not None:
+            _rng = rng
+        else:
+            _rng = self.rng
+
         ampArr = ampData.array
-        ampArr[:] = ampArr[:] + self.rng.normal(mean, sigma,
-                                                size=ampData.getDimensions()).transpose()
+        ampArr[:] = ampArr[:] + _rng.normal(mean, sigma,
+                                            size=ampData.getDimensions()).transpose()
 
     def amplifierAddYGradient(self, ampData, start, end):
         """Add a y-axis linear gradient to an amplifier's image data.
