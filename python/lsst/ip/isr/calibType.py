@@ -136,7 +136,7 @@ class IsrCalib(abc.ABC):
                 if not np.allclose(attrSelf, attrOther, equal_nan=True):
                     self.log.debug("Array Failure: %s %s %s", attr, attrSelf, attrOther)
                     return False
-            elif type(attrSelf) != type(attrOther):
+            elif type(attrSelf) is not type(attrOther):
                 if set([attrSelf, attrOther]) == set([None, ""]):
                     # Fits converts None to "", but None is not "".
                     continue
