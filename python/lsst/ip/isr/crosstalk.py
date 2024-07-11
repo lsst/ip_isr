@@ -466,7 +466,7 @@ class CrosstalkCalib(IsrCalib):
 
     # Implementation methods.
     @staticmethod
-    def extractAmp(image, amp, ampTarget, isTrimmed=False):
+    def extractAmp(image, amp, ampTarget, isTrimmed=False, fullAmplifier=False):
         """Extract the image data from an amp, flipped to match ampTarget.
 
         Parameters
@@ -478,9 +478,11 @@ class CrosstalkCalib(IsrCalib):
         ampTarget : `lsst.afw.cameraGeom.Amplifier`
             Target amplifier that the extracted image will be flipped
             to match.
-        isTrimmed : `bool`
+        isTrimmed : `bool`, optional
             The image is already trimmed.
             TODO : DM-15409 will resolve this.
+        fullAmplifier : `bool`, optional
+            Use full amplifier and not just imaging region.
 
         Returns
         -------
@@ -496,7 +498,10 @@ class CrosstalkCalib(IsrCalib):
                   lsst.afw.cameraGeom.ReadoutCorner.UL: True,
                   lsst.afw.cameraGeom.ReadoutCorner.UR: True}
 
-        output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
+        if fullAmplifier:
+            output = image[amp.getBBox() if isTrimmed else amp.getRawBBox()]
+        else:
+            output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
         thisAmpCorner = amp.getReadoutCorner()
         targetAmpCorner = ampTarget.getReadoutCorner()
 
