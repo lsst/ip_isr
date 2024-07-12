@@ -202,18 +202,29 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=[],
     )
 
-    # Image conversion configuration
-    doConvertIntToFloat = pexConfig.Field(
-        dtype=bool,
-        doc="Convert integer raw images to floating point values?",
-        default=True,
-    )
-
     # Differential non-linearity correction.
     doDiffNonLinearCorrection = pexConfig.Field(
         dtype=bool,
         doc="Do differential non-linearity correction?",
         default=False,
+    )
+
+    integerDitherMode = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Dithering mode to cancel integerization of counts.",
+        default="SYMMETRIC",
+        allowed={
+            "POSITIVE": "Dithering is done with a uniform random in the range [0, 1).",
+            "NEGATIVE": "Dithering is done with a uniform random in the range [-1, 0).",
+            "SYMMETRIC": "Dithering is done with a uniform random in the range [-0.5, 0.5).",
+            "NONE": "No dithering is performed.",
+        },
+    )
+
+    nominalGain = pexConfig.Field(
+        dtype=float,
+        default=1.7,
+        doc="Nominal gain to use if no PTC is supplied.",
     )
 
     overscanCamera = pexConfig.ConfigField(
@@ -258,7 +269,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
 
     # Gains.
-    doGainsCorrection = pexConfig.Field(
+    doCorrectGains = pexConfig.Field(
         dtype=bool,
         doc="Apply temperature correction to the gains?",
         default=False,
@@ -827,7 +838,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return linearizer
 
-    def gainsCorrection(self, **kwargs):
+    def correctGains(self, exposure, ptc, gains):
         # TODO DM 36639
         gains = []
         readNoise = []
@@ -921,7 +932,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.maskNegativeVariance:
             self.maskNegativeVariance(ccdExposure)
 
-    def maskDefect(self, exposure, defectBaseList):
+    def maskDefects(self, exposure, defectBaseList):
         """Mask defects using mask plane "BAD", in place.
 
         Parameters
@@ -1167,8 +1178,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             darkScale = 1.0
 
         isrFunctions.darkCorrection(
-            maskedImage=exposure.getMaskedImage(),
-            darkMaskedImage=darkExposure.getMaskedImage(),
+            maskedImage=exposure.maskedImage,
+            darkMaskedImage=darkExposure.maskedImage,
             expScale=expScale,
             darkScale=darkScale,
             invert=invert,
@@ -1266,6 +1277,39 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return newexposure
 
+    def ditherCounts(self, exposure, seed=None):
+        """Dither the counts in the exposure.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+           The raw exposure to be dithered.
+        """
+        if self.config.integerDitherMode == "NONE":
+            # Nothing to do here.
+            return
+
+        # FIXME: we need a seed that combines some exposure metadata with detector.
+        # Need to ask.
+        seed = exposure.getInfo().getId()
+        if seed is None:
+            seed = 12345
+        rng = numpy.random.RandomState(seed=seed)
+
+        if self.config.integerDitherMode == "POSITIVE":
+            low = 0.0
+            high = 1.0
+        elif self.config.integerDitherMode == "NEGATIVE":
+            low = -1.0
+            high = 0.0
+        elif self.config.integerDitherMode == "SYMMETRIC":
+            low = -0.5
+            high = 0.5
+        else:
+            raise RuntimeError("Invalid config")
+
+        exposure.image.array[:, :] += rng.uniform(low=low, high=high, size=exposure.image.array.shape)
+
     def doLinearize(self, detector):
         """Check if linearization is needed for the detector cameraGeom.
 
@@ -1346,11 +1390,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
 
-        gains = ptc.gain
-
         # Validation step: check inputs match exposure configuration.
         exposureMetadata = ccdExposure.getMetadata()
-        self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+        if ptc is not None:
+            self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
         if self.config.doDiffNonLinearCorrection:
             self.compareCameraKeywords(exposureMetadata, dnlLUT, "dnlLUT")
         if self.doLinearize(detector):
@@ -1370,13 +1413,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doFlat:
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
 
+        # FIXME: Make sure that if linearity is done then it is matched
+        # with the right PTC.
+
         # We keep track of units: start in ADU.
         exposureMetadata["LSST ISR UNITS"] = "ADU"
 
-        # First we convert the exposure to floating point values.
-        if self.config.doConvertIntToFloat:
-            self.log.info("Converting exposure to floating point values.")
-            ccdExposure = self.convertIntToFloat(ccdExposure)
+        # First we convert the exposure to floating point values (if necessary).
+        self.log.debug("Converting exposure to floating point values.")
+        ccdExposure = self.convertIntToFloat(ccdExposure)
 
         # Then we mark which amplifiers are completely bad from defects.
         badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
@@ -1385,8 +1430,46 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
-        if overscanDetectorConfig.doAnySerialOverscan:
+        # Dither the integer counts.
+        # Input units: integerized ADU
+        # Output units: floating-point ADU
+        self.ditherCounts(ccdExposure)
+
+        nominalGainUsed = False
+        if ptc is None:
+            nominalGainUsed = True
+            gains = {
+                amp.getName(): self.config.nominalGain
+                for amp in detector
+            }
+        else:
+            gains = ptc.gain
+
+        if self.config.doCorrectGains:
+            # TODO DM 36639
+            # This requires the PTC (?) with the temperature dependence.
+            self.log.info("Apply temperature dependence to the gains.")
+            gains, readNoise = self.correctGains(ccdExposure, ptc, gains)
+
+        # Do gain normalization; this may be the nominal gains.
+        if self.config.doApplyGains:
             # Input units: ADU
+            # Output units: electrons
+            self.log.info("Apply gain corrections to the image.")
+            isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains)
+            # The units are now electrons.
+            exposureMetadata["LSST ISR UNITS"] = "electrons"
+
+        # Do crosstalk correction (full area!)
+        # FIXME: add non-linear term if configured.
+        if self.config.doCrosstalk:
+            # Units: electrons
+            self.log.info("Applying crosstalk corrections.")
+            self.crosstalk.run(ccdExposure, crosstalk=crosstalk, isTrimmed=False, fullAmplifier=True)
+
+        # Serial overscan correction
+        if overscanDetectorConfig.doAnySerialOverscan:
+            # Units: electrons
             serialOverscans = self.overscanCorrection(
                 "SERIAL",
                 overscanDetectorConfig,
@@ -1397,25 +1480,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         else:
             serialOverscans = [None]*len(detector)
 
-        if overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
-            # Input units: ADU
-            # Make sure that the units here are consistent with later
-            # application.
-            self.crosstalk.run(
-                ccdExposure,
-                crosstalk=crosstalk,
-                camera=camera,
-                parallelOverscanRegion=True,
-                detectorConfig=overscanDetectorConfig,
-            )
-
         # After serial overscan correction, we can mask SATURATED and
         # SUSPECT pixels. This updates badAmpDict if any amplifier
         # is fully saturated after serial overscan correction.
         badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector)
 
+        # Parallel overscan correction
         if overscanDetectorConfig.doAnyParallelOverscan:
-            # Input units: ADU
+            # Units: electrons
             # At the moment we do not use the parallelOverscans return value.
             _ = self.overscanCorrection(
                 "PARALLEL",
@@ -1425,59 +1497,49 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ccdExposure,
             )
 
+        # Linearity correction
+        # FIXME: watch those units here; linearity code may need update.
+        if self.config.doLinearize:
+            # Units: electrons
+            self.log.info("Applying linearizer.")
+            linearizer = self.getLinearizer(detector=detector)
+            linearizer.applyLinearity(image=ccdExposure.image, detector=detector, log=self.log)
+
+        # Serial CTI (deferred charge)
+        # FIXME: watch out for gain units; cti code may need update (to make it simpler!)
+        if self.config.doDeferredCharge:
+            # Units: electrons
+            self.log.info("Applying deferred charge/CTI correction.")
+            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
+
+        # Assemble/trim
         if self.config.doAssembleCcd:
-            # Input units: ADU
+            # Units: electrons
             self.log.info("Assembling CCD from amplifiers.")
             ccdExposure = self.assembleCcd.assembleCcd(ccdExposure)
 
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warning("No WCS found in input exposure.")
 
-        if self.config.doLinearize:
-            # Input units: ADU
-            self.log.info("Applying linearizer.")
-            linearizer = self.getLinearizer(detector=detector)
-            linearizer.applyLinearity(image=ccdExposure.getMaskedImage().getImage(),
-                                      detector=detector, log=self.log)
-
-        if self.config.doCrosstalk:
-            # Input units: ADU
-            self.log.info("Applying crosstalk correction.")
-            self.crosstalk.run(ccdExposure, crosstalk=crosstalk, isTrimmed=True)
-
+        # Bias subtraction
         if self.config.doBias:
-            # Input units: ADU
+            # Units: electrons
             self.log.info("Applying bias correction.")
-            isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage())
+            isrFunctions.biasCorrection(ccdExposure.maskedImage, bias.maskedImage)
 
-        if self.config.doGainsCorrection:
-            # TODO DM 36639
-            self.log.info("Apply temperature dependence to the gains.")
-            gains, readNoise = self.gainsCorrection(**kwargs)
+        # Dark subtraction
+        if self.config.doDark:
+            # Units: electrons
+            self.log.info("Applying dark subtraction.")
+            self.darkCorrection(ccdExposure, dark)
 
-        if self.config.doApplyGains:
-            # Input units: ADU
-            # Output units: electrons
-            self.log.info("Apply PTC gains (temperature corrected or not) to the image.")
-            isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains)
-            # The units are now electrons.
-            exposureMetadata["LSST ISR UNITS"] = "electrons"
-
-        if self.config.doDeferredCharge:
-            # Input units: electrons
-            self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
-
-        if self.config.doVariance:
-            # Input units: electrons
-            self.variancePlane(ccdExposure, detector, ptc)
-
+        # Defect masking
         # Masking block (defects, NAN pixels and trails).
         # Saturated and suspect pixels have already been masked.
         if self.config.doDefect:
-            # Input units: electrons
-            self.log.info("Applying defects masking.")
-            self.maskDefect(ccdExposure, defects)
+            # Units: electrons
+            self.log.info("Applying defect masking.")
+            self.maskDefects(ccdExposure, defects)
 
         if self.config.doNanMasking:
             self.log.info("Masking non-finite (NAN, inf) value pixels.")
@@ -1487,19 +1549,22 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Widening saturation trails.")
             isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
 
-        if self.config.doDark:
-            # Input units: electrons
-            self.log.info("Applying dark subtraction.")
-            self.darkCorrection(ccdExposure, dark)
-
+        # Brighter/Fatter
+        # FIXME: watch out (again) for gain units.
         if self.config.doBrighterFatter:
-            # Input units: electrons
+            # Units: electrons
             self.log.info("Applying Bright-Fatter kernels.")
             bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
             ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut, bfGains)
 
+        # Variance plane creation
+        if self.config.doVariance:
+            # Units: electrons
+            self.variancePlane(ccdExposure, detector, ptc)
+
+        # Flat-fielding (!)
         if self.config.doFlat:
-            # Input units: electrons
+            # Units: electrons
             self.log.info("Applying flat correction.")
             # Placeholder while the LSST flat procedure is done.
             # The flat here would be a background flat.
