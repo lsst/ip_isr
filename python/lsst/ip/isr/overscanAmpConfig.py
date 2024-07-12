@@ -43,9 +43,11 @@ class OverscanAmpConfig(pexConfig.Config):
         self.serialOverscanConfig.fitType = "MEDIAN_PER_ROW"
         self.serialOverscanConfig.leadingToSkip = 3
         self.serialOverscanConfig.trailingToSkip = 3
+        self.serialOverscanConfig.overscanIsInt = False
         self.parallelOverscanConfig.fitType = "MEDIAN_PER_ROW"
         self.parallelOverscanConfig.leadingToSkip = 3
         self.parallelOverscanConfig.trailingToSkip = 3
+        self.parallelOverscanConfig.overscanIsInt = False
 
     @property
     def _stringForHash(self):
