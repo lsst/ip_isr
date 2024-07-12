@@ -91,6 +91,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
         self.sourceFlux = [75_000.0]
         self.overscanScale = 170.0
         self.biasLevel = 40_000.0
+        self.doAddCrosstalk = True
 
 
 class IsrMockLSST(IsrMock):
@@ -446,10 +447,10 @@ class RawMockLSST(IsrMockLSST):
         # Add optical effects
         self.config.doAddFringe = True
 
-        # Add instru effects
+        # Add instrument effects
         self.config.doAddParallelOverscan = True
         self.config.doAddSerialOverscan = True
-        self.config.doAddCrosstalk = False
+        self.config.doAddCrosstalk = True
         self.config.doAddBias = True
         self.config.doAddDark = True
 
@@ -548,6 +549,7 @@ class BiasMockLSST(ReferenceMockLSST):
         self.config.doAddBias = True
         self.config.biasLevel = 0.0
         self.config.doApplyGain = True
+        self.config.doAdd2DBias = True
 
 
 class FlatMockLSST(ReferenceMockLSST):
