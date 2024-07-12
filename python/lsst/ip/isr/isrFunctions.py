@@ -950,7 +950,7 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
     return combined
 
 
-def applyGains(exposure, normalizeGains=False, ptcGains=None):
+def applyGains(exposure, normalizeGains=False, ptcGains=None, isTrimmed=True):
     """Scale an exposure by the amplifier gains.
 
     Parameters
@@ -962,13 +962,18 @@ def applyGains(exposure, normalizeGains=False, ptcGains=None):
         each amplifier to equal the median of those medians.
     ptcGains : `dict`[`str`], optional
         Dictionary keyed by amp name containing the PTC gains.
+    isTrimmed : `bool`, optional
+        Is the input image trimmed?
     """
     ccd = exposure.getDetector()
     ccdImage = exposure.getMaskedImage()
 
     medians = []
     for amp in ccd:
-        sim = ccdImage.Factory(ccdImage, amp.getBBox())
+        if isTrimmed:
+            sim = ccdImage.Factory(ccdImage, amp.getBBox())
+        else:
+            sim = ccdImage.Factory(ccdImage, amp.getRawBBox())
         if ptcGains:
             sim *= ptcGains[amp.getName()]
         else:
@@ -980,7 +985,10 @@ def applyGains(exposure, normalizeGains=False, ptcGains=None):
     if normalizeGains:
         median = numpy.median(numpy.array(medians))
         for index, amp in enumerate(ccd):
-            sim = ccdImage.Factory(ccdImage, amp.getBBox())
+            if isTrimmed:
+                sim = ccdImage.Factory(ccdImage, amp.getBBox())
+            else:
+                sim = ccdImage.Factory(ccdImage, amp.getRawBBox())
             if medians[index] != 0.0:
                 sim *= median/medians[index]
 
