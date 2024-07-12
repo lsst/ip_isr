@@ -25,6 +25,7 @@ from .crosstalk import CrosstalkTask
 from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
+from .ptcDataset import PhotonTransferCurveDataset
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -286,11 +287,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Calculate variance?",
         default=True
     )
-    gain = pexConfig.Field(
-        dtype=float,
-        doc="The gain to use if no Detector is present in the Exposure (ignored if NaN).",
-        default=float("NaN"),
-    )
+    # gain = pexConfig.Field(
+    #     dtype=float,
+    #     doc="The gain to use if no Detector is present in the Exposure
+    #  (ignored if NaN).",
+    #     default=float("NaN"),
+    # )
     maskNegativeVariance = pexConfig.Field(
         dtype=bool,
         doc="Mask pixels that claim a negative variance.  This likely indicates a failure "
@@ -845,7 +847,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return gains, readNoise
 
-    def updateVariance(self, ampExposure, amp, ptcDataset=None):
+    def updateVariance(self, ampExposure, amp, ptcDataset):
         """Set the variance plane using the gain and read noise.
 
         Parameters
@@ -854,7 +856,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             Exposure to process.
         amp : `lsst.afw.cameraGeom.Amplifier` or `FakeAmp`
             Amplifier detector data.
-        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`
             PTC dataset containing the gains and read noise.
 
         Raises
@@ -867,11 +869,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         lsst.ip.isr.isrFunctions.updateVariance
         """
         # Get gains from PTC
-        if ptcDataset is None:
-            raise RuntimeError("No ptcDataset provided to use PTC gains.")
-        else:
-            gain = ptcDataset.gain[amp.getName()]
-            self.log.debug("Getting gain from Photon Transfer Curve.")
+        gain = ptcDataset.gain[amp.getName()]
 
         if math.isnan(gain):
             gain = 1.0
@@ -883,11 +881,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             gain = patchedGain
 
         # Get read noise from PTC
-        if ptcDataset is None:
-            raise RuntimeError("No ptcDataset provided to use PTC readnoise.")
-        else:
-            readNoise = ptcDataset.noise[amp.getName()]
-            self.log.debug("Getting read noise from Photon Transfer Curve.")
+        readNoise = ptcDataset.noise[amp.getName()]
 
         metadata = ampExposure.getMetadata()
         metadata[f'LSST GAIN {amp.getName()}'] = gain
@@ -921,7 +915,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
 
-                self.updateVariance(ampExposure, amp, ptcDataset=ptc)
+                self.updateVariance(ampExposure, amp, ptc)
 
                 if self.config.qa is not None and self.config.qa.saveStats is True:
                     qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
@@ -1289,7 +1283,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Nothing to do here.
             return
 
-        # FIXME: we need a seed that combines some exposure metadata with detector.
+        # FIXME: we need a seed that combines some exposure
+        # metadata with detector.
         # Need to ask.
         seed = exposure.getInfo().getId()
         if seed is None:
@@ -1419,7 +1414,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # We keep track of units: start in ADU.
         exposureMetadata["LSST ISR UNITS"] = "ADU"
 
-        # First we convert the exposure to floating point values (if necessary).
+        # First we convert the exposure to floating point values
+        # (if necessary).
         self.log.debug("Converting exposure to floating point values.")
         ccdExposure = self.convertIntToFloat(ccdExposure)
 
@@ -1435,15 +1431,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Output units: floating-point ADU
         self.ditherCounts(ccdExposure)
 
-        nominalGainUsed = False
+        nominalPtcUsed = False
         if ptc is None:
-            nominalGainUsed = True
-            gains = {
-                amp.getName(): self.config.nominalGain
-                for amp in detector
-            }
-        else:
-            gains = ptc.gain
+            nominalPtcUsed = True
+            ptc = PhotonTransferCurveDataset([amp.getName() for amp in detector], "NOMINAL_PTC", 1)
+            for amp in detector:
+                ptc.gain[amp.getName()] = self.config.nominalGain
+                ptc.noise[amp.getName()] = 0.0
+
+        gains = ptc.gain
 
         if self.config.doCorrectGains:
             # TODO DM 36639
@@ -1456,7 +1452,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Input units: ADU
             # Output units: electrons
             self.log.info("Apply gain corrections to the image.")
-            isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains)
+            isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains, isTrimmed=False)
             # The units are now electrons.
             exposureMetadata["LSST ISR UNITS"] = "electrons"
 
@@ -1477,6 +1473,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 badAmpDict,
                 ccdExposure,
             )
+
+            if nominalPtcUsed:
+                # Get the empirical read noise
+                # Log this; also put in metadata.
+                for amp, serialOverscan in zip(detector, serialOverscans):
+                    if serialOverscan is None:
+                        ptc.noise[amp.getName()] = 0.0
+                    else:
+                        ptc.noise[amp.getName()] = serialOverscan.residualSigma
         else:
             serialOverscans = [None]*len(detector)
 
@@ -1506,7 +1511,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             linearizer.applyLinearity(image=ccdExposure.image, detector=detector, log=self.log)
 
         # Serial CTI (deferred charge)
-        # FIXME: watch out for gain units; cti code may need update (to make it simpler!)
+        # FIXME: watch out for gain units; cti code may need update
+        # (to make it simpler!)
         if self.config.doDeferredCharge:
             # Units: electrons
             self.log.info("Applying deferred charge/CTI correction.")
