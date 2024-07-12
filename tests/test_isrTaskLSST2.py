@@ -108,6 +108,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         """Test processing of a ``bootstrap`` dark frame."""
         mock_config = isrMockLSST.IsrMockLSSTConfig()
         mock_config.isTrimmed = False
+        mock_config.doAddBias = True
         mock_config.doAddDark = True
         mock_config.doAddFlat = False
         mock_config.doAddFringe = False
@@ -143,6 +144,51 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         )
         # The mock dark has no noise, so these should be equal.
         self.assertFloatsAlmostEqual(
+            np.std(result.exposure.image.array),
+            np.std(result2.exposure.image.array),
+        )
+
+    def test_isrBootstrapFlat(self):
+        """Test processing of a ``bootstrap`` flat frame."""
+        mock_config = isrMockLSST.IsrMockLSSTConfig()
+        mock_config.isTrimmed = False
+        mock_config.doAddBias = True
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        mock_config.doAddFringe = False
+        mock_config.doAddSky = True
+        mock_config.doAddSource = False
+        mock_config.doGenerateImage = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = IsrTaskLSSTConfig()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = True
+        isr_config.doDeferredCharge = False
+        isr_config.doLinearize = False
+        isr_config.doCorrectGains = False
+        isr_config.doCrosstalk = False
+        isr_config.doDefect = False
+        isr_config.doBrighterFatter = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, flat=self.flat)
+
+        # Rerun without doing the bias correction.
+        isr_config.doFlat = False
+        isr_task2 = IsrTaskLSST(config=isr_config)
+        result2 = isr_task2.run(input_exp.clone(), bias=self.bias, dark=self.dark)
+
+        # Applying the flat will increase the counts.
+        self.assertGreater(
+            np.mean(result.exposure.image.array),
+            np.mean(result2.exposure.image.array),
+        )
+        # And will decrease the sigma.
+        self.assertLess(
             np.std(result.exposure.image.array),
             np.std(result2.exposure.image.array),
         )
