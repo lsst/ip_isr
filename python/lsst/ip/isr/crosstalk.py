@@ -539,7 +539,7 @@ class CrosstalkCalib(IsrCalib):
                           crosstalkCoeffsSqr=None,
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
-                          backgroundMethod="None", doSqrCrosstalk=False):
+                          backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -584,6 +584,8 @@ class CrosstalkCalib(IsrCalib):
         doSqrCrosstalk: `bool`, optional
             Should the quadratic crosstalk coefficients be used for the
             crosstalk correction?
+        fullAmplifier : `bool`, optional
+            Use full amplifier and not just imaging region.
 
         Notes
         -----
@@ -626,6 +628,9 @@ class CrosstalkCalib(IsrCalib):
         if doSqrCrosstalk and crosstalkCoeffsSqr is None:
             raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
                                "crosstalk coefficients.")
+
+        if fullAmplifier and backgroundMethod != "None":
+            raise RuntimeError("Cannot do full amplifier crosstalk with background subtraction.")
 
         if sourceExposure:
             source = sourceExposure.getMaskedImage()
@@ -681,17 +686,26 @@ class CrosstalkCalib(IsrCalib):
             mi2 = mi.clone()
             mi2.scaledMultiplies(1.0, mi)
         for ss, sAmp in enumerate(sourceDetector):
-            sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
+            if fullAmplifier:
+                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawBBox()]
+            else:
+                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
             for tt, tAmp in enumerate(detector):
                 if coeffs[ss, tt] == 0.0:
                     continue
-                tImage = self.extractAmp(mi, tAmp, sAmp, isTrimmed)
+                tImage = self.extractAmp(mi, tAmp, sAmp, isTrimmed=isTrimmed, fullAmplifier=fullAmplifier)
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 tImage -= backgrounds[tt]
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
                 # Add the nonlinear term
                 if doSqrCrosstalk:
-                    tImageSqr = self.extractAmp(mi2, tAmp, sAmp, isTrimmed)
+                    tImageSqr = self.extractAmp(
+                        mi2,
+                        tAmp,
+                        sAmp,
+                        isTrimmed=isTrimmed,
+                        fullAmplifier=fullAmplifier,
+                    )
                     sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
         # Set crosstalkStr bit only for those pixels that have been
@@ -903,7 +917,7 @@ class CrosstalkTask(Task):
     def run(self,
             exposure, crosstalk=None,
             crosstalkSources=None, isTrimmed=False, camera=None, parallelOverscanRegion=False,
-            detectorConfig=None,
+            detectorConfig=None, fullAmplifier=False,
             ):
         """Apply intra-detector crosstalk correction
 
@@ -931,6 +945,8 @@ class CrosstalkTask(Task):
             Do subtraction in parallel overscan region (only)?
         detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`, optional
             Per-amplifier configs used when parallelOverscanRegion=True.
+        fullAmplifier : `bool`, optional
+            Use full amplifier and not just imaging region.
 
         Raises
         ------
@@ -973,7 +989,7 @@ class CrosstalkTask(Task):
                                         minPixelToMask=self.config.minPixelToMask,
                                         crosstalkStr=self.config.crosstalkMaskPlane, isTrimmed=isTrimmed,
                                         backgroundMethod=self.config.crosstalkBackgroundMethod,
-                                        doSqrCrosstalk=doSqrCrosstalk)
+                                        doSqrCrosstalk=doSqrCrosstalk, fullAmplifier=fullAmplifier)
 
             if crosstalk.interChip:
                 if crosstalkSources:
