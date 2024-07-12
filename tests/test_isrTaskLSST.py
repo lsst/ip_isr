@@ -120,7 +120,7 @@ class IsrTaskLSSTTestCases(lsst.utils.tests.TestCase):
         self.config.doLinearize = False
         self.config.doCrosstalk = False
         self.config.doBias = False
-        self.config.doGainsCorrection = False
+        self.config.doCorrectGains = False
         self.config.doApplyGains = False
         self.config.doDeferredCharge = False
         self.config.doVariance = False
