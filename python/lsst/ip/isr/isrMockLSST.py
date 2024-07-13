@@ -32,6 +32,10 @@ from .crosstalk import CrosstalkCalib
 from .isrMock import IsrMockConfig, IsrMock
 
 
+# FIXME: go through the units on this , it should not be so hard.
+# And getting it right is *important* now.
+
+
 class IsrMockLSSTConfig(IsrMockConfig):
     """Configuration parameters for isrMockLSST.
     """
@@ -52,15 +56,15 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=True,
         doc="Add 2D bias residual frame to data.",
     )
-    rngSeed2DBias = pexConfig.Field(
-        dtype=int,
-        default=12345,
-        doc="Random seed for creating a 2D bias residual frame.",
-    )
     noise2DBias = pexConfig.Field(
         dtype=float,
         default=2.0,
         doc="Noise (in electrons) to generate a 2D bias residual frame.",
+    )
+    doAddDarkNoiseOnly = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Add only dark current noise, for testing consistency.",
     )
     doAddParallelOverscan = pexConfig.Field(
         dtype=bool,
@@ -88,7 +92,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
 
         self.gain = 1.7
         self.skyLevel = 1700.0
-        self.sourceFlux = [75_000.0]
+        self.sourceFlux = [50_000.0]
         self.overscanScale = 170.0
         self.biasLevel = 40_000.0
         self.doAddCrosstalk = True
@@ -144,6 +148,14 @@ class IsrMockLSST(IsrMock):
         """
         exposure = self.getExposure()
 
+        # Set up random number generators for consistency of components,
+        # no matter the group that are configured.
+        rngSky = np.random.RandomState(seed=self.config.rngSeed + 1)
+        rngDark = np.random.RandomState(seed=self.config.rngSeed + 2)
+        rng2DBias = np.random.RandomState(seed=self.config.rngSeed + 3)
+        rngOverscan = np.random.RandomState(seed=self.config.rngSeed + 4)
+        rngReadNoise = np.random.RandomState(seed=self.config.rngSeed + 5)
+
         # We introduce effects as they happen from a source to the signal,
         # so the effects go from electrons to ADU.
         # The ISR steps will then correct these effects in the reverse order.
@@ -171,8 +183,12 @@ class IsrMockLSST(IsrMock):
                 # The sky effects are in electrons,
                 # but the skyLevel is configured in ADU
                 # TODO: DM-42880 to set configs to correct units
-                self.amplifierAddNoise(ampImageData, self.config.skyLevel * self.config.gain,
-                                       np.sqrt(self.config.skyLevel * self.config.gain))
+                self.amplifierAddNoise(
+                    ampImageData,
+                    self.config.skyLevel * self.config.gain,
+                    np.sqrt(self.config.skyLevel * self.config.gain),
+                    rng=rngSky,
+                )
 
             if self.config.doAddSource:
                 for sourceAmp, sourceFlux, sourceX, sourceY in zip(self.config.sourceAmp,
@@ -181,9 +197,9 @@ class IsrMockLSST(IsrMock):
                                                                    self.config.sourceY):
                     if idx == sourceAmp:
                         # The source flux is in electrons,
-                        # but the sourceFlux is configured in ADU
+                        # but the sourceFlux is configured in ADU (*** NOT NOW)
                         # TODO: DM-42880 to set configs to correct units
-                        self.amplifierAddSource(ampImageData, sourceFlux * self.config.gain, sourceX, sourceY)
+                        self.amplifierAddSource(ampImageData, sourceFlux, sourceX, sourceY)
 
             if self.config.doAddFringe:
                 # Fringes are added in electrons,
@@ -212,19 +228,27 @@ class IsrMockLSST(IsrMock):
 
             # 2. Add dark current (e-) to imaging portion of the amplifier.
             # TODO: DM-42880 to set configs to correct units
-            if self.config.doAddDark:
-                self.amplifierAddNoise(ampImageData,
-                                       self.config.darkRate * self.config.darkTime,
-                                       0. if self.config.calibMode
-                                       else np.sqrt(self.config.darkRate * self.config.darkTime))
+            if self.config.doAddDark or self.config.doAddDarkNoiseOnly:
+                if self.config.doAddDarkNoiseOnly:
+                    darkLevel = 0.0
+                else:
+                    darkLevel = self.config.darkRate * self.config.darkTime
+                if self.config.calibMode:
+                    darkNoise = 0.0
+                else:
+                    darkNoise = np.sqrt(self.config.darkRate * self.config.darkTime)
+
+                self.amplifierAddNoise(ampImageData, darkLevel, darkNoise, rng=rngDark)
 
             # 3. Add 2D bias residual (e-) to imaging portion of the amplifier.
             # TODO: DM-42880 to set configs to correct units
             if self.config.doAdd2DBias:
-                self.amplifierAddNoise(ampImageData,
-                                       0.0,
-                                       self.config.noise2DBias,
-                                       rng=np.random.RandomState(seed=self.config.rngSeed2DBias))
+                self.amplifierAddNoise(
+                    ampImageData,
+                    0.0,
+                    self.config.noise2DBias,
+                    rng=rng2DBias,
+                )
 
             # 3. Add serial CTI (e-) to amplifier (imaging + overscan).
             # TODO
@@ -234,19 +258,28 @@ class IsrMockLSST(IsrMock):
 
             # 5./6. Add serial and parallel overscan slopes (e-)
             #       (overscan regions).
-            if self.config.doAddParallelOverscan or self.config.doAddSerialOverscan:
-                # parallelOverscanBBox = amp.getRawParallelOverscanBBox()
-                # parallelOverscanData = exposure.image[parallelOverscanBBox]
+            if (self.config.doAddParallelOverscan or self.config.doAddSerialOverscan) and \
+               not self.config.isTrimmed:
+                parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+                parallelOverscanData = exposure.image[parallelOverscanBBox]
 
-                # serialOverscanBBox = self.getFullSerialOverscanBBox(amp)
-                # serialOverscanData = exposure.image[serialOverscanBBox]
+                serialOverscanBBox = self.getFullSerialOverscanBBox(amp)
+                serialOverscanData = exposure.image[serialOverscanBBox]
 
                 # Add read noise of mean 0
                 # to the parallel and serial overscan regions.
-                # self.amplifierAddNoise(parallelOverscanData, 0.0,
-                #                        self.config.readNoise)
-                # self.amplifierAddNoise(serialOverscanData, 0.0,
-                #                        self.config.readNoise)
+                self.amplifierAddNoise(
+                    parallelOverscanData,
+                    0.0,
+                    self.config.readNoise,
+                    rng=rngOverscan,
+                )
+                self.amplifierAddNoise(
+                    serialOverscanData,
+                    0.0,
+                    self.config.readNoise,
+                    rng=rngOverscan,
+                )
 
                 if self.config.doAddParallelOverscan:
                     # Apply gradient along the X axis.
@@ -263,7 +296,12 @@ class IsrMockLSST(IsrMock):
             # (Probably some of both)
             # (Probably doesn't matter)
             if not self.config.calibMode:
-                self.amplifierAddNoise(ampFullData, 0.0, self.config.readNoise)
+                self.amplifierAddNoise(
+                    ampImageData,
+                    0.0,
+                    self.config.readNoise,
+                    rng=rngReadNoise,
+                )
 
         # 8. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
         if self.config.doAddCrosstalk:
