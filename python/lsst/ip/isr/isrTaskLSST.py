@@ -644,7 +644,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return badAmpDict
 
-    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector):
+    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector, ptcGains=None):
         """
         Mask SATURATED and SUSPECT pixels and check if any amplifiers
         are fully masked.
@@ -661,6 +661,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         defects : `lsst.ip.isr.Defects`
             List of defects.  Used to determine if an entire
             amplifier is bad.
+        ptcGains : `dict`[`str`], optional
+            Dictionary keyed by amp name containing the PTC gains.
 
         Returns
         -------
@@ -676,11 +678,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 # No need to check fully bad amplifiers.
                 continue
 
+            if ptcGains is not None and ampName in ptcGains:
+                gain = ptcGains[ampName]
+            else:
+                gain = 1.0
+
             # Mask saturated and suspect pixels.
             limits = {}
             if self.config.doSaturation:
                 # Set to the default from the camera model.
-                limits.update({self.config.saturatedMaskName: amp.getSaturation()})
+                limits.update({self.config.saturatedMaskName: amp.getSaturation() * gain})
                 # And update if it is set in the config.
                 if math.isfinite(self.config.saturation):
                     limits.update({self.config.saturatedMaskName: self.config.saturation})
@@ -1389,23 +1396,42 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         exposureMetadata = ccdExposure.getMetadata()
         if ptc is not None:
             self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+
         if self.config.doDiffNonLinearCorrection:
+            if dnlLUT is None:
+                raise RuntimeError("doDiffNonLinearCorrection is True but no dnlLUT provided.")
             self.compareCameraKeywords(exposureMetadata, dnlLUT, "dnlLUT")
         if self.doLinearize(detector):
+            if linearizer is None:
+                raise RuntimeError("doLinearize is True but no linearizer provided.")
             self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
         if self.config.doBias:
+            if bias is None:
+                raise RuntimeError("doBias is True but no bias provided.")
             self.compareCameraKeywords(exposureMetadata, bias, "bias")
         if self.config.doCrosstalk:
+            if crosstalk is None:
+                raise RuntimeError("doCrosstalk is True but no crosstalk provided.")
             self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
         if self.config.doDeferredCharge:
+            if deferredChargeCalib is None:
+                raise RuntimeError("doDeferredCharge is True but no deferredChargeCalib provided.")
             self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
         if self.config.doDefect:
+            if defects is None:
+                raise RuntimeError("doDefect is True but no defects provided.")
             self.compareCameraKeywords(exposureMetadata, defects, "defects")
         if self.config.doDark:
+            if dark is None:
+                raise RuntimeError("doDark is True but no dark frame provided.")
             self.compareCameraKeywords(exposureMetadata, dark, "dark")
         if self.config.doBrighterFatter:
+            if bfKernel is None:
+                raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
             self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
         if self.config.doFlat:
+            if flat is None:
+                raise RuntimeError("doFlat is True but not flat provided.")
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
 
         # FIXME: Make sure that if linearity is done then it is matched
@@ -1488,7 +1514,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # After serial overscan correction, we can mask SATURATED and
         # SUSPECT pixels. This updates badAmpDict if any amplifier
         # is fully saturated after serial overscan correction.
-        badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector)
+        badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector, ptcGains=gains)
 
         # Parallel overscan correction
         if overscanDetectorConfig.doAnyParallelOverscan:
