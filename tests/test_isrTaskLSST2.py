@@ -92,6 +92,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
         isr_config.doBrighterFatter = False
         isr_config.doFlat = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias)
@@ -139,6 +144,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
         isr_config.doBrighterFatter = False
         isr_config.doFlat = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark)
@@ -156,6 +166,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(
             np.std(result.exposure.image.array),
             np.std(result2.exposure.image.array),
+            atol=1e-6,
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
@@ -189,6 +200,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doCrosstalk = False
         isr_config.doDefect = False
         isr_config.doBrighterFatter = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, flat=self.flat)
@@ -238,6 +254,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
         isr_config.doBrighterFatter = False
         isr_config.doFlat = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk)
@@ -285,6 +306,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
         isr_config.doBrighterFatter = False
         isr_config.doFlat = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, crosstalk=self.crosstalk)
@@ -337,6 +363,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doCrosstalk = True
         isr_config.doDefect = False
         isr_config.doBrighterFatter = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(
@@ -398,6 +429,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doCorrectGains = False
         isr_config.doCrosstalk = True
         isr_config.doBrighterFatter = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(
@@ -438,8 +474,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # There is noise from the overscan correction, given the
         # small overscan regions. This can/should be improved.
-        self.assertLess(np.std(delta), 7.0)
-        self.assertLess(np.max(np.abs(delta)), 7.0*4)
+        self.assertLess(np.std(delta), 5.0)
+        self.assertLess(np.max(np.abs(delta)), 5.0*5)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
