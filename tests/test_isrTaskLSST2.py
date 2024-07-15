@@ -54,10 +54,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.ptc = PhotonTransferCurveDataset(amp_names,
                                               ptcFitType='DUMMY_PTC',
                                               covMatrixSide=1)
-        # TODO: different gains ...
-        # Can we simulate different gains?  Probably not yet.  FIX THIS.
+
+        # TODO: check units of ptc noise
         for amp_name in amp_names:
-            self.ptc.gain[amp_name] = mock.config.gain
+            self.ptc.gain[amp_name] = mock.config.gainDict.get(amp_name, mock.config.gain)
             self.ptc.noise[amp_name] = mock.config.readNoise * mock.config.gain
 
         # TODO:
@@ -469,7 +469,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         delta = result.exposure.image.array - clean_exp.image.array
 
         # TODO:
-        # * Fix documented units and such.
         # * Add a defect bad column, consistently.
         # * Add a saturated set of pixels; check that they are masked
         #   and exclude from comparison.

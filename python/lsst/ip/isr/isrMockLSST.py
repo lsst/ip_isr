@@ -96,11 +96,27 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=True,
         doc="Round ADU values to nearest integer.",
     )
+    gainDict = pexConfig.DictField(
+        keytype=str,
+        itemtype=float,
+        doc="Dictionary of amp name to gain; any amps not listed will use "
+            "config.gain as the value.",
+        default={
+            "C:0,0": 1.65,
+            "C:0,1": 1.60,
+            "C:0,2": 1.55,
+            "C:0,3": 1.70,
+            "C:1,0": 1.75,
+            "C:1,1": 1.80,
+            "C:1,2": 1.85,
+            "C:1,3": 1.70,
+        },
+    )
 
     def setDefaults(self):
         super().setDefaults()
 
-        self.gain = 1.7
+        self.gain = 1.7  # Default value.
         self.skyLevel = 1700.0  # e-
         self.sourceFlux = [50_000.0]  # e-
         self.overscanScale = 170.0  # e-
@@ -348,7 +364,8 @@ class IsrMockLSST(IsrMock):
 
             # 10. Gain un-normalize (from e- to floating point ADU)
             if self.config.doApplyGain:
-                self.applyGain(ampFullData, self.config.gain)
+                gain = self.config.gainDict.get(amp.getName(), self.config.gain)
+                self.applyGain(ampFullData, gain)
 
             # 11. Add overall bias level (ADU) to the amplifier
             #    (imaging + overscan)
