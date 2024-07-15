@@ -101,10 +101,10 @@ class IsrMockLSSTConfig(IsrMockConfig):
         super().setDefaults()
 
         self.gain = 1.7
-        self.skyLevel = 1700.0
-        self.sourceFlux = [50_000.0]
-        self.overscanScale = 170.0
-        self.biasLevel = 40_000.0
+        self.skyLevel = 1700.0  # e-
+        self.sourceFlux = [50_000.0]  # e-
+        self.overscanScale = 170.0  # e-
+        self.biasLevel = 20_000.0  # ADU
         self.doAddCrosstalk = True
 
 
@@ -190,13 +190,11 @@ class IsrMockLSST(IsrMock):
             # amplifier (ampImageData)
 
             if self.config.doAddSky:
-                # The sky effects are in electrons,
-                # but the skyLevel is configured in ADU
-                # TODO: DM-42880 to set configs to correct units
+                # The sky effects are in electrons.
                 self.amplifierAddNoise(
                     ampImageData,
-                    self.config.skyLevel * self.config.gain,
-                    np.sqrt(self.config.skyLevel * self.config.gain),
+                    self.config.skyLevel,
+                    np.sqrt(self.config.skyLevel),
                     rng=rngSky,
                 )
 
@@ -212,12 +210,10 @@ class IsrMockLSST(IsrMock):
                         self.amplifierAddSource(ampImageData, sourceFlux, sourceX, sourceY)
 
             if self.config.doAddFringe:
-                # Fringes are added in electrons,
-                # but the fringeScale is configured in ADU
-                # (this is just documentation...)
+                # Fringes are added in electrons.
                 self.amplifierAddFringe(amp,
                                         ampImageData,
-                                        np.array(self.config.fringeScale) * self.config.gain,
+                                        np.array(self.config.fringeScale),
                                         x0=np.array(self.config.fringeX0),
                                         y0=np.array(self.config.fringeY0))
 
@@ -237,7 +233,6 @@ class IsrMockLSST(IsrMock):
             # 1. Add BF effect (e-)
 
             # 2. Add dark current (e-) to imaging portion of the amplifier.
-            # TODO: DM-42880 to set configs to correct units
             if self.config.doAddDark or self.config.doAddDarkNoiseOnly:
                 if self.config.doAddDarkNoiseOnly:
                     darkLevel = 0.0
@@ -251,7 +246,6 @@ class IsrMockLSST(IsrMock):
                 self.amplifierAddNoise(ampImageData, darkLevel, darkNoise, rng=rngDark)
 
             # 3. Add 2D bias residual (e-) to imaging portion of the amplifier.
-            # TODO: DM-42880 to set configs to correct units
             if self.config.doAdd2DBias:
                 self.amplifierAddNoise(
                     ampImageData,
