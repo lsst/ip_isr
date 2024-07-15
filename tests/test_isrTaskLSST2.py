@@ -403,6 +403,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.isTrimmed = False
         mock_config.doAddBias = True
         mock_config.doAdd2DBias = True
+        mock_config.doAddClockInjectedOffset = True
         mock_config.doAddDark = True
         mock_config.doAddFlat = True
         mock_config.doAddCrosstalk = True
@@ -450,6 +451,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         clean_mock_config.isTrimmed = True
         clean_mock_config.doAddBias = False
         clean_mock_config.doAdd2DBias = False
+        clean_mock_config.doAddClockInjectedOffset = False
         clean_mock_config.doAddDark = False
         clean_mock_config.doAddDarkNoiseOnly = True
         clean_mock_config.doAddFlat = False
