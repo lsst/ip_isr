@@ -331,14 +331,14 @@ class IsrMockLSST(IsrMock):
             # This is the full data (including pre/overscans if untrimmed).
             ampFullData = exposure.image[bboxFull]
 
-            # 9. Add overall bias level (e-) to the amplifier
+            # 9. Gain un-normalize (from e- to floating point ADU)
+            if self.config.doApplyGain:
+                self.applyGain(ampFullData, self.config.gain)
+
+            # 10. Add overall bias level (ADU) to the amplifier
             #    (imaging + overscan)
             if self.config.doAddBias:
                 self.addBiasLevel(ampFullData, self.config.biasLevel)
-
-            # 10. Gain un-normalize (from e- to floating point ADU)
-            if self.config.doApplyGain:
-                self.applyGain(ampFullData, self.config.gain)
 
             # 11. Round/Truncate to integers (ADU)
             if self.config.doRoundADU:
