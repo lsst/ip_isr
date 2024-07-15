@@ -56,6 +56,16 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=True,
         doc="Add 2D bias residual frame to data.",
     )
+    doAddClockInjectedOffset = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add clock-injected offset to data (on-chip bias level).",
+    )
+    clockInjectedOffsetLevel = pexConfig.Field(
+        dtype=float,
+        default=8500.0,
+        doc="Clock-injected offset (on-chip bias level), in electrons.",
+    )
     noise2DBias = pexConfig.Field(
         dtype=float,
         default=2.0,
@@ -253,10 +263,21 @@ class IsrMockLSST(IsrMock):
             # 3. Add serial CTI (e-) to amplifier (imaging + overscan).
             # TODO
 
-            # 4. Add non-linearity (e-) to amplifier (imaging + overscan).
+            # 4. Add clock-injected offset (e-) to amplifier
+            #    (imaging + overscan).
+            # This is just an offset that will be crosstalked and modified by
+            # the gain, and does not have a noise associated with it.
+            if self.config.doAddClockInjectedOffset:
+                self.amplifierAddNoise(
+                    ampFullData,
+                    self.config.clockInjectedOffsetLevel,
+                    0.0,
+                )
+
+            # 5. Add non-linearity (e-) to amplifier (imaging + overscan).
             # TODO
 
-            # 5./6. Add serial and parallel overscan slopes (e-)
+            # 6./7. Add serial and parallel overscan slopes (e-)
             #       (overscan regions).
             if (self.config.doAddParallelOverscanRamp or self.config.doAddSerialOverscanRamp) and \
                not self.config.isTrimmed:
@@ -291,7 +312,7 @@ class IsrMockLSST(IsrMock):
                     self.amplifierAddYGradient(ampFullData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
 
-            # 7. Add read noise (e-) to the amplifier (imaging + overscan).
+            # 8. Add read noise (e-) to the amplifier (imaging + overscan).
             # (Unsure if this should be before or after crosstalk)
             # (Probably some of both)
             # (Probably doesn't matter)
@@ -303,7 +324,7 @@ class IsrMockLSST(IsrMock):
                     rng=rngReadNoise,
                 )
 
-        # 8. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
+        # 9. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
         if self.config.doAddCrosstalk:
             ctCalib = CrosstalkCalib()
             exposureClean = exposure.clone()
@@ -331,16 +352,16 @@ class IsrMockLSST(IsrMock):
             # This is the full data (including pre/overscans if untrimmed).
             ampFullData = exposure.image[bboxFull]
 
-            # 9. Gain un-normalize (from e- to floating point ADU)
+            # 10. Gain un-normalize (from e- to floating point ADU)
             if self.config.doApplyGain:
                 self.applyGain(ampFullData, self.config.gain)
 
-            # 10. Add overall bias level (ADU) to the amplifier
+            # 11. Add overall bias level (ADU) to the amplifier
             #    (imaging + overscan)
             if self.config.doAddBias:
                 self.addBiasLevel(ampFullData, self.config.biasLevel)
 
-            # 11. Round/Truncate to integers (ADU)
+            # 12. Round/Truncate to integers (ADU)
             if self.config.doRoundADU:
                 self.roundADU(ampFullData)
 
@@ -527,6 +548,7 @@ class CalibratedRawMockLSST(RawMockLSST):
         self.config.doAddDark = False
         self.config.doApplyGain = False
         self.config.doAddFlat = False
+        self.config.doAddClockInjectedOffset = False
 
         self.config.biasLevel = 0.0
         # Assume combined calibrations are made with 16 inputs.
@@ -558,6 +580,7 @@ class ReferenceMockLSST(IsrMockLSST):
         self.config.doAddDark = False
         self.config.doApplyGain = False
         self.config.doAddFlat = False
+        self.config.doAddClockInjectedOffset = False
 
         # Reference calibrations are not integerized.
         self.config.doRoundADU = False
