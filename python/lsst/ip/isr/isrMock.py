@@ -86,7 +86,7 @@ class IsrMockConfig(pexConfig.Config):
     gain = pexConfig.Field(
         dtype=float,
         default=1.0,
-        doc="Gain for simulated data in e^-/DN.",
+        doc="Gain for simulated data in e^-/ADU.",
     )
     readNoise = pexConfig.Field(
         dtype=float,
@@ -103,12 +103,14 @@ class IsrMockConfig(pexConfig.Config):
     skyLevel = pexConfig.Field(
         dtype=float,
         default=1000.0,
-        doc="Background contribution to be generated from 'the sky' in DN.",
+        doc="Background contribution to be generated from 'the sky' in "
+            "ADU (IsrTask) or e- (IsrTaskLSST).",
     )
     sourceFlux = pexConfig.ListField(
         dtype=float,
         default=[45000.0],
-        doc="Peak flux level (in DN) of simulated 'astronomical sources'.",
+        doc="Peak flux level of simulated 'astronomical sources' in "
+            "ADU (IsrTask) or e- (IsrTaskLSST).",
     )
     sourceAmp = pexConfig.ListField(
         dtype=int,
@@ -128,12 +130,13 @@ class IsrMockConfig(pexConfig.Config):
     overscanScale = pexConfig.Field(
         dtype=float,
         default=100.0,
-        doc="Amplitude (in DN) of the ramp function to add to overscan data.",
+        doc="Amplitude of the ramp function to add to overscan data in "
+            "ADU (IsrTask) or e- (IsrTaskLSST)",
     )
     biasLevel = pexConfig.Field(
         dtype=float,
         default=8000.0,
-        doc="Background contribution to be generated from the bias offset in DN.",
+        doc="Background contribution to be generated from the bias offset in ADU.",
     )
     darkRate = pexConfig.Field(
         dtype=float,
@@ -153,7 +156,8 @@ class IsrMockConfig(pexConfig.Config):
     fringeScale = pexConfig.ListField(
         dtype=float,
         default=[200.0],
-        doc="Peak fluxes for the components of the fringe ripple in DN.",
+        doc="Peak fluxes for the components of the fringe ripple in "
+            "ADU (IsrTask) or e- (IsrTaskLSST).",
     )
     fringeX0 = pexConfig.ListField(
         dtype=float,
@@ -267,6 +271,8 @@ class IsrMock(pipeBase.Task):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.rng = np.random.RandomState(self.config.rngSeed)
+        # The coefficients have units ADU for IsrTask and have
+        # units e- for IsrTaskLSST.
         self.crosstalkCoeffs = np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -1e-3, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1016,7 +1022,7 @@ class MockDataContainer(object):
     """
     dataId = "isrMock Fake Data"
     darkval = 2.  # e-/sec
-    oscan = 250.  # DN
+    oscan = 250.  # ADU
     gradient = .10
     exptime = 15.0  # seconds
     darkexptime = 15.0  # seconds
@@ -1098,7 +1104,7 @@ class MockFringeContainer(object):
     """
     dataId = "isrMock Fake Data"
     darkval = 2.  # e-/sec
-    oscan = 250.  # DN
+    oscan = 250.  # ADU
     gradient = .10
     exptime = 15  # seconds
     darkexptime = 40.  # seconds
