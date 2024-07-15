@@ -66,12 +66,12 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=False,
         doc="Add only dark current noise, for testing consistency.",
     )
-    doAddParallelOverscan = pexConfig.Field(
+    doAddParallelOverscanRamp = pexConfig.Field(
         dtype=bool,
         default=True,
         doc="Add overscan ramp to parallel overscan and data regions.",
     )
-    doAddSerialOverscan = pexConfig.Field(
+    doAddSerialOverscanRamp = pexConfig.Field(
         dtype=bool,
         default=True,
         doc="Add overscan ramp to serial overscan and data regions.",
@@ -258,7 +258,7 @@ class IsrMockLSST(IsrMock):
 
             # 5./6. Add serial and parallel overscan slopes (e-)
             #       (overscan regions).
-            if (self.config.doAddParallelOverscan or self.config.doAddSerialOverscan) and \
+            if (self.config.doAddParallelOverscanRamp or self.config.doAddSerialOverscanRamp) and \
                not self.config.isTrimmed:
                 parallelOverscanBBox = amp.getRawParallelOverscanBBox()
                 parallelOverscanData = exposure.image[parallelOverscanBBox]
@@ -281,12 +281,12 @@ class IsrMockLSST(IsrMock):
                     rng=rngOverscan,
                 )
 
-                if self.config.doAddParallelOverscan:
+                if self.config.doAddParallelOverscanRamp:
                     # Apply gradient along the X axis.
                     self.amplifierAddXGradient(ampFullData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
 
-                if self.config.doAddSerialOverscan:
+                if self.config.doAddSerialOverscanRamp:
                     # Apply the gradient along the Y axis.
                     self.amplifierAddYGradient(ampFullData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
@@ -486,8 +486,8 @@ class RawMockLSST(IsrMockLSST):
         self.config.doAddFringe = True
 
         # Add instrument effects
-        self.config.doAddParallelOverscan = True
-        self.config.doAddSerialOverscan = True
+        self.config.doAddParallelOverscanRamp = True
+        self.config.doAddSerialOverscanRamp = True
         self.config.doAddCrosstalk = True
         self.config.doAddBias = True
         self.config.doAddDark = True
@@ -501,8 +501,8 @@ class TrimmedRawMockLSST(RawMockLSST):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config.isTrimmed = True
-        self.config.doAddParallelOverscan = False
-        self.config.doAddSerialOverscan = False
+        self.config.doAddParallelOverscanRamp = False
+        self.config.doAddSerialOverscanRamp = False
 
 
 # Question: what is this used for?
@@ -519,8 +519,8 @@ class CalibratedRawMockLSST(RawMockLSST):
 
         self.config.doAddFringe = True
 
-        self.config.doAddParallelOverscan = False
-        self.config.doAddSerialOverscan = False
+        self.config.doAddParallelOverscanRamp = False
+        self.config.doAddSerialOverscanRamp = False
         self.config.doAddCrosstalk = False
         self.config.doAddBias = False
         self.config.doAdd2DBias = False
@@ -550,8 +550,8 @@ class ReferenceMockLSST(IsrMockLSST):
 
         self.config.doAddFringe = False
 
-        self.config.doAddParallelOverscan = False
-        self.config.doAddSerialOverscan = False
+        self.config.doAddParallelOverscanRamp = False
+        self.config.doAddSerialOverscanRamp = False
         self.config.doAddCrosstalk = False
         self.config.doAddBias = False
         self.config.doAdd2DBias = False
