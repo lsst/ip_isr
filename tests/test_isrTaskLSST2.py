@@ -48,7 +48,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.crosstalk.hasCrosstalk = True
         self.crosstalk.coeffs = isrMockLSST.CrosstalkCoeffMockLSST().run()
 
-        self.defect = isrMockLSST.DefectMockLSST().run()
+        self.defects = isrMockLSST.DefectMockLSST().run()
 
         amp_names = [x.getName() for x in self.detector.getAmplifiers()]
         self.ptc = PhotonTransferCurveDataset(amp_names,
@@ -106,17 +106,19 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone())
 
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
         self.assertLess(
-            np.mean(result.exposure.image.array),
-            np.mean(result2.exposure.image.array),
+            np.mean(result.exposure.image.array[good_pixels]),
+            np.mean(result2.exposure.image.array[good_pixels]),
         )
         self.assertLess(
-            np.std(result.exposure.image.array),
-            np.std(result2.exposure.image.array),
+            np.std(result.exposure.image.array[good_pixels]),
+            np.std(result2.exposure.image.array[good_pixels]),
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
-        self.assertFloatsAlmostEqual(delta, self.bias.image.array, atol=1e-5)
+        self.assertFloatsAlmostEqual(delta[good_pixels], self.bias.image.array[good_pixels], atol=1e-5)
 
     def test_isrBootstrapDark(self):
         """Test processing of a ``bootstrap`` dark frame."""
@@ -158,20 +160,26 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone(), bias=self.bias)
 
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
         self.assertLess(
-            np.mean(result.exposure.image.array),
-            np.mean(result2.exposure.image.array),
+            np.mean(result.exposure.image.array[good_pixels]),
+            np.mean(result2.exposure.image.array[good_pixels]),
         )
         # The mock dark has no noise, so these should be equal.
         self.assertFloatsAlmostEqual(
-            np.std(result.exposure.image.array),
-            np.std(result2.exposure.image.array),
+            np.std(result.exposure.image.array[good_pixels]),
+            np.std(result2.exposure.image.array[good_pixels]),
             atol=1e-6,
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
         exp_time = input_exp.getInfo().getVisitInfo().getExposureTime()
-        self.assertFloatsAlmostEqual(delta, self.dark.image.array * exp_time, atol=1e-5)
+        self.assertFloatsAlmostEqual(
+            delta[good_pixels],
+            self.dark.image.array[good_pixels] * exp_time,
+            atol=1e-5,
+        )
 
     def test_isrBootstrapFlat(self):
         """Test processing of a ``bootstrap`` flat frame."""
@@ -214,19 +222,21 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone(), bias=self.bias, dark=self.dark)
 
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
         # Applying the flat will increase the counts.
         self.assertGreater(
-            np.mean(result.exposure.image.array),
-            np.mean(result2.exposure.image.array),
+            np.mean(result.exposure.image.array[good_pixels]),
+            np.mean(result2.exposure.image.array[good_pixels]),
         )
         # And will decrease the sigma.
         self.assertLess(
-            np.std(result.exposure.image.array),
-            np.std(result2.exposure.image.array),
+            np.std(result.exposure.image.array[good_pixels]),
+            np.std(result2.exposure.image.array[good_pixels]),
         )
 
         ratio = result2.exposure.image.array / result.exposure.image.array
-        self.assertFloatsAlmostEqual(ratio, self.flat.image.array, atol=1e-5)
+        self.assertFloatsAlmostEqual(ratio[good_pixels], self.flat.image.array[good_pixels], atol=1e-5)
 
     def test_isrBias(self):
         """Test processing of a bias frame."""
@@ -268,17 +278,19 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone(), crosstalk=self.crosstalk)
 
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
         self.assertLess(
-            np.mean(result.exposure.image.array),
-            np.mean(result2.exposure.image.array),
+            np.mean(result.exposure.image.array[good_pixels]),
+            np.mean(result2.exposure.image.array[good_pixels]),
         )
         self.assertLess(
-            np.std(result.exposure.image.array),
-            np.std(result2.exposure.image.array),
+            np.std(result.exposure.image.array[good_pixels]),
+            np.std(result2.exposure.image.array[good_pixels]),
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
-        self.assertFloatsAlmostEqual(delta, self.bias.image.array, atol=1e-5)
+        self.assertFloatsAlmostEqual(delta[good_pixels], self.bias.image.array[good_pixels], atol=1e-5)
 
     def test_isrDark(self):
         """Test processing of a dark frame."""
@@ -320,20 +332,26 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk)
 
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
         self.assertLess(
-            np.mean(result.exposure.image.array),
-            np.mean(result2.exposure.image.array),
+            np.mean(result.exposure.image.array[good_pixels]),
+            np.mean(result2.exposure.image.array[good_pixels]),
         )
         # The mock dark has no noise, so these should be equal.
         self.assertFloatsAlmostEqual(
-            np.std(result.exposure.image.array),
-            np.std(result2.exposure.image.array),
+            np.std(result.exposure.image.array[good_pixels]),
+            np.std(result2.exposure.image.array[good_pixels]),
             atol=1e-6,
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
         exp_time = input_exp.getInfo().getVisitInfo().getExposureTime()
-        self.assertFloatsAlmostEqual(delta, self.dark.image.array * exp_time, atol=1e-5)
+        self.assertFloatsAlmostEqual(
+            delta[good_pixels],
+            self.dark.image.array[good_pixels] * exp_time,
+            atol=1e-5,
+        )
 
     def test_isrFlat(self):
         """Test processing of a flat frame."""
@@ -361,7 +379,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doLinearize = False
         isr_config.doCorrectGains = False
         isr_config.doCrosstalk = True
-        isr_config.doDefect = False
+        isr_config.doDefect = True
         isr_config.doBrighterFatter = False
         defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
         defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
@@ -376,12 +394,22 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             dark=self.dark,
             flat=self.flat,
             crosstalk=self.crosstalk,
+            defects=self.defects,
         )
 
         # Rerun without doing the bias correction.
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
-        result2 = isr_task2.run(input_exp.clone(), bias=self.bias, dark=self.dark, crosstalk=self.crosstalk)
+        result2 = isr_task2.run(
+            input_exp.clone(),
+            bias=self.bias,
+            dark=self.dark,
+            crosstalk=self.crosstalk,
+            defects=self.defects,
+        )
+
+        # With defect correction, we should not need to filter out bad
+        # pixels.
 
         # Applying the flat will increase the counts.
         self.assertGreater(
@@ -394,8 +422,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             np.std(result2.exposure.image.array),
         )
 
+        # Generate a flat without any defects for comparison
+        # (including interpolation)
+        flat_nodefect_config = isrMockLSST.FlatMockLSST.ConfigClass()
+        flat_nodefect_config.doAddBrightDefects = False
+        flat_nodefects = isrMockLSST.FlatMockLSST(config=flat_nodefect_config).run()
+
         ratio = result2.exposure.image.array / result.exposure.image.array
-        self.assertFloatsAlmostEqual(ratio, self.flat.image.array, atol=1e-5)
+        self.assertFloatsAlmostEqual(ratio, flat_nodefects.image.array, atol=1e-4)
 
     def test_isrSkyImage(self):
         """Test processing of a sky image."""
@@ -421,8 +455,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         isr_config.doFlat = True
         isr_config.doCrosstalk = True
-        # This makes the one region look bad ...
-        isr_config.doDefect = False
+        isr_config.doDefect = True
 
         # These should be set to true when we support them in tests.
         isr_config.doDeferredCharge = False
@@ -443,7 +476,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             dark=self.dark,
             flat=self.flat,
             crosstalk=self.crosstalk,
-            defects=self.defect,
+            defects=self.defects,
             ptc=self.ptc,
         )
 
@@ -462,21 +495,47 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         clean_mock_config.doRoundADU = False
         clean_mock_config.doApplyGain = False
         clean_mock_config.doAddCrosstalk = False
+        clean_mock_config.doAddBrightDefects = False
 
         clean_mock = isrMockLSST.IsrMockLSST(config=clean_mock_config)
         clean_exp = clean_mock.run()
 
         delta = result.exposure.image.array - clean_exp.image.array
 
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
+        # We compare the good pixels in the entirety.
+        self.assertLess(np.std(delta[good_pixels]), 5.0)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+
+        # And overall where the interpolation is a bit worse but
+        # the statistics are still fine.
+        self.assertLess(np.std(delta), 5.1)
+
         # TODO:
-        # * Add a defect bad column, consistently.
         # * Add a saturated set of pixels; check that they are masked
         #   and exclude from comparison.
 
-        # There is noise from the overscan correction, given the
-        # small overscan regions. This can/should be improved.
-        self.assertLess(np.std(delta), 5.0)
-        self.assertLess(np.max(np.abs(delta)), 5.0*5)
+    def get_non_defect_pixels(self, mask_origin):
+        """Get the non-defect pixels to compare.
+
+        Parameters
+        ----------
+        mask_origin : `lsst.afw.image.MaskX`
+            The origin mask (for shape and type).
+
+        Returns
+        -------
+        pix_x, pix_y : `tuple` [`np.ndarray`]
+            x and y values of good pixels.
+        """
+        mask_temp = mask_origin.clone()
+        mask_temp[:, :] = 0
+
+        for defect in self.defects:
+            mask_temp[defect.getBBox()] = 1
+
+        return np.where(mask_temp.array == 0)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
