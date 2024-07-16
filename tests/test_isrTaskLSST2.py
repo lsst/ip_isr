@@ -22,6 +22,7 @@
 
 import unittest
 import numpy as np
+import logging
 
 import lsst.ip.isr.isrMockLSST as isrMockLSST
 import lsst.utils.tests
@@ -77,12 +78,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(input_exp.clone(), bias=self.bias)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(input_exp.clone(), bias=self.bias)
+        self.assertIn("No PTC provided", cm.output[0])
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
         isr_task2 = IsrTaskLSST(config=isr_config)
-        result2 = isr_task2.run(input_exp.clone())
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result2 = isr_task2.run(input_exp.clone())
+        self.assertIn("No PTC provided", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -111,12 +116,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark)
+        self.assertIn("No PTC provided", cm.output[0])
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
-        result2 = isr_task2.run(input_exp.clone(), bias=self.bias)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result2 = isr_task2.run(input_exp.clone(), bias=self.bias)
+        self.assertIn("No PTC provided", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -156,12 +165,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doFlat = True
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, flat=self.flat)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, flat=self.flat)
+        self.assertIn("No PTC provided", cm.output[0])
 
         # Rerun without doing the flat correction.
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
-        result2 = isr_task2.run(input_exp.clone(), bias=self.bias, dark=self.dark)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result2 = isr_task2.run(input_exp.clone(), bias=self.bias, dark=self.dark)
+        self.assertIn("No PTC provided", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -192,12 +205,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk, ptc=self.ptc)
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
         isr_task2 = IsrTaskLSST(config=isr_config)
-        result2 = isr_task2.run(input_exp.clone(), crosstalk=self.crosstalk)
+        with self.assertNoLogs(level=logging.WARNING):
+            result2 = isr_task2.run(input_exp.clone(), crosstalk=self.crosstalk, ptc=self.ptc)
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -209,6 +224,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             np.std(result.exposure.image.array[good_pixels]),
             np.std(result2.exposure.image.array[good_pixels]),
         )
+
+        # Confirm that it is flat with an arbitrary cutoff that depend
+        self.assertLess(np.std(result.exposure.image.array[good_pixels]), 2.0*mock_config.readNoise)
 
         delta = result2.exposure.image.array - result.exposure.image.array
         self.assertFloatsAlmostEqual(delta[good_pixels], self.bias.image.array[good_pixels], atol=1e-5)
@@ -228,12 +246,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, crosstalk=self.crosstalk)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+            )
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
-        result2 = isr_task2.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk)
+        with self.assertNoLogs(level=logging.WARNING):
+            result2 = isr_task2.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk, ptc=self.ptc)
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -245,7 +271,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(
             np.std(result.exposure.image.array[good_pixels]),
             np.std(result2.exposure.image.array[good_pixels]),
-            atol=1e-6,
+        )
+
+        # This is a somewhat arbitrary comparison that includes a fudge
+        # factor for the extra noise from the overscan subtraction.
+        self.assertLess(
+            np.std(result.exposure.image.array[good_pixels]),
+            1.5*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
@@ -276,25 +308,29 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = True
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(
-            input_exp.clone(),
-            bias=self.bias,
-            dark=self.dark,
-            flat=self.flat,
-            crosstalk=self.crosstalk,
-            defects=self.defects,
-        )
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=self.flat,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=self.ptc,
+            )
 
         # Rerun without doing the bias correction.
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
-        result2 = isr_task2.run(
-            input_exp.clone(),
-            bias=self.bias,
-            dark=self.dark,
-            crosstalk=self.crosstalk,
-            defects=self.defects,
-        )
+        with self.assertNoLogs(level=logging.WARNING):
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=self.ptc,
+            )
 
         # With defect correction, we should not need to filter out bad
         # pixels.
@@ -309,6 +345,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             np.std(result.exposure.image.array),
             np.std(result2.exposure.image.array),
         )
+
+        # Check that the resulting image is approximately flat.
+        # In particular that the noise is consistent with sky + margin.
+        self.assertLess(np.std(result.exposure.image.array), np.sqrt(mock_config.skyLevel) + 5.0)
 
         # Generate a flat without any defects for comparison
         # (including interpolation)
@@ -338,15 +378,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doFlat = True
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(
-            input_exp.clone(),
-            bias=self.bias,
-            dark=self.dark,
-            flat=self.flat,
-            crosstalk=self.crosstalk,
-            defects=self.defects,
-            ptc=self.ptc,
-        )
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=self.flat,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=self.ptc,
+            )
 
         clean_mock_config = self.get_mock_config_clean()
         # We want the dark noise for more direct comparison.
@@ -399,15 +440,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
 
         isr_task = IsrTaskLSST(config=isr_config)
-        result = isr_task.run(
-            input_exp.clone(),
-            bias=self.bias,
-            dark=self.dark,
-            flat=self.flat,
-            crosstalk=self.crosstalk,
-            defects=self.defects,
-            ptc=self.ptc,
-        )
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=self.flat,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=self.ptc,
+            )
 
         clean_mock_config = self.get_mock_config_clean()
         # We want the dark noise for more direct comparison.

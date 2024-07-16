@@ -1459,6 +1459,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         nominalPtcUsed = False
         if ptc is None:
+            self.log.warning("No PTC provided; using nominal gain of %.3f.", self.config.nominalGain)
             nominalPtcUsed = True
             ptc = PhotonTransferCurveDataset([amp.getName() for amp in detector], "NOMINAL_PTC", 1)
             for amp in detector:
