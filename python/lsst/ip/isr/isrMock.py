@@ -530,12 +530,17 @@ class IsrMock(pipeBase.Task):
         camera = cameraWrapper.camera
         return camera
 
-    def getExposure(self):
+    def getExposure(self, isTrimmed=None):
         """Construct a test exposure.
 
         The test exposure has a simple WCS set, as well as a list of
         unlikely header keywords that can be removed during ISR
         processing to exercise that code.
+
+        Parameters
+        ----------
+        isTrimmed : `bool` or `None`, optional
+            Override the configuration isTrimmed?
 
         Returns
         -------
@@ -543,10 +548,15 @@ class IsrMock(pipeBase.Task):
             Construct exposure containing masked image of the
             appropriate size.
         """
+        if isTrimmed is None:
+            _isTrimmed = self.config.isTrimmed
+        else:
+            _isTrimmed = isTrimmed
+
         camera = self.getCamera()
         detector = camera[self.config.detectorIndex]
         image = afwUtils.makeImageFromCcd(detector,
-                                          isTrimmed=self.config.isTrimmed,
+                                          isTrimmed=_isTrimmed,
                                           showAmpGain=False,
                                           rcMarkSize=0,
                                           binSize=1,
