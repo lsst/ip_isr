@@ -441,6 +441,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddDark = True
         mock_config.doAddFlat = True
         mock_config.doAddCrosstalk = True
+        mock_config.doAddBrightDefects = True
         # Set this to False until we have fringe correction.
         mock_config.doAddFringe = False
         mock_config.doAddSky = True
@@ -512,9 +513,93 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # the statistics are still fine.
         self.assertLess(np.std(delta), 5.1)
 
-        # TODO:
-        # * Add a saturated set of pixels; check that they are masked
-        #   and exclude from comparison.
+    def test_isrSkyImageSaturated(self):
+        """Test processing of a sky image.
+
+        This variation uses saturated pixels instead of defects.
+        """
+        mock_config = isrMockLSST.IsrMockLSSTConfig()
+        mock_config.isTrimmed = False
+        mock_config.doAddBias = True
+        mock_config.doAdd2DBias = True
+        mock_config.doAddClockInjectedOffset = True
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        mock_config.doAddCrosstalk = True
+        mock_config.doAddBrightDefects = True
+        mock_config.brightDefectLevel = 50000.0  # Above saturation.
+        # Set this to False until we have fringe correction.
+        mock_config.doAddFringe = False
+        mock_config.doAddSky = True
+        mock_config.doAddSource = True
+        mock_config.doGenerateImage = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = IsrTaskLSSTConfig()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = True
+        isr_config.doCrosstalk = True
+        # We turn off defect masking to test the saturation code.
+        # However, the same pixels below should be masked/interpolated.
+        isr_config.doDefect = False
+
+        # These should be set to true when we support them in tests.
+        isr_config.doDeferredCharge = False
+        isr_config.doLinearize = False
+        isr_config.doCorrectGains = False
+        isr_config.doCrosstalk = True
+        isr_config.doBrighterFatter = False
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        result = isr_task.run(
+            input_exp.clone(),
+            bias=self.bias,
+            dark=self.dark,
+            flat=self.flat,
+            crosstalk=self.crosstalk,
+            defects=self.defects,
+            ptc=self.ptc,
+        )
+
+        clean_mock_config = isrMockLSST.IsrMockLSSTConfig()
+        clean_mock_config.isTrimmed = True
+        clean_mock_config.doAddBias = False
+        clean_mock_config.doAdd2DBias = False
+        clean_mock_config.doAddClockInjectedOffset = False
+        clean_mock_config.doAddDark = False
+        clean_mock_config.doAddDarkNoiseOnly = True
+        clean_mock_config.doAddFlat = False
+        clean_mock_config.doAddFringe = False
+        clean_mock_config.doAddSky = True
+        clean_mock_config.doAddSource = True
+        clean_mock_config.doGenerateImage = True
+        clean_mock_config.doRoundADU = False
+        clean_mock_config.doApplyGain = False
+        clean_mock_config.doAddCrosstalk = False
+        clean_mock_config.doAddBrightDefects = False
+
+        clean_mock = isrMockLSST.IsrMockLSST(config=clean_mock_config)
+        clean_exp = clean_mock.run()
+
+        delta = result.exposure.image.array - clean_exp.image.array
+
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
+        # We compare the good pixels in the entirety.
+        self.assertLess(np.std(delta[good_pixels]), 5.0)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+
+        # And overall where the interpolation is a bit worse but
+        # the statistics are still fine.
+        self.assertLess(np.std(delta), 5.1)
 
     def get_non_defect_pixels(self, mask_origin):
         """Get the non-defect pixels to compare.
