@@ -365,6 +365,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertLess(np.std(delta[good_pixels]), 5.0)
         self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
 
+        # Make sure the corrected image is overall consistent with the
+        # straight image.
+        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.0)
+
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
         self.assertLess(np.std(delta), 5.1)
@@ -421,6 +425,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # We compare the good pixels in the entirety.
         self.assertLess(np.std(delta[good_pixels]), 5.0)
         self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+
+        # Make sure the corrected image is overall consistent with the
+        # straight image.
+        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.0)
 
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
