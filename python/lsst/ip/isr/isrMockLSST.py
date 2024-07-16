@@ -28,12 +28,11 @@ import numpy as np
 
 import lsst.geom as geom
 import lsst.pex.config as pexConfig
+import lsst.afw.detection as afwDetection
 from .crosstalk import CrosstalkCalib
 from .isrMock import IsrMockConfig, IsrMock
-
-
-# FIXME: go through the units on this , it should not be so hard.
-# And getting it right is *important* now.
+from .defects import Defects
+from .assembleCcdTask import AssembleCcdTask
 
 
 class IsrMockLSSTConfig(IsrMockConfig):
@@ -55,6 +54,16 @@ class IsrMockLSSTConfig(IsrMockConfig):
         dtype=bool,
         default=True,
         doc="Add 2D bias residual frame to data.",
+    )
+    doAddBrightDefects = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add bright defects (bad column) to data.",
+    )
+    brightDefectLevel = pexConfig.Field(
+        dtype=float,
+        default=30000.0,
+        doc="Bright defect level (electrons).",
     )
     doAddClockInjectedOffset = pexConfig.Field(
         dtype=bool,
@@ -112,6 +121,10 @@ class IsrMockLSSTConfig(IsrMockConfig):
             "C:1,3": 1.70,
         },
     )
+    assembleCcd = pexConfig.ConfigurableField(
+        target=AssembleCcdTask,
+        doc="CCD assembly task; used for defect box conversions.",
+    )
 
     def setDefaults(self):
         super().setDefaults()
@@ -133,6 +146,8 @@ class IsrMockLSST(IsrMock):
     def __init__(self, **kwargs):
         # cross-talk coeffs, bf kernel are defined in the parent class.
         super().__init__(**kwargs)
+
+        self.makeSubtask("assembleCcd")
 
     def run(self):
         """Generate a mock ISR product following LSSTCam ISR, and return it.
@@ -334,7 +349,14 @@ class IsrMockLSST(IsrMock):
                     rng=rngReadNoise,
                 )
 
-        # 9. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
+        # 9. Add bright defect(s).
+        if self.config.doAddBrightDefects:
+            defectList = self.makeDefectList(isTrimmed=self.config.isTrimmed)
+
+            for defect in defectList:
+                exposure.image[defect.getBBox()] = self.config.brightDefectLevel
+
+        # 10. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
         if self.config.doAddCrosstalk:
             ctCalib = CrosstalkCalib()
             exposureClean = exposure.clone()
@@ -362,17 +384,17 @@ class IsrMockLSST(IsrMock):
             # This is the full data (including pre/overscans if untrimmed).
             ampFullData = exposure.image[bboxFull]
 
-            # 10. Gain un-normalize (from e- to floating point ADU)
+            # 11. Gain un-normalize (from e- to floating point ADU)
             if self.config.doApplyGain:
                 gain = self.config.gainDict.get(amp.getName(), self.config.gain)
                 self.applyGain(ampFullData, gain)
 
-            # 11. Add overall bias level (ADU) to the amplifier
+            # 12. Add overall bias level (ADU) to the amplifier
             #    (imaging + overscan)
             if self.config.doAddBias:
                 self.addBiasLevel(ampFullData, self.config.biasLevel)
 
-            # 12. Round/Truncate to integers (ADU)
+            # 13. Round/Truncate to integers (ADU)
             if self.config.doRoundADU:
                 self.roundADU(ampFullData)
 
@@ -396,6 +418,43 @@ class IsrMockLSST(IsrMock):
         """
         ampArr = ampData.array
         ampArr[:] = ampArr[:] + biasLevel
+
+    def makeDefectList(self, isTrimmed=True):
+        """Generate a simple defect list.
+
+        Parameters
+        ----------
+        isTrimmed : `bool`, optional
+            Return defects in trimmed coordinates?
+
+        Returns
+        -------
+        defectList : `lsst.meas.algorithms.Defects`
+            Simulated defect list
+        """
+        defectBoxesUntrimmed = [
+            geom.Box2I(
+                geom.Point2I(50, 118),
+                geom.Extent2I(1, 51),
+            ),
+        ]
+
+        if not isTrimmed:
+            return Defects(defectBoxesUntrimmed)
+
+        # If trimmed, we need to convert.
+        tempExp = self.getExposure(isTrimmed=False)
+        tempExp.image.array[:, :] = 0.0
+        for bbox in defectBoxesUntrimmed:
+            tempExp.image[bbox] = 1.0
+
+        assembledExp = self.assembleCcd.assembleCcd(tempExp)
+
+        # Use thresholding code to find defect footprints/boxes.
+        threshold = afwDetection.createThreshold(1.0, "value", polarity=True)
+        footprintSet = afwDetection.FootprintSet(assembledExp.image, threshold)
+
+        return Defects.fromFootprintList(footprintSet.getFootprints())
 
     def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
         """Multiply an amplifier's image data by a flat-like pattern.
