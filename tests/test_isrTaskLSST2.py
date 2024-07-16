@@ -68,35 +68,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
     def test_isrBootstrapBias(self):
         """Test processing of a ``bootstrap`` bias frame."""
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
-        mock_config.doAddDark = False
-        mock_config.doAddFlat = False
-        mock_config.doAddFringe = False
-        mock_config.doAddSky = False
-        mock_config.doAddSource = False
-        mock_config.doGenerateImage = True
+        mock_config = self.get_mock_config_no_signal()
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_minimal_corrections()
         isr_config.doBias = True
-        isr_config.doDark = False
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = False
-        isr_config.doDefect = False
-        isr_config.doBrighterFatter = False
-        isr_config.doFlat = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias)
@@ -122,40 +100,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
     def test_isrBootstrapDark(self):
         """Test processing of a ``bootstrap`` dark frame."""
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
+        mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
-        mock_config.doAddFlat = False
-        mock_config.doAddFringe = False
-        mock_config.doAddSky = False
-        mock_config.doAddSource = False
-        mock_config.doGenerateImage = True
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_minimal_corrections()
         isr_config.doBias = True
         isr_config.doDark = True
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = False
-        isr_config.doDefect = False
-        isr_config.doBrighterFatter = False
-        isr_config.doFlat = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark)
 
-        # Rerun without doing the bias correction.
+        # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone(), bias=self.bias)
@@ -183,41 +141,24 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
     def test_isrBootstrapFlat(self):
         """Test processing of a ``bootstrap`` flat frame."""
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
+        mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
         mock_config.doAddFlat = True
-        mock_config.doAddFringe = False
         # The doAddSky option adds the equivalent of flat-field flux.
         mock_config.doAddSky = True
-        mock_config.doAddSource = False
-        mock_config.doGenerateImage = True
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_minimal_corrections()
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = False
-        isr_config.doDefect = False
-        isr_config.doBrighterFatter = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, flat=self.flat)
 
-        # Rerun without doing the bias correction.
+        # Rerun without doing the flat correction.
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone(), bias=self.bias, dark=self.dark)
@@ -240,35 +181,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
     def test_isrBias(self):
         """Test processing of a bias frame."""
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
-        mock_config.doAddDark = False
-        mock_config.doAddFlat = False
-        mock_config.doAddFringe = False
-        mock_config.doAddSky = False
-        mock_config.doAddSource = False
-        mock_config.doGenerateImage = True
+        mock_config = self.get_mock_config_no_signal()
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_electronic_corrections()
         isr_config.doBias = True
-        isr_config.doDark = False
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = True
+        # We do not do defect correction when processing biases.
         isr_config.doDefect = False
-        isr_config.doBrighterFatter = False
-        isr_config.doFlat = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk)
@@ -294,40 +215,22 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
     def test_isrDark(self):
         """Test processing of a dark frame."""
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
+        mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
-        mock_config.doAddFlat = False
-        mock_config.doAddFringe = False
-        mock_config.doAddSky = False
-        mock_config.doAddSource = False
-        mock_config.doGenerateImage = True
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_electronic_corrections()
         isr_config.doBias = True
         isr_config.doDark = True
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = True
+        # We do not do defect correction when processing darks.
         isr_config.doDefect = False
-        isr_config.doBrighterFatter = False
-        isr_config.doFlat = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, crosstalk=self.crosstalk)
 
-        # Rerun without doing the bias correction.
+        # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         result2 = isr_task2.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk)
@@ -355,37 +258,22 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
     def test_isrFlat(self):
         """Test processing of a flat frame."""
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
+        mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
         mock_config.doAddFlat = True
-        mock_config.doAddFringe = False
         # The doAddSky option adds the equivalent of flat-field flux.
         mock_config.doAddSky = True
-        mock_config.doAddSource = False
-        mock_config.doGenerateImage = True
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_electronic_corrections()
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
-        # These should be set to true when we support them in tests.
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = True
+        # Although we usually do not do defect interpolation when
+        # processing flats, this is a good test of the interpolation.
         isr_config.doDefect = True
-        isr_config.doBrighterFatter = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(
@@ -433,42 +321,21 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
     def test_isrSkyImage(self):
         """Test processing of a sky image."""
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
-        mock_config.doAddClockInjectedOffset = True
+        mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
         mock_config.doAddFlat = True
-        mock_config.doAddCrosstalk = True
-        mock_config.doAddBrightDefects = True
         # Set this to False until we have fringe correction.
         mock_config.doAddFringe = False
         mock_config.doAddSky = True
         mock_config.doAddSource = True
-        mock_config.doGenerateImage = True
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_electronic_corrections()
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
-        isr_config.doCrosstalk = True
-        isr_config.doDefect = True
-
-        # These should be set to true when we support them in tests.
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = True
-        isr_config.doBrighterFatter = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(
@@ -481,22 +348,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             ptc=self.ptc,
         )
 
-        clean_mock_config = isrMockLSST.IsrMockLSSTConfig()
-        clean_mock_config.isTrimmed = True
-        clean_mock_config.doAddBias = False
-        clean_mock_config.doAdd2DBias = False
-        clean_mock_config.doAddClockInjectedOffset = False
-        clean_mock_config.doAddDark = False
+        clean_mock_config = self.get_mock_config_clean()
+        # We want the dark noise for more direct comparison.
         clean_mock_config.doAddDarkNoiseOnly = True
-        clean_mock_config.doAddFlat = False
-        clean_mock_config.doAddFringe = False
         clean_mock_config.doAddSky = True
         clean_mock_config.doAddSource = True
-        clean_mock_config.doGenerateImage = True
-        clean_mock_config.doRoundADU = False
-        clean_mock_config.doApplyGain = False
-        clean_mock_config.doAddCrosstalk = False
-        clean_mock_config.doAddBrightDefects = False
 
         clean_mock = isrMockLSST.IsrMockLSST(config=clean_mock_config)
         clean_exp = clean_mock.run()
@@ -518,45 +374,25 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         This variation uses saturated pixels instead of defects.
         """
-        mock_config = isrMockLSST.IsrMockLSSTConfig()
-        mock_config.isTrimmed = False
-        mock_config.doAddBias = True
-        mock_config.doAdd2DBias = True
-        mock_config.doAddClockInjectedOffset = True
+        mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
         mock_config.doAddFlat = True
-        mock_config.doAddCrosstalk = True
-        mock_config.doAddBrightDefects = True
-        mock_config.brightDefectLevel = 50000.0  # Above saturation.
         # Set this to False until we have fringe correction.
         mock_config.doAddFringe = False
         mock_config.doAddSky = True
         mock_config.doAddSource = True
-        mock_config.doGenerateImage = True
+        mock_config.brightDefectLevel = 50000.0  # Above saturation.
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
-        isr_config = IsrTaskLSSTConfig()
+        isr_config = self.get_isr_config_electronic_corrections()
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
-        isr_config.doCrosstalk = True
         # We turn off defect masking to test the saturation code.
         # However, the same pixels below should be masked/interpolated.
         isr_config.doDefect = False
-
-        # These should be set to true when we support them in tests.
-        isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
-        isr_config.doCorrectGains = False
-        isr_config.doCrosstalk = True
-        isr_config.doBrighterFatter = False
-        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
-        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
-        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_task = IsrTaskLSST(config=isr_config)
         result = isr_task.run(
@@ -569,22 +405,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             ptc=self.ptc,
         )
 
-        clean_mock_config = isrMockLSST.IsrMockLSSTConfig()
-        clean_mock_config.isTrimmed = True
-        clean_mock_config.doAddBias = False
-        clean_mock_config.doAdd2DBias = False
-        clean_mock_config.doAddClockInjectedOffset = False
-        clean_mock_config.doAddDark = False
+        clean_mock_config = self.get_mock_config_clean()
+        # We want the dark noise for more direct comparison.
         clean_mock_config.doAddDarkNoiseOnly = True
-        clean_mock_config.doAddFlat = False
-        clean_mock_config.doAddFringe = False
         clean_mock_config.doAddSky = True
         clean_mock_config.doAddSource = True
-        clean_mock_config.doGenerateImage = True
-        clean_mock_config.doRoundADU = False
-        clean_mock_config.doApplyGain = False
-        clean_mock_config.doAddCrosstalk = False
-        clean_mock_config.doAddBrightDefects = False
 
         clean_mock = isrMockLSST.IsrMockLSST(config=clean_mock_config)
         clean_exp = clean_mock.run()
@@ -600,6 +425,126 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
         self.assertLess(np.std(delta), 5.1)
+
+    def get_mock_config_no_signal(self):
+        """Get an IsrMockLSSTConfig with all signal set to False.
+
+        This will have all the electronic effects turned on (including
+        2D bias).
+        """
+        mock_config = isrMockLSST.IsrMockLSSTConfig()
+        mock_config.isTrimmed = False
+        mock_config.doAddDark = False
+        mock_config.doAddFlat = False
+        mock_config.doAddFringe = False
+        mock_config.doAddSky = False
+        mock_config.doAddSource = False
+
+        mock_config.doAdd2DBias = True
+        mock_config.doAddBias = True
+        mock_config.doAddCrosstalk = True
+        mock_config.doAddBrightDefects = True
+        mock_config.doAddClockInjectedOffset = True
+        mock_config.doAddParallelOverscanRamp = True
+        mock_config.doAddSerialOverscanRamp = True
+        mock_config.doApplyGain = True
+        mock_config.doRoundADU = True
+        # NOTE: additional electronic effects (BF, CTI, Linearity) should
+        # be added here when they are supported.
+
+        # We always want to generate the image with these configs.
+        mock_config.doGenerateImage = True
+
+        return mock_config
+
+    def get_mock_config_clean(self):
+        """Get an IsrMockLSSTConfig trimmed with all electronic signatures
+        turned off.
+        """
+        mock_config = isrMockLSST.IsrMockLSSTConfig()
+        mock_config.doAddBias = False
+        mock_config.doAdd2DBias = False
+        mock_config.doAddClockInjectedOffset = False
+        mock_config.doAddDark = False
+        mock_config.doAddDarkNoiseOnly = False
+        mock_config.doAddFlat = False
+        mock_config.doAddFringe = False
+        mock_config.doAddSky = False
+        mock_config.doAddSource = False
+        mock_config.doRoundADU = False
+        mock_config.doApplyGain = False
+        mock_config.doAddCrosstalk = False
+        mock_config.doAddBrightDefects = False
+        mock_config.doAddParallelOverscanRamp = False
+        mock_config.doAddSerialOverscanRamp = False
+
+        mock_config.isTrimmed = True
+        mock_config.doGenerateImage = True
+
+        return mock_config
+
+    def get_isr_config_minimal_corrections(self):
+        """Get an IsrTaskLSSTConfig with minimal corrections.
+        """
+        isr_config = IsrTaskLSSTConfig()
+        isr_config.doBias = False
+        isr_config.doDark = False
+        isr_config.doDeferredCharge = False
+        isr_config.doLinearize = False
+        isr_config.doCorrectGains = False
+        isr_config.doCrosstalk = False
+        isr_config.doDefect = False
+        isr_config.doBrighterFatter = False
+        isr_config.doFlat = False
+        # We override the leading/trailing to skip here because of the limited
+        # size of the test camera overscan regions.
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.doSerialOverscan = True
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.doParallelOverscan = True
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+
+        isr_config.doAssembleCcd = True
+
+        return isr_config
+
+    def get_isr_config_electronic_corrections(self):
+        """Get an IsrTaskLSSTConfig with electronic corrections.
+
+        This tests all the corrections that we support in the mocks/ISR.
+        """
+        isr_config = IsrTaskLSSTConfig()
+        # We add these as appropriate in the tests.
+        isr_config.doBias = False
+        isr_config.doDark = False
+        isr_config.doFlat = False
+
+        # These are the electronic effects the tests support (in addition
+        # to overscan).
+        isr_config.doCrosstalk = True
+        isr_config.doDefect = True
+
+        # These are the electronic effects we do not support in tetss yet.
+        isr_config.doDeferredCharge = False
+        isr_config.doLinearize = False
+        isr_config.doCorrectGains = False
+        isr_config.doBrighterFatter = False
+
+        # We override the leading/trailing to skip here because of the limited
+        # size of the test camera overscan regions.
+        defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        defaultAmpConfig.doSerialOverscan = True
+        defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.doParallelOverscan = True
+        defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
+        defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+
+        isr_config.doAssembleCcd = True
+
+        return isr_config
 
     def get_non_defect_pixels(self, mask_origin):
         """Get the non-defect pixels to compare.
