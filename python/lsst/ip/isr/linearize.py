@@ -443,16 +443,16 @@ class Linearizer(IsrCalib):
                                    (ampName, ))
             if amp.getLinearityType() != self.linearityType[ampName]:
                 if self.override:
-                    self.log.warning("Overriding amplifier defined linearityType (%s) for %s",
-                                     self.linearityType[ampName], ampName)
+                    self.log.debug("Overriding amplifier defined linearityType (%s) for %s",
+                                   self.linearityType[ampName], ampName)
                 else:
                     raise RuntimeError("Amplifier %s type %s does not match saved value %s" %
                                        (ampName, amp.getLinearityType(), self.linearityType[ampName]))
             if (amp.getLinearityCoeffs().shape != self.linearityCoeffs[ampName].shape or not
                     np.allclose(amp.getLinearityCoeffs(), self.linearityCoeffs[ampName], equal_nan=True)):
                 if self.override:
-                    self.log.warning("Overriding amplifier defined linearityCoeffs (%s) for %s",
-                                     self.linearityCoeffs[ampName], ampName)
+                    self.log.debug("Overriding amplifier defined linearityCoeffs (%s) for %s",
+                                   self.linearityCoeffs[ampName], ampName)
                 else:
                     raise RuntimeError("Amplifier %s coeffs %s does not match saved value %s" %
                                        (ampName, amp.getLinearityCoeffs(), self.linearityCoeffs[ampName]))
