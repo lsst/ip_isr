@@ -45,9 +45,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.flat = isrMockLSST.FlatMockLSST().run()
         self.bf_kernel = isrMockLSST.BfKernelMockLSST().run()
 
+        # The crosstalk ratios in isrMockLSST are in electrons.
         self.crosstalk = CrosstalkCalib(nAmp=self.namp)
         self.crosstalk.hasCrosstalk = True
         self.crosstalk.coeffs = isrMockLSST.CrosstalkCoeffMockLSST().run()
+        self.crosstalk.crosstalkRatiosUnits = "electron"
 
         self.defects = isrMockLSST.DefectMockLSST().run()
 
@@ -271,13 +273,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(
             np.std(result.exposure.image.array[good_pixels]),
             np.std(result2.exposure.image.array[good_pixels]),
+            atol=1e-6,
         )
 
         # This is a somewhat arbitrary comparison that includes a fudge
         # factor for the extra noise from the overscan subtraction.
         self.assertLess(
             np.std(result.exposure.image.array[good_pixels]),
-            1.5*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
+            1.65*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
@@ -403,16 +406,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
         # We compare the good pixels in the entirety.
-        self.assertLess(np.std(delta[good_pixels]), 5.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+        self.assertLess(np.std(delta[good_pixels]), 6.0)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 6.0*5)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
-        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.0)
+        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.5)
 
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
-        self.assertLess(np.std(delta), 5.1)
+        self.assertLess(np.std(delta), 6.5)
 
     def test_isrSkyImageSaturated(self):
         """Test processing of a sky image.
@@ -465,16 +468,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
         # We compare the good pixels in the entirety.
-        self.assertLess(np.std(delta[good_pixels]), 5.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+        self.assertLess(np.std(delta[good_pixels]), 6.0)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 6.0*5)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
-        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.0)
+        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.5)
 
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
-        self.assertLess(np.std(delta), 5.1)
+        self.assertLess(np.std(delta), 6.5)
 
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
@@ -552,6 +555,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doSerialOverscan = True
         defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.doParallelOverscanCrosstalk = False
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
@@ -588,6 +592,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doSerialOverscan = True
         defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
+        defaultAmpConfig.doParallelOverscanCrosstalk = True
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
