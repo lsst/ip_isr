@@ -35,7 +35,8 @@ import lsst.daf.butler
 from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
-from lsst.ip.isr import IsrCalib
+from .calibType import IsrCalib
+from .isrFunctions import gainContext
 
 
 class CrosstalkCalib(IsrCalib):
@@ -852,11 +853,19 @@ class CrosstalkTask(Task):
     ConfigClass = CrosstalkConfig
     _DefaultName = 'isrCrosstalk'
 
-    def run(self,
-            exposure, crosstalk=None,
-            crosstalkSources=None, isTrimmed=False, camera=None, parallelOverscanRegion=False,
-            detectorConfig=None, fullAmplifier=False, doSqrCrosstalk=None,
-            ):
+    def run(
+        self,
+        exposure,
+        crosstalk=None,
+        crosstalkSources=None,
+        isTrimmed=False,
+        camera=None,
+        parallelOverscanRegion=False,
+        detectorConfig=None,
+        fullAmplifier=False,
+        doSqrCrosstalk=None,
+        gains=None,
+    ):
         """Apply intra-detector crosstalk correction
 
         Parameters
@@ -887,6 +896,9 @@ class CrosstalkTask(Task):
             Use full amplifier and not just imaging region.
         doSqrCrosstalk : `bool` or `None`, optional
             If this is set to False, override the configuration.
+        gains : `dict` [`str`, `float`], optional
+            Dictionary of amp name to gain.  Required if there is a unit
+            mismatch between the exposure and the crosstalk matrix.
 
         Raises
         ------
@@ -920,23 +932,58 @@ class CrosstalkTask(Task):
         if parallelOverscanRegion and crosstalk.interChip:
             raise RuntimeError("Cannot do parallel overscan correction with interChip crosstalk.")
 
+        # Get the exposure units; defaults to adu.
+        exposureUnits = exposure.metadata.get("LSST ISR UNITS", "adu")
+        invertGains = False
+        if crosstalk.crosstalkRatiosUnits != exposureUnits:
+            if gains is None:
+                raise RuntimeError(
+                    f"Unit mismatch between exposure ({exposureUnits}) and "
+                    f"crosstalk ratios ({crosstalk.crosstalkRatiosUnits}) and "
+                    "no gains were supplied.",
+                )
+            gainApply = True
+
+            if crosstalk.crosstalkRatiosUnits == "adu":
+                invertGains = True
+
+            if exposureUnits == "adu":
+                self.log.info("Temporarily applying gains to perform crosstalk correction "
+                              "because crosstalk is in electron units and exposure is in "
+                              "adu units.")
+            else:
+                self.log.info("Temporarily un-applying gains to perform crosstalk correction "
+                              "because crosstalk is in adu units and exposure is in "
+                              "electron units.")
+        else:
+            gainApply = False
+
         if parallelOverscanRegion:
             self.log.info("Applying crosstalk correction to parallel overscan region.")
         else:
             self.log.info("Applying crosstalk correction.")
 
-        crosstalk.subtractCrosstalk(
-            exposure,
-            crosstalkCoeffs=crosstalk.coeffs,
-            crosstalkCoeffsSqr=crosstalkCoeffsSqr,
-            minPixelToMask=self.config.minPixelToMask,
-            crosstalkStr=self.config.crosstalkMaskPlane,
-            isTrimmed=isTrimmed,
-            backgroundMethod=self.config.crosstalkBackgroundMethod,
-            doSqrCrosstalk=_doSqrCrosstalk,
-            fullAmplifier=fullAmplifier,
-            parallelOverscan=parallelOverscanRegion,
-        )
+        with gainContext(
+                exposure,
+                exposure.image,
+                gainApply,
+                gains=gains,
+                invert=invertGains,
+                isTrimmed=isTrimmed,
+        ):
+            crosstalk.subtractCrosstalk(
+                exposure,
+                crosstalkCoeffs=crosstalk.coeffs,
+                # crosstalkCoeffs=coeffs,
+                crosstalkCoeffsSqr=crosstalkCoeffsSqr,
+                minPixelToMask=self.config.minPixelToMask,
+                crosstalkStr=self.config.crosstalkMaskPlane,
+                isTrimmed=isTrimmed,
+                backgroundMethod=self.config.crosstalkBackgroundMethod,
+                doSqrCrosstalk=_doSqrCrosstalk,
+                fullAmplifier=fullAmplifier,
+                parallelOverscan=parallelOverscanRegion,
+            )
 
         if crosstalk.interChip:
             if crosstalkSources:
