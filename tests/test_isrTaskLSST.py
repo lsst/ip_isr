@@ -608,11 +608,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+        # Override the camera model to use 100k saturation (ADU).
+        defaultAmpConfig.saturation = 100_000.0  # ADU
 
         isr_config.doAssembleCcd = True
-
-        # Override the camera model to use 100k saturation (ADU).
-        isr_config.saturation = 100_000.0
 
         return isr_config
 
@@ -648,11 +647,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+        # Override the camera model to use 100k saturation (ADU).
+        defaultAmpConfig.saturation = 100_000.0  # ADU
 
         isr_config.doAssembleCcd = True
-
-        # Override the camera model to use 100k saturation (ADU).
-        isr_config.saturation = 100_000.0  # ADU
 
         return isr_config
 

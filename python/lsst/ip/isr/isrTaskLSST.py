@@ -300,11 +300,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         " To have them interpolated make sure doSaturationInterpolation=True",
         default=True,
     )
-    saturation = pexConfig.Field(
-        dtype=float,
-        doc="The saturation level to use if no Detector is present in the Exposure (ignored if NaN)",
-        default=float("NaN"),
-    )
     saturatedMaskName = pexConfig.Field(
         dtype=str,
         doc="Name of mask plane to use in saturation detection and interpolation.",
@@ -645,7 +640,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return badAmpDict
 
-    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector, ptcGains=None):
+    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector, detectorConfig):
         """
         Mask SATURATED and SUSPECT pixels and check if any amplifiers
         are fully masked.
@@ -662,8 +657,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         defects : `lsst.ip.isr.Defects`
             List of defects.  Used to determine if an entire
             amplifier is bad.
-        ptcGains : `dict`[`str`], optional
-            Dictionary keyed by amp name containing the PTC gains.
+        detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`
+            Per-amplifier configurations.
 
         Returns
         -------
@@ -675,25 +670,25 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         for amp in detector:
             ampName = amp.getName()
 
+            ampConfig = detectorConfig.getOverscanAmpConfig(amp)
+
             if badAmpDict[ampName]:
                 # No need to check fully bad amplifiers.
                 continue
-
-            if ptcGains is not None and ampName in ptcGains:
-                gain = ptcGains[ampName]
-            else:
-                gain = 1.0
 
             # Mask saturated and suspect pixels.
             limits = {}
             if self.config.doSaturation:
                 # Set to the default from the camera model.
-                limits.update({self.config.saturatedMaskName: amp.getSaturation() * gain})
+                limits.update({self.config.saturatedMaskName: amp.getSaturation()})
                 # And update if it is set in the config.
-                if math.isfinite(self.config.saturation):
-                    limits.update({self.config.saturatedMaskName: self.config.saturation})
+                if math.isfinite(ampConfig.saturation):
+                    limits.update({self.config.saturatedMaskName: ampConfig.saturation})
             if self.config.doSuspect:
                 limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
+                # And update if it set in the config.
+                if math.isfinite(ampConfig.suspectLevel):
+                    limits.update({self.config.suspectMaskName: ampConfig.suspectLevel})
 
             for maskName, maskThreshold in limits.items():
                 if not math.isnan(maskThreshold):
@@ -1496,7 +1491,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # The saturation is currently assumed to be recorded in
         # overscan-corrected ADU.
-        badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector)
+        badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector, overscanDetectorConfig)
 
         if self.config.doCorrectGains:
             # TODO: DM-36639
