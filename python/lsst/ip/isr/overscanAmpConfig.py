@@ -39,12 +39,19 @@ class OverscanAmpConfig(pexConfig.Config):
     saturation = pexConfig.Field(
         dtype=float,
         doc="The saturation level to use to override any detector/calibration product value "
-            "(ignored if NaN).",
+            "(ignored if NaN). Units are ADU.",
+        default=float("NaN"),
+    )
+    suspectLevel = pexConfig.Field(
+        dtype=float,
+        doc="The ``suspect`` level to use to override any detector/calibration product value "
+            "(ignored if NaN). Units are ADU.",
         default=float("NaN"),
     )
     gain = pexConfig.Field(
         dtype=float,
-        doc="The gain to use to override any calibration product value (ignored if NaN).",
+        doc="The gain to use to override any calibration product value (ignored if NaN). "
+            "Units are e-/ADU.",
         default=float("NaN"),
     )
 

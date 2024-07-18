@@ -78,6 +78,7 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             parallelFitType="MEDIAN_PER_ROW",
             saturation=float("NaN"),
             gain=float("NaN"),
+            suspectLevel=float("NaN"),
     ):
         self.assertEqual(overscanAmpConfig.doSerialOverscan, doSerialOverscan)
         self.assertEqual(overscanAmpConfig.doParallelOverscanCrosstalk, doParallelOverscanCrosstalk)
@@ -92,6 +93,10 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             self.assertTrue(math.isnan(overscanAmpConfig.gain))
         else:
             self.assertEqual(overscanAmpConfig.gain, gain)
+        if math.isnan(suspectLevel):
+            self.assertTrue(math.isnan(overscanAmpConfig.suspectLevel))
+        else:
+            self.assertEqual(overscanAmpConfig.suspectLevel, suspectLevel)
 
     def _checkAnyOverscanConfig(
             self,
@@ -135,6 +140,7 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             doParallelOverscanCrosstalk=False,
             saturation=100_000.0,
             gain=1.7,
+            suspectLevel=90_000.0,
         )
 
         overscanDetectorConfig = OverscanDetectorConfig(defaultAmpConfig=overscanAmpConfig)
@@ -154,6 +160,7 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
                     doParallelOverscanCrosstalk=False,
                     saturation=100_000.0,
                     gain=1.7,
+                    suspectLevel=90_000.0,
                 )
 
         self._checkAnyOverscanConfig(
