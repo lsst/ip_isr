@@ -235,16 +235,21 @@ class AmpOffsetTask(Task):
             # ensuring that no values are erroneously added/subtracted.
             pedestals = np.nan_to_num(np.linalg.lstsq(A, B, rcond=None)[0])
 
-        metadata = exposure.getMetadata()
+        metadata = exposure.getMetadata()  # Exposure metadata.
+        self.metadata["AMPOFFSET_PEDESTALS"] = {}  # Task metadata.
         for amp, pedestal in zip(amps, pedestals):
             ampIm = exposure.image[amp.getBBox()].array
             ampIm -= pedestal
             ampName = amp.getName()
+            # Add the amp pedestal to the exposure metadata.
             metadata.set(
                 f"LSST ISR AMPOFFSET PEDESTAL {ampName}",
                 float(pedestal),
                 f"Pedestal level subtracted from amp {ampName}",
             )
+            # Add the amp pedestal to the "Task" metadata as well.
+            # Needed for Sasquatch/Chronograf!
+            self.metadata["AMPOFFSET_PEDESTALS"][ampName] = float(pedestal)
         self.log.info(f"amp pedestal values: {', '.join([f'{x:.4f}' for x in pedestals])}")
 
         return Struct(pedestals=pedestals)
