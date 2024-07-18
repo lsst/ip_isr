@@ -1463,6 +1463,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         gains = ptc.gain
 
+        # And check if we have configured gains to override. This is
+        # also a warning, since it should not be typical usage.
+        for amp in detector:
+            if not math.isnan(gain := overscanDetectorConfig.getOverscanAmpConfig(amp).gain):
+                gains[amp.getName()] = gain
+                self.log.warning(
+                    "Overriding gain for amp %s with configured value of %.3f.",
+                    amp.getName(),
+                    gain,
+                )
+
         # Serial overscan correction.
         # Units: ADU
         if overscanDetectorConfig.doAnySerialOverscan:

@@ -20,6 +20,7 @@
 # see <https://www.lsstcorp.org/LegalNotices/>.
 #
 
+import copy
 import unittest
 import numpy as np
 import logging
@@ -456,6 +457,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         """Test processing of a sky image.
 
         This variation uses saturated pixels instead of defects.
+
+        This additionally tests the gain config override.
         """
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
@@ -477,8 +480,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # However, the same pixels below should be masked/interpolated.
         isr_config.doDefect = False
 
+        # This code will set the gain of one amp to the same as the ptc
+        # value, and we will check that it is logged and used but the
+        # results should be the same.
+        detectorConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector)
+        overscanAmpConfig = copy.copy(detectorConfig.defaultAmpConfig)
+        overscanAmpConfig.gain = self.ptc.gain[self.detector[1].getName()]
+        detectorConfig.ampRules[self.detector[1].getName()] = overscanAmpConfig
+
         isr_task = IsrTaskLSST(config=isr_config)
-        with self.assertNoLogs(level=logging.WARNING):
+        with self.assertLogs(level=logging.WARNING) as cm:
             result = isr_task.run(
                 input_exp.clone(),
                 bias=self.bias,
@@ -489,6 +500,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 ptc=self.ptc,
                 linearizer=self.linearizer,
             )
+        self.assertIn("Overriding gain", cm.output[0])
 
         # Confirm that the output has the defect line as saturated.
         sat_val = 2**result.exposure.mask.getMaskPlane("SAT")
