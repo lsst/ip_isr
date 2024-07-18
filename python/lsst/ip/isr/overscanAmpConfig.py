@@ -81,6 +81,17 @@ class OverscanDetectorConfig(pexConfig.Config):
         dtype=OverscanAmpConfig,
         doc="Default configuration for amplifiers.",
     )
+    integerDitherMode = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Dithering mode to cancel integerization of counts.",
+        default="SYMMETRIC",
+        allowed={
+            "POSITIVE": "Dithering is done with a uniform random in the range [0, 1).",
+            "NEGATIVE": "Dithering is done with a uniform random in the range [-1, 0).",
+            "SYMMETRIC": "Dithering is done with a uniform random in the range [-0.5, 0.5).",
+            "NONE": "No dithering is performed.",
+        },
+    )
 
     @property
     def doAnySerialOverscan(self):
