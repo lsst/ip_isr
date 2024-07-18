@@ -851,16 +851,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return overscans
 
-    def getLinearizer(self, detector):
-        # Here we assume linearizer as dict or LUT are not supported
-        # TODO DM 28741
-
-        # TODO construct isrcalib input
-        linearizer = linearize.Linearizer(detector=detector, log=self.log)
-        self.log.warning("Constructing linearizer from cameraGeom information.")
-
-        return linearizer
-
     def correctGains(self, exposure, ptc, gains):
         # TODO DM 36639
         gains = []
@@ -1568,8 +1558,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Units: electrons
         if self.config.doLinearize:
             self.log.info("Applying linearizer.")
-            linearizer = self.getLinearizer(detector=detector)
-            linearizer.applyLinearity(image=ccdExposure.image, detector=detector, log=self.log)
+            linearizer.applyLinearity(image=ccdExposure.image, detector=detector, log=self.log, gains=gains)
 
         # Serial CTI (deferred charge)
         # FIXME: watch out for gain units; cti code may need update
