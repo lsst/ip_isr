@@ -36,6 +36,17 @@ class OverscanAmpConfig(pexConfig.Config):
         dtype=ParallelOverscanCorrectionTaskConfig,
         doc="Parallel overscan configuration.",
     )
+    saturation = pexConfig.Field(
+        dtype=float,
+        doc="The saturation level to use to override any detector/calibration product value "
+            "(ignored if NaN).",
+        default=float("NaN"),
+    )
+    gain = pexConfig.Field(
+        dtype=float,
+        doc="The gain to use to override any calibration product value (ignored if NaN).",
+        default=float("NaN"),
+    )
 
     def setDefaults(self):
         super().setDefaults()

@@ -21,6 +21,7 @@
 #
 
 import copy
+import math
 import tempfile
 import unittest
 
@@ -75,12 +76,22 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             doParallelOverscan=True,
             serialFitType="MEDIAN_PER_ROW",
             parallelFitType="MEDIAN_PER_ROW",
+            saturation=float("NaN"),
+            gain=float("NaN"),
     ):
         self.assertEqual(overscanAmpConfig.doSerialOverscan, doSerialOverscan)
         self.assertEqual(overscanAmpConfig.doParallelOverscanCrosstalk, doParallelOverscanCrosstalk)
         self.assertEqual(overscanAmpConfig.doParallelOverscan, doParallelOverscan)
         self.assertEqual(overscanAmpConfig.serialOverscanConfig.fitType, serialFitType)
         self.assertEqual(overscanAmpConfig.parallelOverscanConfig.fitType, parallelFitType)
+        if math.isnan(saturation):
+            self.assertTrue(math.isnan(overscanAmpConfig.saturation))
+        else:
+            self.assertEqual(overscanAmpConfig.saturation, saturation)
+        if math.isnan(gain):
+            self.assertTrue(math.isnan(overscanAmpConfig.gain))
+        else:
+            self.assertEqual(overscanAmpConfig.gain, gain)
 
     def _checkAnyOverscanConfig(
             self,
@@ -122,6 +133,8 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             doSerialOverscan=False,
             doParallelOverscan=False,
             doParallelOverscanCrosstalk=False,
+            saturation=100_000.0,
+            gain=1.7,
         )
 
         overscanDetectorConfig = OverscanDetectorConfig(defaultAmpConfig=overscanAmpConfig)
@@ -139,6 +152,8 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
                     doSerialOverscan=False,
                     doParallelOverscan=False,
                     doParallelOverscanCrosstalk=False,
+                    saturation=100_000.0,
+                    gain=1.7,
                 )
 
         self._checkAnyOverscanConfig(
