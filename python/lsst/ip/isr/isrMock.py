@@ -234,6 +234,11 @@ class IsrMockConfig(pexConfig.Config):
         default=False,
         doc="Return the matrix of crosstalk coefficients.",
     )
+    doLinearizer = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Return linearizer dataset.",
+    )
     doDataRef = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -337,16 +342,19 @@ class IsrMock(pipeBase.Task):
         if sum(map(bool, [self.config.doBrighterFatter,
                           self.config.doDefects,
                           self.config.doTransmissionCurve,
-                          self.config.doCrosstalkCoeffs])) != 1:
+                          self.config.doCrosstalkCoeffs,
+                          self.config.doLinearizer])) != 1:
             raise RuntimeError("Only one data product can be generated at a time.")
-        elif self.config.doBrighterFatter is True:
+        elif self.config.doBrighterFatter:
             return self.makeBfKernel()
-        elif self.config.doDefects is True:
+        elif self.config.doDefects:
             return self.makeDefectList()
-        elif self.config.doTransmissionCurve is True:
+        elif self.config.doTransmissionCurve:
             return self.makeTransmissionCurve()
-        elif self.config.doCrosstalkCoeffs is True:
+        elif self.config.doCrosstalkCoeffs:
             return self.crosstalkCoeffs
+        elif self.config.doLinearizer:
+            return self.makeLinearizer()
         else:
             return None
 
@@ -392,6 +400,15 @@ class IsrMock(pipeBase.Task):
         """
 
         return afwImage.TransmissionCurve.makeIdentity()
+
+    def makeLinearity(self):
+        """Generate a linearity dataset.
+
+        Returns
+        -------
+        linearizer : `lsst.ip.isr.Linearizer`
+        """
+        raise NotImplementedError("Linearizer not implemented for isrMock.")
 
     def makeImage(self):
         """Generate a simulated ISR image.
