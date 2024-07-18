@@ -66,8 +66,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # TODO:
         # self.cti = isrMockLSST.DeferredChargeMockLSST().run()
 
-        # TODO:
-        # self.linearizer = ???
+        self.linearizer = isrMockLSST.LinearizerMockLSST().run()
+        # We currently only have high-signal non-linearity.
+        mock_config = self.get_mock_config_no_signal()
+        for amp_name in amp_names:
+            coeffs = self.linearizer.linearityCoeffs[amp_name]
+            centers, values = np.split(coeffs, 2)
+            values[centers < mock_config.highSignalNonlinearityThreshold] = 0.0
+            self.linearizer.linearityCoeffs[amp_name] = np.concatenate((centers, values))
 
     def test_isrBootstrapBias(self):
         """Test processing of a ``bootstrap`` bias frame."""
@@ -208,13 +214,24 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result = isr_task.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk, ptc=self.ptc)
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+            )
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone(), crosstalk=self.crosstalk, ptc=self.ptc)
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+            )
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -255,13 +272,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 dark=self.dark,
                 crosstalk=self.crosstalk,
                 ptc=self.ptc,
+                linearizer=self.linearizer,
             )
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone(), bias=self.bias, crosstalk=self.crosstalk, ptc=self.ptc)
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                bias=self.bias,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+            )
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -320,6 +344,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
+                linearizer=self.linearizer,
             )
 
         # Rerun without doing the bias correction.
@@ -333,6 +358,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
+                linearizer=self.linearizer,
             )
 
         # With defect correction, we should not need to filter out bad
@@ -390,6 +416,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
+                linearizer=self.linearizer,
+            )
+
+        # Confirm that the output has the defect line as bad.
+        sat_val = 2**result.exposure.mask.getMaskPlane("BAD")
+        for defect in self.defects:
+            np.testing.assert_array_equal(
+                result.exposure.mask[defect.getBBox()].array & sat_val,
+                sat_val,
             )
 
         clean_mock_config = self.get_mock_config_clean()
@@ -429,7 +464,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddFringe = False
         mock_config.doAddSky = True
         mock_config.doAddSource = True
-        mock_config.brightDefectLevel = 50000.0  # Above saturation.
+        mock_config.brightDefectLevel = 170_000.0  # Above saturation.
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
@@ -452,6 +487,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
+                linearizer=self.linearizer,
+            )
+
+        # Confirm that the output has the defect line as saturated.
+        sat_val = 2**result.exposure.mask.getMaskPlane("SAT")
+        for defect in self.defects:
+            np.testing.assert_array_equal(
+                result.exposure.mask[defect.getBBox()].array & sat_val,
+                sat_val,
             )
 
         clean_mock_config = self.get_mock_config_clean()
@@ -465,7 +509,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         delta = result.exposure.image.array - clean_exp.image.array
 
-        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+        bad_val = 2**result.exposure.mask.getMaskPlane("BAD")
+        good_pixels = np.where((result.exposure.mask.array & (sat_val | bad_val)) == 0)
 
         # We compare the good pixels in the entirety.
         self.assertLess(np.std(delta[good_pixels]), 6.0)
@@ -476,8 +521,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertLess(np.abs(np.median(delta[good_pixels])), 1.5)
 
         # And overall where the interpolation is a bit worse but
-        # the statistics are still fine.
-        self.assertLess(np.std(delta), 6.5)
+        # the statistics are still fine.  Note that this is worse than
+        # the defect case because of the widening of the saturation
+        # trail.
+        self.assertLess(np.std(delta), 7.5)
 
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
@@ -500,6 +547,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddClockInjectedOffset = True
         mock_config.doAddParallelOverscanRamp = True
         mock_config.doAddSerialOverscanRamp = True
+        mock_config.doAddHighSignalNonlinearity = True
         mock_config.doApplyGain = True
         mock_config.doRoundADU = True
         # NOTE: additional electronic effects (BF, CTI, Linearity) should
@@ -525,6 +573,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddSky = False
         mock_config.doAddSource = False
         mock_config.doRoundADU = False
+        mock_config.doAddHighSignalNonlinearity = False
         mock_config.doApplyGain = False
         mock_config.doAddCrosstalk = False
         mock_config.doAddBrightDefects = False
@@ -562,6 +611,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         isr_config.doAssembleCcd = True
 
+        # Override the camera model to use 100k saturation (ADU).
+        isr_config.saturation = 100_000.0
+
         return isr_config
 
     def get_isr_config_electronic_corrections(self):
@@ -579,10 +631,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # to overscan).
         isr_config.doCrosstalk = True
         isr_config.doDefect = True
+        isr_config.doLinearize = True
 
         # These are the electronic effects we do not support in tetss yet.
         isr_config.doDeferredCharge = False
-        isr_config.doLinearize = False
         isr_config.doCorrectGains = False
         isr_config.doBrighterFatter = False
 
@@ -598,6 +650,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
 
         isr_config.doAssembleCcd = True
+
+        # Override the camera model to use 100k saturation (ADU).
+        isr_config.saturation = 100_000.0  # ADU
 
         return isr_config
 
