@@ -24,15 +24,18 @@ __all__ = ["IsrMockLSSTConfig", "IsrMockLSST", "RawMockLSST",
            "BiasMockLSST", "DarkMockLSST", "FlatMockLSST", "FringeMockLSST",
            "BfKernelMockLSST", "DefectMockLSST", "CrosstalkCoeffMockLSST",
            "TransmissionMockLSST"]
+
 import numpy as np
 
 import lsst.geom as geom
 import lsst.pex.config as pexConfig
 import lsst.afw.detection as afwDetection
+import lsst.afw.math as afwMath
 from .crosstalk import CrosstalkCalib
 from .isrMock import IsrMockConfig, IsrMock
 from .defects import Defects
 from .assembleCcdTask import AssembleCcdTask
+from .linearize import Linearizer
 
 
 class IsrMockLSSTConfig(IsrMockConfig):
@@ -94,6 +97,16 @@ class IsrMockLSSTConfig(IsrMockConfig):
         dtype=bool,
         default=True,
         doc="Add overscan ramp to serial overscan and data regions.",
+    )
+    doAddHighSignalNonlinearity = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add high signal non-linearity to overscan and data regions?",
+    )
+    highSignalNonlinearityThreshold = pexConfig.Field(
+        dtype=float,
+        default=40_000.,
+        doc="Threshold (in ADU) for the non-linearity to be considered ``high signal``.",
     )
     doApplyGain = pexConfig.Field(
         dtype=bool,
@@ -197,6 +210,10 @@ class IsrMockLSST(IsrMock):
         rngOverscan = np.random.RandomState(seed=self.config.rngSeed + 4)
         rngReadNoise = np.random.RandomState(seed=self.config.rngSeed + 5)
 
+        # Create the linearizer if we will need it.
+        if self.config.doAddHighSignalNonlinearity:
+            linearizer = LinearizerMockLSST().run()
+
         # We introduce effects as they happen from a source to the signal,
         # so the effects go from electrons to ADU.
         # The ISR steps will then correct these effects in the reverse order.
@@ -299,33 +316,10 @@ class IsrMockLSST(IsrMock):
                     0.0,
                 )
 
-            # 5. Add non-linearity (e-) to amplifier (imaging + overscan).
-            # TODO
-
-            # 6./7. Add serial and parallel overscan slopes (e-)
-            #       (overscan regions).
+            # 5./6. Add serial and parallel overscan slopes (e-)
+            #       (imaging + overscan)
             if (self.config.doAddParallelOverscanRamp or self.config.doAddSerialOverscanRamp) and \
                not self.config.isTrimmed:
-                parallelOverscanBBox = amp.getRawParallelOverscanBBox()
-                parallelOverscanData = exposure.image[parallelOverscanBBox]
-
-                serialOverscanBBox = self.getFullSerialOverscanBBox(amp)
-                serialOverscanData = exposure.image[serialOverscanBBox]
-
-                # Add read noise of mean 0
-                # to the parallel and serial overscan regions.
-                self.amplifierAddNoise(
-                    parallelOverscanData,
-                    0.0,
-                    self.config.readNoise,
-                    rng=rngOverscan,
-                )
-                self.amplifierAddNoise(
-                    serialOverscanData,
-                    0.0,
-                    self.config.readNoise,
-                    rng=rngOverscan,
-                )
 
                 if self.config.doAddParallelOverscanRamp:
                     # Apply gradient along the X axis.
@@ -337,17 +331,64 @@ class IsrMockLSST(IsrMock):
                     self.amplifierAddYGradient(ampFullData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
 
+            # 7. Add non-linearity (e-) to amplifier (imaging + overscan).
+            if self.config.doAddHighSignalNonlinearity:
+                if linearizer.linearityType[amp.getName()] != "Spline":
+                    raise RuntimeError("IsrMockLSST only supports spline non-linearity.")
+
+                coeffs = linearizer.linearityCoeffs[amp.getName()]
+                centers, values = np.split(coeffs, 2)
+
+                # This is an application of high signal non-linearity, so we
+                # set the lower values to 0.0 (this cut is arbitrary).
+                values[centers < self.config.highSignalNonlinearityThreshold] = 0.0
+
+                # The linearizer is units of ADU, so convert to e-
+                values *= self.config.gainDict[amp.getName()]
+
+                # Note that the linearity spline is in "overscan subtracted" units
+                # so needs to be applied without the clock-injected offset.
+                self.amplifierAddNonlinearity(
+                    ampFullData,
+                    centers,
+                    values,
+                    self.config.clockInjectedOffsetLevel if self.config.doAddClockInjectedOffset else 0.0,
+                )
+
             # 8. Add read noise (e-) to the amplifier (imaging + overscan).
-            # (Unsure if this should be before or after crosstalk)
-            # (Probably some of both)
-            # (Probably doesn't matter)
+            #    Unsure if this should be before or after crosstalk.
+            #    Probably some of both; hopefully doesn't matter.
             if not self.config.calibMode:
+                # Add read noise to the imaging region.
                 self.amplifierAddNoise(
                     ampImageData,
                     0.0,
                     self.config.readNoise,
                     rng=rngReadNoise,
                 )
+
+                # If not trimmed, add to the overscan regions.
+                if not self.config.isTrimmed:
+                    parallelOverscanBBox = amp.getRawParallelOverscanBBox()
+                    parallelOverscanData = exposure.image[parallelOverscanBBox]
+
+                    serialOverscanBBox = self.getFullSerialOverscanBBox(amp)
+                    serialOverscanData = exposure.image[serialOverscanBBox]
+
+                    # Add read noise of mean 0
+                    # to the parallel and serial overscan regions.
+                    self.amplifierAddNoise(
+                        parallelOverscanData,
+                        0.0,
+                        self.config.readNoise,
+                        rng=rngOverscan,
+                    )
+                    self.amplifierAddNoise(
+                        serialOverscanData,
+                        0.0,
+                        self.config.readNoise,
+                        rng=rngOverscan,
+                    )
 
         # 9. Add bright defect(s).
         if self.config.doAddBrightDefects:
@@ -455,6 +496,67 @@ class IsrMockLSST(IsrMock):
         footprintSet = afwDetection.FootprintSet(assembledExp.image, threshold)
 
         return Defects.fromFootprintList(footprintSet.getFootprints())
+
+    def makeLinearizer(self):
+        # docstring inherited.
+
+        # The linearizer has units of ADU.
+        nNodes = 10
+        # Set this to just above the mock saturation (ADU)
+        maxADU = 101_000
+        nonLinSplineNodes = np.linspace(0, maxADU, nNodes)
+        nonLinSplineValues = np.array(
+            [0.0, -8.87, 1.46, 1.69, -6.92, -68.23, -78.01, -11.56, 80.26, 185.01]
+        )
+
+        exp = self.getExposure()
+        detector = exp.getDetector()
+
+        linearizer = Linearizer(detector=detector)
+        linearizer.updateMetadataFromExposures([exp])
+
+        # We need to set override by hand because we are constructing a linearizer
+        # manually and not from a serialized object.
+        linearizer.override = True
+        linearizer.hasLinearity = True
+        linearizer.validate()
+        linearizer.updateMetadata(camera=self.getCamera(), detector=detector, filterName='NONE')
+        linearizer.updateMetadata(setDate=True, setCalibId=True)
+
+        for amp in detector:
+            ampName = amp.getName()
+            linearizer.linearityType[ampName] = "Spline"
+            linearizer.linearityCoeffs[ampName] = np.concatenate([nonLinSplineNodes, nonLinSplineValues])
+            # We need to specify the raw bbox here.
+            linearizer.linearityBBox[ampName] = amp.getRawBBox()
+
+        return linearizer
+
+    def amplifierAddNonlinearity(self, ampData, centers, values, offset):
+        """Add non-linearity to amplifier data.
+
+        Parameters
+        ----------
+        ampData : `lsst.afw.image.ImageF`
+            Amplifier image to operate on.
+        centers : `np.ndarray`
+            Spline nodes.
+        values : `np.ndarray`
+            Spline values.
+        offset : `float`
+            Offset zero-point between linearizer (internal vs external).
+        """
+        # I'm not sure what to do about negative values...
+
+        spl = afwMath.makeInterpolate(
+            centers,
+            values,
+            afwMath.stringToInterpStyle("AKIMA_SPLINE"),
+        )
+
+        delta = np.asarray(spl.interpolate(ampData.array.ravel() - offset))
+
+        ampData.array[:, :] += delta.reshape(ampData.array.shape)
 
     def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
         """Multiply an amplifier's image data by a flat-like pattern.
@@ -711,6 +813,7 @@ class BfKernelMockLSST(IsrMockLSST):
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
+        self.config.doLinearizer = False
 
 
 class DefectMockLSST(IsrMockLSST):
@@ -725,6 +828,7 @@ class DefectMockLSST(IsrMockLSST):
         self.config.doDefects = True
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
+        self.config.doLinearizer = False
 
 
 class CrosstalkCoeffMockLSST(IsrMockLSST):
@@ -739,6 +843,22 @@ class CrosstalkCoeffMockLSST(IsrMockLSST):
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = True
         self.config.doTransmissionCurve = False
+        self.config.doLinearizer = False
+
+
+class LinearizerMockLSST(IsrMockLSST):
+    """Simulated linearizer.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doGenerateImage = False
+        self.config.doGenerateData = True
+
+        self.config.doBrighterFatter = False
+        self.config.doDefects = False
+        self.config.doCrosstalkCoeffs = False
+        self.config.doTransmissionCurve = False
+        self.config.doLinearizer = True
 
 
 class TransmissionMockLSST(IsrMockLSST):
@@ -753,3 +873,4 @@ class TransmissionMockLSST(IsrMockLSST):
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = True
+        self.config.doLinearizer = False
