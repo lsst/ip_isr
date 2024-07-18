@@ -346,8 +346,9 @@ class IsrMockLSST(IsrMock):
                 # The linearizer is units of ADU, so convert to e-
                 values *= self.config.gainDict[amp.getName()]
 
-                # Note that the linearity spline is in "overscan subtracted" units
-                # so needs to be applied without the clock-injected offset.
+                # Note that the linearity spline is in "overscan subtracted"
+                # units so needs to be applied without the clock-injected
+                # offset.
                 self.amplifierAddNonlinearity(
                     ampFullData,
                     centers,
@@ -515,8 +516,8 @@ class IsrMockLSST(IsrMock):
         linearizer = Linearizer(detector=detector)
         linearizer.updateMetadataFromExposures([exp])
 
-        # We need to set override by hand because we are constructing a linearizer
-        # manually and not from a serialized object.
+        # We need to set override by hand because we are constructing a
+        # linearizer manually and not from a serialized object.
         linearizer.override = True
         linearizer.hasLinearity = True
         linearizer.validate()

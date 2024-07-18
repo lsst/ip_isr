@@ -5,7 +5,6 @@ import math
 
 from . import isrFunctions
 from . import isrQa
-from . import linearize
 from .defects import Defects
 
 from contextlib import contextmanager
