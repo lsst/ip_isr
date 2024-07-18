@@ -297,14 +297,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(
             np.std(result.exposure.image.array[good_pixels]),
             np.std(result2.exposure.image.array[good_pixels]),
-            atol=1e-6,
+            atol=1e-12,
         )
 
         # This is a somewhat arbitrary comparison that includes a fudge
         # factor for the extra noise from the overscan subtraction.
         self.assertLess(
             np.std(result.exposure.image.array[good_pixels]),
-            1.65*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
+            1.5*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
@@ -312,7 +312,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(
             delta[good_pixels],
             self.dark.image.array[good_pixels] * exp_time,
-            atol=1e-5,
+            atol=1e-12,
         )
 
     def test_isrFlat(self):
@@ -377,7 +377,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # Check that the resulting image is approximately flat.
         # In particular that the noise is consistent with sky + margin.
-        self.assertLess(np.std(result.exposure.image.array), np.sqrt(mock_config.skyLevel) + 5.0)
+        self.assertLess(np.std(result.exposure.image.array), np.sqrt(mock_config.skyLevel) + 3.0)
 
         # Generate a flat without any defects for comparison
         # (including interpolation)
@@ -441,16 +441,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
         # We compare the good pixels in the entirety.
-        self.assertLess(np.std(delta[good_pixels]), 6.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 6.0*5)
+        self.assertLess(np.std(delta[good_pixels]), 5.0)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
-        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.5)
+        self.assertLess(np.abs(np.median(delta[good_pixels])), 0.5)
 
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
-        self.assertLess(np.std(delta), 6.5)
+        self.assertLess(np.std(delta), 5.5)
 
     def test_isrSkyImageSaturated(self):
         """Test processing of a sky image.
@@ -513,18 +513,18 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         good_pixels = np.where((result.exposure.mask.array & (sat_val | bad_val)) == 0)
 
         # We compare the good pixels in the entirety.
-        self.assertLess(np.std(delta[good_pixels]), 6.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 6.0*5)
+        self.assertLess(np.std(delta[good_pixels]), 5.0)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
-        self.assertLess(np.abs(np.median(delta[good_pixels])), 1.5)
+        self.assertLess(np.abs(np.median(delta[good_pixels])), 0.5)
 
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.  Note that this is worse than
         # the defect case because of the widening of the saturation
         # trail.
-        self.assertLess(np.std(delta), 7.5)
+        self.assertLess(np.std(delta), 7.0)
 
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
