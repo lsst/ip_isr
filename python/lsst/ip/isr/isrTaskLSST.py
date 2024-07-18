@@ -1282,24 +1282,28 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return newexposure
 
-    def ditherCounts(self, exposure, seed=None):
+    def ditherCounts(self, exposure, fallbackSeed=12345):
         """Dither the counts in the exposure.
 
         Parameters
         ----------
         exposure : `lsst.afw.image.Exposure`
-           The raw exposure to be dithered.
+            The raw exposure to be dithered.
+        fallbackSeed : `int`, optional
+            Random seed to fall back to if exposure.getInfo().getId() is
+            not set.
         """
         if self.config.integerDitherMode == "NONE":
             # Nothing to do here.
             return
 
-        # FIXME: we need a seed that combines some exposure
-        # metadata with detector.
-        # Need to ask.
+        # This ID is a unique combination of {exposure, detector} for a raw
+        # image as we have here.
         seed = exposure.getInfo().getId()
         if seed is None:
-            seed = 12345
+            seed = fallbackSeed
+            self.log.warning("No exposure ID found; using fallback random seed %d.", fallbackSeed)
+
         rng = numpy.random.RandomState(seed=seed)
 
         if self.config.integerDitherMode == "POSITIVE":
