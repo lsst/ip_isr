@@ -550,7 +550,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddHighSignalNonlinearity = True
         mock_config.doApplyGain = True
         mock_config.doRoundADU = True
-        # NOTE: additional electronic effects (BF, CTI, Linearity) should
+        # NOTE: additional electronic effects (BF, CTI) should
         # be added here when they are supported.
 
         # We always want to generate the image with these configs.
