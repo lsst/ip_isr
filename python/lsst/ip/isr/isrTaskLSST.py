@@ -1169,16 +1169,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         --------
         lsst.ip.isr.isrFunctions.darkCorrection
         """
-        expScale = exposure.getInfo().getVisitInfo().getDarkTime()
+        expScale = exposure.visitInfo.darkTime
         if math.isnan(expScale):
             raise RuntimeError("Exposure darktime is NAN.")
-        if darkExposure.getInfo().getVisitInfo() is not None \
-                and not math.isnan(darkExposure.getInfo().getVisitInfo().getDarkTime()):
-            darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()
+        if darkExposure.visitInfo is not None \
+                and not math.isnan(darkExposure.visitInfo.darkTime):
+            darkScale = darkExposure.visitInfo.darkTime
         else:
-            # DM-17444: darkExposure.getInfo.getVisitInfo() is None
-            #           so getDarkTime() does not exist.
-            self.log.warning("darkExposure.getInfo().getVisitInfo() does not exist. Using darkScale = 1.0.")
+            # DM-17444: darkExposure.visitInfo is None
+            #           so darkTime does not exist.
+            self.log.warning("darkExposure.visitInfo does not exist. Using darkScale = 1.0.")
             darkScale = 1.0
 
         isrFunctions.darkCorrection(
@@ -1298,7 +1298,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # This ID is a unique combination of {exposure, detector} for a raw
         # image as we have here.
-        seed = exposure.getInfo().getId()
+        seed = exposure.info.id
         if seed is None:
             seed = fallbackSeed
             self.log.warning("No exposure ID found; using fallback random seed %d.", fallbackSeed)
