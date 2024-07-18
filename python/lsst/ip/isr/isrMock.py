@@ -590,6 +590,8 @@ class IsrMock(pipeBase.Task):
 
         visitInfo = afwImage.VisitInfo(exposureTime=self.config.expTime, darkTime=self.config.darkTime)
         exposure.getInfo().setVisitInfo(visitInfo)
+        # Set a dummy ID.
+        exposure.getInfo().setId(12345)
 
         metadata = exposure.getMetadata()
         metadata.add("SHEEP", 7.3, "number of sheep on farm")
