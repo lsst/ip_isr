@@ -1509,36 +1509,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # overscan-corrected ADU.
         badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector)
 
-        # Parallel overscan crosstalk correction.
-        # Units: ADU
-        if overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
-            # We supply the gains to the crosstalk task to allow for adu to be
-            # corrected with an electron matrix.
-            self.crosstalk.run(
-                ccdExposure,
-                crosstalk=crosstalk,
-                camera=camera,
-                parallelOverscanRegion=True,
-                detectorConfig=overscanDetectorConfig,
-                doSqrCrosstalk=False,
-                gains=gains,
-            )
-
-        # Parallel overscan correction.
-        # Units: ADU
-        if overscanDetectorConfig.doAnyParallelOverscan:
-            # At the moment we do not use the return values from this task.
-            _ = self.overscanCorrection(
-                "PARALLEL",
-                overscanDetectorConfig,
-                detector,
-                badAmpDict,
-                ccdExposure,
-            )
-
         if self.config.doCorrectGains:
-            # TODO DM 36639
-            # This requires the PTC (?) with the temperature dependence.
+            # TODO: DM-36639
+            # This requires the PTC (tbd) with the temperature dependence.
             self.log.info("Apply temperature dependence to the gains.")
             gains, readNoise = self.correctGains(ccdExposure, ptc, gains)
 
@@ -1551,14 +1524,31 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # The units are now electrons.
             exposureMetadata["LSST ISR UNITS"] = "electron"
 
-        # Do crosstalk correction in the imaging region.
+        # Do crosstalk correction in the full region.
         # Units: electrons
         if self.config.doCrosstalk:
-            self.log.info("Applying crosstalk corrections.")
-            self.crosstalk.run(ccdExposure, crosstalk=crosstalk, isTrimmed=False, gains=gains)
+            self.log.info("Applying crosstalk corrections to full amplifier region.")
+            self.crosstalk.run(
+                ccdExposure,
+                crosstalk=crosstalk,
+                isTrimmed=False,
+                gains=gains,
+                fullAmplifier=True,
+            )
+
+        # Parallel overscan correction.
+        # Units: electrons
+        if overscanDetectorConfig.doAnyParallelOverscan:
+            # At the moment we do not use the return values from this task.
+            _ = self.overscanCorrection(
+                "PARALLEL",
+                overscanDetectorConfig,
+                detector,
+                badAmpDict,
+                ccdExposure,
+            )
 
         # Linearity correction
-        # FIXME: watch those units here; linearity code may need update.
         # Units: electrons
         if self.config.doLinearize:
             self.log.info("Applying linearizer.")
