@@ -252,9 +252,7 @@ class IsrMockLSST(IsrMock):
                                                                    self.config.sourceX,
                                                                    self.config.sourceY):
                     if idx == sourceAmp:
-                        # The source flux is in electrons,
-                        # but the sourceFlux is configured in ADU (*** NOT NOW)
-                        # TODO: DM-42880 to set configs to correct units
+                        # The source flux is in electrons.
                         self.amplifierAddSource(ampImageData, sourceFlux, sourceX, sourceY)
 
             if self.config.doAddFringe:
