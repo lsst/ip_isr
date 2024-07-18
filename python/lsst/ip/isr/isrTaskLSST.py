@@ -210,18 +210,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=False,
     )
 
-    integerDitherMode = pexConfig.ChoiceField(
-        dtype=str,
-        doc="Dithering mode to cancel integerization of counts.",
-        default="SYMMETRIC",
-        allowed={
-            "POSITIVE": "Dithering is done with a uniform random in the range [0, 1).",
-            "NEGATIVE": "Dithering is done with a uniform random in the range [-1, 0).",
-            "SYMMETRIC": "Dithering is done with a uniform random in the range [-0.5, 0.5).",
-            "NONE": "No dithering is performed.",
-        },
-    )
-
     nominalGain = pexConfig.Field(
         dtype=float,
         default=1.7,
@@ -1281,18 +1269,20 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return newexposure
 
-    def ditherCounts(self, exposure, fallbackSeed=12345):
+    def ditherCounts(self, exposure, detectorConfig, fallbackSeed=12345):
         """Dither the counts in the exposure.
 
         Parameters
         ----------
         exposure : `lsst.afw.image.Exposure`
             The raw exposure to be dithered.
+        detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`
+            Configuration for overscan/etc for this detector.
         fallbackSeed : `int`, optional
             Random seed to fall back to if exposure.getInfo().getId() is
             not set.
         """
-        if self.config.integerDitherMode == "NONE":
+        if detectorConfig.integerDitherMode == "NONE":
             # Nothing to do here.
             return
 
@@ -1305,13 +1295,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         rng = numpy.random.RandomState(seed=seed)
 
-        if self.config.integerDitherMode == "POSITIVE":
+        if detectorConfig.integerDitherMode == "POSITIVE":
             low = 0.0
             high = 1.0
-        elif self.config.integerDitherMode == "NEGATIVE":
+        elif detectorConfig.integerDitherMode == "NEGATIVE":
             low = -1.0
             high = 0.0
-        elif self.config.integerDitherMode == "SYMMETRIC":
+        elif detectorConfig.integerDitherMode == "SYMMETRIC":
             low = -0.5
             high = 0.5
         else:
@@ -1465,7 +1455,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Dither the integer counts.
         # Input units: integerized ADU
         # Output units: floating-point ADU
-        self.ditherCounts(ccdExposure)
+        self.ditherCounts(ccdExposure, overscanDetectorConfig)
 
         nominalPtcUsed = False
         if ptc is None:
