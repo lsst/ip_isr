@@ -974,7 +974,6 @@ class CrosstalkTask(Task):
             crosstalk.subtractCrosstalk(
                 exposure,
                 crosstalkCoeffs=crosstalk.coeffs,
-                # crosstalkCoeffs=coeffs,
                 crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                 minPixelToMask=self.config.minPixelToMask,
                 crosstalkStr=self.config.crosstalkMaskPlane,
