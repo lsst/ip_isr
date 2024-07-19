@@ -480,6 +480,13 @@ class Linearizer(IsrCalib):
 
         self.validate(detector)
 
+        isTrimmed = None
+        if detector:
+            if detector.getBBox() == image.getBBox():
+                isTrimmed = True
+            else:
+                isTrimmed = False
+
         numAmps = 0
         numLinearized = 0
         numOutOfRange = 0
@@ -487,7 +494,15 @@ class Linearizer(IsrCalib):
             linearizer = self.getLinearityTypeByName(self.linearityType[ampName])
             numAmps += 1
             if linearizer is not None:
-                ampView = image.Factory(image, self.linearityBBox[ampName])
+                match isTrimmed:
+                    case True:
+                        bbox = detector[ampName].getBBox()
+                    case False:
+                        bbox = detector[ampName].getRawBBox()
+                    case None:
+                        bbox = self.linearityBBox[ampName]
+
+                ampView = image.Factory(image, bbox)
                 success, outOfRange = linearizer()(ampView, **{'coeffs': self.linearityCoeffs[ampName],
                                                                'table': self.tableData,
                                                                'log': self.log})
