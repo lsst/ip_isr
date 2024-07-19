@@ -112,6 +112,21 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         delta = result2.exposure.image.array - result.exposure.image.array
         self.assertFloatsAlmostEqual(delta[good_pixels], self.bias.image.array[good_pixels], atol=1e-5)
 
+        metadata = result.exposure.metadata
+
+        key = "LSST ISR NOMINAL PTC USED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], True)
+
+        key = "LSST ISR UNITS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], "electron")
+
+        for amp in self.detector:
+            key = f"LSST ISR GAIN {amp.getName()}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], isr_config.nominalGain)
+
     def test_isrBootstrapDark(self):
         """Test processing of a ``bootstrap`` dark frame."""
         mock_config = self.get_mock_config_no_signal()
@@ -452,6 +467,21 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
         self.assertLess(np.std(delta), 5.5)
+
+        metadata = result.exposure.metadata
+
+        key = "LSST ISR NOMINAL PTC USED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], False)
+
+        key = "LSST ISR UNITS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], "electron")
+
+        for amp in self.detector:
+            key = f"LSST ISR GAIN {amp.getName()}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], self.ptc.gain[amp.getName()])
 
     def test_isrSkyImageSaturated(self):
         """Test processing of a sky image.

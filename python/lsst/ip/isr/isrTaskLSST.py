@@ -544,7 +544,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         if self.config.doHeaderProvenance:
             # Add calibration provenanace info to header.
-            exposureMetadata = inputs['ccdExposure'].getMetadata()
+            exposureMetadata = inputs['ccdExposure'].metadata
             for inputName in sorted(list(inputs.keys())):
                 reference = getattr(inputRefs, inputName, None)
                 if reference is not None and hasattr(reference, "run"):
@@ -816,7 +816,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         )
                         results = parallelOverscan.run(ccdExposure, amp)
 
-                    metadata = ccdExposure.getMetadata()
+                    metadata = ccdExposure.metadata
                     keyBase = "LSST ISR OVERSCAN"
                     metadata[f"{keyBase} {mode} MEAN {ampName}"] = results.overscanMean
                     metadata[f"{keyBase} {mode} MEDIAN {ampName}"] = results.overscanMedian
@@ -829,7 +829,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             overscans.append(results)
 
         # Question: should this be finer grained?
-        ccdExposure.getMetadata().set("OVERSCAN", "Overscan corrected")
+        ccdExposure.metadata.set("OVERSCAN", "Overscan corrected")
 
         return overscans
 
@@ -876,7 +876,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Get read noise from PTC
         readNoise = ptcDataset.noise[amp.getName()]
 
-        metadata = ampExposure.getMetadata()
+        metadata = ampExposure.metadata
         metadata[f'LSST GAIN {amp.getName()}'] = gain
         metadata[f'LSST READNOISE {amp.getName()}'] = readNoise
 
@@ -1188,12 +1188,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             Calibration creation date string to add to header.
         """
         if hasattr(calib, "getMetadata"):
-            if 'CALIB_CREATION_DATE' in calib.getMetadata():
-                return " ".join((calib.getMetadata().get("CALIB_CREATION_DATE", "Unknown"),
-                                 calib.getMetadata().get("CALIB_CREATION_TIME", "Unknown")))
+            if 'CALIB_CREATION_DATE' in calib.metadata:
+                return " ".join((calib.metadata.get("CALIB_CREATION_DATE", "Unknown"),
+                                 calib.metadata.get("CALIB_CREATION_TIME", "Unknown")))
             else:
-                return " ".join((calib.getMetadata().get("CALIB_CREATE_DATE", "Unknown"),
-                                 calib.getMetadata().get("CALIB_CREATE_TIME", "Unknown")))
+                return " ".join((calib.metadata.get("CALIB_CREATE_DATE", "Unknown"),
+                                 calib.metadata.get("CALIB_CREATE_TIME", "Unknown")))
         else:
             return "Unknown Unknown"
 
@@ -1210,7 +1210,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             Calib type for log message.
         """
         try:
-            calibMetadata = calib.getMetadata()
+            calibMetadata = calib.metadata
         except AttributeError:
             return
         for keyword in self.config.cameraKeywordsToCompare:
@@ -1385,7 +1385,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
 
         # Validation step: check inputs match exposure configuration.
-        exposureMetadata = ccdExposure.getMetadata()
+        exposureMetadata = ccdExposure.metadata
         if ptc is not None:
             self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
 
@@ -1461,6 +1461,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ptc.gain[amp.getName()] = self.config.nominalGain
                 ptc.noise[amp.getName()] = 0.0
 
+        metadata = ccdExposure.metadata
+        metadata["LSST ISR NOMINAL PTC USED"] = nominalPtcUsed
+
         gains = ptc.gain
 
         # And check if we have configured gains to override. This is
@@ -1519,16 +1522,23 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # The units are now electrons.
             exposureMetadata["LSST ISR UNITS"] = "electron"
 
+            # Record the gains in the header.
+            metadata = ccdExposure.metadata
+            for amp in detector:
+                metadata[f"LSST ISR GAIN {amp.getName()}"] = gains[amp.getName()]
+
         # Do crosstalk correction in the full region.
         # Units: electrons
         if self.config.doCrosstalk:
             self.log.info("Applying crosstalk corrections to full amplifier region.")
+            doSqrCrosstalk = False if nominalPtcUsed else None
             self.crosstalk.run(
                 ccdExposure,
                 crosstalk=crosstalk,
                 isTrimmed=False,
                 gains=gains,
                 fullAmplifier=True,
+                doSqrCrosstalk=doSqrCrosstalk,
             )
 
         # Parallel overscan correction.
@@ -1643,7 +1653,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
-            metadata = ccdExposure.getMetadata()
+            metadata = ccdExposure.metadata
             for amp in detector:
                 ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
                 ampName = amp.getName()
