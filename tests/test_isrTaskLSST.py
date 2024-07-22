@@ -59,10 +59,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                                               ptcFitType='DUMMY_PTC',
                                               covMatrixSide=1)
 
-        # TODO: check units of ptc noise
+        # PTC records noise units in adu.
         for amp_name in amp_names:
             self.ptc.gain[amp_name] = mock.config.gainDict.get(amp_name, mock.config.gain)
-            self.ptc.noise[amp_name] = mock.config.readNoise * mock.config.gain
+            self.ptc.noise[amp_name] = mock.config.readNoise * self.ptc.gain[amp_name]
 
         # TODO:
         # self.cti = isrMockLSST.DeferredChargeMockLSST().run()
@@ -481,7 +481,30 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         for amp in self.detector:
             key = f"LSST GAIN {amp.getName()}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], self.ptc.gain[amp.getName()])
+            self.assertEqual(metadata[key], gain := self.ptc.gain[amp.getName()])
+            key = f"LSST READNOISE {amp.getName()}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], gain * self.ptc.noise[amp.getName()])
+
+        # Test the variance plane in the case of electron units.
+        # The expected variance stars with the image array.
+        expected_variance = result.exposure.image.clone()
+        # We have to remove the flat-fielding from the image pixels.
+        expected_variance.array *= self.flat.image.array
+        # And add the read noise (in electrons) per amp.
+        for amp in self.detector:
+            gain = self.ptc.gain[amp.getName()]
+            read_noise = self.ptc.noise[amp.getName()]
+
+            expected_variance[amp.getBBox()].array += (gain * read_noise)**2.
+        # And apply the flat-field squared.
+        expected_variance.array /= self.flat.image.array**2.
+
+        self.assertFloatsAlmostEqual(
+            result.exposure.variance.array[good_pixels],
+            expected_variance.array[good_pixels],
+            rtol=1e-6,
+        )
 
     def test_isrSkyImageSaturated(self):
         """Test processing of a sky image.
