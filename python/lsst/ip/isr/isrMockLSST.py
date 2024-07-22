@@ -138,11 +138,6 @@ class IsrMockLSSTConfig(IsrMockConfig):
         target=AssembleCcdTask,
         doc="CCD assembly task; used for defect box conversions.",
     )
-    calibrationUnits = pexConfig.Field(
-        dtype=str,
-        default="electron",
-        doc="Units to report for calibration image.",
-    )
 
     def setDefaults(self):
         super().setDefaults()
@@ -445,7 +440,10 @@ class IsrMockLSST(IsrMock):
 
         # Add units metadata to calibrations.
         if self.config.calibMode:
-            exposure.metadata["LSST ISR UNITS"] = self.config.calibrationUnits
+            if self.config.doApplyGain:
+                exposure.metadata["LSST ISR UNITS"] = "adu"
+            else:
+                exposure.metadata["LSST ISR UNITS"] = "electron"
 
         if self.config.doGenerateAmpDict:
             expDict = dict()
@@ -741,6 +739,10 @@ class ReferenceMockLSST(IsrMockLSST):
     """Parent class for those that make reference calibrations.
     """
     def __init__(self, **kwargs):
+        # If we want the calibration in ADU units, we need to apply
+        # the gain. Default is e- units, so do not apply the gain.
+        doApplyGain = kwargs.pop("adu", False)
+
         super().__init__(**kwargs)
         self.config.isTrimmed = True
         self.config.doGenerateImage = True
@@ -758,7 +760,7 @@ class ReferenceMockLSST(IsrMockLSST):
         self.config.doAddBias = False
         self.config.doAdd2DBias = False
         self.config.doAddDark = False
-        self.config.doApplyGain = False
+        self.config.doApplyGain = doApplyGain
         self.config.doAddFlat = False
         self.config.doAddClockInjectedOffset = False
 
@@ -781,15 +783,8 @@ class BiasMockLSST(ReferenceMockLSST):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # We assume a perfect noiseless bias frame.
-        # A combined bias has mean 0
-        # so we set its bias level to 0.
-        # This is equivalent to doAddBias = False
-        # but we do the following instead to be consistent
-        # with any other bias products we might want to produce.
-        self.config.doAddBias = True
-        self.config.biasLevel = 0.0
-        self.config.doApplyGain = True
+        # This is a "2D bias residual" frame which has only
+        # the 2D bias in it.
         self.config.doAdd2DBias = True
 
 
