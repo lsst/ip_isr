@@ -513,13 +513,14 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     def validate(self):
         super().validate()
 
-        if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
+        # if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
             # DM-41912: Implement doApplyGains in LSST IsrTask
             # if self.doApplyGains !=
             #      self.isrStats.doApplyGainsForCtiStatistics:
-            raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
-        if self.ampOffset.doApplyAmpOffset and not self.doAmpOffset:
-            raise ValueError("ampOffset.doApplyAmpOffset requires doAmpOffset to be True.")
+        #     raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
+
+        if self.doCorrectGains and not self.doApplyGains:
+            raise ValueError("If doCorrectGains is True then doApplyGains must also be be True.")
 
     def setDefaults(self):
         super().setDefaults()
