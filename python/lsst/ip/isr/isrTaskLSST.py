@@ -514,10 +514,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         super().validate()
 
         # if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
-            # DM-41912: Implement doApplyGains in LSST IsrTask
-            # if self.doApplyGains !=
-            #      self.isrStats.doApplyGainsForCtiStatistics:
-        #     raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
+        # DM-41912: Implement doApplyGains in LSST IsrTask
+        # if self.doApplyGains !=
+        #      self.isrStats.doApplyGainsForCtiStatistics:
+        #     raise ValueError("doApplyGains must match
+        # isrStats.applyGainForCtiStatistics.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -900,7 +901,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bad = numpy.where(exposure.getVariance().getArray() <= 0.0)
         exposure.mask.array[bad] |= maskPlane
 
-    def variancePlane(self, ccdExposure, ccd, ptc):
+    def addVariancePlane(self, ccdExposure, ccd, ptc):
         for amp in ccd:
             if ccdExposure.getBBox().contains(amp.getBBox()):
                 self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
@@ -1228,7 +1229,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
     def compareUnits(self, calibMetadata, calibName):
         """Compare units from calibration to ISR units.
 
-        This compares calibration units (adu or electron) to whether doApplyGain is set.
+        This compares calibration units (adu or electron) to whether
+        doApplyGain is set.
 
         Parameters
         ----------
@@ -1596,7 +1598,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doLinearize:
             self.log.info("Applying linearizer.")
             # The linearizer is in units of ADU.
-            # If our units are electrons, then pass in the gains for conversion.
+            # If our units are electrons, then pass in the gains
+            # for conversion.
             if exposureMetadata["LSST ISR UNITS"] == "electron":
                 linearityGains = gains
             else:
@@ -1668,7 +1671,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Variance plane creation
         # Units: electrons
         if self.config.doVariance:
-            self.variancePlane(ccdExposure, detector, ptc)
+            self.addVariancePlane(ccdExposure, detector, ptc)
 
         # Flat-fielding
         # This may move elsewhere.
