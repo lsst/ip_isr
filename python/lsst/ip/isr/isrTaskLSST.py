@@ -839,52 +839,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return gains, readNoise
 
-    def updateVariance(self, ampExposure, amp, ptcDataset):
-        """Set the variance plane using the gain and read noise.
-
-        Parameters
-        ----------
-        ampExposure : `lsst.afw.image.Exposure`
-            Exposure to process.
-        amp : `lsst.afw.cameraGeom.Amplifier` or `FakeAmp`
-            Amplifier detector data.
-        ptcDataset : `lsst.ip.isr.PhotonTransferCurveDataset`
-            PTC dataset containing the gains and read noise.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if ptcDataset is not provided.
-
-        See also
-        --------
-        lsst.ip.isr.isrFunctions.updateVariance
-        """
-        # Get gains from PTC
-        gain = ptcDataset.gain[amp.getName()]
-
-        if math.isnan(gain):
-            gain = 1.0
-            self.log.warning("Gain set to NAN!  Updating to 1.0 to generate Poisson variance.")
-        elif gain <= 0:
-            patchedGain = 1.0
-            self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
-                             amp.getName(), gain, patchedGain)
-            gain = patchedGain
-
-        # Get read noise from PTC
-        readNoise = ptcDataset.noise[amp.getName()]
-
-        metadata = ampExposure.metadata
-        metadata[f'LSST GAIN {amp.getName()}'] = gain
-        metadata[f'LSST READNOISE {amp.getName()}'] = readNoise
-
-        isrFunctions.updateVariance(
-            maskedImage=ampExposure.getMaskedImage(),
-            gain=gain,
-            readNoise=readNoise,
-        )
-
     def maskNegativeVariance(self, exposure):
         """Identify and mask pixels with negative variance values.
 
@@ -901,13 +855,43 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bad = numpy.where(exposure.getVariance().getArray() <= 0.0)
         exposure.mask.array[bad] |= maskPlane
 
-    def addVariancePlane(self, ccdExposure, ccd, ptc):
-        for amp in ccd:
-            if ccdExposure.getBBox().contains(amp.getBBox()):
-                self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
-                ampExposure = ccdExposure.Factory(ccdExposure, amp.getBBox())
+    def addVariancePlane(self, exposure, detector):
+        """Add the variance plane to the image.
 
-                self.updateVariance(ampExposure, amp, ptc)
+        The gain and read noise per amp must have been set in the
+        exposure metadata as ``LSST GAIN ampName`` and
+        ``LSST READNOISE ampName`` with the units of the image.
+        Unit conversions for the variance plane will be done as
+        necessary based on the exposure units.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            The exposure to add the variance plane.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector with geometry info.
+        """
+        # NOTE: this will fail if the exposure is not trimmed.
+        # I am not sure if this is something we need to check for
+        # (or how to do it efficiently).
+
+        isElectrons = (exposure.metadata["LSST ISR UNITS"] == "electron")
+
+        for amp in detector:
+            if exposure.getBBox().contains(amp.getBBox()):
+                self.log.debug("Constructing variance map for amplifer %s.", amp.getName())
+                ampExposure = exposure.Factory(exposure, amp.getBBox())
+
+                # The effective gain is 1.0 if we are in electron units.
+                # The metadata read noise is in the same units as the image.
+                gain = exposure.metadata[f"LSST GAIN {amp.getName()}"] if not isElectrons else 1.0
+                readNoise = exposure.metadata[f"LSST READNOISE {amp.getName()}"]
+
+                isrFunctions.updateVariance(
+                    maskedImage=ampExposure.maskedImage,
+                    gain=gain,
+                    readNoise=readNoise,
+                )
 
                 if self.config.qa is not None and self.config.qa.saveStats is True:
                     qaStats = afwMath.makeStatistics(ampExposure.getVariance(),
@@ -916,7 +900,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                    qaStats.getValue(afwMath.STDEVCLIP))
         if self.config.maskNegativeVariance:
-            self.maskNegativeVariance(ccdExposure)
+            self.maskNegativeVariance(exposure)
 
     def maskDefects(self, exposure, defectBaseList):
         """Mask defects using mask plane "BAD", in place.
@@ -1671,7 +1655,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Variance plane creation
         # Units: electrons
         if self.config.doVariance:
-            self.addVariancePlane(ccdExposure, detector, ptc)
+            self.addVariancePlane(ccdExposure, detector)
 
         # Flat-fielding
         # This may move elsewhere.
