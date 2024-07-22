@@ -935,6 +935,7 @@ class CrosstalkTask(Task):
         # Get the exposure units; defaults to adu.
         exposureUnits = exposure.metadata.get("LSST ISR UNITS", "adu")
         invertGains = False
+        gainApply = False
         if crosstalk.crosstalkRatiosUnits != exposureUnits:
             if gains is None:
                 raise RuntimeError(
@@ -955,8 +956,6 @@ class CrosstalkTask(Task):
                 self.log.info("Temporarily un-applying gains to perform crosstalk correction "
                               "because crosstalk is in adu units and exposure is in "
                               "electron units.")
-        else:
-            gainApply = False
 
         if parallelOverscanRegion:
             self.log.info("Applying crosstalk correction to parallel overscan region.")

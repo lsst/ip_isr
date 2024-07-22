@@ -123,7 +123,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(metadata[key], "electron")
 
         for amp in self.detector:
-            key = f"LSST ISR GAIN {amp.getName()}"
+            key = f"LSST GAIN {amp.getName()}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], isr_config.nominalGain)
 
@@ -479,7 +479,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(metadata[key], "electron")
 
         for amp in self.detector:
-            key = f"LSST ISR GAIN {amp.getName()}"
+            key = f"LSST GAIN {amp.getName()}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.ptc.gain[amp.getName()])
 

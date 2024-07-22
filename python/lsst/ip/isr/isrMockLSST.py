@@ -138,6 +138,11 @@ class IsrMockLSSTConfig(IsrMockConfig):
         target=AssembleCcdTask,
         doc="CCD assembly task; used for defect box conversions.",
     )
+    calibrationUnits = pexConfig.Field(
+        dtype=str,
+        default="electron",
+        doc="Units to report for calibration image.",
+    )
 
     def setDefaults(self):
         super().setDefaults()
@@ -437,6 +442,10 @@ class IsrMockLSST(IsrMock):
             # 13. Round/Truncate to integers (ADU)
             if self.config.doRoundADU:
                 self.roundADU(ampFullData)
+
+        # Add units metadata to calibrations.
+        if self.config.calibMode:
+            exposure.metadata["LSST ISR UNITS"] = self.config.calibrationUnits
 
         if self.config.doGenerateAmpDict:
             expDict = dict()

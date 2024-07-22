@@ -1200,7 +1200,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         Parameters
         ----------
-        exposureMetadata : `lsst.daf.base.PropertySet`
+        exposureMetadata : `lsst.daf.base.PropertyList`
             Header for the exposure being processed.
         calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
             Calibration to be applied.
@@ -1224,6 +1224,36 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                          exposureMetadata[keyword], calibMetadata[keyword])
             else:
                 self.log.debug("Sequencer keyword %s not found.", keyword)
+
+    def compareUnits(self, calibMetadata, calibName):
+        """Compare units from calibration to ISR units.
+
+        This compares calibration units (adu or electron) to whether doApplyGain is set.
+
+        Parameters
+        ----------
+        calibMetadata : `lsst.daf.base.PropertyList`
+            Calibration metadata from header.
+        calibName : `str`
+            Calibration name for log message.
+        """
+        calibUnits = calibMetadata.get("LSST ISR UNITS", "adu")
+        isrUnits = "electron" if self.config.doApplyGains else "adu"
+        if calibUnits != isrUnits:
+            if self.config.doRaiseOnCalibMismatch:
+                raise RuntimeError(
+                    "Unit mismatch: isr has %s units but %s has %s units",
+                    isrUnits,
+                    calibName,
+                    calibUnits,
+                )
+            else:
+                self.log.warning(
+                    "Unit mismatch: isr has %s units but %s has %s units",
+                    isrUnits,
+                    calibName,
+                    calibUnits,
+                )
 
     def convertIntToFloat(self, exposure):
         """Convert exposure image from uint16 to float.
@@ -1401,6 +1431,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if bias is None:
                 raise RuntimeError("doBias is True but no bias provided.")
             self.compareCameraKeywords(exposureMetadata, bias, "bias")
+            self.compareUnits(bias.metadata, "bias")
         if self.config.doCrosstalk or overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
             if crosstalk is None:
                 raise RuntimeError("doCrosstalk is True but no crosstalk provided.")
@@ -1417,6 +1448,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if dark is None:
                 raise RuntimeError("doDark is True but no dark frame provided.")
             self.compareCameraKeywords(exposureMetadata, dark, "dark")
+            self.compareUnits(bias.metadata, "dark")
         if self.config.doBrighterFatter:
             if bfKernel is None:
                 raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
@@ -1461,8 +1493,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ptc.gain[amp.getName()] = self.config.nominalGain
                 ptc.noise[amp.getName()] = 0.0
 
-        metadata = ccdExposure.metadata
-        metadata["LSST ISR NOMINAL PTC USED"] = nominalPtcUsed
+        exposureMetadata["LSST ISR NOMINAL PTC USED"] = nominalPtcUsed
 
         gains = ptc.gain
 
@@ -1490,7 +1521,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             if nominalPtcUsed:
                 # Get the empirical read noise
-                # Log this; also put in metadata.
                 for amp, serialOverscan in zip(detector, serialOverscans):
                     if serialOverscan is None:
                         ptc.noise[amp.getName()] = 0.0
@@ -1525,13 +1555,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Record gain and read noise in header.
         metadata = ccdExposure.metadata
         for amp in detector:
-            # This includes any gain correction.
+            # This includes any gain correction (if applied).
             metadata[f"LSST GAIN {amp.getName()}"] = gains[amp.getName()]
-
-            # Record the gains in the header.
-            metadata = ccdExposure.metadata
-            for amp in detector:
-                metadata[f"LSST ISR GAIN {amp.getName()}"] = gains[amp.getName()]
+            # The READNOISE should match the units of the image.
+            # The PTC readnoise native units are adu, as is the serial overscan
+            # (if the PTC is not available).
+            noise = ptc.noise[amp.getName()]
+            if exposureMetadata["LSST ISR UNITS"] == "electron":
+                noise *= gains[amp.getName()]
+            metadata[f"LSST READNOISE {amp.getName()}"] = noise
 
         # Do crosstalk correction in the full region.
         # Units: electrons
@@ -1563,7 +1595,18 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Units: electrons
         if self.config.doLinearize:
             self.log.info("Applying linearizer.")
-            linearizer.applyLinearity(image=ccdExposure.image, detector=detector, log=self.log, gains=gains)
+            # The linearizer is in units of ADU.
+            # If our units are electrons, then pass in the gains for conversion.
+            if exposureMetadata["LSST ISR UNITS"] == "electron":
+                linearityGains = gains
+            else:
+                linearityGains = None
+            linearizer.applyLinearity(
+                image=ccdExposure.image,
+                detector=detector,
+                log=self.log,
+                gains=linearityGains,
+            )
 
         # Serial CTI (deferred charge)
         # FIXME: watch out for gain units; cti code may need update
@@ -1586,12 +1629,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Units: electrons
         if self.config.doBias:
             self.log.info("Applying bias correction.")
+            # Bias frame and ISR unit consistency is checked at the top of
+            # the run method.
             isrFunctions.biasCorrection(ccdExposure.maskedImage, bias.maskedImage)
 
         # Dark subtraction
         # Units: electrons
         if self.config.doDark:
             self.log.info("Applying dark subtraction.")
+            # Dark frame and ISR unit consistency is checked at the top of
+            # the run method.
             self.darkCorrection(ccdExposure, dark)
 
         # Defect masking
