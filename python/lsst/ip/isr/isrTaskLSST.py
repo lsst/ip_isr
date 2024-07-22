@@ -519,9 +519,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             #      self.isrStats.doApplyGainsForCtiStatistics:
         #     raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
 
-        if self.doCorrectGains and not self.doApplyGains:
-            raise ValueError("If doCorrectGains is True then doApplyGains must also be be True.")
-
     def setDefaults(self):
         super().setDefaults()
 
@@ -1389,7 +1386,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         exposureMetadata = ccdExposure.metadata
         if ptc is not None:
             self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
-
+        else:
+            if self.config.doCorrectGains:
+                raise RuntimeError("doCorrectGains is True but no ptc provided.")
         if self.config.doDiffNonLinearCorrection:
             if dnlLUT is None:
                 raise RuntimeError("doDiffNonLinearCorrection is True but no dnlLUT provided.")
@@ -1522,6 +1521,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains, isTrimmed=False)
             # The units are now electrons.
             exposureMetadata["LSST ISR UNITS"] = "electron"
+
+        # Record gain and read noise in header.
+        metadata = ccdExposure.metadata
+        for amp in detector:
+            # This includes any gain correction.
+            metadata[f"LSST GAIN {amp.getName()}"] = gains[amp.getName()]
 
             # Record the gains in the header.
             metadata = ccdExposure.metadata
