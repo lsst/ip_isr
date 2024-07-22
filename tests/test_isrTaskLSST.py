@@ -40,6 +40,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.detector = self.camera[mock.config.detectorIndex]
         self.namp = len(self.detector)
 
+        # Create adu (bootstrap) calibration frames
+        self.bias_adu = isrMockLSST.BiasMockLSST(adu=True).run()
+        self.dark_adu = isrMockLSST.DarkMockLSST(adu=True).run()
+        self.flat_adu = isrMockLSST.FlatMockLSST(adu=True).run()
+
         # Create calibration frames
         self.bias = isrMockLSST.BiasMockLSST().run()
         self.dark = isrMockLSST.DarkMockLSST().run()
@@ -77,18 +82,22 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.linearizer.linearityCoeffs[amp_name] = np.concatenate((centers, values))
 
     def test_isrBootstrapBias(self):
-        """Test processing of a ``bootstrap`` bias frame."""
+        """Test processing of a ``bootstrap`` bias frame.
+
+        This will be output with ADU units.
+        """
         mock_config = self.get_mock_config_no_signal()
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doApplyGains = False
         isr_config.doBias = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result = isr_task.run(input_exp.clone(), bias=self.bias)
+            result = isr_task.run(input_exp.clone(), bias=self.bias_adu)
         self.assertIn("No PTC provided", cm.output[0])
 
         # Rerun without doing the bias correction.
@@ -110,7 +119,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
-        self.assertFloatsAlmostEqual(delta[good_pixels], self.bias.image.array[good_pixels], atol=1e-5)
+        self.assertFloatsAlmostEqual(delta[good_pixels], self.bias_adu.image.array[good_pixels], atol=1e-5)
 
         metadata = result.exposure.metadata
 
@@ -120,15 +129,24 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         key = "LSST ISR UNITS"
         self.assertIn(key, metadata)
-        self.assertEqual(metadata[key], "electron")
+        self.assertEqual(metadata[key], "adu")
 
         for amp in self.detector:
             key = f"LSST GAIN {amp.getName()}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], isr_config.nominalGain)
+            key = f"LSST READNOISE {amp.getName()}"
+            self.assertIn(key, metadata)
+            # This is an approximate range check because the noise is
+            # determined from the overscan and not the ptc.
+            self.assertGreater(metadata[key], self.ptc.noise[amp.getName()]*0.7)
+            self.assertLess(metadata[key], self.ptc.noise[amp.getName()]*1.3)
 
     def test_isrBootstrapDark(self):
-        """Test processing of a ``bootstrap`` dark frame."""
+        """Test processing of a ``bootstrap`` dark frame.
+
+        This will be output with ADU units.
+        """
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
 
@@ -136,19 +154,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doApplyGains = False
         isr_config.doBias = True
         isr_config.doDark = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark)
+            result = isr_task.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu)
         self.assertIn("No PTC provided", cm.output[0])
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result2 = isr_task2.run(input_exp.clone(), bias=self.bias)
+            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu)
         self.assertIn("No PTC provided", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
@@ -157,23 +176,30 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             np.mean(result.exposure.image.array[good_pixels]),
             np.mean(result2.exposure.image.array[good_pixels]),
         )
-        # The mock dark has no noise, so these should be equal.
-        self.assertFloatsAlmostEqual(
-            np.std(result.exposure.image.array[good_pixels]),
-            np.std(result2.exposure.image.array[good_pixels]),
-            atol=1e-6,
-        )
 
         delta = result2.exposure.image.array - result.exposure.image.array
         exp_time = input_exp.getInfo().getVisitInfo().getExposureTime()
         self.assertFloatsAlmostEqual(
             delta[good_pixels],
-            self.dark.image.array[good_pixels] * exp_time,
+            self.dark_adu.image.array[good_pixels] * exp_time,
             atol=1e-5,
         )
 
+        metadata = result.exposure.metadata
+
+        key = "LSST ISR NOMINAL PTC USED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], True)
+
+        key = "LSST ISR UNITS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], "adu")
+
     def test_isrBootstrapFlat(self):
-        """Test processing of a ``bootstrap`` flat frame."""
+        """Test processing of a ``bootstrap`` flat frame.
+
+        This will be output with ADU units.
+        """
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
         mock_config.doAddFlat = True
@@ -184,20 +210,26 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doApplyGains = False
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result = isr_task.run(input_exp.clone(), bias=self.bias, dark=self.dark, flat=self.flat)
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+                flat=self.flat_adu,
+            )
         self.assertIn("No PTC provided", cm.output[0])
 
         # Rerun without doing the flat correction.
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result2 = isr_task2.run(input_exp.clone(), bias=self.bias, dark=self.dark)
+            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu)
         self.assertIn("No PTC provided", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
@@ -214,7 +246,40 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         )
 
         ratio = result2.exposure.image.array / result.exposure.image.array
-        self.assertFloatsAlmostEqual(ratio[good_pixels], self.flat.image.array[good_pixels], atol=1e-5)
+        self.assertFloatsAlmostEqual(ratio[good_pixels], self.flat_adu.image.array[good_pixels], atol=1e-5)
+
+        # Test the variance plane in the case of adu units.
+        # The expected variance stars with the image array.
+        expected_variance = result.exposure.image.clone()
+        # We have to remove the flat-fielding from the image pixels.
+        expected_variance.array *= self.flat_adu.image.array
+        # And add the gain and read noise (in adu) per amp.
+        for amp in self.detector:
+            # We need to use the gain and read noise from the header
+            # because these are bootstraps.
+            gain = result.exposure.metadata[f"LSST GAIN {amp.getName()}"]
+            read_noise = result.exposure.metadata[f"LSST READNOISE {amp.getName()}"]
+
+            expected_variance[amp.getBBox()].array /= gain
+            expected_variance[amp.getBBox()].array += read_noise**2.
+        # And apply the flat-field squared.
+        expected_variance.array /= self.flat_adu.image.array**2.
+
+        self.assertFloatsAlmostEqual(
+            result.exposure.variance.array[good_pixels],
+            expected_variance.array[good_pixels],
+            rtol=1e-6,
+        )
+
+        metadata = result.exposure.metadata
+
+        key = "LSST ISR NOMINAL PTC USED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], True)
+
+        key = "LSST ISR UNITS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], "adu")
 
     def test_isrBias(self):
         """Test processing of a bias frame."""
