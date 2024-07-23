@@ -467,9 +467,11 @@ class Linearizer(IsrCalib):
         ----------
         image : `~lsst.afw.image.image`
             Image to correct.
-        detector : `~lsst.afw.cameraGeom.detector`
-            Detector to use for linearity parameters if not already
-            populated.
+        detector : `~lsst.afw.cameraGeom.detector`, optional
+            Detector to use to determine exposure trimmed state.  If
+            supplied, but no other linearity information is provided
+            by the calibration, then the static solution stored in the
+            detector will be used.
         log : `~logging.Logger`, optional
             Log object to use for logging.
         """
