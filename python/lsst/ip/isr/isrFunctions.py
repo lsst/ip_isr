@@ -846,7 +846,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
 
 
 @contextmanager
-def gainContext(exp, image, apply, gains=None, invert=False, isTrimmed=False):
+def gainContext(exp, image, apply, gains=None, invert=False, isTrimmed=True):
     """Context manager that applies and removes gain.
 
     Parameters
