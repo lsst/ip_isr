@@ -143,6 +143,8 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
     def __init__(self, *, config=None):
         super().__init__(config=config)
 
+        if self.doBootstrap:
+            del self.ptc
         if config.doDiffNonLinearCorrection is not True:
             del self.dnlLUT
         if config.doBias is not True:
@@ -216,6 +218,13 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Nominal gain to use if no PTC is supplied.",
     )
 
+    doBootstrap = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Is this task to be run in a ``bootstrap`` fashion that does not require "
+            "a PTC or full calibrations?",
+    )
+
     overscanCamera = pexConfig.ConfigField(
         dtype=OverscanCameraConfig,
         doc="Per-detector and per-amplifier overscan configurations.",
@@ -275,12 +284,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Calculate variance?",
         default=True
     )
-    # gain = pexConfig.Field(
-    #     dtype=float,
-    #     doc="The gain to use if no Detector is present in the Exposure
-    #  (ignored if NaN).",
-    #     default=float("NaN"),
-    # )
     maskNegativeVariance = pexConfig.Field(
         dtype=bool,
         doc="Mask pixels that claim a negative variance.  This likely indicates a failure "
@@ -512,6 +515,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
 
     def validate(self):
         super().validate()
+
+        if self.doBootstrap and self.doApplyGains:
+            self.log.warning(
+                "Task is being run with doBootstrap=True and also doApplyGains=True; "
+                "this is not a recommended combination of configuration parameters.",
+            )
 
         # if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
         # DM-41912: Implement doApplyGains in LSST IsrTask
@@ -1403,9 +1412,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
 
+        if self.config.doBootstrap and ptc is not None:
+            self.log.warning("Task configured with doBootstrap=True. Ignoring provided PTC.")
+            ptc = None
+
         # Validation step: check inputs match exposure configuration.
         exposureMetadata = ccdExposure.metadata
-        if ptc is not None:
+        if not self.config.doBootstrap:
             self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
         else:
             if self.config.doCorrectGains:
@@ -1476,8 +1489,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         self.ditherCounts(ccdExposure, overscanDetectorConfig)
 
         nominalPtcUsed = False
-        if ptc is None:
-            self.log.warning("No PTC provided; using nominal gain of %.3f.", self.config.nominalGain)
+        if self.config.doBootstrap or ptc is None:
+            self.log.warning(
+                "Configured using doBootstrap=True; using nominal gain of %.3f.",
+                self.config.nominalGain,
+            )
             nominalPtcUsed = True
             ptc = PhotonTransferCurveDataset([amp.getName() for amp in detector], "NOMINAL_PTC", 1)
             for amp in detector:

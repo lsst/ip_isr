@@ -94,20 +94,21 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doBootstrap = True
         isr_config.doApplyGains = False
         isr_config.doBias = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
             result = isr_task.run(input_exp.clone(), bias=self.bias_adu)
-        self.assertIn("No PTC provided", cm.output[0])
+        self.assertIn("Configured using doBootstrap=True", cm.output[0])
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
             result2 = isr_task2.run(input_exp.clone())
-        self.assertIn("No PTC provided", cm.output[0])
+        self.assertIn("Configured using doBootstrap=True", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -160,6 +161,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doBootstrap = True
         isr_config.doApplyGains = False
         isr_config.doBias = True
         isr_config.doDark = True
@@ -167,14 +169,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
             result = isr_task.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu)
-        self.assertIn("No PTC provided", cm.output[0])
+        self.assertIn("Configured using doBootstrap=True", cm.output[0])
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
             result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu)
-        self.assertIn("No PTC provided", cm.output[0])
+        self.assertIn("Configured using doBootstrap=True", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -216,6 +218,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doBootstrap = True
         isr_config.doApplyGains = False
         isr_config.doBias = True
         isr_config.doDark = True
@@ -229,14 +232,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 dark=self.dark_adu,
                 flat=self.flat_adu,
             )
-        self.assertIn("No PTC provided", cm.output[0])
+        self.assertIn("Configured using doBootstrap=True", cm.output[0])
 
         # Rerun without doing the flat correction.
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
             result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu)
-        self.assertIn("No PTC provided", cm.output[0])
+        self.assertIn("Configured using doBootstrap=True", cm.output[0])
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
