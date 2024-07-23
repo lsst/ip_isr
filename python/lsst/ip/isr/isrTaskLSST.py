@@ -666,6 +666,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         """
         maskedImage = ccdExposure.getMaskedImage()
 
+        metadata = ccdExposure.metadata
+
         for amp in detector:
             ampName = amp.getName()
 
@@ -683,11 +685,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 # And update if it is set in the config.
                 if math.isfinite(ampConfig.saturation):
                     limits.update({self.config.saturatedMaskName: ampConfig.saturation})
+                metadata[f"LSST ISR SATURATION LEVEL {ampName}"] = limits[self.config.saturatedMaskName]
+
             if self.config.doSuspect:
                 limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
                 # And update if it set in the config.
                 if math.isfinite(ampConfig.suspectLevel):
                     limits.update({self.config.suspectMaskName: ampConfig.suspectLevel})
+                metadata[f"LSST ISR SUSPECT LEVEL {ampName}"] = limits[self.config.suspectMaskName]
 
             for maskName, maskThreshold in limits.items():
                 if not math.isnan(maskThreshold):
@@ -1358,7 +1363,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             flatMaskedImage=flatExposure.getMaskedImage(),
             scalingType=self.config.flatScalingType,
             userScale=self.config.flatUserScale,
-            invert=invert
+            invert=invert,
         )
 
     def makeBinnedImages(self, exposure):
@@ -1537,6 +1542,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains, isTrimmed=False)
             # The units are now electrons.
             exposureMetadata["LSST ISR UNITS"] = "electron"
+
+            # Update the saturation units in the metadata if there.
+            for amp in detector:
+                ampName = amp.getName()
+                if (key := f"LSST ISR SATURATION LEVEL {ampName}") in exposureMetadata:
+                    exposureMetadata[key] *= gains[ampName]
+                if (key := f"LSST ISR SUSPECT LEVEL {ampName}") in exposureMetadata:
+                    exposureMetadata[key] *= gains[ampName]
 
         # Record gain and read noise in header.
         metadata = ccdExposure.metadata

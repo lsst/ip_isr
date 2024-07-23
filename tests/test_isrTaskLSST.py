@@ -81,6 +81,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             values[centers < mock_config.highSignalNonlinearityThreshold] = 0.0
             self.linearizer.linearityCoeffs[amp_name] = np.concatenate((centers, values))
 
+        self.saturation_adu = 100_000.0
+
     def test_isrBootstrapBias(self):
         """Test processing of a ``bootstrap`` bias frame.
 
@@ -132,15 +134,19 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(metadata[key], "adu")
 
         for amp in self.detector:
-            key = f"LSST GAIN {amp.getName()}"
+            amp_name = amp.getName()
+            key = f"LSST GAIN {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], isr_config.nominalGain)
-            key = f"LSST READNOISE {amp.getName()}"
+            key = f"LSST READNOISE {amp_name}"
             self.assertIn(key, metadata)
             # This is an approximate range check because the noise is
             # determined from the overscan and not the ptc.
-            self.assertGreater(metadata[key], self.ptc.noise[amp.getName()]*0.7)
-            self.assertLess(metadata[key], self.ptc.noise[amp.getName()]*1.3)
+            self.assertGreater(metadata[key], self.ptc.noise[amp_name]*0.7)
+            self.assertLess(metadata[key], self.ptc.noise[amp_name]*1.3)
+            key = f"LSST ISR SATURATION LEVEL {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], self.saturation_adu)
 
     def test_isrBootstrapDark(self):
         """Test processing of a ``bootstrap`` dark frame.
@@ -544,12 +550,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(metadata[key], "electron")
 
         for amp in self.detector:
-            key = f"LSST GAIN {amp.getName()}"
+            amp_name = amp.getName()
+            key = f"LSST GAIN {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], gain := self.ptc.gain[amp.getName()])
-            key = f"LSST READNOISE {amp.getName()}"
+            self.assertEqual(metadata[key], gain := self.ptc.gain[amp_name])
+            key = f"LSST READNOISE {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], gain * self.ptc.noise[amp.getName()])
+            self.assertEqual(metadata[key], gain * self.ptc.noise[amp_name])
+            key = f"LSST ISR SATURATION LEVEL {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], self.saturation_adu * gain)
 
         # Test the variance plane in the case of electron units.
         # The expected variance stars with the image array.
@@ -738,8 +748,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
-        # Override the camera model to use 100k saturation (ADU).
-        defaultAmpConfig.saturation = 100_000.0  # ADU
+        # Override the camera model to use the desired saturation (ADU).
+        defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
         isr_config.doAssembleCcd = True
 
@@ -777,8 +787,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
-        # Override the camera model to use 100k saturation (ADU).
-        defaultAmpConfig.saturation = 100_000.0  # ADU
+        # Override the camera model to use the desired saturation (ADU).
+        defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
         isr_config.doAssembleCcd = True
 
