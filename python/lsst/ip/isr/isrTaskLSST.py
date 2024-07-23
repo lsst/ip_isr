@@ -864,8 +864,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         """Add the variance plane to the image.
 
         The gain and read noise per amp must have been set in the
-        exposure metadata as ``LSST GAIN ampName`` and
-        ``LSST READNOISE ampName`` with the units of the image.
+        exposure metadata as ``LSST ISR GAIN ampName`` and
+        ``LSST ISR READNOISE ampName`` with the units of the image.
         Unit conversions for the variance plane will be done as
         necessary based on the exposure units.
 
@@ -889,8 +889,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                 # The effective gain is 1.0 if we are in electron units.
                 # The metadata read noise is in the same units as the image.
-                gain = exposure.metadata[f"LSST GAIN {amp.getName()}"] if not isElectrons else 1.0
-                readNoise = exposure.metadata[f"LSST READNOISE {amp.getName()}"]
+                gain = exposure.metadata[f"LSST ISR GAIN {amp.getName()}"] if not isElectrons else 1.0
+                readNoise = exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
 
                 isrFunctions.updateVariance(
                     maskedImage=ampExposure.maskedImage,
@@ -1555,14 +1555,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         metadata = ccdExposure.metadata
         for amp in detector:
             # This includes any gain correction (if applied).
-            metadata[f"LSST GAIN {amp.getName()}"] = gains[amp.getName()]
+            metadata[f"LSST ISR GAIN {amp.getName()}"] = gains[amp.getName()]
             # The READNOISE should match the units of the image.
             # The PTC readnoise native units are adu, as is the serial overscan
             # (if the PTC is not available).
             noise = ptc.noise[amp.getName()]
             if exposureMetadata["LSST ISR UNITS"] == "electron":
                 noise *= gains[amp.getName()]
-            metadata[f"LSST READNOISE {amp.getName()}"] = noise
+            metadata[f"LSST ISR READNOISE {amp.getName()}"] = noise
 
         # Do crosstalk correction in the full region.
         # Units: electrons

@@ -135,10 +135,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         for amp in self.detector:
             amp_name = amp.getName()
-            key = f"LSST GAIN {amp_name}"
+            key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], isr_config.nominalGain)
-            key = f"LSST READNOISE {amp_name}"
+            key = f"LSST ISR READNOISE {amp_name}"
             self.assertIn(key, metadata)
             # This is an approximate range check because the noise is
             # determined from the overscan and not the ptc.
@@ -263,8 +263,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         for amp in self.detector:
             # We need to use the gain and read noise from the header
             # because these are bootstraps.
-            gain = result.exposure.metadata[f"LSST GAIN {amp.getName()}"]
-            read_noise = result.exposure.metadata[f"LSST READNOISE {amp.getName()}"]
+            gain = result.exposure.metadata[f"LSST ISR GAIN {amp.getName()}"]
+            read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
 
             expected_variance[amp.getBBox()].array /= gain
             expected_variance[amp.getBBox()].array += read_noise**2.
@@ -551,10 +551,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         for amp in self.detector:
             amp_name = amp.getName()
-            key = f"LSST GAIN {amp_name}"
+            key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], gain := self.ptc.gain[amp_name])
-            key = f"LSST READNOISE {amp_name}"
+            key = f"LSST ISR READNOISE {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], gain * self.ptc.noise[amp_name])
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
