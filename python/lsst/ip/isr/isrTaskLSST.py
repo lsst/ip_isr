@@ -535,7 +535,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
 
 class IsrTaskLSST(pipeBase.PipelineTask):
     ConfigClass = IsrTaskLSSTConfig
-    _DefaultName = "isr"
+    _DefaultName = "isrLSST"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
