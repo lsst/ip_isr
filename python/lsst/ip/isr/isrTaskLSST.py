@@ -1490,7 +1490,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         nominalPtcUsed = False
         if self.config.doBootstrap or ptc is None:
-            self.log.warning(
+            self.log.info(
                 "Configured using doBootstrap=True; using nominal gain of %.3f.",
                 self.config.nominalGain,
             )
