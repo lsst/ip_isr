@@ -289,7 +289,7 @@ class CrosstalkCalib(IsrCalib):
             calib.coeffs = np.array(dictionary['coeffs']).reshape(calib.crosstalkShape)
             calib.crosstalkRatiosUnits = dictionary.get(
                 'crosstalkRatiosUnits',
-                dictionary['metadata'].get('CROSSTALK_RATIOS_UNITS', None))
+                dictionary['metadata'].get('CROSSTALK_RATIOS_UNITS', 'adu'))
             if 'coeffErr' in dictionary:
                 calib.coeffErr = np.array(dictionary['coeffErr']).reshape(calib.crosstalkShape)
             else:
@@ -314,10 +314,6 @@ class CrosstalkCalib(IsrCalib):
                 calib.ampGainRatios = np.array(dictionary['ampGainRatios']).reshape(calib.crosstalkShape)
             else:
                 calib.ampGainRatios = np.zeros_like(calib.coeffs)
-            if 'crosstalkRatiosUnits' in dictionary:
-                calib.crosstalkRatiosUnits = dictionary['crosstalkRatiosUnits']
-            else:
-                calib.crosstalkRatiosUnits = None
 
             calib.interChip = dictionary.get('interChip', None)
             if calib.interChip:
@@ -402,7 +398,7 @@ class CrosstalkCalib(IsrCalib):
         inDict['nAmp'] = metadata['NAMP']
         calibVersion = metadata['CROSSTALK_VERSION']
         if calibVersion < 1.1:
-            inDict['crosstalkRatiosUnits'] = ''
+            inDict['crosstalkRatiosUnits'] = 'adu'
         else:
             inDict['crosstalkRatiosUnits'] = metadata['CROSSTALK_RATIOS_UNITS']
         inDict['coeffs'] = coeffTable['CT_COEFFS']
