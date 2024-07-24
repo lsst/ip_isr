@@ -863,7 +863,6 @@ class CrosstalkTask(Task):
         parallelOverscanRegion=False,
         detectorConfig=None,
         fullAmplifier=False,
-        doSqrCrosstalk=None,
         gains=None,
     ):
         """Apply intra-detector crosstalk correction
@@ -894,8 +893,6 @@ class CrosstalkTask(Task):
             Per-amplifier configs used when parallelOverscanRegion=True.
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
-        doSqrCrosstalk : `bool` or `None`, optional
-            If this is set to False, override the configuration.
         gains : `dict` [`str`, `float`], optional
             Dictionary of amp name to gain.  Required if there is a unit
             mismatch between the exposure and the crosstalk matrix.
@@ -914,14 +911,12 @@ class CrosstalkTask(Task):
         if not crosstalk.log:
             crosstalk.log = self.log
 
-        _doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
-        if doSqrCrosstalk is not None and not doSqrCrosstalk:
-            _doSqrCrosstalk = False
+        doSqrCrosstalk = self.config.doQuadraticCrosstalkCorrection
 
-        if _doSqrCrosstalk and crosstalk.coeffsSqr is None:
+        if doSqrCrosstalk and crosstalk.coeffsSqr is None:
             raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
                                "crosstalk coefficients.")
-        if _doSqrCrosstalk:
+        if doSqrCrosstalk:
             crosstalkCoeffsSqr = crosstalk.coeffsSqr
         else:
             crosstalkCoeffsSqr = None
@@ -978,7 +973,7 @@ class CrosstalkTask(Task):
                 crosstalkStr=self.config.crosstalkMaskPlane,
                 isTrimmed=isTrimmed,
                 backgroundMethod=self.config.crosstalkBackgroundMethod,
-                doSqrCrosstalk=_doSqrCrosstalk,
+                doSqrCrosstalk=doSqrCrosstalk,
                 fullAmplifier=fullAmplifier,
                 parallelOverscan=parallelOverscanRegion,
             )

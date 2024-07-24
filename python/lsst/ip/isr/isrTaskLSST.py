@@ -522,6 +522,9 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 "this is not a recommended combination of configuration parameters.",
             )
 
+        if self.doBootstrap and self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
+            raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+
         # if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
         # DM-41912: Implement doApplyGains in LSST IsrTask
         # if self.doApplyGains !=
@@ -1584,14 +1587,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Units: electrons
         if self.config.doCrosstalk:
             self.log.info("Applying crosstalk corrections to full amplifier region.")
-            doSqrCrosstalk = False if nominalPtcUsed else None
             self.crosstalk.run(
                 ccdExposure,
                 crosstalk=crosstalk,
                 isTrimmed=False,
                 gains=gains,
                 fullAmplifier=True,
-                doSqrCrosstalk=doSqrCrosstalk,
             )
 
         # Parallel overscan correction.
