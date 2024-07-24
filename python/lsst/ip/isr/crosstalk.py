@@ -729,6 +729,7 @@ class CrosstalkCalib(IsrCalib):
                 sImage.scaledPlus(coeffs[ss, tt], tImage)
                 # Add the nonlinear term
                 if doSqrCrosstalk:
+                    # Note that mi2 is the square of the masked image.
                     tImageSqr = self.extractAmp(
                         mi2,
                         tAmp,
@@ -988,7 +989,7 @@ class CrosstalkTask(Task):
                 elif isinstance(crosstalkSources[0], lsst.daf.butler.DeferredDatasetHandle):
                     # Received dafButler.DeferredDatasetHandle
                     detectorList = [source.dataId['detector'] for source in crosstalkSources]
-                    sourceNames = [camera[detector].getName() for detector in detectorList]
+                    sourceNames = [camera[detectorId].getName() for detectorId in detectorList]
                 else:
                     raise RuntimeError("Unknown object passed as crosstalk sources.",
                                        type(crosstalkSources[0]))
@@ -1008,6 +1009,12 @@ class CrosstalkTask(Task):
                     if not isinstance(sourceExposure, lsst.afw.image.Exposure):
                         raise RuntimeError("Unknown object passed as crosstalk sources.",
                                            type(sourceExposure))
+
+                    if sourceExposure.getBBox() != exposure.getBBox():
+                        raise RuntimeError(
+                            "Mis-match between exposure bounding box and crosstalk source "
+                            "exposure bounding box. Were these run with the same trim state?",
+                        )
 
                     self.log.info("Correcting detector %s with ctSource %s",
                                   exposure.getDetector().getName(),
