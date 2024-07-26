@@ -273,10 +273,29 @@ class IsrMockLSST(IsrMock):
                 v0 = exposure.getDetector().getBBox().getDimensions().getY()/2.
                 self.amplifierMultiplyFlat(amp, ampImageData, self.config.flatDrop, u0=u0, v0=v0)
 
-            # On-chip electronic effects.
+        # On-chip electronic effects.
 
-            # TODO
-            # 1. Add BF effect (e-)
+        # 1. Add bright defect(s).
+        if self.config.doAddBrightDefects:
+            defectList = self.makeDefectList(isTrimmed=self.config.isTrimmed)
+
+            for defect in defectList:
+                exposure.image[defect.getBBox()] = self.config.brightDefectLevel
+
+        for idx, amp in enumerate(exposure.getDetector()):
+            # Get image bbox and data
+            bbox = None
+            if self.config.isTrimmed:
+                bbox = amp.getBBox()
+                bboxFull = bbox
+            else:
+                bbox = amp.getRawDataBBox()
+                bboxFull = amp.getRawBBox()
+
+            # This is the image data (excluding pre/overscans).
+            ampImageData = exposure.image[bbox]
+            # This is the full data (including pre/overscans if untrimmed).
+            ampFullData = exposure.image[bboxFull]
 
             # 2. Add dark current (e-) to imaging portion of the amplifier.
             if self.config.doAddDark or self.config.doAddDarkNoiseOnly:
@@ -291,7 +310,13 @@ class IsrMockLSST(IsrMock):
 
                 self.amplifierAddNoise(ampImageData, darkLevel, darkNoise, rng=rngDark)
 
-            # 3. Add 2D bias residual (e-) to imaging portion of the amplifier.
+            # 3. Add BF effect (e-) to imaging portion of the amplifier.
+            # TODO
+
+            # 4. Add serial CTI (e-) to amplifier (imaging + overscan).
+            # TODO
+
+            # 5. Add 2D bias residual (e-) to imaging portion of the amplifier.
             if self.config.doAdd2DBias:
                 self.amplifierAddNoise(
                     ampImageData,
@@ -300,10 +325,7 @@ class IsrMockLSST(IsrMock):
                     rng=rng2DBias,
                 )
 
-            # 3. Add serial CTI (e-) to amplifier (imaging + overscan).
-            # TODO
-
-            # 4. Add clock-injected offset (e-) to amplifier
+            # 6. Add clock-injected offset (e-) to amplifier
             #    (imaging + overscan).
             # This is just an offset that will be crosstalked and modified by
             # the gain, and does not have a noise associated with it.
@@ -314,7 +336,7 @@ class IsrMockLSST(IsrMock):
                     0.0,
                 )
 
-            # 5./6. Add serial and parallel overscan slopes (e-)
+            # 7./8. Add serial and parallel overscan slopes (e-)
             #       (imaging + overscan)
             if (self.config.doAddParallelOverscanRamp or self.config.doAddSerialOverscanRamp) and \
                not self.config.isTrimmed:
@@ -329,7 +351,7 @@ class IsrMockLSST(IsrMock):
                     self.amplifierAddYGradient(ampFullData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
 
-            # 7. Add non-linearity (e-) to amplifier (imaging + overscan).
+            # 9. Add non-linearity (e-) to amplifier (imaging + overscan).
             if self.config.doAddHighSignalNonlinearity:
                 if linearizer.linearityType[amp.getName()] != "Spline":
                     raise RuntimeError("IsrMockLSST only supports spline non-linearity.")
@@ -354,9 +376,9 @@ class IsrMockLSST(IsrMock):
                     self.config.clockInjectedOffsetLevel if self.config.doAddClockInjectedOffset else 0.0,
                 )
 
-            # 8. Add read noise (e-) to the amplifier (imaging + overscan).
-            #    Unsure if this should be before or after crosstalk.
-            #    Probably some of both; hopefully doesn't matter.
+            # 10. Add read noise (e-) to the amplifier (imaging + overscan).
+            #     Unsure if this should be before or after crosstalk.
+            #     Probably some of both; hopefully doesn't matter.
             if not self.config.calibMode:
                 # Add read noise to the imaging region.
                 self.amplifierAddNoise(
@@ -389,14 +411,7 @@ class IsrMockLSST(IsrMock):
                         rng=rngOverscan,
                     )
 
-        # 9. Add bright defect(s).
-        if self.config.doAddBrightDefects:
-            defectList = self.makeDefectList(isTrimmed=self.config.isTrimmed)
-
-            for defect in defectList:
-                exposure.image[defect.getBBox()] = self.config.brightDefectLevel
-
-        # 10. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
+        # 11. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
         if self.config.doAddCrosstalk:
             ctCalib = CrosstalkCalib()
             exposureClean = exposure.clone()
@@ -424,17 +439,17 @@ class IsrMockLSST(IsrMock):
             # This is the full data (including pre/overscans if untrimmed).
             ampFullData = exposure.image[bboxFull]
 
-            # 11. Gain un-normalize (from e- to floating point ADU)
+            # 12. Gain un-normalize (from e- to floating point ADU)
             if self.config.doApplyGain:
                 gain = self.config.gainDict.get(amp.getName(), self.config.gain)
                 self.applyGain(ampFullData, gain)
 
-            # 12. Add overall bias level (ADU) to the amplifier
+            # 13. Add overall bias level (ADU) to the amplifier
             #    (imaging + overscan)
             if self.config.doAddBias:
                 self.addBiasLevel(ampFullData, self.config.biasLevel)
 
-            # 13. Round/Truncate to integers (ADU)
+            # 14. Round/Truncate to integers (ADU)
             if self.config.doRoundADU:
                 self.roundADU(ampFullData)
 
