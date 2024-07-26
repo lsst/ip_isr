@@ -103,6 +103,11 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=True,
         doc="Add high signal non-linearity to overscan and data regions?",
     )
+    doAddLowSignalNonlinearity = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Add low signal non-linearity to overscan and data regions? (Not supported yet.",
+    )
     highSignalNonlinearityThreshold = pexConfig.Field(
         dtype=float,
         default=40_000.,
@@ -138,6 +143,12 @@ class IsrMockLSSTConfig(IsrMockConfig):
         target=AssembleCcdTask,
         doc="CCD assembly task; used for defect box conversions.",
     )
+
+    def validate(self):
+        super().validate()
+
+        if self.doAddLowSignalNonlinearity:
+            raise NotImplementedError("Low signal non-linearity is not implemented.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -318,6 +329,9 @@ class IsrMockLSST(IsrMock):
 
             # 5. Add 2D bias residual (e-) to imaging portion of the amplifier.
             if self.config.doAdd2DBias:
+                # For now we use an unstructured noise field to add some
+                # consistent 2D bias residual that can be subtracted. In
+                # the future this can be made into a warm corner (for example).
                 self.amplifierAddNoise(
                     ampImageData,
                     0.0,
@@ -353,6 +367,7 @@ class IsrMockLSST(IsrMock):
 
             # 9. Add non-linearity (e-) to amplifier (imaging + overscan).
             if self.config.doAddHighSignalNonlinearity:
+                # The linearizer coefficients come from makeLinearizer().
                 if linearizer.linearityType[amp.getName()] != "Spline":
                     raise RuntimeError("IsrMockLSST only supports spline non-linearity.")
 
@@ -526,9 +541,17 @@ class IsrMockLSST(IsrMock):
         # Set this to just above the mock saturation (ADU)
         maxADU = 101_000
         nonLinSplineNodes = np.linspace(0, maxADU, nNodes)
+        # These values come from cp_pipe/tests/test_linearity.py and
+        # are based on a test fit to LSSTCam data, run 7193D, detector 22,
+        # amp C00.
         nonLinSplineValues = np.array(
             [0.0, -8.87, 1.46, 1.69, -6.92, -68.23, -78.01, -11.56, 80.26, 185.01]
         )
+
+        if self.config.doAddHighSignalNonlinearity and not self.config.doAddLowSignalNonlinearity:
+            nonLinSplineValues[nonLinSplineNodes < self.config.highSignalNonlinearityThreshold] = 0.0
+        elif self.config.doAddLowSignalNonlinearity:
+            raise NotImplementedError("Low signal non-linearity is not implemented.")
 
         exp = self.getExposure()
         detector = exp.getDetector()
