@@ -143,7 +143,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
     def __init__(self, *, config=None):
         super().__init__(config=config)
 
-        if self.doBootstrap:
+        if config.doBootstrap:
             del self.ptc
         if config.doDiffNonLinearCorrection is not True:
             del self.dnlLUT
