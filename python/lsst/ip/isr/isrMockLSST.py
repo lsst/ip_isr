@@ -118,7 +118,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=True,
         doc="Add gain to data.",
     )
-    doRoundADU = pexConfig.Field(
+    doRoundAdu = pexConfig.Field(
         dtype=bool,
         default=True,
         doc="Round adu values to nearest integer.",
@@ -468,7 +468,7 @@ class IsrMockLSST(IsrMock):
                 self.addBiasLevel(ampFullData, self.config.biasLevel)
 
             # 14. Round/Truncate to integers (adu)
-            if self.config.doRoundADU:
+            if self.config.doRoundAdu:
                 self.roundADU(ampFullData)
 
         # Add units metadata to calibrations.
@@ -773,7 +773,7 @@ class CalibratedRawMockLSST(RawMockLSST):
         # Assume combined calibrations are made with 16 inputs.
         self.config.readNoise *= 0.25
 
-        self.config.doRoundADU = False
+        self.config.doRoundAdu = False
 
 
 class ReferenceMockLSST(IsrMockLSST):
@@ -806,7 +806,7 @@ class ReferenceMockLSST(IsrMockLSST):
         self.config.doAddClockInjectedOffset = False
 
         # Reference calibrations are not integerized.
-        self.config.doRoundADU = False
+        self.config.doRoundAdu = False
 
 
 # Classes to generate calibration products mocks.

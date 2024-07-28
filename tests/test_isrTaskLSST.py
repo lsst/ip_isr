@@ -690,7 +690,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddSerialOverscanRamp = True
         mock_config.doAddHighSignalNonlinearity = True
         mock_config.doApplyGain = True
-        mock_config.doRoundADU = True
+        mock_config.doRoundAdu = True
         # NOTE: additional electronic effects (BF, CTI) should
         # be added here when they are supported.
 
@@ -713,7 +713,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddFringe = False
         mock_config.doAddSky = False
         mock_config.doAddSource = False
-        mock_config.doRoundADU = False
+        mock_config.doRoundAdu = False
         mock_config.doAddHighSignalNonlinearity = False
         mock_config.doApplyGain = False
         mock_config.doAddCrosstalk = False
