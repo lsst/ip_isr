@@ -1313,12 +1313,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             return
 
         # This ID is a unique combination of {exposure, detector} for a raw
-        # image as we have here.
-        seed = exposure.info.id
+        # image as we have here. We additionally need to take the lower
+        # 32 bits to be used as a random seed.
+        seed = exposure.info.id & 0xFFFFFFFF
         if seed is None:
             seed = fallbackSeed
-            self.log.warning("No exposure ID found; using fallback random seed %d.", fallbackSeed)
+            self.log.warning("No exposure ID found; using fallback random seed.")
 
+        self.log.info("Seeding dithering random number generator with %d.", seed)
         rng = numpy.random.RandomState(seed=seed)
 
         if detectorConfig.integerDitherMode == "POSITIVE":
