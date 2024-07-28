@@ -66,7 +66,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
     brightDefectLevel = pexConfig.Field(
         dtype=float,
         default=30000.0,
-        doc="Bright defect level (electrons).",
+        doc="Bright defect level (electron).",
     )
     doAddClockInjectedOffset = pexConfig.Field(
         dtype=bool,
@@ -76,12 +76,12 @@ class IsrMockLSSTConfig(IsrMockConfig):
     clockInjectedOffsetLevel = pexConfig.Field(
         dtype=float,
         default=8500.0,
-        doc="Clock-injected offset (on-chip bias level), in electrons.",
+        doc="Clock-injected offset (on-chip bias level), in electron.",
     )
     noise2DBias = pexConfig.Field(
         dtype=float,
         default=2.0,
-        doc="Noise (in electrons) to generate a 2D bias residual frame.",
+        doc="Noise (in electron) to generate a 2D bias residual frame.",
     )
     doAddDarkNoiseOnly = pexConfig.Field(
         dtype=bool,
@@ -111,7 +111,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
     highSignalNonlinearityThreshold = pexConfig.Field(
         dtype=float,
         default=40_000.,
-        doc="Threshold (in ADU) for the non-linearity to be considered ``high signal``.",
+        doc="Threshold (in adu) for the non-linearity to be considered ``high signal``.",
     )
     doApplyGain = pexConfig.Field(
         dtype=bool,
@@ -121,7 +121,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
     doRoundADU = pexConfig.Field(
         dtype=bool,
         default=True,
-        doc="Round ADU values to nearest integer.",
+        doc="Round adu values to nearest integer.",
     )
     gainDict = pexConfig.DictField(
         keytype=str,
@@ -154,10 +154,10 @@ class IsrMockLSSTConfig(IsrMockConfig):
         super().setDefaults()
 
         self.gain = 1.7  # Default value.
-        self.skyLevel = 1700.0  # e-
-        self.sourceFlux = [50_000.0]  # e-
-        self.overscanScale = 170.0  # e-
-        self.biasLevel = 20_000.0  # ADU
+        self.skyLevel = 1700.0  # electron
+        self.sourceFlux = [50_000.0]  # electron
+        self.overscanScale = 170.0  # electron
+        self.biasLevel = 20_000.0  # adu
         self.doAddCrosstalk = True
 
 
@@ -226,7 +226,7 @@ class IsrMockLSST(IsrMock):
             linearizer = LinearizerMockLSST().run()
 
         # We introduce effects as they happen from a source to the signal,
-        # so the effects go from electrons to ADU.
+        # so the effects go from electron to adu.
         # The ISR steps will then correct these effects in the reverse order.
         for idx, amp in enumerate(exposure.getDetector()):
 
@@ -244,12 +244,12 @@ class IsrMockLSST(IsrMock):
             # This is the full data (including pre/overscans if untrimmed).
             ampFullData = exposure.image[bboxFull]
 
-            # Astrophysical signals are all in electrons (e-).
+            # Astrophysical signals are all in electron (e-).
             # These are only applied to the imaging portion of the
             # amplifier (ampImageData)
 
             if self.config.doAddSky:
-                # The sky effects are in electrons.
+                # The sky effects are in electron.
                 self.amplifierAddNoise(
                     ampImageData,
                     self.config.skyLevel,
@@ -263,11 +263,11 @@ class IsrMockLSST(IsrMock):
                                                                    self.config.sourceX,
                                                                    self.config.sourceY):
                     if idx == sourceAmp:
-                        # The source flux is in electrons.
+                        # The source flux is in electron.
                         self.amplifierAddSource(ampImageData, sourceFlux, sourceX, sourceY)
 
             if self.config.doAddFringe:
-                # Fringes are added in electrons.
+                # Fringes are added in electron.
                 self.amplifierAddFringe(amp,
                                         ampImageData,
                                         np.array(self.config.fringeScale),
@@ -308,7 +308,7 @@ class IsrMockLSST(IsrMock):
             # This is the full data (including pre/overscans if untrimmed).
             ampFullData = exposure.image[bboxFull]
 
-            # 2. Add dark current (e-) to imaging portion of the amplifier.
+            # 2. Add dark current (electron) to imaging portion of the amp.
             if self.config.doAddDark or self.config.doAddDarkNoiseOnly:
                 if self.config.doAddDarkNoiseOnly:
                     darkLevel = 0.0
@@ -321,13 +321,13 @@ class IsrMockLSST(IsrMock):
 
                 self.amplifierAddNoise(ampImageData, darkLevel, darkNoise, rng=rngDark)
 
-            # 3. Add BF effect (e-) to imaging portion of the amplifier.
+            # 3. Add BF effect (electron) to imaging portion of the amp.
             # TODO
 
-            # 4. Add serial CTI (e-) to amplifier (imaging + overscan).
+            # 4. Add serial CTI (electron) to amplifier (imaging + overscan).
             # TODO
 
-            # 5. Add 2D bias residual (e-) to imaging portion of the amplifier.
+            # 5. Add 2D bias residual (electron) to imaging portion of the amp.
             if self.config.doAdd2DBias:
                 # For now we use an unstructured noise field to add some
                 # consistent 2D bias residual that can be subtracted. In
@@ -339,7 +339,7 @@ class IsrMockLSST(IsrMock):
                     rng=rng2DBias,
                 )
 
-            # 6. Add clock-injected offset (e-) to amplifier
+            # 6. Add clock-injected offset (electron) to amplifer
             #    (imaging + overscan).
             # This is just an offset that will be crosstalked and modified by
             # the gain, and does not have a noise associated with it.
@@ -350,7 +350,7 @@ class IsrMockLSST(IsrMock):
                     0.0,
                 )
 
-            # 7./8. Add serial and parallel overscan slopes (e-)
+            # 7./8. Add serial and parallel overscan slopes (electron)
             #       (imaging + overscan)
             if (self.config.doAddParallelOverscanRamp or self.config.doAddSerialOverscanRamp) and \
                not self.config.isTrimmed:
@@ -365,7 +365,8 @@ class IsrMockLSST(IsrMock):
                     self.amplifierAddYGradient(ampFullData, -1.0 * self.config.overscanScale,
                                                1.0 * self.config.overscanScale)
 
-            # 9. Add non-linearity (e-) to amplifier (imaging + overscan).
+            # 9. Add non-linearity (electron) to amplifier
+            #    (imaging + overscan).
             if self.config.doAddHighSignalNonlinearity:
                 # The linearizer coefficients come from makeLinearizer().
                 if linearizer.linearityType[amp.getName()] != "Spline":
@@ -378,7 +379,7 @@ class IsrMockLSST(IsrMock):
                 # set the lower values to 0.0 (this cut is arbitrary).
                 values[centers < self.config.highSignalNonlinearityThreshold] = 0.0
 
-                # The linearizer is units of ADU, so convert to e-
+                # The linearizer is units of adu, so convert to electron
                 values *= self.config.gainDict[amp.getName()]
 
                 # Note that the linearity spline is in "overscan subtracted"
@@ -391,7 +392,8 @@ class IsrMockLSST(IsrMock):
                     self.config.clockInjectedOffsetLevel if self.config.doAddClockInjectedOffset else 0.0,
                 )
 
-            # 10. Add read noise (e-) to the amplifier (imaging + overscan).
+            # 10. Add read noise (electron) to the amplifier
+            #     (imaging + overscan).
             #     Unsure if this should be before or after crosstalk.
             #     Probably some of both; hopefully doesn't matter.
             if not self.config.calibMode:
@@ -426,7 +428,8 @@ class IsrMockLSST(IsrMock):
                         rng=rngOverscan,
                     )
 
-        # 11. Add crosstalk (e-) to all the amplifiers (imaging + overscan).
+        # 11. Add crosstalk (electron) to all the amplifiers
+        #     (imaging + overscan).
         if self.config.doAddCrosstalk:
             ctCalib = CrosstalkCalib()
             exposureClean = exposure.clone()
@@ -454,17 +457,17 @@ class IsrMockLSST(IsrMock):
             # This is the full data (including pre/overscans if untrimmed).
             ampFullData = exposure.image[bboxFull]
 
-            # 12. Gain un-normalize (from e- to floating point ADU)
+            # 12. Gain un-normalize (from electron to floating point adu)
             if self.config.doApplyGain:
                 gain = self.config.gainDict.get(amp.getName(), self.config.gain)
                 self.applyGain(ampFullData, gain)
 
-            # 13. Add overall bias level (ADU) to the amplifier
+            # 13. Add overall bias level (adu) to the amplifier
             #    (imaging + overscan)
             if self.config.doAddBias:
                 self.addBiasLevel(ampFullData, self.config.biasLevel)
 
-            # 14. Round/Truncate to integers (ADU)
+            # 14. Round/Truncate to integers (adu)
             if self.config.doRoundADU:
                 self.roundADU(ampFullData)
 
@@ -536,9 +539,9 @@ class IsrMockLSST(IsrMock):
     def makeLinearizer(self):
         # docstring inherited.
 
-        # The linearizer has units of ADU.
+        # The linearizer has units of adu.
         nNodes = 10
-        # Set this to just above the mock saturation (ADU)
+        # Set this to just above the mock saturation (adu)
         maxADU = 101_000
         nonLinSplineNodes = np.linspace(0, maxADU, nNodes)
         # These values come from cp_pipe/tests/test_linearity.py and
@@ -633,7 +636,7 @@ class IsrMockLSST(IsrMock):
     def applyGain(self, ampData, gain):
         """Apply gain to the amplifier's data.
         This method divides the data by the gain
-        because the mocks need to convert the data in electron to ADU,
+        because the mocks need to convert the data in electron to adu,
         so it does the inverse operation to applyGains in isrFunctions.
 
         Parameters
@@ -641,13 +644,13 @@ class IsrMockLSST(IsrMock):
         ampData : `lsst.afw.image.ImageF`
             Amplifier image to operate on.
         gain : `float`
-            Gain value in e^-/DN.
+            Gain value in electron/adu.
         """
         ampArr = ampData.array
         ampArr[:] = ampArr[:] / gain
 
     def roundADU(self, ampData):
-        """Round ADU to nearest integer.
+        """Round adu to nearest integer.
 
         Parameters
         ----------
@@ -777,8 +780,8 @@ class ReferenceMockLSST(IsrMockLSST):
     """Parent class for those that make reference calibrations.
     """
     def __init__(self, **kwargs):
-        # If we want the calibration in ADU units, we need to apply
-        # the gain. Default is e- units, so do not apply the gain.
+        # If we want the calibration in adu units, we need to apply
+        # the gain. Default is electron units, so do not apply the gain.
         doApplyGain = kwargs.pop("adu", False)
 
         super().__init__(**kwargs)
