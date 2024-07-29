@@ -153,7 +153,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.deferredChargeCalib
         if config.doLinearize is not True:
             del self.linearizer
-        if not config.doCrosstalk and not config.overscanCamera.doAnyParallelOverscanCrosstalk:
+        if not config.doCrosstalk:
             del self.crosstalk
         if config.doDefect is not True:
             del self.defects
@@ -578,14 +578,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         are available.
         """
 
-        doCrosstalk = self.config.doCrosstalk or self.config.overscanCamera.doAnyParallelOverscanCrosstalk
-
         inputMap = {'dnlLUT': self.config.doDiffNonLinearCorrection,
                     'bias': self.config.doBias,
                     'deferredChargeCalib': self.config.doDeferredCharge,
                     'linearizer': self.config.doLinearize,
                     'ptc': self.config.doApplyGains,
-                    'crosstalk': doCrosstalk,
+                    'crosstalk': self.config.doCrosstalk,
                     'defects': self.config.doDefect,
                     'bfKernel': self.config.doBrighterFatter,
                     'dark': self.config.doDark,
@@ -1441,7 +1439,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 raise RuntimeError("doBias is True but no bias provided.")
             self.compareCameraKeywords(exposureMetadata, bias, "bias")
             self.compareUnits(bias.metadata, "bias")
-        if self.config.doCrosstalk or overscanDetectorConfig.doAnyParallelOverscanCrosstalk:
+        if self.config.doCrosstalk:
             if crosstalk is None:
                 raise RuntimeError("doCrosstalk is True but no crosstalk provided.")
             self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
