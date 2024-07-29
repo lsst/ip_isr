@@ -172,10 +172,16 @@ class PhotodiodeCalib(IsrCalib):
         metadata = dataTable.meta
         inDict = {}
         inDict['metadata'] = metadata
+        if 'OBSTYPE' not in metadata:
+            inDict['metadata']['OBSTYPE'] = cls._OBSTYPE
         inDict['integrationMethod'] = metadata.pop('INTEGRATION_METHOD', 'DIRECT_SUM')
 
-        inDict['timeSamples'] = dataTable['TIME']
-        inDict['currentSamples'] = dataTable['CURRENT']
+        for key in ('TIME', 'Elapsed Time', ):
+            if key in dataTable.columns:
+                inDict['timeSamples'] = dataTable[key]
+        for key in ('CURRENT', 'Signal', ):
+            if key in dataTable.columns:
+                inDict['currentSamples'] = dataTable[key]
 
         return cls().fromDict(inDict)
 
