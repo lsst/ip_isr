@@ -305,6 +305,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
             config.doDetection = True
             config.ampEdgeWidth = 12
             config.applyWeights = applyWeights
+            config.doApplyAmpOffset = True  # Updates the exposure in place.
             if valueType == "random":
                 # For this specific case, the fraction of unmasked pixels for
                 # amp interface 01 is unusually small.
@@ -372,6 +373,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
             config.doBackground = False
             config.doDetection = False
             config.ampEdgeWidth = 12  # Given 100x51 amps in our mock detector.
+            config.doApplyAmpOffset = True  # Updates the exposure in place.
             if valueType == "artificial":
                 # For this extreme case, we expect the interface offsets to be
                 # unusually large.
