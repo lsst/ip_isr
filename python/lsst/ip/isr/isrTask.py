@@ -53,7 +53,7 @@ from .masking import MaskingTask
 from .overscan import OverscanCorrectionTask
 from .straylight import StrayLightTask
 from .vignette import VignetteTask
-from .ampOffset import AmpOffsetConfig, AmpOffsetTask
+from .ampOffset import AmpOffsetTask
 from .deferredCharge import DeferredChargeTask
 from .isrStatistics import IsrStatisticsTask
 from .ptcDataset import PhotonTransferCurveDataset
@@ -768,20 +768,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     )
 
     # Amp offset correction.
-    # TODO: Remove this config field on DM-45526.
     doAmpOffset = pexConfig.Field(
-        doc="Calculate and apply amp offset corrections?",
-        dtype=bool,
-        default=False,
-        deprecated="This field is no longer used. Will be removed after v28."
-    )
-    doMeasureAmpOffset = pexConfig.Field(
-        doc="Measure amp offset corrections?",
-        dtype=bool,
-        default=False,
-    )
-    doApplyAmpOffset = pexConfig.Field(
-        doc="Apply amp offset corrections?",
+        doc="Calculate amp offset corrections?",
         dtype=bool,
         default=False,
     )
@@ -991,6 +979,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
             if self.doApplyGains != self.isrStats.doApplyGainsForCtiStatistics:
                 raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
+        if self.ampOffset.doApplyAmpOffset and not self.doAmpOffset:
+            raise ValueError("ampOffset.doApplyAmpOffset requires doAmpOffset to be True.")
 
 
 class IsrTask(pipeBase.PipelineTask):
@@ -1714,34 +1704,13 @@ class IsrTask(pipeBase.PipelineTask):
 
         self.roughZeroPoint(ccdExposure)
 
-        # An extra config validation logic that checks for compatibility
-        # among the config options for amp offset correction.
-        if self.config.doApplyAmpOffset and not self.config.doMeasureAmpOffset:
-            raise RuntimeError("doApplyAmpOffset requires doMeasureAmpOffset to be True.")
-
-        # Measure amp offset corrections within the CCD.
-        if self.config.doMeasureAmpOffset:
-            ampOffsetConfig = AmpOffsetConfig()
-            ampOffsetConfig.doMeasureAmpOffset = True
-            if self.config.doApplyAmpOffset:
-                # Correct for amp offsets within the CCD.
-                ampOffsetConfig.doApplyAmpOffset = True
+        # Calculate amp offset corrections within the CCD.
+        if self.config.doAmpOffset:
+            if self.config.ampOffset.doApplyAmpOffset:
                 self.log.info("Calculating and applying amp offset corrections.")
             else:
-                ampOffsetConfig.doApplyAmpOffset = False
                 self.log.info("Calculating amp offset corrections without applying them.")
-            ampOffsetTask = self.ampOffset(config=ampOffsetConfig)
-            ampOffsetTask.run(ccdExposure)
-
-        # correct for amp offsets within the CCD
-        # TODO: Remove this whole ``if`` clause on DM-45526.
-        if self.config.doAmpOffset:
-            if self.config.doMeasureBackground or self.config.doApplyAmpOffset:
-                raise RuntimeError("Enabling doMeasureBackground or doApplyAmpOffset "
-                                   "requires doAmpOffset to be False.")
-            else:
-                self.log.info("Correcting amp offsets.")
-                self.ampOffset.run(ccdExposure)
+            self.ampOffset.run(ccdExposure)
 
         if self.config.doMeasureBackground:
             self.log.info("Measuring background level.")

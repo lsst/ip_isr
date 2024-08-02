@@ -365,6 +365,27 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
                     sigmaWeighted = np.std(pedestals - approximatePedestals)
                     self.assertNotEqual(sigmaWeighted, sigmaUnweighted)
 
+    def testAmpOffsetEffectOnExposure(self):
+        exp0 = self.buildExposure("random", addBackground=True, rampBackground=True)
+        exp = exp0.clone()
+        config = AmpOffsetConfig()
+        config.doBackground = True
+        config.doDetection = True
+        config.ampEdgeWidth = 12
+        config.applyWeights = True
+
+        # Configure to not apply amp offset to the exposure and run the task.
+        # Verify that the exposure remains unchanged.
+        config.doApplyAmpOffset = False
+        AmpOffsetTask(config=config).run(exp)
+        self.assertFloatsEqual(exp0.image.array, exp.image.array)
+
+        # Configure to apply amp offset to the exposure and run the task.
+        # Verify that the exposure is updated.
+        config.doApplyAmpOffset = True
+        AmpOffsetTask(config=config).run(exp)
+        self.assertFloatsNotEqual(exp0.image.array, exp.image.array)
+
     @methodParameters(valueType=["symmetric", "random", "artificial"])
     def testAmpOffset(self, valueType):
         for applyWeights in [False, True]:

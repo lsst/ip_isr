@@ -17,7 +17,7 @@ import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
-from .ampOffset import AmpOffsetConfig, AmpOffsetTask
+from .ampOffset import AmpOffsetTask
 from .overscan import SerialOverscanCorrectionTask, ParallelOverscanCorrectionTask
 from .overscanAmpConfig import OverscanCameraConfig
 from .assembleCcdTask import AssembleCcdTask
@@ -371,13 +371,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
 
     # Amp offset correction.
-    doMeasureAmpOffset = pexConfig.Field(
-        doc="Measure amp offset corrections?",
-        dtype=bool,
-        default=False,
-    )
-    doApplyAmpOffset = pexConfig.Field(
-        doc="Apply amp offset corrections?",
+    doAmpOffset = pexConfig.Field(
+        doc="Calculate amp offset corrections?",
         dtype=bool,
         default=False,
     )
@@ -528,6 +523,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             # if self.doApplyGains !=
             #      self.isrStats.doApplyGainsForCtiStatistics:
             raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
+        if self.ampOffset.doApplyAmpOffset and not self.doAmpOffset:
+            raise ValueError("ampOffset.doApplyAmpOffset requires doAmpOffset to be True.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -1540,24 +1537,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskNameList=list(self.config.maskListToInterpolate)
             )
 
-        # An extra config validation logic that checks for compatibility
-        # among the config options for amp offset correction.
-        if self.config.doApplyAmpOffset and not self.config.doMeasureAmpOffset:
-            raise RuntimeError("doApplyAmpOffset requires doMeasureAmpOffset to be True.")
-
-        # Measure amp offset corrections within the CCD.
-        if self.config.doMeasureAmpOffset:
-            ampOffsetConfig = AmpOffsetConfig()
-            ampOffsetConfig.doMeasureAmpOffset = True
-            if self.config.doApplyAmpOffset:
-                # Correct for amp offsets within the CCD.
-                ampOffsetConfig.doApplyAmpOffset = True
+        # Calculate amp offset corrections within the CCD.
+        if self.config.doAmpOffset:
+            if self.config.ampOffset.doApplyAmpOffset:
                 self.log.info("Calculating and applying amp offset corrections.")
             else:
-                ampOffsetConfig.doApplyAmpOffset = False
                 self.log.info("Calculating amp offset corrections without applying them.")
-            ampOffsetTask = self.ampOffset(config=ampOffsetConfig)
-            ampOffsetTask.run(ccdExposure)
+            self.ampOffset.run(ccdExposure)
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
