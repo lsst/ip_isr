@@ -769,7 +769,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
 
     # Amp offset correction.
     doAmpOffset = pexConfig.Field(
-        doc="Calculate and apply amp offset corrections?",
+        doc="Calculate amp offset corrections?",
         dtype=bool,
         default=False,
     )
@@ -979,6 +979,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
             if self.doApplyGains != self.isrStats.doApplyGainsForCtiStatistics:
                 raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
+        if self.ampOffset.doApplyAmpOffset and not self.doAmpOffset:
+            raise ValueError("ampOffset.doApplyAmpOffset requires doAmpOffset to be True.")
 
 
 class IsrTask(pipeBase.PipelineTask):
@@ -1702,9 +1704,12 @@ class IsrTask(pipeBase.PipelineTask):
 
         self.roughZeroPoint(ccdExposure)
 
-        # correct for amp offsets within the CCD
+        # Calculate amp offset corrections within the CCD.
         if self.config.doAmpOffset:
-            self.log.info("Correcting amp offsets.")
+            if self.config.ampOffset.doApplyAmpOffset:
+                self.log.info("Calculating and applying amp offset corrections.")
+            else:
+                self.log.info("Calculating amp offset corrections without applying them.")
             self.ampOffset.run(ccdExposure)
 
         if self.config.doMeasureBackground:

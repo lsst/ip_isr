@@ -17,6 +17,7 @@ import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
+from .ampOffset import AmpOffsetTask
 from .overscan import SerialOverscanCorrectionTask, ParallelOverscanCorrectionTask
 from .overscanAmpConfig import OverscanCameraConfig
 from .assembleCcdTask import AssembleCcdTask
@@ -369,6 +370,17 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=False,
     )
 
+    # Amp offset correction.
+    doAmpOffset = pexConfig.Field(
+        doc="Calculate amp offset corrections?",
+        dtype=bool,
+        default=False,
+    )
+    ampOffset = pexConfig.ConfigurableField(
+        doc="Amp offset correction task.",
+        target=AmpOffsetTask,
+    )
+
     # Initial masking options.
     doSetBadRegions = pexConfig.Field(
         dtype=bool,
@@ -511,6 +523,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             # if self.doApplyGains !=
             #      self.isrStats.doApplyGainsForCtiStatistics:
             raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
+        if self.ampOffset.doApplyAmpOffset and not self.doAmpOffset:
+            raise ValueError("ampOffset.doApplyAmpOffset requires doAmpOffset to be True.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -1522,6 +1536,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
                 maskNameList=list(self.config.maskListToInterpolate)
             )
+
+        # Calculate amp offset corrections within the CCD.
+        if self.config.doAmpOffset:
+            if self.config.ampOffset.doApplyAmpOffset:
+                self.log.info("Calculating and applying amp offset corrections.")
+            else:
+                self.log.info("Calculating amp offset corrections without applying them.")
+            self.ampOffset.run(ccdExposure)
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:

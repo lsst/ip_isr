@@ -305,6 +305,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
             config.doDetection = True
             config.ampEdgeWidth = 12
             config.applyWeights = applyWeights
+            config.doApplyAmpOffset = True  # Updates the exposure in place.
             if valueType == "random":
                 # For this specific case, the fraction of unmasked pixels for
                 # amp interface 01 is unusually small.
@@ -364,6 +365,27 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
                     sigmaWeighted = np.std(pedestals - approximatePedestals)
                     self.assertNotEqual(sigmaWeighted, sigmaUnweighted)
 
+    def testAmpOffsetEffectOnExposure(self):
+        exp0 = self.buildExposure("random", addBackground=True, rampBackground=True)
+        exp = exp0.clone()
+        config = AmpOffsetConfig()
+        config.doBackground = True
+        config.doDetection = True
+        config.ampEdgeWidth = 12
+        config.applyWeights = True
+
+        # Configure to not apply amp offset to the exposure and run the task.
+        # Verify that the exposure remains unchanged.
+        config.doApplyAmpOffset = False
+        AmpOffsetTask(config=config).run(exp)
+        self.assertFloatsEqual(exp0.image.array, exp.image.array)
+
+        # Configure to apply amp offset to the exposure and run the task.
+        # Verify that the exposure is updated.
+        config.doApplyAmpOffset = True
+        AmpOffsetTask(config=config).run(exp)
+        self.assertFloatsNotEqual(exp0.image.array, exp.image.array)
+
     @methodParameters(valueType=["symmetric", "random", "artificial"])
     def testAmpOffset(self, valueType):
         for applyWeights in [False, True]:
@@ -372,6 +394,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
             config.doBackground = False
             config.doDetection = False
             config.ampEdgeWidth = 12  # Given 100x51 amps in our mock detector.
+            config.doApplyAmpOffset = True  # Updates the exposure in place.
             if valueType == "artificial":
                 # For this extreme case, we expect the interface offsets to be
                 # unusually large.

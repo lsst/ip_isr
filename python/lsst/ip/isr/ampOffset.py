@@ -120,6 +120,11 @@ class AmpOffsetConfig(Config):
         dtype=bool,
         default=True,
     )
+    doApplyAmpOffset = Field(
+        doc="Apply amp offset corrections to the input exposure?",
+        dtype=bool,
+        default=False,
+    )
 
 
 class AmpOffsetTask(Task):
@@ -238,19 +243,30 @@ class AmpOffsetTask(Task):
         metadata = exposure.getMetadata()  # Exposure metadata.
         self.metadata["AMPOFFSET_PEDESTALS"] = {}  # Task metadata.
         for amp, pedestal in zip(amps, pedestals):
-            ampIm = exposure.image[amp.getBBox()].array
-            ampIm -= pedestal
             ampName = amp.getName()
             # Add the amp pedestal to the exposure metadata.
             metadata.set(
                 f"LSST ISR AMPOFFSET PEDESTAL {ampName}",
                 float(pedestal),
-                f"Pedestal level subtracted from amp {ampName}",
+                f"Pedestal level calculated for amp {ampName}",
             )
+            if self.config.doApplyAmpOffset:
+                ampIm = exposure.image[amp.getBBox()].array
+                ampIm -= pedestal
             # Add the amp pedestal to the "Task" metadata as well.
             # Needed for Sasquatch/Chronograf!
             self.metadata["AMPOFFSET_PEDESTALS"][ampName] = float(pedestal)
-        self.log.info(f"amp pedestal values: {', '.join([f'{x:.4f}' for x in pedestals])}")
+        if self.config.doApplyAmpOffset:
+            status = "subtracted from exposure"
+            metadata.set(
+                "LSST ISR AMPOFFSET PEDESTAL SUBTRACTED", True, "Amp pedestals have been subtracted"
+            )
+        else:
+            status = "not subtracted from exposure"
+            metadata.set(
+                "LSST ISR AMPOFFSET PEDESTAL SUBTRACTED", False, "Amp pedestals have not been subtracted"
+            )
+        self.log.info(f"amp pedestal values ({status}): {', '.join([f'{x:.4f}' for x in pedestals])}")
 
         return Struct(pedestals=pedestals)
 
