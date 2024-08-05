@@ -832,6 +832,11 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Save a copy of the pre-interpolated pixel values?",
         default=False,
     )
+    useLegacyInterp = pexConfig.Field(
+        dtype=bool,
+        doc="Use the legacy interpolation algorithm. If False use Gaussian Process.",
+        default=True,
+    )
 
     # Default photometric calibration options.
     fluxMag0T1 = pexConfig.DictField(
@@ -1560,7 +1565,8 @@ class IsrTask(pipeBase.PipelineTask):
                     maskedImage=interpExp.getMaskedImage(),
                     fwhm=self.config.fwhm,
                     growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                    maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
+                    maskNameList=list(self.config.brighterFatterMaskListToInterpolate),
+                    useLegacyInterp=self.config.useLegacyInterp,
                 )
             bfExp = interpExp.clone()
 
@@ -1699,7 +1705,8 @@ class IsrTask(pipeBase.PipelineTask):
                 maskedImage=ccdExposure.getMaskedImage(),
                 fwhm=self.config.fwhm,
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                maskNameList=list(self.config.maskListToInterpolate)
+                maskNameList=list(self.config.maskListToInterpolate),
+                useLegacyInterp=self.config.useLegacyInterp,
             )
 
         self.roughZeroPoint(ccdExposure)
@@ -2417,6 +2424,7 @@ class IsrTask(pipeBase.PipelineTask):
             fwhm=self.config.fwhm,
             growSaturatedFootprints=self.config.growSaturationFootprintSize,
             maskNameList=list(self.config.saturatedMaskName),
+            useLegacyInterp=self.config.useLegacyInterp,
         )
 
     def suspectDetection(self, exposure, amp):
@@ -2536,6 +2544,7 @@ class IsrTask(pipeBase.PipelineTask):
             fwhm=self.config.fwhm,
             growSaturatedFootprints=0,
             maskNameList=["BAD"],
+            useLegacyInterp=self.config.useLegacyInterp,
         )
 
     def maskNan(self, exposure):
@@ -2583,6 +2592,7 @@ class IsrTask(pipeBase.PipelineTask):
             fwhm=self.config.fwhm,
             growSaturatedFootprints=0,
             maskNameList=["UNMASKEDNAN"],
+            useLegacyInterp=self.config.useLegacyInterp,
         )
 
     def measureBackground(self, exposure, IsrQaConfig=None):
