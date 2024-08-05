@@ -8,7 +8,6 @@ from . import isrQa
 from .defects import Defects
 
 from contextlib import contextmanager
-from lsst.afw.cameraGeom import NullLinearityType
 import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
@@ -1335,25 +1334,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         exposure.image.array[:, :] += rng.uniform(low=low, high=high, size=exposure.image.array.shape)
 
-    def doLinearize(self, detector):
-        """Check if linearization is needed for the detector cameraGeom.
-
-        Checks config.doLinearize and the linearity type of the first
-        amplifier.
-
-        Parameters
-        ----------
-        detector : `lsst.afw.cameraGeom.Detector`
-            Detector to get linearity type from.
-
-        Returns
-        -------
-        doLinearize : `Bool`
-            If True, linearization should be performed.
-        """
-        return self.config.doLinearize and \
-            detector.getAmplifiers()[0].getLinearityType() != NullLinearityType
-
     def flatCorrection(self, exposure, flatExposure, invert=False):
         """Apply flat correction in place.
 
@@ -1430,7 +1410,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if dnlLUT is None:
                 raise RuntimeError("doDiffNonLinearCorrection is True but no dnlLUT provided.")
             self.compareCameraKeywords(exposureMetadata, dnlLUT, "dnlLUT")
-        if self.doLinearize(detector):
+        if self.config.doLinearize:
             if linearizer is None:
                 raise RuntimeError("doLinearize is True but no linearizer provided.")
             self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
