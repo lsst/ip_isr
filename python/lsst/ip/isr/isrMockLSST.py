@@ -686,7 +686,8 @@ class IsrMockLSST(IsrMock):
 
         Parameters
         ----------
-        amp : `blah`
+        amp : `lsst.afw.ampInfo.AmpInfoRecord`
+            Amplifier to operate on.
 
         Returns
         -------
@@ -745,9 +746,11 @@ class TrimmedRawMockLSST(RawMockLSST):
         self.config.doAddSerialOverscanRamp = False
 
 
-# Question: what is this used for?
 class CalibratedRawMockLSST(RawMockLSST):
     """Generate a trimmed raw exposure.
+
+    This represents a "truth" image that can be compared to a
+    post-ISR cleaned image.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
