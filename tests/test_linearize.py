@@ -209,7 +209,6 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 storedLinearizer = Linearizer().fromDict(storedDict)
 
                 measImage = inImage.Factory(inImage, True)
-                storedLinearizer = self.makeLinearizer(linearityType)
                 storedResult = storedLinearizer.applyLinearity(measImage, log=self.log)
 
                 self.compareResults(measImage, storedResult.numOutOfRange, storedResult.numLinearized,
@@ -221,8 +220,17 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 storedLinearizer = Linearizer().fromTable(storedTable)
 
                 measImage = inImage.Factory(inImage, True)
-                storedLinearizer = self.makeLinearizer(linearityType)
                 storedResult = storedLinearizer.applyLinearity(measImage, log=self.log)
+
+                self.compareResults(measImage, storedResult.numOutOfRange, storedResult.numLinearized,
+                                    storedResult.numAmps,
+                                    refImage, refNumOutOfRange, self.numAmps - zeroLinearity, self.numAmps)
+
+                # Use a gain and test again
+                measImage = inImage.Factory(inImage, True)
+                storedLinearizer = self.makeLinearizer(linearityType)
+                gains = {key: 1.0 for key in storedLinearizer.linearityType.keys()}
+                storedResult = storedLinearizer.applyLinearity(measImage, log=self.log, gains=gains)
 
                 self.compareResults(measImage, storedResult.numOutOfRange, storedResult.numLinearized,
                                     storedResult.numAmps,

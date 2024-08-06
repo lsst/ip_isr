@@ -846,7 +846,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
 
 
 @contextmanager
-def gainContext(exp, image, apply, gains=None):
+def gainContext(exp, image, apply, gains=None, invert=False, isTrimmed=True):
     """Context manager that applies and removes gain.
 
     Parameters
@@ -855,11 +855,15 @@ def gainContext(exp, image, apply, gains=None):
         Exposure to apply/remove gain.
     image : `lsst.afw.image.Image`
         Image to apply/remove gain.
-    apply : `Bool`
+    apply : `bool`
         If True, apply and remove the amplifier gain.
-    gains : `dict` [`str`, `float`]
+    gains : `dict` [`str`, `float`], optional
         A dictionary, keyed by amplifier name, of the gains to use.
         If gains is None, the nominal gains in the amplifier object are used.
+    invert : `bool`, optional
+        Invert the gains (e.g. convert electrons to adu temporarily)?
+    isTrimmed : `bool`, optional
+        Is this a trimmed exposure?
 
     Yields
     ------
@@ -877,12 +881,15 @@ def gainContext(exp, image, apply, gains=None):
     if apply:
         ccd = exp.getDetector()
         for amp in ccd:
-            sim = image.Factory(image, amp.getBBox())
+            sim = image.Factory(image, amp.getBBox() if isTrimmed else amp.getRawBBox())
             if gains:
                 gain = gains[amp.getName()]
             else:
                 gain = amp.getGain()
-            sim *= gain
+            if invert:
+                sim /= gain
+            else:
+                sim *= gain
 
     try:
         yield exp
@@ -890,12 +897,15 @@ def gainContext(exp, image, apply, gains=None):
         if apply:
             ccd = exp.getDetector()
             for amp in ccd:
-                sim = image.Factory(image, amp.getBBox())
+                sim = image.Factory(image, amp.getBBox() if isTrimmed else amp.getRawBBox())
                 if gains:
                     gain = gains[amp.getName()]
                 else:
                     gain = amp.getGain()
-                sim /= gain
+                if invert:
+                    sim *= gain
+                else:
+                    sim /= gain
 
 
 def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmission=None,
@@ -950,7 +960,7 @@ def attachTransmissionCurve(exposure, opticsTransmission=None, filterTransmissio
     return combined
 
 
-def applyGains(exposure, normalizeGains=False, ptcGains=None):
+def applyGains(exposure, normalizeGains=False, ptcGains=None, isTrimmed=True):
     """Scale an exposure by the amplifier gains.
 
     Parameters
@@ -962,13 +972,18 @@ def applyGains(exposure, normalizeGains=False, ptcGains=None):
         each amplifier to equal the median of those medians.
     ptcGains : `dict`[`str`], optional
         Dictionary keyed by amp name containing the PTC gains.
+    isTrimmed : `bool`, optional
+        Is the input image trimmed?
     """
     ccd = exposure.getDetector()
     ccdImage = exposure.getMaskedImage()
 
     medians = []
     for amp in ccd:
-        sim = ccdImage.Factory(ccdImage, amp.getBBox())
+        if isTrimmed:
+            sim = ccdImage.Factory(ccdImage, amp.getBBox())
+        else:
+            sim = ccdImage.Factory(ccdImage, amp.getRawBBox())
         if ptcGains:
             sim *= ptcGains[amp.getName()]
         else:
@@ -980,7 +995,10 @@ def applyGains(exposure, normalizeGains=False, ptcGains=None):
     if normalizeGains:
         median = numpy.median(numpy.array(medians))
         for index, amp in enumerate(ccd):
-            sim = ccdImage.Factory(ccdImage, amp.getBBox())
+            if isTrimmed:
+                sim = ccdImage.Factory(ccdImage, amp.getBBox())
+            else:
+                sim = ccdImage.Factory(ccdImage, amp.getRawBBox())
             if medians[index] != 0.0:
                 sim *= median/medians[index]
 

@@ -36,6 +36,24 @@ class OverscanAmpConfig(pexConfig.Config):
         dtype=ParallelOverscanCorrectionTaskConfig,
         doc="Parallel overscan configuration.",
     )
+    saturation = pexConfig.Field(
+        dtype=float,
+        doc="The saturation level to use to override any detector/calibration product value "
+            "(ignored if NaN). Units are ADU.",
+        default=float("NaN"),
+    )
+    suspectLevel = pexConfig.Field(
+        dtype=float,
+        doc="The ``suspect`` level to use to override any detector/calibration product value "
+            "(ignored if NaN). Units are ADU.",
+        default=float("NaN"),
+    )
+    gain = pexConfig.Field(
+        dtype=float,
+        doc="The gain to use to override any calibration product value (ignored if NaN). "
+            "Units are e-/ADU.",
+        default=float("NaN"),
+    )
 
     def setDefaults(self):
         super().setDefaults()
@@ -43,9 +61,11 @@ class OverscanAmpConfig(pexConfig.Config):
         self.serialOverscanConfig.fitType = "MEDIAN_PER_ROW"
         self.serialOverscanConfig.leadingToSkip = 3
         self.serialOverscanConfig.trailingToSkip = 3
+        self.serialOverscanConfig.overscanIsInt = False
         self.parallelOverscanConfig.fitType = "MEDIAN_PER_ROW"
         self.parallelOverscanConfig.leadingToSkip = 3
         self.parallelOverscanConfig.trailingToSkip = 3
+        self.parallelOverscanConfig.overscanIsInt = False
 
     @property
     def _stringForHash(self):
@@ -78,6 +98,17 @@ class OverscanDetectorConfig(pexConfig.Config):
     defaultAmpConfig = pexConfig.ConfigField(
         dtype=OverscanAmpConfig,
         doc="Default configuration for amplifiers.",
+    )
+    integerDitherMode = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Dithering mode to cancel integerization of counts.",
+        default="SYMMETRIC",
+        allowed={
+            "POSITIVE": "Dithering is done with a uniform random in the range [0, 1).",
+            "NEGATIVE": "Dithering is done with a uniform random in the range [-1, 0).",
+            "SYMMETRIC": "Dithering is done with a uniform random in the range [-0.5, 0.5).",
+            "NONE": "No dithering is performed.",
+        },
     )
 
     @property

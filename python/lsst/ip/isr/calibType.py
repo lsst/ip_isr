@@ -158,6 +158,11 @@ class IsrCalib(abc.ABC):
     def requiredAttributes(self, value):
         self._requiredAttributes = value
 
+    # Property accessor associated with getMetadata().
+    @property
+    def metadata(self):
+        return self._metadata
+
     def getMetadata(self):
         """Retrieve metadata associated with this calibration.
 
