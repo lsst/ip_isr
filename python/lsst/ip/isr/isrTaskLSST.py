@@ -442,7 +442,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
     brighterFatterMaskListToInterpolate = pexConfig.ListField(
         dtype=str,
-        doc="List of mask planes that should be interpolated over when applying the brighter-fatter."
+        doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
         "correction.",
         default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
     )
