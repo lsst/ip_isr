@@ -127,7 +127,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
         keytype=str,
         itemtype=float,
         doc="Dictionary of amp name to gain; any amps not listed will use "
-            "config.gain as the value. Units are e-/ADU.",
+            "config.gain as the value. Units are electron/adu.",
         default={
             "C:0,0": 1.65,
             "C:0,1": 1.60,

@@ -91,7 +91,7 @@ class IsrMockConfig(pexConfig.Config):
     readNoise = pexConfig.Field(
         dtype=float,
         default=5.0,
-        doc="Read noise of the detector in e-.",
+        doc="Read noise of the detector in electron.",
     )
     expTime = pexConfig.Field(
         dtype=float,
@@ -104,13 +104,13 @@ class IsrMockConfig(pexConfig.Config):
         dtype=float,
         default=1000.0,
         doc="Background contribution to be generated from 'the sky' in "
-            "ADU (IsrTask) or e- (IsrTaskLSST).",
+            "adu (IsrTask) or electron (IsrTaskLSST).",
     )
     sourceFlux = pexConfig.ListField(
         dtype=float,
         default=[45000.0],
         doc="Peak flux level of simulated 'astronomical sources' in "
-            "ADU (IsrTask) or e- (IsrTaskLSST).",
+            "adu (IsrTask) or electron (IsrTaskLSST).",
     )
     sourceAmp = pexConfig.ListField(
         dtype=int,
@@ -131,17 +131,17 @@ class IsrMockConfig(pexConfig.Config):
         dtype=float,
         default=100.0,
         doc="Amplitude of the ramp function to add to overscan data in "
-            "ADU (IsrTask) or e- (IsrTaskLSST)",
+            "adu (IsrTask) or electron (IsrTaskLSST)",
     )
     biasLevel = pexConfig.Field(
         dtype=float,
         default=8000.0,
-        doc="Background contribution to be generated from the bias offset in ADU.",
+        doc="Background contribution to be generated from the bias offset in adu.",
     )
     darkRate = pexConfig.Field(
         dtype=float,
         default=5.0,
-        doc="Background level contribution (in e-/s) to be generated from dark current.",
+        doc="Background level contribution (in electron/s) to be generated from dark current.",
     )
     darkTime = pexConfig.Field(
         dtype=float,
@@ -157,7 +157,7 @@ class IsrMockConfig(pexConfig.Config):
         dtype=float,
         default=[200.0],
         doc="Peak fluxes for the components of the fringe ripple in "
-            "ADU (IsrTask) or e- (IsrTaskLSST).",
+            "adu (IsrTask) or electron (IsrTaskLSST).",
     )
     fringeX0 = pexConfig.ListField(
         dtype=float,
@@ -276,8 +276,8 @@ class IsrMock(pipeBase.Task):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.rng = np.random.RandomState(self.config.rngSeed)
-        # The coefficients have units ADU for IsrTask and have
-        # units e- for IsrTaskLSST.
+        # The coefficients have units adu for IsrTask and have
+        # units electron for IsrTaskLSST.
         self.crosstalkCoeffs = np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -1e-3, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1050,8 +1050,8 @@ class MockDataContainer(object):
     """Container for holding ISR mock objects.
     """
     dataId = "isrMock Fake Data"
-    darkval = 2.  # e-/sec
-    oscan = 250.  # ADU
+    darkval = 2.  # electron/sec
+    oscan = 250.  # adu
     gradient = .10
     exptime = 15.0  # seconds
     darkexptime = 15.0  # seconds
@@ -1132,8 +1132,8 @@ class MockFringeContainer(object):
     """Container for mock fringe data.
     """
     dataId = "isrMock Fake Data"
-    darkval = 2.  # e-/sec
-    oscan = 250.  # ADU
+    darkval = 2.  # electron/sec
+    oscan = 250.  # adu
     gradient = .10
     exptime = 15  # seconds
     darkexptime = 40.  # seconds
