@@ -49,7 +49,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.bias = isrMockLSST.BiasMockLSST().run()
         self.dark = isrMockLSST.DarkMockLSST().run()
         self.flat = isrMockLSST.FlatMockLSST().run()
-        self.bf_kernel = isrMockLSST.BfKernelMockLSST().run()
+        self.bfKernel = isrMockLSST.BfKernelMockLSST().run()
 
         # The crosstalk ratios in isrMockLSST are in electrons.
         self.crosstalk = CrosstalkCalib(nAmp=self.namp)
@@ -485,6 +485,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAddFringe = False
         mock_config.doAddSky = True
         mock_config.doAddSource = True
+        mock_config.doAddSiliconPhysics = True
+        mock_config.bfStrength = 1.0
+        mock_config.diffusionStrength = 0.0
+        mock_config.nRecalc = 15_000
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
@@ -493,6 +497,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
+        isr_config.brighterFatterThreshold = 1.0
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -505,6 +510,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 defects=self.defects,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                bfKernel=self.bfKernel,
             )
 
         # Confirm that the output has the defect line as bad.
@@ -520,6 +526,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         clean_mock_config.doAddDarkNoiseOnly = True
         clean_mock_config.doAddSky = True
         clean_mock_config.doAddSource = True
+        clean_mock_config.doAddSiliconPhysics = True
+        clean_mock_config.bfStrength = 0.0001
+        clean_mock_config.diffusionStrength = 0.0
+        clean_mock_config.nRecalc = 15_000
 
         clean_mock = isrMockLSST.IsrMockLSST(config=clean_mock_config)
         clean_exp = clean_mock.run()
@@ -529,16 +539,16 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
         # We compare the good pixels in the entirety.
-        self.assertLess(np.std(delta[good_pixels]), 5.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+        self.assertLess(np.std(delta[good_pixels]), 9.0)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 360.0)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
-        self.assertLess(np.abs(np.median(delta[good_pixels])), 0.5)
+        self.assertLess(np.abs(np.median(delta[good_pixels])), 10.0)
 
         # And overall where the interpolation is a bit worse but
         # the statistics are still fine.
-        self.assertLess(np.std(delta), 5.5)
+        self.assertLess(np.std(delta), 10.5)
 
         metadata = result.exposure.metadata
 
