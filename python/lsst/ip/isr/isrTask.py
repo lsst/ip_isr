@@ -1385,10 +1385,10 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doStrayLight:
             self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
 
-        # Start in ADU. Update units to electrons when gain is applied:
+        # Start in adu. Update units to electrons when gain is applied:
         # updateVariance, applyGains
         # Check if needed during/after BFE correction, CTI correction.
-        exposureMetadata["LSST ISR UNITS"] = "ADU"
+        exposureMetadata["LSST ISR UNITS"] = "adu"
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1639,7 +1639,7 @@ class IsrTask(pipeBase.PipelineTask):
             self.log.info("Applying gain correction instead of flat.")
             isrFunctions.applyGains(ccdExposure, self.config.normalizeGains,
                                     ptcGains=ptc.gain)
-            exposureMetadata["LSST ISR UNITS"] = "electrons"
+            exposureMetadata["LSST ISR UNITS"] = "electron"
 
         if self.config.doFringe and self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction after flat.")
