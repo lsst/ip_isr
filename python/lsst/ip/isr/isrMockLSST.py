@@ -26,6 +26,7 @@ __all__ = ["IsrMockLSSTConfig", "IsrMockLSST", "RawMockLSST",
            "TransmissionMockLSST"]
 
 import numpy as np
+import galsim
 
 import lsst.geom as geom
 import lsst.pex.config as pexConfig
@@ -36,6 +37,7 @@ from .isrMock import IsrMockConfig, IsrMock
 from .defects import Defects
 from .assembleCcdTask import AssembleCcdTask
 from .linearize import Linearizer
+from .brighterFatterKernel import BrighterFatterKernel
 
 
 class IsrMockLSSTConfig(IsrMockConfig):
@@ -67,6 +69,26 @@ class IsrMockLSSTConfig(IsrMockConfig):
         dtype=float,
         default=30000.0,
         doc="Bright defect level (electron).",
+    )
+    doAddSiliconPhysics = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Add brighter fatter and/or diffusion effects to image.",
+    )
+    bfStrength = pexConfig.Field(
+        dtype=float,
+        default=1.0,
+        doc="The brighter fatter effect scaling parameter (cannot be zero)."
+    )
+    diffusionStrength = pexConfig.Field(
+        dtype=float,
+        default=1.0,
+        doc="The diffusion effect scaling parameter."
+    )
+    nRecalc = pexConfig.Field(
+        dtype=int,
+        default=10000,
+        doc="Number of e- to accumulate before recalculating pixel shapes.",
     )
     doAddClockInjectedOffset = pexConfig.Field(
         dtype=bool,
@@ -322,7 +344,12 @@ class IsrMockLSST(IsrMock):
                 self.amplifierAddNoise(ampImageData, darkLevel, darkNoise, rng=rngDark)
 
             # 3. Add BF effect (electron) to imaging portion of the amp.
-            # TODO
+            if self.config.doAddSiliconPhysics is True:
+                self.amplifierAddSiliconPhysics(ampImageData,
+                                                self.config.rngSeed,
+                                                self.config.bfStrength,
+                                                self.config.diffusionStrength,
+                                                self.config.nRecalc)
 
             # 4. Add serial CTI (electron) to amplifier (imaging + overscan).
             # TODO
@@ -535,6 +562,58 @@ class IsrMockLSST(IsrMock):
         footprintSet = afwDetection.FootprintSet(assembledExp.image, threshold)
 
         return Defects.fromFootprintList(footprintSet.getFootprints())
+
+    def makeBfKernel(self):
+        """Generate a simple simulated brighter-fatter kernel.
+        Returns
+        -------
+        kernel : `lsst.ip.isr.BrighterFatterKernel`
+            Simulated brighter-fatter kernel.
+        """
+        bfkArray = super().makeBfKernel()
+        bfKernelObject = BrighterFatterKernel()
+        bfKernelObject.level = 'AMP'
+        bfKernelObject.gain = self.config.gainDict
+
+        for amp in self.getExposure().getDetector():
+            # Kernel must be in (y,x) orientation
+            bfKernelObject.ampKernels[amp.getName()] = bfkArray.T
+
+        return bfKernelObject
+
+    def amplifierAddSiliconPhysics(self, ampImageData, seed, bfStrength, diffusionStrength, nRecalc):
+        """Add brighter fatter effect and/or diffusion to the image.
+          Parameters
+          ----------
+          ampImageData : `lsst.afw.image.ImageF`
+              Amplifier image to operate on.
+          seed : `int`
+              Seed for the random number generator.
+          bfStrength : `float`
+              Scaling parameter of the brighter fatter effect (nominally = 1)
+          diffusionStrength : `float`
+              Scaling parameter of the diffusion effects (nominally = 1).
+          nRecalc: 'int'
+              The number of electrons to accumulate before recalculating the
+              distortion of the pixel shapes.
+        """
+        rng = galsim.BaseDeviate(seed)
+
+        incidentImage = galsim.Image(ampImageData.array, scale=1)
+        measuredImage = galsim.ImageF(ampImageData.array.shape[1],
+                                      ampImageData.array.shape[0],
+                                      scale=1)
+        photons = galsim.PhotonArray.makeFromImage(incidentImage)
+
+        sensorModel = galsim.SiliconSensor(strength=bfStrength,
+                                           rng=rng,
+                                           diffusion_factor=diffusionStrength,
+                                           nrecalc=nRecalc)
+
+        totalFluxAdded = sensorModel.accumulate(photons, measuredImage)
+        ampImageData.array = measuredImage.array
+
+        return totalFluxAdded
 
     def makeLinearizer(self):
         # docstring inherited.

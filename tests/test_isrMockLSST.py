@@ -27,6 +27,7 @@ import lsst.utils.tests
 
 import lsst.afw.image as afwImage
 import lsst.ip.isr.isrMockLSST as isrMockLSST
+from lsst.ip.isr.brighterFatterKernel import BrighterFatterKernel
 
 
 class IsrMockLSSTCases(lsst.utils.tests.TestCase):
@@ -109,7 +110,7 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         """Tests non-image data are returned as the expected type,
         taking the same approach as in test_isrMock.
         """
-        self.assertIsInstance(isrMockLSST.BfKernelMockLSST().run(), np.ndarray)
+        self.assertIsInstance(isrMockLSST.BfKernelMockLSST().run(), BrighterFatterKernel)
         self.assertIsInstance(isrMockLSST.CrosstalkCoeffMockLSST().run(), np.ndarray)
 
         self.assertIsInstance(isrMockLSST.DefectMockLSST().run()[0], lsst.meas.algorithms.Defect)

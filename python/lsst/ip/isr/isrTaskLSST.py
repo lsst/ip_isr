@@ -415,7 +415,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     brighterFatterApplyGain = pexConfig.Field(
         dtype=bool,
         doc="Should the gain be applied when applying the brighter-fatter correction?",
-        default=True,
+        default=False,
     )
     brighterFatterMaskListToInterpolate = pexConfig.ListField(
         dtype=str,
@@ -1080,13 +1080,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # This won't be necessary once the gain normalization
         # is done appropriately.
         interpExp = ccdExposure.clone()
-        with self.flatContext(interpExp, flat, dark):
-            isrFunctions.interpolateFromMask(
-                maskedImage=interpExp.getMaskedImage(),
-                fwhm=self.config.brighterFatterFwhmForInterpolation,
-                growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
-            )
+        isrFunctions.interpolateFromMask(
+            maskedImage=interpExp.getMaskedImage(),
+            fwhm=self.config.brighterFatterFwhmForInterpolation,
+            growSaturatedFootprints=self.config.growSaturationFootprintSize,
+            maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
+        )
+
         bfExp = interpExp.clone()
         self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
                       type(bfKernel), type(bfGains))
