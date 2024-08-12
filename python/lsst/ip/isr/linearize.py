@@ -105,7 +105,7 @@ class Linearizer(IsrCalib):
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.2
+    _VERSION = 1.3
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -129,12 +129,15 @@ class Linearizer(IsrCalib):
                 raise RuntimeError("table shape = %s; indices are switched" % (table.shape,))
             self.tableData = np.array(table, order="C")
 
+        self.linearityUnits = 'adu'
+
         super().__init__(**kwargs)
         self.requiredAttributes.update(['hasLinearity', 'override',
                                         'ampNames',
                                         'linearityCoeffs', 'linearityType', 'linearityBBox',
                                         'fitParams', 'fitParamsErr', 'fitChiSq',
-                                        'fitResiduals', 'fitResidualsSigmaMad', 'linearFit', 'tableData'])
+                                        'fitResiduals', 'fitResidualsSigmaMad', 'linearFit', 'tableData',
+                                        'units'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -153,6 +156,7 @@ class Linearizer(IsrCalib):
         kwargs['HAS_LINEARITY'] = self.hasLinearity
         kwargs['OVERRIDE'] = self.override
         kwargs['HAS_TABLE'] = self.tableData is not None
+        kwargs['LINEARITY_UNITS'] = self.linearityUnits
 
         super().updateMetadata(setDate=setDate, **kwargs)
 
@@ -181,6 +185,8 @@ class Linearizer(IsrCalib):
             self.linearityType[ampName] = amp.getLinearityType()
             self.linearityCoeffs[ampName] = amp.getLinearityCoeffs()
             self.linearityBBox[ampName] = amp.getBBox()
+
+        self.linearityUnits = 'adu'
 
         return self
 
@@ -216,6 +222,8 @@ class Linearizer(IsrCalib):
         calib.hasLinearity = dictionary.get('hasLinearity',
                                             dictionary['metadata'].get('HAS_LINEARITY', False))
         calib.override = dictionary.get('override', True)
+
+        calib.linearityUnits = dictionary.get('linearityUnits', 'adu')
 
         if calib.hasLinearity:
             for ampName in dictionary['amplifiers']:
@@ -253,6 +261,7 @@ class Linearizer(IsrCalib):
                    'detectorId': self._detectorId,
                    'hasTable': self.tableData is not None,
                    'amplifiers': dict(),
+                   'linearityUnits': self.linearityUnits,
                    }
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
@@ -305,6 +314,7 @@ class Linearizer(IsrCalib):
         inDict['metadata'] = metadata
         inDict['hasLinearity'] = metadata.get('HAS_LINEARITY', False)
         inDict['amplifiers'] = dict()
+        inDict['linearityUnits'] = metadata.get('LINEARITY_UNITS', 'adu')
 
         for record in coeffTable:
             ampName = record['AMPLIFIER_NAME']
@@ -443,21 +453,21 @@ class Linearizer(IsrCalib):
                                    (ampName, ))
             if amp.getLinearityType() != self.linearityType[ampName]:
                 if self.override:
-                    self.log.warning("Overriding amplifier defined linearityType (%s) for %s",
-                                     self.linearityType[ampName], ampName)
+                    self.log.debug("Overriding amplifier defined linearityType (%s) for %s",
+                                   self.linearityType[ampName], ampName)
                 else:
                     raise RuntimeError("Amplifier %s type %s does not match saved value %s" %
                                        (ampName, amp.getLinearityType(), self.linearityType[ampName]))
             if (amp.getLinearityCoeffs().shape != self.linearityCoeffs[ampName].shape or not
                     np.allclose(amp.getLinearityCoeffs(), self.linearityCoeffs[ampName], equal_nan=True)):
                 if self.override:
-                    self.log.warning("Overriding amplifier defined linearityCoeffs (%s) for %s",
-                                     self.linearityCoeffs[ampName], ampName)
+                    self.log.debug("Overriding amplifier defined linearityCoeffs (%s) for %s",
+                                   self.linearityCoeffs[ampName], ampName)
                 else:
                     raise RuntimeError("Amplifier %s coeffs %s does not match saved value %s" %
                                        (ampName, amp.getLinearityCoeffs(), self.linearityCoeffs[ampName]))
 
-    def applyLinearity(self, image, detector=None, log=None):
+    def applyLinearity(self, image, detector=None, log=None, gains=None):
         """Apply the linearity to an image.
 
         If the linearity parameters are populated, use those,
@@ -474,6 +484,10 @@ class Linearizer(IsrCalib):
             detector will be used.
         log : `~logging.Logger`, optional
             Log object to use for logging.
+        gains : `dict` [`str`, `float`], optional
+            Dictionary of amp name to gain. If this is provided then
+            linearity terms will be converted from adu to electrons.
+            Only used for Spline linearity corrections.
         """
         if log is None:
             log = self.log
@@ -495,6 +509,12 @@ class Linearizer(IsrCalib):
         for ampName in self.linearityType.keys():
             linearizer = self.getLinearityTypeByName(self.linearityType[ampName])
             numAmps += 1
+
+            if gains and self.linearityUnits == 'adu':
+                gainValue = gains[ampName]
+            else:
+                gainValue = 1.0
+
             if linearizer is not None:
                 match isTrimmed:
                     case True:
@@ -507,7 +527,8 @@ class Linearizer(IsrCalib):
                 ampView = image.Factory(image, bbox)
                 success, outOfRange = linearizer()(ampView, **{'coeffs': self.linearityCoeffs[ampName],
                                                                'table': self.tableData,
-                                                               'log': self.log})
+                                                               'log': self.log,
+                                                               'gain': gainValue})
                 numOutOfRange += outOfRange
                 if success:
                     numLinearized += 1
@@ -772,6 +793,8 @@ class LinearizeSpline(LinearizeBase):
                 Coefficient vector (`list` or `numpy.array`).
             ``log``
                 Logger to handle messages (`logging.Logger`).
+            ``gain``
+                Gain value to apply.
 
         Returns
         -------
@@ -781,7 +804,9 @@ class LinearizeSpline(LinearizeBase):
             uncorrectable by being out of range.
         """
         splineCoeff = kwargs['coeffs']
+        gain = kwargs.get('gain', 1.0)
         centers, values = np.split(splineCoeff, 2)
+        values = values*gain
         # If the spline is not anchored at zero, remove the offset
         # found at the lowest flux available, and add an anchor at
         # flux=0.0 if there's no entry at that point.

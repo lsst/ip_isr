@@ -86,12 +86,12 @@ class IsrMockConfig(pexConfig.Config):
     gain = pexConfig.Field(
         dtype=float,
         default=1.0,
-        doc="Gain for simulated data in e^-/DN.",
+        doc="Gain for simulated data in e^-/ADU.",
     )
     readNoise = pexConfig.Field(
         dtype=float,
         default=5.0,
-        doc="Read noise of the detector in e-.",
+        doc="Read noise of the detector in electron.",
     )
     expTime = pexConfig.Field(
         dtype=float,
@@ -103,12 +103,14 @@ class IsrMockConfig(pexConfig.Config):
     skyLevel = pexConfig.Field(
         dtype=float,
         default=1000.0,
-        doc="Background contribution to be generated from 'the sky' in DN.",
+        doc="Background contribution to be generated from 'the sky' in "
+            "adu (IsrTask) or electron (IsrTaskLSST).",
     )
     sourceFlux = pexConfig.ListField(
         dtype=float,
         default=[45000.0],
-        doc="Peak flux level (in DN) of simulated 'astronomical sources'.",
+        doc="Peak flux level of simulated 'astronomical sources' in "
+            "adu (IsrTask) or electron (IsrTaskLSST).",
     )
     sourceAmp = pexConfig.ListField(
         dtype=int,
@@ -128,17 +130,18 @@ class IsrMockConfig(pexConfig.Config):
     overscanScale = pexConfig.Field(
         dtype=float,
         default=100.0,
-        doc="Amplitude (in DN) of the ramp function to add to overscan data.",
+        doc="Amplitude of the ramp function to add to overscan data in "
+            "adu (IsrTask) or electron (IsrTaskLSST)",
     )
     biasLevel = pexConfig.Field(
         dtype=float,
         default=8000.0,
-        doc="Background contribution to be generated from the bias offset in DN.",
+        doc="Background contribution to be generated from the bias offset in adu.",
     )
     darkRate = pexConfig.Field(
         dtype=float,
         default=5.0,
-        doc="Background level contribution (in e-/s) to be generated from dark current.",
+        doc="Background level contribution (in electron/s) to be generated from dark current.",
     )
     darkTime = pexConfig.Field(
         dtype=float,
@@ -153,7 +156,8 @@ class IsrMockConfig(pexConfig.Config):
     fringeScale = pexConfig.ListField(
         dtype=float,
         default=[200.0],
-        doc="Peak fluxes for the components of the fringe ripple in DN.",
+        doc="Peak fluxes for the components of the fringe ripple in "
+            "adu (IsrTask) or electron (IsrTaskLSST).",
     )
     fringeX0 = pexConfig.ListField(
         dtype=float,
@@ -230,6 +234,11 @@ class IsrMockConfig(pexConfig.Config):
         default=False,
         doc="Return the matrix of crosstalk coefficients.",
     )
+    doLinearizer = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Return linearizer dataset.",
+    )
     doDataRef = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -267,6 +276,8 @@ class IsrMock(pipeBase.Task):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.rng = np.random.RandomState(self.config.rngSeed)
+        # The coefficients have units adu for IsrTask and have
+        # units electron for IsrTaskLSST.
         self.crosstalkCoeffs = np.array([[0.0, 0.0, 0.0, 0.0, 0.0, -1e-3, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                                          [1e-2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -331,16 +342,19 @@ class IsrMock(pipeBase.Task):
         if sum(map(bool, [self.config.doBrighterFatter,
                           self.config.doDefects,
                           self.config.doTransmissionCurve,
-                          self.config.doCrosstalkCoeffs])) != 1:
+                          self.config.doCrosstalkCoeffs,
+                          self.config.doLinearizer])) != 1:
             raise RuntimeError("Only one data product can be generated at a time.")
-        elif self.config.doBrighterFatter is True:
+        elif self.config.doBrighterFatter:
             return self.makeBfKernel()
-        elif self.config.doDefects is True:
+        elif self.config.doDefects:
             return self.makeDefectList()
-        elif self.config.doTransmissionCurve is True:
+        elif self.config.doTransmissionCurve:
             return self.makeTransmissionCurve()
-        elif self.config.doCrosstalkCoeffs is True:
+        elif self.config.doCrosstalkCoeffs:
             return self.crosstalkCoeffs
+        elif self.config.doLinearizer:
+            return self.makeLinearizer()
         else:
             return None
 
@@ -386,6 +400,15 @@ class IsrMock(pipeBase.Task):
         """
 
         return afwImage.TransmissionCurve.makeIdentity()
+
+    def makeLinearity(self):
+        """Generate a linearity dataset.
+
+        Returns
+        -------
+        linearizer : `lsst.ip.isr.Linearizer`
+        """
+        raise NotImplementedError("Linearizer not implemented for isrMock.")
 
     def makeImage(self):
         """Generate a simulated ISR image.
@@ -524,12 +547,17 @@ class IsrMock(pipeBase.Task):
         camera = cameraWrapper.camera
         return camera
 
-    def getExposure(self):
+    def getExposure(self, isTrimmed=None):
         """Construct a test exposure.
 
         The test exposure has a simple WCS set, as well as a list of
         unlikely header keywords that can be removed during ISR
         processing to exercise that code.
+
+        Parameters
+        ----------
+        isTrimmed : `bool` or `None`, optional
+            Override the configuration isTrimmed?
 
         Returns
         -------
@@ -537,10 +565,15 @@ class IsrMock(pipeBase.Task):
             Construct exposure containing masked image of the
             appropriate size.
         """
+        if isTrimmed is None:
+            _isTrimmed = self.config.isTrimmed
+        else:
+            _isTrimmed = isTrimmed
+
         camera = self.getCamera()
         detector = camera[self.config.detectorIndex]
         image = afwUtils.makeImageFromCcd(detector,
-                                          isTrimmed=self.config.isTrimmed,
+                                          isTrimmed=_isTrimmed,
                                           showAmpGain=False,
                                           rcMarkSize=0,
                                           binSize=1,
@@ -557,6 +590,8 @@ class IsrMock(pipeBase.Task):
 
         visitInfo = afwImage.VisitInfo(exposureTime=self.config.expTime, darkTime=self.config.darkTime)
         exposure.getInfo().setVisitInfo(visitInfo)
+        # Set a dummy ID.
+        exposure.getInfo().setId(12345)
 
         metadata = exposure.getMetadata()
         metadata.add("SHEEP", 7.3, "number of sheep on farm")
@@ -690,7 +725,7 @@ class IsrMock(pipeBase.Task):
         return (v, u)
 
     # Simple data values.
-    def amplifierAddNoise(self, ampData, mean, sigma):
+    def amplifierAddNoise(self, ampData, mean, sigma, rng=None):
         """Add Gaussian noise to an amplifier's image data.
 
          This method operates in the amplifier coordinate frame.
@@ -703,10 +738,17 @@ class IsrMock(pipeBase.Task):
             Mean value of the Gaussian noise.
         sigma : `float`
             Sigma of the Gaussian noise.
+        rng : `np.random.RandomState`, optional
+            Random state to use instead of self.rng.
         """
+        if rng is not None:
+            _rng = rng
+        else:
+            _rng = self.rng
+
         ampArr = ampData.array
-        ampArr[:] = ampArr[:] + self.rng.normal(mean, sigma,
-                                                size=ampData.getDimensions()).transpose()
+        ampArr[:] = ampArr[:] + _rng.normal(mean, sigma,
+                                            size=ampData.getDimensions()).transpose()
 
     def amplifierAddYGradient(self, ampData, start, end):
         """Add a y-axis linear gradient to an amplifier's image data.
@@ -1008,8 +1050,8 @@ class MockDataContainer(object):
     """Container for holding ISR mock objects.
     """
     dataId = "isrMock Fake Data"
-    darkval = 2.  # e-/sec
-    oscan = 250.  # DN
+    darkval = 2.  # electron/sec
+    oscan = 250.  # adu
     gradient = .10
     exptime = 15.0  # seconds
     darkexptime = 15.0  # seconds
@@ -1090,8 +1132,8 @@ class MockFringeContainer(object):
     """Container for mock fringe data.
     """
     dataId = "isrMock Fake Data"
-    darkval = 2.  # e-/sec
-    oscan = 250.  # DN
+    darkval = 2.  # electron/sec
+    oscan = 250.  # adu
     gradient = .10
     exptime = 15  # seconds
     darkexptime = 40.  # seconds

@@ -34,44 +34,45 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
     """
     def setUp(self):
         self.inputExp = isrMockLSST.TrimmedRawMockLSST().run()
-        self.mi = self.inputExp.getMaskedImage()
+        self.mi = self.inputExp.maskedImage
+
+        self.defects = isrMockLSST.DefectMockLSST().run()
+        self.nonDefectPixels = self.getNonDefectPixels(self.mi.mask)
 
     def test_simple(self):
         """Check trimmed raw data are generated as expected,
         taking the same approach as in test_isrMock.
         """
-
-        initialMean = np.median(self.mi.getImage().getArray()[:])
-        initialStd = np.std(self.mi.getImage().getArray()[:])
+        initialMean = np.median(self.mi.image.array[self.nonDefectPixels])
+        initialStd = np.std(self.mi.image.array[self.nonDefectPixels])
 
         # Build and subtract a bias calibration
-        bias = isrMockLSST.BiasMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - bias.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        biasAdu = isrMockLSST.BiasMockLSST(adu=True).run()
+        self.mi.image.array[:] = (self.mi.image.array[:] - biasAdu.image.array[:])
+        newMean = np.median(self.mi.image.array[self.nonDefectPixels])
+        newStd = np.std(self.mi.image.array[self.nonDefectPixels])
 
-        self.assertAlmostEqual(newStd, initialStd)
+        self.assertFloatsAlmostEqual(newStd, initialStd, rtol=1e-5)
 
         initialMean = newMean
         initialStd = newStd
 
-        dark = isrMockLSST.DarkMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - dark.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        darkAdu = isrMockLSST.DarkMockLSST(adu=True).run()
+        self.mi.image.array[:] = (self.mi.image.array[:]
+                                  - darkAdu.image.array[:])
+        newMean = np.median(self.mi.image.array[self.nonDefectPixels])
+        newStd = np.std(self.mi.image.array[self.nonDefectPixels])
 
         self.assertLess(newMean, initialMean)
 
         initialMean = newMean
         initialStd = newStd
 
-        flat = isrMockLSST.FlatMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - flat.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        flatAdu = isrMockLSST.FlatMockLSST(adu=True).run()
+        self.mi.image.array[:] = (self.mi.image.array[:]
+                                  - flatAdu.image.array[:])
+        newMean = np.median(self.mi.image.array[self.nonDefectPixels])
+        newStd = np.std(self.mi.image.array[self.nonDefectPixels])
 
         self.assertAlmostEqual(newMean, initialMean, -2)
         self.assertLess(newStd, initialStd)
@@ -79,14 +80,16 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         initialMean = newMean
         initialStd = newStd
 
-        fringe = isrMockLSST.FringeMockLSST().run()
-        self.mi.getImage().getArray()[:] = (self.mi.getImage().getArray()[:]
-                                            - fringe.getMaskedImage().getImage().getArray()[:])
-        newMean = np.median(self.mi.getImage().getArray()[:])
-        newStd = np.std(self.mi.getImage().getArray()[:])
+        fringeAdu = isrMockLSST.FringeMockLSST(adu=True).run()
+        self.mi.image.array[:] = (self.mi.image.array[:]
+                                  - fringeAdu.image.array[:])
+        newMean = np.median(self.mi.image.array[self.nonDefectPixels])
+        newStd = np.std(self.mi.image.array[self.nonDefectPixels])
 
         self.assertAlmostEqual(newMean, initialMean, -1)
         self.assertAlmostEqual(newStd, initialStd, -1)
+
+    # TODO: add tests that bias is consistent, etc.
 
     def test_untrimmedSimple(self):
         """Test untrimmed mocks are genetared.
@@ -97,8 +100,8 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         rawMock.config.readNoise = 100.
         exposureHighNoise = rawMock.run()
 
-        lowNoiseStd = np.std(exposureLowNoise.getMaskedImage().getImage().getArray()[:])
-        highNoiseStd = np.std(exposureHighNoise.getMaskedImage().getImage().getArray()[:])
+        lowNoiseStd = np.std(exposureLowNoise.image.array[:])
+        highNoiseStd = np.std(exposureHighNoise.image.array[:])
 
         self.assertLess(lowNoiseStd, highNoiseStd)
 
@@ -122,6 +125,27 @@ class IsrMockLSSTCases(lsst.utils.tests.TestCase):
         with self.assertRaises(RuntimeError):
             config.doGenerateData = True
             isrMockLSST.IsrMockLSST(config=config).run()
+
+    def getNonDefectPixels(self, maskOrigin):
+        """Get the non-defect pixels to compare.
+
+        Parameters
+        ----------
+        maskOrigin : `lsst.afw.image.MaskX`
+            The origin mask (for shape and type).
+
+        Returns
+        -------
+        pix_x, pix_y : `tuple` [`np.ndarray`]
+            x and y values of good pixels.
+        """
+        maskTemp = maskOrigin.clone()
+        maskTemp[:, :] = 0
+
+        for defect in self.defects:
+            maskTemp[defect.getBBox()] = 1
+
+        return np.where(maskTemp.array == 0)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

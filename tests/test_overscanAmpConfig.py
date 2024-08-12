@@ -21,6 +21,7 @@
 #
 
 import copy
+import math
 import tempfile
 import unittest
 
@@ -75,12 +76,27 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             doParallelOverscan=True,
             serialFitType="MEDIAN_PER_ROW",
             parallelFitType="MEDIAN_PER_ROW",
+            saturation=float("NaN"),
+            gain=float("NaN"),
+            suspectLevel=float("NaN"),
     ):
         self.assertEqual(overscanAmpConfig.doSerialOverscan, doSerialOverscan)
         self.assertEqual(overscanAmpConfig.doParallelOverscanCrosstalk, doParallelOverscanCrosstalk)
         self.assertEqual(overscanAmpConfig.doParallelOverscan, doParallelOverscan)
         self.assertEqual(overscanAmpConfig.serialOverscanConfig.fitType, serialFitType)
         self.assertEqual(overscanAmpConfig.parallelOverscanConfig.fitType, parallelFitType)
+        if math.isnan(saturation):
+            self.assertTrue(math.isnan(overscanAmpConfig.saturation))
+        else:
+            self.assertEqual(overscanAmpConfig.saturation, saturation)
+        if math.isnan(gain):
+            self.assertTrue(math.isnan(overscanAmpConfig.gain))
+        else:
+            self.assertEqual(overscanAmpConfig.gain, gain)
+        if math.isnan(suspectLevel):
+            self.assertTrue(math.isnan(overscanAmpConfig.suspectLevel))
+        else:
+            self.assertEqual(overscanAmpConfig.suspectLevel, suspectLevel)
 
     def _checkAnyOverscanConfig(
             self,
@@ -92,6 +108,13 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(config.doAnySerialOverscan, doSerialOverscan)
         self.assertEqual(config.doAnyParallelOverscan, doParallelOverscan)
         self.assertEqual(config.doAnyParallelOverscanCrosstalk, doParallelOverscanCrosstalk)
+
+    def _checkDetectorOverscanConfig(
+            self,
+            overscanDetectorConfig,
+            integerDitherMode="SYMMETRIC",
+    ):
+        self.assertEqual(overscanDetectorConfig.integerDitherMode, integerDitherMode)
 
     def testAmpConfigNoOverrides(self):
         camera = self._makeCamera()
@@ -115,6 +138,9 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             doSerialOverscan=False,
             doParallelOverscan=False,
             doParallelOverscanCrosstalk=False,
+            saturation=100_000.0,
+            gain=1.7,
+            suspectLevel=90_000.0,
         )
 
         overscanDetectorConfig = OverscanDetectorConfig(defaultAmpConfig=overscanAmpConfig)
@@ -132,6 +158,9 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
                     doSerialOverscan=False,
                     doParallelOverscan=False,
                     doParallelOverscanCrosstalk=False,
+                    saturation=100_000.0,
+                    gain=1.7,
+                    suspectLevel=90_000.0,
                 )
 
         self._checkAnyOverscanConfig(
@@ -169,7 +198,10 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
         camera = self._makeCamera()
 
         overscanAmpConfigOverride = OverscanAmpConfig(doParallelOverscanCrosstalk=False)
-        overscanDetectorConfigOverride = OverscanDetectorConfig(defaultAmpConfig=overscanAmpConfigOverride)
+        overscanDetectorConfigOverride = OverscanDetectorConfig(
+            defaultAmpConfig=overscanAmpConfigOverride,
+            integerDitherMode="NONE",
+        )
 
         for keyType in ["NAME", "SERIAL", "ID"]:
             config = OverscanCameraConfig()
@@ -188,8 +220,13 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
             config = self._serializeAndReadConfig(config)
 
             for detector in camera:
+                detectorConfig = config.getOverscanDetectorConfig(detector)
+                if detector.getName() == camera[1].getName():
+                    self._checkDetectorOverscanConfig(detectorConfig, integerDitherMode="NONE")
+                else:
+                    self._checkDetectorOverscanConfig(detectorConfig)
+
                 for amp in detector:
-                    detectorConfig = config.getOverscanDetectorConfig(detector)
                     ampConfig = detectorConfig.getOverscanAmpConfig(amp)
                     if detector.getName() == camera[1].getName():
                         self._checkOverscanConfig(ampConfig, doParallelOverscanCrosstalk=False)
