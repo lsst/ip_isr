@@ -541,6 +541,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         self.makeSubtask("crosstalk")
         self.makeSubtask("masking")
         self.makeSubtask("isrStats")
+        self.makeSubtask("ampOffset")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
 
