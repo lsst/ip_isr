@@ -113,6 +113,8 @@ class PhotonTransferCurveDataset(IsrCalib):
     noiseErr : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the errors on the fitted
         noise.
+    ampOffsets : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing amp-to-amp offsets.
     ptcFitPars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the fitted parameters of the
         PTC model for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].
@@ -189,11 +191,12 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.6 adds the `rowMeanVariance` attribute.
     Version 1.7 adds the `noiseList` attribute.
     Version 1.8 adds the `ptcTurnoffSamplingError` attribute.
+    Version 1.9 adds the `ampOffset` attribute.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.8
+    _VERSION = 1.9
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -214,6 +217,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawVars = {ampName: np.array([]) for ampName in ampNames}
         self.rowMeanVariance = {ampName: np.array([]) for ampName in ampNames}
         self.photoCharges = {ampName: np.array([]) for ampName in ampNames}
+        self.ampOffsets = {ampName: np.array([]) for ampName in ampNames}
 
         self.gain = {ampName: np.nan for ampName in ampNames}
         self.gainErr = {ampName: np.nan for ampName in ampNames}
@@ -257,7 +261,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'noiseMatrix', 'noiseMatrixNoB', 'finalVars',
                                         'finalModelVars', 'finalMeans', 'photoCharges', 'histVars',
-                                        'histChi2Dofs', 'kspValues', 'auxValues', 'ptcTurnoffSamplingError'])
+                                        'histChi2Dofs', 'kspValues', 'auxValues', 'ptcTurnoffSamplingError',
+                                        'ampOffsets'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
         self._validateCovarianceMatrizSizes()
@@ -271,6 +276,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             rawVar=np.nan,
             rowMeanVariance=np.nan,
             photoCharge=np.nan,
+            ampOffset=np.nan,
             expIdMask=False,
             covariance=None,
             covSqrtWeights=None,
@@ -301,6 +307,8 @@ class PhotonTransferCurveDataset(IsrCalib):
             of the exposures in this pair.
         photoCharge : `float`, optional
             Integrated photocharge for flat pair for linearity calibration.
+        ampOffset : `float`, optional
+            Amp offset for this amplifier.
         expIdMask : `bool`, optional
             Flag setting if this exposure pair should be used (True)
             or not used (False).
@@ -333,6 +341,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawVars[ampName] = np.array([rawVar])
         self.rowMeanVariance[ampName] = np.array([rowMeanVariance])
         self.photoCharges[ampName] = np.array([photoCharge])
+        self.ampOffsets[ampName] = np.array([ampOffset])
         self.expIdMask[ampName] = np.array([expIdMask])
         self.covariances[ampName] = np.array([covariance])
         self.covariancesSqrtWeights[ampName] = np.array([covSqrtWeights])
@@ -487,6 +496,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName], dtype=np.float64)
             calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName], dtype=np.float64)
             calib.photoCharges[ampName] = np.array(dictionary['photoCharges'][ampName], dtype=np.float64)
+            calib.ampOffsets[ampName] = np.array(dictionary['ampOffsets'][ampName], dtype=np.float64)
 
         for key, value in dictionary['auxValues'].items():
             calib.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
@@ -554,6 +564,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['finalModelVars'] = _dictOfArraysToDictOfLists(self.finalModelVars)
         outDict['finalMeans'] = _dictOfArraysToDictOfLists(self.finalMeans)
         outDict['photoCharges'] = _dictOfArraysToDictOfLists(self.photoCharges)
+        outDict['ampOffsets'] = _dictOfArraysToDictOfLists(self.ampOffsets)
         outDict['auxValues'] = _dictOfArraysToDictOfLists(self.auxValues)
 
         return outDict
@@ -617,6 +628,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['finalMeans'] = dict()
         inDict['badAmps'] = []
         inDict['photoCharges'] = dict()
+        inDict['ampOffsets'] = dict()
 
         calibVersion = metadata['PTC_VERSION']
         if calibVersion == 1.0:
@@ -693,6 +705,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['ptcTurnoffSamplingError'][ampName] = np.nan
             else:
                 inDict['ptcTurnoffSamplingError'][ampName] = record['PTC_TURNOFF_SAMPLING_ERROR']
+            if calibVersion < 1.9:
+                inDict['ampOffsets'][ampName] = np.full_like(inDict['rawMeans'][ampName], np.nan)
+            else:
+                inDict['ampOffsets'][ampName] = record['AMP_OFFSETS']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -754,6 +770,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'NOISE_MATRIX_NO_B': self.noiseMatrixNoB[ampName].ravel(),
                 'BAD_AMPS': badAmps,
                 'PHOTO_CHARGE': self.photoCharges[ampName],
+                'AMP_OFFSETS': self.ampOffsets[ampName],
                 'COVARIANCES': self.covariances[ampName].ravel(),
                 'COVARIANCES_MODEL': self.covariancesModel[ampName].ravel(),
                 'COVARIANCES_SQRT_WEIGHTS': self.covariancesSqrtWeights[ampName].ravel(),
