@@ -107,6 +107,13 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector"],
         isCalibration=True,
     )
+    flat = cT.PrerequisiteInput(
+        name="flat",
+        doc="Input flat calibration.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "detector", "physical_filter"],
+        isCalibration=True,
+    )
     outputExposure = cT.Output(
         name='postISRCCD',
         doc="Output ISR processed exposure.",
@@ -160,6 +167,8 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.bfKernel
         if config.doDark is not True:
             del self.dark
+        if config.doFlat is not True:
+            del self.flat
 
         if config.doBinnedExposures is not True:
             del self.outputBin1Exposure
@@ -1443,7 +1452,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
         if self.config.doFlat:
             if flat is None:
-                raise RuntimeError("doFlat is True but not flat provided.")
+                raise RuntimeError("doFlat is True but no flat provided.")
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
 
         # FIXME: Make sure that if linearity is done then it is matched
