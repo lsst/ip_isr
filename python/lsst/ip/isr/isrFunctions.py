@@ -1240,6 +1240,9 @@ def getExposureGains(exposure):
         Dictionary of gain values, keyed by amplifier name.
     """
     det = exposure.getDetector()
+    if det is None:
+        return dict()
+
     metadata = exposure.getMetadata()
     gains = {}
     for amp in det:
@@ -1268,6 +1271,9 @@ def getExposureReadNoises(exposure):
         Dictionary of read noise values, keyed by amplifier name.
     """
     det = exposure.getDetector()
+    if det is None:
+        return dict()
+
     metadata = exposure.getMetadata()
     readnoises = {}
     for amp in det:
