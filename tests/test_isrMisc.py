@@ -54,7 +54,6 @@ class IsrMiscCases(lsst.utils.tests.TestCase):
         config.xCenter = 0.0
         config.yCenter = 100.0
 
-        config.doWriteVignettePolygon = True
         task = vignette.VignetteTask(config=config)
         result = task.run(self.inputExp)
 
