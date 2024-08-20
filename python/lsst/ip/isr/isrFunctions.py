@@ -600,7 +600,7 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
                 tmpArray[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
 
             if iteration > 0:
-                diff = numpy.sum(numpy.abs(prev_image - tmpArray))
+                diff = numpy.sum(numpy.abs(prev_image - tmpArray), dtype=numpy.float64)
 
                 if diff < threshold:
                     break
