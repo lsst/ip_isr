@@ -412,11 +412,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         "from the previous iteration summed over all the pixels.",
         default=1000,
     )
-    brighterFatterApplyGain = pexConfig.Field(
-        dtype=bool,
-        doc="Should the gain be applied when applying the brighter-fatter correction?",
-        default=True,
-    )
     brighterFatterMaskListToInterpolate = pexConfig.ListField(
         dtype=str,
         doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
@@ -427,7 +422,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=int,
         doc="Number of pixels to grow the masks listed in config.brighterFatterMaskListToInterpolate "
         "when brighter-fatter correction is applied.",
-        default=0,
+        default=2,
     )
     brighterFatterFwhmForInterpolation = pexConfig.Field(
         dtype=float,
@@ -1061,39 +1056,55 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             else:
                 raise RuntimeError("Failed to extract kernel from new-style BF kernel.")
         elif bfKernel.level == 'AMP':
-            self.log.warning("Making DETECTOR level kernel from AMP based brighter "
-                             "fatter kernels.")
+            self.log.info("Making DETECTOR level kernel from AMP based brighter "
+                          "fatter kernels.")
             bfKernel.makeDetectorKernelFromAmpwiseKernels(detName)
             bfKernelOut = bfKernel.detKernels[detName]
             return bfKernelOut, bfGains
 
-    def applyBrighterFatterCorrection(self, ccdExposure, flat, dark, bfKernel, bfGains):
-        # We need to apply flats and darks before we can interpolate, and
-        # we need to interpolate before we do B-F, but we do B-F without
-        # the flats and darks applied so we can work in units of electrons
-        # or holes. This context manager applies and then removes the darks
-        # and flats.
-        #
-        # We also do not want to interpolate values here, so operate on
-        # temporary images so we can apply only the BF-correction and roll
-        # back the interpolation.
-        # This won't be necessary once the gain normalization
-        # is done appropriately.
+    def applyBrighterFatterCorrection(self, ccdExposure, flat, dark, bfKernel, brighterFatterApplyGain,
+                                      bfGains):
+        """Apply a brighter fatter correction to the image using the
+        method defined in Coulton et al. 2019.
+
+        Note that this correction requires that the image is in units
+        electrons.
+
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        flat : `lsst.afw.image.Exposure`
+            Flat exposure the same size as ``exp``.
+        dark : `lsst.afw.image.Exposure`, optional
+            Dark exposure the same size as ``exp``.
+        bfKernel : `lsst.ip.isr.BrighterFatterKernel`
+            The brighter-fatter kernel.
+        brighterFatterApplyGain : `bool`
+            Apply the gain to convert the image to electrons?
+        bfGains : `dict`
+            The gains to use if brighterFatterApplyGain = True.
+
+        Yields
+        ------
+        exp : `lsst.afw.image.Exposure`
+            The flat and dark corrected exposure.
+        """
         interpExp = ccdExposure.clone()
-        with self.flatContext(interpExp, flat, dark):
-            isrFunctions.interpolateFromMask(
-                maskedImage=interpExp.getMaskedImage(),
-                fwhm=self.config.brighterFatterFwhmForInterpolation,
-                growSaturatedFootprints=self.config.growSaturationFootprintSize,
-                maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
-            )
+
+        # We need to interpolate before we do B-F. Note that
+        # brighterFatterFwhmForInterpolation is currently unused.
+        isrFunctions.interpolateFromMask(
+            maskedImage=interpExp.getMaskedImage(),
+            fwhm=self.config.brighterFatterFwhmForInterpolation,
+            growSaturatedFootprints=self.config.growSaturationFootprintSize,
+            maskNameList=list(self.config.brighterFatterMaskListToInterpolate)
+        )
         bfExp = interpExp.clone()
-        self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
-                      type(bfKernel), type(bfGains))
         bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
                                                           self.config.brighterFatterMaxIter,
                                                           self.config.brighterFatterThreshold,
-                                                          self.config.brighterFatterApplyGain,
+                                                          brighterFatterApplyGain,
                                                           bfGains)
         if bfResults[1] == self.config.brighterFatterMaxIter:
             self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
@@ -1655,12 +1666,32 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
 
         # Brighter/Fatter
-        # FIXME: watch out (again) for gain units.
         # Units: electron
         if self.config.doBrighterFatter:
-            self.log.info("Applying Bright-Fatter kernels.")
+            self.log.info("Applying brighter-fatter correction.")
+
             bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
-            ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut, bfGains)
+
+            # Needs to be done in electrons; applyBrighterFatterCorrection
+            # will convert the image if necessary.
+            if exposureMetadata["LSST ISR UNITS"] == "electron":
+                brighterFatterApplyGain = False
+            else:
+                brighterFatterApplyGain = True
+
+            if brighterFatterApplyGain and (ptc is not None) and (bfGains != gains):
+                # The supplied ptc should be the same as the ptc used to
+                # generate the bfKernel, in which case they will have the
+                # same stored amp-keyed dictionary of gains. If not, there
+                # is a mismatch in the calibrations being used. This should
+                # not be always be a fatal error, but ideally, everything
+                # should to be consistent.
+                self.log.warning("Need to apply gain for brighter-fatter, but the stored"
+                                 "gains in the kernel are not the same as the gains stored"
+                                 "in the PTC. Using the kernel gains.")
+
+            ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut,
+                                                             brighterFatterApplyGain, bfGains)
 
         # Variance plane creation
         # Units: electron

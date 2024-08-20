@@ -26,6 +26,7 @@ __all__ = ["IsrMockLSSTConfig", "IsrMockLSST", "RawMockLSST",
            "TransmissionMockLSST"]
 
 import numpy as np
+import galsim
 
 import lsst.geom as geom
 import lsst.pex.config as pexConfig
@@ -36,6 +37,7 @@ from .isrMock import IsrMockConfig, IsrMock
 from .defects import Defects
 from .assembleCcdTask import AssembleCcdTask
 from .linearize import Linearizer
+from .brighterFatterKernel import BrighterFatterKernel
 
 
 class IsrMockLSSTConfig(IsrMockConfig):
@@ -67,6 +69,22 @@ class IsrMockLSSTConfig(IsrMockConfig):
         dtype=float,
         default=30000.0,
         doc="Bright defect level (electron).",
+    )
+    doAddBrighterFatter = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Add brighter fatter and/or diffusion effects to image.",
+    )
+    bfStrength = pexConfig.Field(
+        dtype=float,
+        default=2.0,
+        doc="The brighter fatter effect scaling parameter (cannot be zero)."
+            "Nominally = 1, but = 2 is more realistic."
+    )
+    nRecalc = pexConfig.Field(
+        dtype=int,
+        default=10000,
+        doc="Number of electrons to accumulate before recalculating pixel shapes.",
     )
     doAddClockInjectedOffset = pexConfig.Field(
         dtype=bool,
@@ -168,8 +186,115 @@ class IsrMockLSST(IsrMock):
     _DefaultName = "isrMockLSST"
 
     def __init__(self, **kwargs):
-        # cross-talk coeffs, bf kernel are defined in the parent class.
         super().__init__(**kwargs)
+
+        # Get kernel derived from imSim generated flats with BFE. The kernel
+        # was used for Ops Rehearsal 3 for LSSTCam-type sensors
+        # See https://rubinobs.atlassian.net/browse/DM-43059 for more details.
+        self.bfKernel = np.array([[4.83499829e-01, 8.10171823e-01, 5.31096720e-01,
+                                   3.54369868e-02, -8.44782871e-01, -1.64614462e+00,
+                                  -3.83933101e+00, -5.60243416e+00, -6.51691578e+00,
+                                  -5.60243416e+00, -3.83933101e+00, -1.64614462e+00,
+                                  -8.44782871e-01, 3.54369868e-02, 5.31096720e-01,
+                                   8.10171823e-01, 4.83499829e-01],
+                                  [1.12382749e+00, 2.22609074e+00, 1.27877807e+00,
+                                   4.55434098e-01, -1.76842385e+00, -1.90046460e+00,
+                                  -8.10874526e+00, -1.20534899e+01, -1.48627948e+01,
+                                  -1.20534899e+01, -8.10874526e+00, -1.90046460e+00,
+                                  -1.76842385e+00, 4.55434098e-01, 1.27877807e+00,
+                                   2.22609074e+00, 1.12382749e+00],
+                                  [1.78571940e+00, 4.38918110e+00, 3.95098587e+00,
+                                   3.70961649e-01, -3.48151981e+00, -9.61567736e+00,
+                                  -1.78621172e+01, -2.32278872e+01, -2.31833727e+01,
+                                  -2.32278872e+01, -1.78621172e+01, -9.61567736e+00,
+                                  -3.48151981e+00, 3.70961649e-01, 3.95098587e+00,
+                                   4.38918110e+00, 1.78571940e+00],
+                                  [1.62986900e+00, 3.67851228e+00, 5.68645252e+00,
+                                   2.15342566e-01, -8.89937202e+00, -1.44739813e+01,
+                                  -2.98952660e+01, -4.37420817e+01, -4.83160958e+01,
+                                  -4.37420817e+01, -2.98952660e+01, -1.44739813e+01,
+                                  -8.89937202e+00, 2.15342566e-01, 5.68645252e+00,
+                                   3.67851228e+00, 1.62986900e+00],
+                                  [1.05524430e+00, 1.71917897e+00, 1.73105590e+00,
+                                  -2.10088420e+00, -1.15118208e+01, -2.55007598e+01,
+                                  -4.73056159e+01, -6.97257685e+01, -8.09264433e+01,
+                                  -6.97257685e+01, -4.73056159e+01, -2.55007598e+01,
+                                  -1.15118208e+01, -2.10088420e+00, 1.73105590e+00,
+                                   1.71917897e+00, 1.05524430e+00],
+                                  [8.71929228e-01, 5.41025574e-01, 9.47560771e-01,
+                                  -5.75314708e-01, -7.46104027e+00, -4.42314481e+01,
+                                  -9.54126971e+01, -1.61603201e+02, -2.07520692e+02,
+                                  -1.61603201e+02, -9.54126971e+01, -4.42314481e+01,
+                                  -7.46104027e+00, -5.75314708e-01, 9.47560771e-01,
+                                   5.41025574e-01, 8.71929228e-01],
+                                  [1.89144704e+00, 3.57543979e+00, -6.91419168e-02,
+                                  -3.37950835e+00, -1.46695089e+01, -7.22850746e+01,
+                                  -1.65563055e+02, -3.10820425e+02, -4.70026655e+02,
+                                  -3.10820425e+02, -1.65563055e+02, -7.22850746e+01,
+                                  -1.46695089e+01, -3.37950835e+00, -6.91419168e-02,
+                                   3.57543979e+00, 1.89144704e+00],
+                                  [3.11841913e+00, 7.84024994e+00, 1.88495248e+00,
+                                  -7.69011009e+00, -2.71782400e+01, -1.04343326e+02,
+                                  -2.47561370e+02, -5.32959841e+02, -1.16529012e+03,
+                                  -5.32959841e+02, -2.47561370e+02, -1.04343326e+02,
+                                  -2.71782400e+01, -7.69011009e+00, 1.88495248e+00,
+                                   7.84024994e+00, 3.11841913e+00],
+                                  [2.74197956e+00, 4.73107997e+00, -9.48352966e-01,
+                                  -9.44822832e+00, -3.06477671e+01, -1.26788739e+02,
+                                  -3.22828411e+02, -8.47943472e+02, -3.87702420e+03,
+                                  -8.47943472e+02, -3.22828411e+02, -1.26788739e+02,
+                                  -3.06477671e+01, -9.44822832e+00, -9.48352966e-01,
+                                   4.73107997e+00, 2.74197956e+00],
+                                  [3.11841913e+00, 7.84024994e+00, 1.88495248e+00,
+                                  -7.69011009e+00, -2.71782400e+01, -1.04343326e+02,
+                                  -2.47561370e+02, -5.32959841e+02, -1.16529012e+03,
+                                  -5.32959841e+02, -2.47561370e+02, -1.04343326e+02,
+                                  -2.71782400e+01, -7.69011009e+00, 1.88495248e+00,
+                                  7.84024994e+00, 3.11841913e+00],
+                                  [1.89144704e+00, 3.57543979e+00, -6.91419168e-02,
+                                  -3.37950835e+00, -1.46695089e+01, -7.22850746e+01,
+                                  -1.65563055e+02, -3.10820425e+02, -4.70026655e+02,
+                                  -3.10820425e+02, -1.65563055e+02, -7.22850746e+01,
+                                  -1.46695089e+01, -3.37950835e+00, -6.91419168e-02,
+                                   3.57543979e+00, 1.89144704e+00],
+                                  [8.71929228e-01, 5.41025574e-01, 9.47560771e-01,
+                                  -5.75314708e-01, -7.46104027e+00, -4.42314481e+01,
+                                  -9.54126971e+01, -1.61603201e+02, -2.07520692e+02,
+                                  -1.61603201e+02, -9.54126971e+01, -4.42314481e+01,
+                                  -7.46104027e+00, -5.75314708e-01, 9.47560771e-01,
+                                   5.41025574e-01, 8.71929228e-01],
+                                  [1.05524430e+00, 1.71917897e+00, 1.73105590e+00,
+                                  -2.10088420e+00, -1.15118208e+01, -2.55007598e+01,
+                                  -4.73056159e+01, -6.97257685e+01, -8.09264433e+01,
+                                  -6.97257685e+01, -4.73056159e+01, -2.55007598e+01,
+                                  -1.15118208e+01, -2.10088420e+00, 1.73105590e+00,
+                                   1.71917897e+00, 1.05524430e+00],
+                                  [1.62986900e+00, 3.67851228e+00, 5.68645252e+00,
+                                   2.15342566e-01, -8.89937202e+00, -1.44739813e+01,
+                                  -2.98952660e+01, -4.37420817e+01, -4.83160958e+01,
+                                  -4.37420817e+01, -2.98952660e+01, -1.44739813e+01,
+                                  -8.89937202e+00, 2.15342566e-01, 5.68645252e+00,
+                                   3.67851228e+00, 1.62986900e+00],
+                                  [1.78571940e+00, 4.38918110e+00, 3.95098587e+00,
+                                   3.70961649e-01, -3.48151981e+00, -9.61567736e+00,
+                                  -1.78621172e+01, -2.32278872e+01, -2.31833727e+01,
+                                  -2.32278872e+01, -1.78621172e+01, -9.61567736e+00,
+                                  -3.48151981e+00, 3.70961649e-01, 3.95098587e+00,
+                                   4.38918110e+00, 1.78571940e+00],
+                                  [1.12382749e+00, 2.22609074e+00, 1.27877807e+00,
+                                   4.55434098e-01, -1.76842385e+00, -1.90046460e+00,
+                                  -8.10874526e+00, -1.20534899e+01, -1.48627948e+01,
+                                  -1.20534899e+01, -8.10874526e+00, -1.90046460e+00,
+                                  -1.76842385e+00, 4.55434098e-01, 1.27877807e+00,
+                                   2.22609074e+00, 1.12382749e+00],
+                                  [4.83499829e-01, 8.10171823e-01, 5.31096720e-01,
+                                   3.54369868e-02, -8.44782871e-01, -1.64614462+00,
+                                  -3.83933101e+00, -5.60243416e+00, -6.51691578e+00,
+                                  -5.60243416e+00, -3.83933101e+00, -1.64614462e+00,
+                                  -8.44782871e-01, 3.54369868e-02, 5.31096720e-01,
+                                   8.10171823e-01, 4.83499829e-01]]) * 1e-10
+
+        # cross-talk coeffs are defined in the parent class.
 
         self.makeSubtask("assembleCcd")
 
@@ -220,6 +345,7 @@ class IsrMockLSST(IsrMock):
         rng2DBias = np.random.RandomState(seed=self.config.rngSeed + 3)
         rngOverscan = np.random.RandomState(seed=self.config.rngSeed + 4)
         rngReadNoise = np.random.RandomState(seed=self.config.rngSeed + 5)
+        rngBrighterFatter = galsim.BaseDeviate(self.config.rngSeed + 6)
 
         # Create the linearizer if we will need it.
         if self.config.doAddHighSignalNonlinearity:
@@ -322,7 +448,11 @@ class IsrMockLSST(IsrMock):
                 self.amplifierAddNoise(ampImageData, darkLevel, darkNoise, rng=rngDark)
 
             # 3. Add BF effect (electron) to imaging portion of the amp.
-            # TODO
+            if self.config.doAddBrighterFatter is True:
+                self.amplifierAddBrighterFatter(ampImageData,
+                                                rngBrighterFatter,
+                                                self.config.bfStrength,
+                                                self.config.nRecalc)
 
             # 4. Add serial CTI (electron) to amplifier (imaging + overscan).
             # TODO
@@ -535,6 +665,55 @@ class IsrMockLSST(IsrMock):
         footprintSet = afwDetection.FootprintSet(assembledExp.image, threshold)
 
         return Defects.fromFootprintList(footprintSet.getFootprints())
+
+    def makeBfKernel(self):
+        """Generate a simple simulated brighter-fatter kernel.
+        Returns
+        -------
+        kernel : `lsst.ip.isr.BrighterFatterKernel`
+            Simulated brighter-fatter kernel.
+        """
+        bfkArray = super().makeBfKernel()
+        bfKernelObject = BrighterFatterKernel()
+        bfKernelObject.level = 'AMP'
+        bfKernelObject.gain = self.config.gainDict
+
+        for amp in self.getExposure().getDetector():
+            # Kernel must be in (y,x) orientation
+            bfKernelObject.ampKernels[amp.getName()] = bfkArray.T
+
+        return bfKernelObject
+
+    def amplifierAddBrighterFatter(self, ampImageData, rng, bfStrength, nRecalc):
+        """Add brighter fatter effect and/or diffusion to the image.
+          Parameters
+          ----------
+          ampImageData : `lsst.afw.image.ImageF`
+              Amplifier image to operate on.
+          rng : `galsim.BaseDeviate`
+              Random number generator.
+          bfStrength : `float`
+              Scaling parameter of the brighter fatter effect (nominally = 1)
+          nRecalc: 'int'
+              The number of electrons to accumulate before recalculating the
+              distortion of the pixel shapes.
+        """
+
+        incidentImage = galsim.Image(ampImageData.array, scale=1)
+        measuredImage = galsim.ImageF(ampImageData.array.shape[1],
+                                      ampImageData.array.shape[0],
+                                      scale=1)
+        photons = galsim.PhotonArray.makeFromImage(incidentImage)
+
+        sensorModel = galsim.SiliconSensor(strength=bfStrength,
+                                           rng=rng,
+                                           diffusion_factor=0.0,
+                                           nrecalc=nRecalc)
+
+        totalFluxAdded = sensorModel.accumulate(photons, measuredImage)
+        ampImageData.array = measuredImage.array
+
+        return totalFluxAdded
 
     def makeLinearizer(self):
         # docstring inherited.
