@@ -2634,10 +2634,18 @@ class IsrTask(pipeBase.PipelineTask):
                     skyLevels[i, j] = afwMath.makeStatistics(miMesh, stat, statsControl).getValue()
 
             good = numpy.where(numpy.isfinite(skyLevels))
-            skyMedian = numpy.median(skyLevels[good])
-            flatness = (skyLevels[good] - skyMedian) / skyMedian
-            flatness_rms = numpy.std(flatness)
-            flatness_pp = flatness.max() - flatness.min() if len(flatness) > 0 else numpy.nan
+            if len(good[0]) == 0:
+                # There are no good pixels.
+                self.log.warning("No good pixels to measure sky levels.")
+                skyMedian = numpy.nan
+                flatness = numpy.nan
+                flatness_rms = numpy.nan
+                flatness_pp = numpy.nan
+            else:
+                skyMedian = numpy.median(skyLevels[good])
+                flatness = (skyLevels[good] - skyMedian) / skyMedian
+                flatness_rms = numpy.std(flatness)
+                flatness_pp = flatness.max() - flatness.min() if len(flatness) > 0 else numpy.nan
 
             self.log.info("Measuring sky levels in %dx%d grids: %f.", nX, nY, skyMedian)
             self.log.info("Sky flatness in %dx%d grids - pp: %f rms: %f.",
