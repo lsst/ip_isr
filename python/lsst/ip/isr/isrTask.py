@@ -1362,18 +1362,21 @@ class IsrTask(pipeBase.PipelineTask):
         exposureMetadata = ccdExposure.getMetadata()
         if self.config.doBias:
             self.compareCameraKeywords(exposureMetadata, bias, "bias")
+            self.compareUnits(bias.metadata, "bias")
         if self.config.doBrighterFatter:
             self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
         if self.config.doCrosstalk:
             self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
         if self.config.doDark:
             self.compareCameraKeywords(exposureMetadata, dark, "dark")
+            self.compareUnits(dark.metadata, "dark")
         if self.config.doDefect:
             self.compareCameraKeywords(exposureMetadata, defects, "defects")
         if self.config.doDeferredCharge:
             self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
         if self.config.doFlat:
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
+            self.compareUnits(flat.metadata, "flat")
         if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
             self.compareCameraKeywords(exposureMetadata, fringes.fringes, "fringe")
         if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
@@ -2027,6 +2030,37 @@ class IsrTask(pipeBase.PipelineTask):
                                          exposureMetadata[keyword], calibMetadata[keyword])
             else:
                 self.log.debug("Sequencer keyword %s not found.", keyword)
+
+    def compareUnits(self, calibMetadata, calibName):
+        """Compare units from calibration to ISR units.
+
+        For the regular IsrTask this is used to confirm that calibs
+        suitable for IsrTaskLSST are not used with the old IsrTask.
+
+        Parameters
+        ----------
+        calibMetadata : `lsst.daf.base.PropertyList`
+            Calibration metadata from header.
+        calibName : `str`
+            Calibration name for log message.
+        """
+        calibUnits = calibMetadata.get("LSST ISR UNITS", "adu")
+        isrUnits = "adu"
+        if calibUnits != isrUnits:
+            if self.config.doRaiseOnCalibMismatch:
+                raise RuntimeError(
+                    "Unit mismatch: isr has %s units but %s has %s units",
+                    isrUnits,
+                    calibName,
+                    calibUnits,
+                )
+            else:
+                self.log.warning(
+                    "Unit mismatch: isr has %s units but %s has %s units",
+                    isrUnits,
+                    calibName,
+                    calibUnits,
+                )
 
     def convertIntToFloat(self, exposure):
         """Convert exposure image from uint16 to float.
