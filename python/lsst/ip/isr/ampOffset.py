@@ -518,7 +518,6 @@ class AmpOffsetTask(Task):
         minFracFail = ampEdgeGoodFrac < self.config.ampEdgeMinFrac
         maxOffsetFail = np.abs(interfaceOffset) > self.config.ampEdgeMaxOffset
         if minFracFail or maxOffsetFail:
-            interfaceOffset = 0
             if minFracFail:
                 self.log.warning(
                     f"The fraction of unmasked pixels for amp interface {interfaceId} is below the threshold "
@@ -531,6 +530,7 @@ class AmpOffsetTask(Task):
                     f"({np.abs(interfaceOffset):.2f} > {self.config.ampEdgeMaxOffset} ADU). Setting the "
                     f"interface offset to {interfaceOffset}."
                 )
+            interfaceOffset = 0
         self.log.debug(
             f"amp interface {interfaceId} : "
             f"viable edge difference frac = {ampEdgeGoodFrac}, "
