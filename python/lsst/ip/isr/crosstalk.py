@@ -664,7 +664,7 @@ class CrosstalkCalib(IsrCalib):
                 coeffsSqr = self.coeffsSqr
             self.log.debug("CT COEFF SQR: %s", coeffsSqr)
 
-        if crosstalkCoeffsValid:
+        if crosstalkCoeffsValid is not None:
             # Add an additional check for finite coeffs.
             valid = crosstalkCoeffsValid & np.isfinite(coeffs)
         else:
