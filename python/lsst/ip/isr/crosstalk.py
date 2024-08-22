@@ -540,7 +540,7 @@ class CrosstalkCalib(IsrCalib):
         return lsst.afw.math.makeStatistics(mi, lsst.afw.math.MEDIAN, stats).getValue()
 
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
-                          crosstalkCoeffsSqr=None,
+                          crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
@@ -569,6 +569,8 @@ class CrosstalkCalib(IsrCalib):
             Coefficients to use to correct crosstalk.
         crosstalkCoeffsSqr : `numpy.ndarray`, optional.
             Quadratic coefficients to use to correct crosstalk.
+        crosstalkCoeffsValid : `numpy.ndarray`, optional
+            Boolean array that is True where coefficients are valid.
         badPixels : `list` of `str`, optional
             Mask planes to ignore.
         minPixelToMask : `float`, optional
@@ -661,6 +663,13 @@ class CrosstalkCalib(IsrCalib):
             else:
                 coeffsSqr = self.coeffsSqr
             self.log.debug("CT COEFF SQR: %s", coeffsSqr)
+
+        if crosstalkCoeffsValid:
+            # Add an additional check for finite coeffs.
+            valid = crosstalkCoeffsValid & np.isfinite(coeffs)
+        else:
+            valid = np.isfinite(coeffs)
+
         # Set background level based on the requested method.  The
         # thresholdBackground holds the offset needed so that we only mask
         # pixels high relative to the background, not in an absolute
@@ -710,7 +719,8 @@ class CrosstalkCalib(IsrCalib):
             else:
                 sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
             for tt, tAmp in enumerate(detector):
-                if coeffs[ss, tt] == 0.0:
+                # Skip 0.0 and invalid coefficients.
+                if coeffs[ss, tt] == 0.0 or not valid[ss, tt]:
                     continue
                 tImage = self.extractAmp(
                     mi,
@@ -966,6 +976,7 @@ class CrosstalkTask(Task):
                 exposure,
                 crosstalkCoeffs=crosstalk.coeffs,
                 crosstalkCoeffsSqr=crosstalkCoeffsSqr,
+                crosstalkCoeffsValid=crosstalk.coeffValid,
                 minPixelToMask=self.config.minPixelToMask,
                 crosstalkStr=self.config.crosstalkMaskPlane,
                 isTrimmed=isTrimmed,
