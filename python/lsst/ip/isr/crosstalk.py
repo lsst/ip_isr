@@ -110,8 +110,8 @@ class CrosstalkCalib(IsrCalib):
         self.coeffErr = np.zeros(self.crosstalkShape) if self.nAmp else None
         self.coeffNum = np.zeros(self.crosstalkShape,
                                  dtype=int) if self.nAmp else None
-        self.coeffValid = np.zeros(self.crosstalkShape,
-                                   dtype=bool) if self.nAmp else None
+        self.coeffValid = np.ones(self.crosstalkShape,
+                                  dtype=bool) if self.nAmp else None
         # Quadratic terms, if any.
         self.coeffsSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
         self.coeffErrSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
