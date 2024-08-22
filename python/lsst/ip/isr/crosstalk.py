@@ -699,6 +699,7 @@ class CrosstalkCalib(IsrCalib):
         subtrahend.set((0, 0, 0))
 
         coeffs = coeffs.transpose()
+        valid = valid.transpose()
         # Apply NL coefficients
         if doSqrCrosstalk:
             coeffsSqr = coeffsSqr.transpose()
