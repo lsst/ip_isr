@@ -523,14 +523,14 @@ class AmpOffsetTask(Task):
                 if minFracFail:
                     self.log.warning(
                         f"The fraction of unmasked pixels for amp interface {interfaceId} is below the "
-                        f"threshold ({ampEdgeGoodFrac:.2f} < {self.config.ampEdgeMinFrac}). Setting the "
-                        f"interface offset to {interfaceOffset}."
+                        f"threshold ({ampEdgeGoodFrac:.2f} < {self.config.ampEdgeMinFrac}). Resetting the "
+                        f"interface offset from {interfaceOffset} to 0."
                     )
                 if maxOffsetFail:
                     self.log.warning(
                         "The absolute offset value exceeds the limit "
-                        f"({np.abs(interfaceOffset):.2f} > {self.config.ampEdgeMaxOffset} ADU). Setting the "
-                        f"interface offset to {interfaceOffset}."
+                        f"({np.abs(interfaceOffset):.2f} > {self.config.ampEdgeMaxOffset} ADU). Resetting "
+                        f"the interface offset from {interfaceOffset} to 0."
                     )
             interfaceOffset = 0
         self.log.debug(
