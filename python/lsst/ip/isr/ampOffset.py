@@ -512,14 +512,14 @@ class AmpOffsetTask(Task):
         edgeDiffAvg[np.isnan(edgeDiff)] = np.nan
         # Take clipped mean of rolling average data as amp offset value.
         interfaceOffset = makeStatistics(edgeDiffAvg, MEANCLIP, sctrl).getValue()
-        # Perform a couple of do-no-harm safety checks:
-        # a) The fraction of unmasked pixel rows is > ampEdgeMinFrac,
-        # b) The absolute offset ADU value is < ampEdgeMaxOffset.
         ampEdgeGoodFrac = 1 - (np.sum(np.isnan(edgeDiffAvg)) / len(edgeDiffAvg))
-        minFracFail = ampEdgeGoodFrac < self.config.ampEdgeMinFrac
-        maxOffsetFail = np.abs(interfaceOffset) > self.config.ampEdgeMaxOffset
-        if minFracFail or maxOffsetFail:
-            if self.config.doApplyAmpOffset:
+        if self.config.doApplyAmpOffset:
+            # Perform a couple of do-no-harm safety checks:
+            # a) The fraction of unmasked pixel rows is > ampEdgeMinFrac,
+            # b) The absolute offset ADU value is < ampEdgeMaxOffset.
+            minFracFail = ampEdgeGoodFrac < self.config.ampEdgeMinFrac
+            maxOffsetFail = np.abs(interfaceOffset) > self.config.ampEdgeMaxOffset
+            if minFracFail or maxOffsetFail:
                 if minFracFail:
                     self.log.warning(
                         f"The fraction of unmasked pixels for amp interface {interfaceId} is below the "
