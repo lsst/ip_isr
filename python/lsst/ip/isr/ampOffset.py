@@ -532,7 +532,7 @@ class AmpOffsetTask(Task):
                         f"({np.abs(interfaceOffset):.2f} > {self.config.ampEdgeMaxOffset} ADU). Resetting "
                         f"the interface offset from {interfaceOffset} to 0."
                     )
-            interfaceOffset = 0
+                interfaceOffset = 0
         self.log.debug(
             f"amp interface {interfaceId} : "
             f"viable edge difference frac = {ampEdgeGoodFrac}, "
