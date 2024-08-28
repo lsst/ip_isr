@@ -221,13 +221,27 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         maskVal = overscanImage.mask.getPlaneBitMask(self.config.maskPlanes)
         overscanMask = ~((overscanImage.mask.array & maskVal) == 0)
 
-        median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
-        bad = np.where(np.abs(overscanArray - median) > self.config.maxDeviation)
-        overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("SAT")
+        if np.all(overscanMask):
+            self.log.warning(
+                "All overscan pixels masked when attempting overscan correction for %s",
+                amp.getName(),
+            )
 
-        # Do overscan fit.
-        # CZW: Handle transposed correctly.
-        overscanResults = self.fitOverscan(overscanImage, isTransposed=isTransposed)
+            # Do not do overscan subtraction at all.
+            overscanResults = pipeBase.Struct(
+                overscanValue=0.0,
+                overscanMean=0.0,
+                overscanMedian=0.0,
+                overscanSigma=0.0,
+            )
+        else:
+            median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
+            bad = np.where(np.abs(overscanArray - median) > self.config.maxDeviation)
+            overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("SAT")
+
+            # Do overscan fit.
+            # CZW: Handle transposed correctly.
+            overscanResults = self.fitOverscan(overscanImage, isTransposed=isTransposed)
 
         # Correct image region (and possibly parallel-overscan region).
         ampImage = exposure[imageBBox]
