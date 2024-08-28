@@ -832,6 +832,25 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         parallelOverscan = ParallelOverscanCorrectionTask(
                             config=ampConfig.parallelOverscanConfig,
                         )
+
+                        # We need to know the saturation level that was used
+                        # for the parallel overscan masking. If it isn't set
+                        # then the configured parallelOverscanSaturationLevel
+                        # will be used instead (assuming
+                        # doParallelOverscanSaturation is True).
+                        if self.config.doSaturation:
+                            saturationLevel = ccdExposure.metadata[
+                                f"LSST ISR SATURATION LEVEL {amp.getName()}"
+                            ]
+                        else:
+                            saturationLevel = None
+
+                        parallelOverscan.maskParallelOverscanAmp(
+                            ccdExposure,
+                            amp,
+                            saturationLevel=saturationLevel,
+                        )
+
                         results = parallelOverscan.run(ccdExposure, amp)
 
                     metadata = ccdExposure.metadata

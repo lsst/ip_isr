@@ -1253,7 +1253,7 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             residualSigma=residualSigma,
         )
 
-    def maskParallelOverscan(self, exposure, detector, saturationLevel=None):
+    def maskParallelOverscanAmp(self, exposure, amp, saturationLevel=None):
         """Mask parallel overscan, growing saturated pixels.
 
         This operates on the image in-place.
@@ -1262,8 +1262,8 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
         ----------
         exposure : `lsst.afw.image.Exposure`
             An untrimmed raw exposure.
-        detector : `lsst.afw.cameraGeom.Detector`
-            The detetor to use for amplifier geometry.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            The amplifier to use for masking.
         saturationLevel : `float`, optional
             Saturation level to use for masking.
         """
@@ -1274,13 +1274,12 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
         if saturationLevel is None:
             saturationLevel = self.config.parallelOverscanSaturationLevel
 
-        for amp in detector:
-            dataView = afwImage.MaskedImageF(exposure.getMaskedImage(),
-                                             amp.getRawParallelOverscanBBox(),
-                                             afwImage.PARENT)
-            makeThresholdMask(
-                maskedImage=dataView,
-                threshold=saturationLevel,
-                growFootprints=self.config.parallelOverscanMaskGrowSize,
-                maskName="BAD"
-            )
+        dataView = afwImage.MaskedImageF(exposure.getMaskedImage(),
+                                         amp.getRawParallelOverscanBBox(),
+                                         afwImage.PARENT)
+        makeThresholdMask(
+            maskedImage=dataView,
+            threshold=saturationLevel,
+            growFootprints=self.config.parallelOverscanMaskGrowSize,
+            maskName="BAD",
+        )

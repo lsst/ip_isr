@@ -548,8 +548,13 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                     parallelOverscanTask = ipIsr.overscan.ParallelOverscanCorrectionTask(
                         config=configParallel,
                     )
-                    # This next line is usually run as part of IsrTask
-                    parallelOverscanTask.maskParallelOverscan(exposureCopy, detector, saturationLevel=100000.)
+                    # This next line is usually run as part of IsrTaskLSST.
+                    for amp in detector:
+                        parallelOverscanTask.maskParallelOverscanAmp(
+                            exposureCopy,
+                            amp,
+                            saturationLevel=100000.,
+                        )
                     oscanResults = parallelOverscanTask.run(exposureCopy, amp)
 
                 self.assertIsInstance(oscanResults, pipeBase.Struct)
