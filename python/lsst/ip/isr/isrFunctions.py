@@ -389,20 +389,23 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
 
 def updateVariance(maskedImage, gain, readNoise):
     """Set the variance plane based on the image plane.
+    Expect maskedImage to have units of adu or electron
+    if gain is 1.0. Will always produce a variance plane
+    int the same units as the image.
 
     Parameters
     ----------
     maskedImage : `lsst.afw.image.MaskedImage`
         Image to process.  The variance plane is modified.
     gain : scalar
-        The amplifier gain in electrons/ADU.
+        The amplifier gain in electron/adu.
     readNoise : scalar
-        The amplifier read nmoise in ADU/pixel.
+        The amplifier read noise in electron/pixel.
     """
     var = maskedImage.getVariance()
     var[:] = maskedImage.getImage()
     var /= gain
-    var += readNoise**2
+    var += (readNoise/gain)**2
 
 
 def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False, trimToFit=False):

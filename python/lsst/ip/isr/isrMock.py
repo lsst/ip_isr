@@ -86,7 +86,7 @@ class IsrMockConfig(pexConfig.Config):
     gain = pexConfig.Field(
         dtype=float,
         default=1.0,
-        doc="Gain for simulated data in e^-/ADU.",
+        doc="Gain for simulated data in electron/adu.",
     )
     readNoise = pexConfig.Field(
         dtype=float,

@@ -1800,7 +1800,7 @@ class IsrTask(pipeBase.PipelineTask):
             Gains from running the brighter-fatter code.
             A dict keyed by amplifier name for the detector
             in question.
-        ovserScans : `list` [`lsst.pipe.base.Struct`]
+        overScans : `list` [`lsst.pipe.base.Struct`]
             List of overscanResults structures
         metadata : `lsst.daf.base.PropertyList`
             Exposure metadata to update gain and noise provenance.
@@ -1853,6 +1853,17 @@ class IsrTask(pipeBase.PipelineTask):
                                          gain, bfGain)
                     boolGainMismatch = True
 
+            # Gain:
+            if math.isnan(gain):
+                gain = 1.0
+                self.log.warning("Gain for amp %s set to NAN! Updating to"
+                                 " 1.0 to generate Poisson variance.", ampName)
+            elif gain <= 0:
+                patchedGain = 1.0
+                self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
+                                 ampName, gain, patchedGain)
+                gain = patchedGain
+
             # Noise:
             # Try first with the empirical noise from the overscan.
             noiseProvenanceString = "amp"
@@ -1865,6 +1876,11 @@ class IsrTask(pipeBase.PipelineTask):
                     # Both serial and parallel overscan were
                     # run.  Only report noise from serial here.
                     noise = overscanResults.residualSigma[0]
+
+                # Overscan noise is always in adu; we must standardize
+                # the noise attributes of all PhotonTransferCurveDataset
+                # objects to units of electrons.
+                noise *= gain
             elif self.config.usePtcReadNoise:
                 # Try then with the PTC noise.
                 noise = ptcDataset.noise[ampName]
@@ -1877,16 +1893,12 @@ class IsrTask(pipeBase.PipelineTask):
                 # been created with self.config.gain and
                 # self.config.noise.
                 noise = amp.getReadNoise()
+                # Amplifier object noise is always in adu; we must
+                # standardize the noise attributes of all
+                # PhotonTransferCurveDataset objects to units of
+                # electrons.
+                noise *= gain
 
-            if math.isnan(gain):
-                gain = 1.0
-                self.log.warning("Gain for amp %s set to NAN! Updating to"
-                                 " 1.0 to generate Poisson variance.", ampName)
-            elif gain <= 0:
-                patchedGain = 1.0
-                self.log.warning("Gain for amp %s == %g <= 0; setting to %f.",
-                                 ampName, gain, patchedGain)
-                gain = patchedGain
 
             # PTC Turnoff:
             # Copy it over from the input PTC if it's positive. If it's a nan
@@ -2261,6 +2273,9 @@ class IsrTask(pipeBase.PipelineTask):
         gain = ptcDataset.gain[ampName]
         readNoise = ptcDataset.noise[ampName]
 
+        # The image will always be in adu and the noise
+        # will always be in electrons, and we will output
+        # the variance plane in the image units (adu^2).
         isrFunctions.updateVariance(
             maskedImage=ampExposure.getMaskedImage(),
             gain=gain,

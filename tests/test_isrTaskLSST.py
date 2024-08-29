@@ -65,7 +65,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                                               ptcFitType='DUMMY_PTC',
                                               covMatrixSide=1)
 
-        # PTC records noise units in adu.
+        # PTC records noise units in electrons.
         for amp_name in amp_names:
             self.ptc.gain[amp_name] = mock.config.gainDict.get(amp_name, mock.config.gain)
             self.ptc.noise[amp_name] = mock.config.readNoise * self.ptc.gain[amp_name]
@@ -134,6 +134,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "adu")
 
+        key = "LSST ISR READ NOISE UNITS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], "electron")
+
         for amp in self.detector:
             amp_name = amp.getName()
             key = f"LSST ISR GAIN {amp_name}"
@@ -143,6 +147,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.assertIn(key, metadata)
             # This is an approximate range check because the noise is
             # determined from the overscan and not the ptc.
+            # ptc.noise is set to 5.0 electron by default.
+            # bootstrap PTC sets the noise to
             self.assertGreater(metadata[key], self.ptc.noise[amp_name]*0.7)
             self.assertLess(metadata[key], self.ptc.noise[amp_name]*1.3)
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
@@ -257,11 +263,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(ratio[good_pixels], self.flat_adu.image.array[good_pixels], atol=1e-5)
 
         # Test the variance plane in the case of adu units.
-        # The expected variance stars with the image array.
+        # The expected variance starts with the image array.
         expected_variance = result.exposure.image.clone()
         # We have to remove the flat-fielding from the image pixels.
         expected_variance.array *= self.flat_adu.image.array
-        # And add the gain and read noise (in adu) per amp.
+        # And add the gain and read noise (in electron) per amp.
         for amp in self.detector:
             # We need to use the gain and read noise from the header
             # because these are bootstraps.
@@ -269,7 +275,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
 
             expected_variance[amp.getBBox()].array /= gain
-            expected_variance[amp.getBBox()].array += read_noise**2.
+            expected_variance[amp.getBBox()].array += (read_noise/gain)**2.
         # And apply the flat-field squared.
         expected_variance.array /= self.flat_adu.image.array**2.
 
@@ -655,13 +661,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.assertEqual(metadata[key], gain := self.ptc.gain[amp_name])
             key = f"LSST ISR READNOISE {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], gain * self.ptc.noise[amp_name])
+            self.assertEqual(metadata[key], self.ptc.noise[amp_name])
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu * gain)
 
         # Test the variance plane in the case of electron units.
-        # The expected variance stars with the image array.
+        # The expected variance starts with the image array.
         expected_variance = result.exposure.image.clone()
         # We have to remove the flat-fielding from the image pixels.
         expected_variance.array *= self.flat.image.array
@@ -670,7 +676,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             gain = self.ptc.gain[amp.getName()]
             read_noise = self.ptc.noise[amp.getName()]
 
-            expected_variance[amp.getBBox()].array += (gain * read_noise)**2.
+            # The image, read noise, and variance plane should all have
+            # units of electrons, electrons, and electrons^2.
+            expected_variance[amp.getBBox()].array += read_noise**2.
         # And apply the flat-field squared.
         expected_variance.array /= self.flat.image.array**2.
 

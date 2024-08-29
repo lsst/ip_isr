@@ -112,7 +112,7 @@ class IsrTestCases(unittest.TestCase):
         raw = afwImage.ExposureF(detector.getBBox())
 
         level = 10
-        readNoise = 1.5
+        readNoise = 1.5 # electrons
         raw.image.set(level)
 
         amp = detector[0]
@@ -136,7 +136,12 @@ class IsrTestCases(unittest.TestCase):
                 gain = 1
             if math.isnan(gain):
                 gain = 1
-            self.assertEqual(raw.variance[0, 0, afwImage.LOCAL], level/gain + readNoise**2)
+            # isrTask.updateVariance assumes that the input image will always
+            # be in adu and the noise will always be in electrons, and we will
+            # output the variance plane in the image units (adu^2). This is
+            # always true at the location that updateVariance() is called when
+            # isr_config.doVariance=True.
+            self.assertEqual(raw.variance[0, 0, afwImage.LOCAL], level/gain + (readNoise/gain)**2)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

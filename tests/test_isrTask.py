@@ -176,7 +176,10 @@ class IsrTaskTestCases(lsst.utils.tests.TestCase):
         effectivePtc = self.task.defineEffectivePtc(inputPtc, detector, bfGains,
                                                     overscans,
                                                     exposureMetadata)
-        self.assertFloatsAlmostEqual(effectivePtc.noise[ampName], 39.8794613621691)
+        self.assertFloatsAlmostEqual(
+            effectivePtc.noise[ampName],
+            39.8794613621691*effectivePtc.gain[ampName],
+        )
         self.assertEqual(effectivePtc.gain[ampName], inputPtc.gain[ampName])
 
         # Raise if the PTC and BFK gains don't match

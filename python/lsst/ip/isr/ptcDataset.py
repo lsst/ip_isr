@@ -82,14 +82,14 @@ class PhotonTransferCurveDataset(IsrCalib):
         Dictionary keyed by amp names containing the unmasked exposure times.
     rawMeans : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the unmasked average of the
-        means of the exposures in each flat pair.
+        means of the exposures in each flat pair (units: adu).
     rawVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
-        difference image of the exposures in each flat pair.
+        difference image of the exposures in each flat pair (units: adu^2).
     rowMeanVariance : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         means of the rows of the difference image of the exposures
-        in each flat pair.
+        in each flat pair (units: adu^2).
     histVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         difference image of the exposures in each flat pair estimated
@@ -106,13 +106,14 @@ class PhotonTransferCurveDataset(IsrCalib):
         Dictionary keyed by amp names containing the errors on the
         fitted gains.
     noiseList : `dict`, [`str`, `np.ndarray`]
-        Dictionary keyed by amp names containing the mean read noise from
-        each flat pair (as measured from overscan).
+        Dictionary keyed by amp names containing the mean overscan
+        standard deviation from each flat pair (units: adu).
     noise : `dict`, [`str`, `float`]
-        Dictionary keyed by amp names containing the fitted noise.
+        Dictionary keyed by amp names containing the fitted noise
+        (units: electron).
     noiseErr : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the errors on the fitted
-        noise.
+        noise (units: electron).
     ptcFitPars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the fitted parameters of the
         PTC model for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].
@@ -124,40 +125,40 @@ class PhotonTransferCurveDataset(IsrCalib):
         Dictionary keyed by amp names containing the reduced chi squared
         of the fit for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].
     ptcTurnoff : `dict` [`str, `float`]
-        Flux value (in ADU) where the variance of the PTC curve starts
+        Flux value (in adu) where the variance of the PTC curve starts
         decreasing consistently.
     ptcTurnoffSamplingError : `dict` [`str`, `float`]
         ``Sampling`` error on the ptcTurnoff, based on the flux sampling
-        of the input PTC.
+        of the input PTC (units: adu).
     covariances : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing a list of measured
-        covariances per mean flux.
+        covariances per mean flux (units: adu^2).
     covariancesModel : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containinging covariances model
-        (Eq. 20 of Astier+19) per mean flux.
+        (Eq. 20 of Astier+19) per mean flux (units: adu^2).
     covariancesSqrtWeights : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containinging sqrt. of covariances
-        weights.
+        weights (units: 1/adu).
     aMatrix : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "a" parameters from
-        the model in Eq. 20 of Astier+19.
+        the model in Eq. 20 of Astier+19 (units: 1/electron).
     bMatrix : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "b" parameters from
-        the model in Eq. 20 of Astier+19.
+        the model in Eq. 20 of Astier+19 (units: 1/electron).
     noiseMatrix : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "noise" parameters from
-        the model in Eq. 20 of Astier+19.
+        the model in Eq. 20 of Astier+19 (units: electron^2).
     covariancesModelNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing covariances model
         (with 'b'=0 in Eq. 20 of Astier+19)
-        per mean flux.
+        per mean flux (units: adu^2).
     aMatrixNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "a" parameters from the
         model in Eq. 20 of Astier+19
-        (and 'b' = 0).
+        (and 'b' = 0) (units: 1/electron).
     noiseMatrixNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "noise" parameters from
-        the model in Eq. 20 of Astier+19, with 'b' = 0.
+        the model in Eq. 20 of Astier+19, with 'b' = 0 (units: electron^2).
     finalVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the masked variance of the
         difference image of each flat
