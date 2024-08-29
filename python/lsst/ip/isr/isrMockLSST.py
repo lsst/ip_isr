@@ -70,6 +70,16 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=30000.0,
         doc="Bright defect level (electron).",
     )
+    doAddBadParallelOverscanColumn = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add a bad column to the parallel overscan.",
+    )
+    badParallelOverscanColumnLevel = pexConfig.Field(
+        dtype=float,
+        default=300000.,
+        doc="Bright parallel overscan column level (electron). Should be above saturation.",
+    )
     doAddBrighterFatter = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -557,6 +567,17 @@ class IsrMockLSST(IsrMock):
                         self.config.readNoise,
                         rng=rngOverscan,
                     )
+
+        # 7b. Add bad column to the parallel overscan region.
+        if self.config.doAddBadParallelOverscanColumn and not self.config.isTrimmed:
+            # Only add this to one amp.
+            amp = exposure.getDetector()[1]
+            parBBox = amp.getRawParallelOverscanBBox()
+            bboxBad = geom.Box2I(
+                corner=geom.Point2I(parBBox.getMinX() + 30, parBBox.getMinY()),
+                dimensions=geom.Extent2I(1, parBBox.getHeight()),
+            )
+            exposure[bboxBad].image.array[:, :] = self.config.badParallelOverscanColumnLevel
 
         # 11. Add crosstalk (electron) to all the amplifiers
         #     (imaging + overscan).

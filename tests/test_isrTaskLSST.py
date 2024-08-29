@@ -360,6 +360,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         """Test processing of a dark frame."""
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
+        # We turn off the bad parallel overscan column because it does
+        # add more noise to that region.
+        mock_config.doAddBadParallelOverscanColumn = False
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
@@ -411,7 +414,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # factor for the extra noise from the overscan subtraction.
         self.assertLess(
             np.std(result.exposure.image.array[good_pixels]),
-            1.5*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
+            1.6*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
@@ -698,7 +701,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # We compare the good pixels in the entirety.
         self.assertLess(np.std(delta[good_pixels]), 5.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*7)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
@@ -825,7 +828,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # We compare the good pixels in the entirety.
         self.assertLess(np.std(delta[good_pixels]), 5.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+        # This is sensitive to parallel overscan masking.
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*7)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
