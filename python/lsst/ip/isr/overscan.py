@@ -242,7 +242,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             badResults = True
         if overscanMedian/imageMedian > overscanFraction and imageMedian > imageThreshold:
             self.log.warning(
-                "The level in the overscan region (%.2) compared to the image region (%.2f) is "
+                "The level in the overscan region (%.2f) compared to the image region (%.2f) is "
                 "greater than the maximum fraction (%.2f) for %s",
                 overscanMedian,
                 imageMedian,
