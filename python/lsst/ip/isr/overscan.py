@@ -155,7 +155,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         raise NotImplementedError("run method is not defined for OverscanCorrectionTaskBase")
 
     def correctOverscan(self, exposure, amp, imageBBox, overscanBBox,
-                        isTransposed=True, leadingToSkip=0, trailingToSkip=0):
+                        isTransposed=True, leadingToSkip=0, trailingToSkip=0,
+                        overscanFraction=1.0, imageThreshold=np.inf):
         """Trim the exposure, fit the overscan, subtract the fit, and
         calculate statistics.
 
@@ -179,6 +180,14 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             Leading rows/columns to skip.
         trailingToSkip : `int`, optional
             Leading rows/columns to skip.
+        overscanFraction : `float`, optional
+            If the overscan region median is greater than overscanFraction
+            and the imaging region median is greater than imageThreshold
+            then overscan correction will be skipped.
+        maxLevel : `float`, optional
+            If the overscan region median is greater than overscanFraction
+            and the imaging region median is greater than imageThreshold
+            then overscan correction will be skipped.
 
         Returns
         -------
@@ -221,12 +230,28 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         maskVal = overscanImage.mask.getPlaneBitMask(self.config.maskPlanes)
         overscanMask = ~((overscanImage.mask.array & maskVal) == 0)
 
+        badResults = False
+        overscanMedian = np.nanmedian(overscanImage.image.array)
+        imageMedian = np.nanmedian(exposure[imageBBox].image.array)
+
         if np.all(overscanMask):
             self.log.warning(
                 "All overscan pixels masked when attempting overscan correction for %s",
                 amp.getName(),
             )
+            badResults = True
+        if overscanMedian/imageMedian > overscanFraction and imageMedian > imageThreshold:
+            self.log.warning(
+                "The level in the overscan region (%.2) compared to the image region (%.2f) is "
+                "greater than the maximum fraction (%.2f) for %s",
+                overscanMedian,
+                imageMedian,
+                overscanFraction,
+                amp.getName(),
+            )
+            badResults = True
 
+        if badResults:
             # Do not do overscan subtraction at all.
             overscanResults = pipeBase.Struct(
                 overscanValue=0.0,
@@ -1137,7 +1162,7 @@ class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
     )
     parallelOverscanSaturationLevel = pexConfig.Field(
         dtype=float,
-        doc="The saturation level to use if not specified in call to "
+        doc="The saturation level (adu) to use if not specified in call to "
             "maskParallelOverscan.",
         default=100000.,
     )
@@ -1157,6 +1182,22 @@ class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
         dtype=int,
         doc="Number of trailing values to skip in parallel overscan correction.",
         default=0,
+    )
+    parallelOverscanFraction = pexConfig.Field(
+        dtype=float,
+        doc="When the parallel overscan region median is greater than parallelOverscanFraction "
+            "and the imaging region median is greater than parallelOverscanImageThreshold "
+            "then parallel overscan subtraction will be turned off, as this is usually "
+            "due to the region being flooded with spillover from a super-saturated flat.",
+        default=0.5,
+    )
+    parallelOverscanImageThreshold = pexConfig.Field(
+        dtype=float,
+        doc="When the parallel overscan region median is greater than parallelOverscanFraction "
+            "and the imaging region median is greater than parallelOverscanImageThreshold "
+            "then parallel overscan subtraction will be turned off, as this is usually "
+            "due to the region being flooded with spillover from a super-saturated flat.",
+        default=10000.0,
     )
 
 
@@ -1247,6 +1288,8 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             isTransposed=not isTransposed,
             leadingToSkip=self.config.leadingToSkip,
             trailingToSkip=self.config.trailingToSkip,
+            overscanFraction=self.config.parallelOverscanFraction,
+            imageThreshold=self.config.parallelOverscanImageThreshold,
         )
         overscanMean = results.overscanMean
         overscanMedian = results.overscanMedian
