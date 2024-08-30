@@ -544,7 +544,7 @@ class CrosstalkCalib(IsrCalib):
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
-                          parallelOverscan=False, detectorConfig=None):
+                          parallelOverscan=False, detectorConfig=None, badAmpDict=None):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -597,6 +597,9 @@ class CrosstalkCalib(IsrCalib):
             Only correct the parallel overscan region.
         detectorConfig : `lsst.ip.isr.overscanDetectorConfig`, optional
             Per-amplifier configs to use if parallelOverscan is True.
+        badAmpDict : `dict` [`str`, `bool`], optional
+            Dictionary to identify bad amplifiers that should not be
+            source or target for crosstalk correction.
 
         Notes
         -----
@@ -723,6 +726,9 @@ class CrosstalkCalib(IsrCalib):
                 # Skip 0.0 and invalid coefficients.
                 if coeffs[ss, tt] == 0.0 or not valid[ss, tt]:
                     continue
+                if badAmpDict is not None:
+                    if badAmpDict[sAmp.getName()] or badAmpDict[tAmp.getName()]:
+                        continue
                 tImage = self.extractAmp(
                     mi,
                     tAmp,
@@ -872,6 +878,7 @@ class CrosstalkTask(Task):
         detectorConfig=None,
         fullAmplifier=False,
         gains=None,
+        badAmpDict=None,
     ):
         """Apply intra-detector crosstalk correction
 
@@ -904,6 +911,9 @@ class CrosstalkTask(Task):
         gains : `dict` [`str`, `float`], optional
             Dictionary of amp name to gain.  Required if there is a unit
             mismatch between the exposure and the crosstalk matrix.
+        badAmpDict : `dict` [`str`, `bool`], optional
+            Dictionary to identify bad amplifiers that should not be
+            source or target for crosstalk correction.
 
         Raises
         ------
@@ -985,6 +995,7 @@ class CrosstalkTask(Task):
                 doSqrCrosstalk=doSqrCrosstalk,
                 fullAmplifier=fullAmplifier,
                 parallelOverscan=parallelOverscanRegion,
+                badAmpDict=badAmpDict,
             )
 
         if crosstalk.interChip:
