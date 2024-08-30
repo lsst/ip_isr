@@ -1029,8 +1029,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if numNans > 0:
             self.log.warning("There were %d unmasked NaNs.", numNans)
 
-    def countBadPixels(self, exposure):
-        """
+    def setBadRegions(self, exposure):
+        """Set bad regions from large contiguous regions.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.Exposure`
+            Exposure to set bad regions.
+
         Notes
         -----
         Reset and interpolate bad pixels.
@@ -1743,8 +1749,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             preInterpExp = ccdExposure.clone()
 
         if self.config.doSetBadRegions:
-            self.log.info('Counting pixels in BAD regions.')
-            self.countBadPixels(ccdExposure)
+            self.log.info('Setting values in large contiguous bad regions.')
+            self.setBadRegions(ccdExposure)
 
         if self.config.doInterpolate:
             self.log.info("Interpolating masked pixels.")
