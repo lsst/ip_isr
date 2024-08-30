@@ -765,6 +765,144 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # trail.
         self.assertLess(np.std(delta), 7.0)
 
+    def test_isrFloodedSaturated(self):
+        """Test ISR when the amps are completely flooded and
+        the parallel overscan region is also flooded.
+        """
+        # We are simulating a flat field.
+        # Note that these aren't very important because we are replacing
+        # the flux, but we may as well.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doBootstrap = True
+        isr_config.doApplyGains = False
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        # Tun off saturation masking to simulate a PTC flat.
+        isr_config.doSaturation = False
+
+        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
+        parallel_overscan_saturation = amp_config.parallelOverscanConfig.parallelOverscanSaturationLevel
+
+        detector = input_exp.getDetector()
+        for i, amp in enumerate(detector):
+            # For half of the amps we are testing what happens when the
+            # parallel overscan region is above the configured saturation
+            # level; for the other half we are testing the other branch
+            # when it saturates below this level (which is a priori
+            # unknown).
+            if i < len(detector) // 2:
+                data_level = (parallel_overscan_saturation * 1.05
+                              + mock_config.biasLevel
+                              + mock_config.clockInjectedOffsetLevel)
+                parallel_overscan_level = (parallel_overscan_saturation * 1.01
+                                           + mock_config.biasLevel
+                                           + mock_config.clockInjectedOffsetLevel)
+            else:
+                data_level = 0.9 * parallel_overscan_saturation
+                parallel_overscan_level = 0.75 * data_level
+
+            input_exp[amp.getRawDataBBox()].image.array[:, :] = data_level
+            input_exp[amp.getRawParallelOverscanBBox()].image.array[:, :] = parallel_overscan_level
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+            )
+        self.assertEqual(len(cm.records), len(detector))
+
+        n_all = 0
+        n_level = 0
+        for record in cm.records:
+            if "All overscan pixels masked" in record.message:
+                n_all += 1
+            if "The level in the overscan region" in record.message:
+                n_level += 1
+
+        self.assertEqual(n_all, len(detector) // 2)
+        self.assertEqual(n_level, len(detector) // 2)
+
+        # And confirm that the post-ISR levels are high for each amp.
+        for amp in detector:
+            med = np.median(result.exposure[amp.getBBox()].image.array)
+            self.assertGreater(med, 50000.0)
+
+    def test_isrBadPtcGain(self):
+        """Test processing when an amp has a bad (nan) PTC gain.
+        """
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+
+        # Set a bad amplifier to a nan gain.
+        bad_amp = self.detector[0].getName()
+
+        ptc = copy.copy(self.ptc)
+        ptc.gain[bad_amp] = np.nan
+
+        # We also want non-zero (but very small) crosstalk values
+        # to ensure that these don't propagate nans.
+        crosstalk = copy.copy(self.crosstalk)
+        for i in range(len(self.detector)):
+            for j in range(len(self.detector)):
+                if i == j:
+                    continue
+                if crosstalk.coeffs[i, j] == 0:
+                    crosstalk.coeffs[i, j] = 1e-10
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=crosstalk,
+                ptc=ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+            )
+        self.assertIn(f"Amplifier {bad_amp} is bad (non-finite gain)", cm.output[0])
+
+        # Confirm that the bad_amp is marked bad and the other amps are not.
+        # We have to special case the amp with the defect.
+        mask = result.exposure.mask
+
+        for amp in self.detector:
+            bbox = amp.getBBox()
+            bad_in_amp = ((mask[bbox].array & 2**mask.getMaskPlaneDict()["BAD"]) > 0)
+
+            if amp.getName() == bad_amp:
+                self.assertTrue(np.all(bad_in_amp))
+            elif amp.getName() == "C:0,2":
+                # This is the amp with the defect.
+                self.assertEqual(np.sum(bad_in_amp), 51)
+            else:
+                self.assertTrue(np.all(~bad_in_amp))
+
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
 
