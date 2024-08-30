@@ -602,9 +602,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # isrFunctions.diffNonLinearCorrection
         pass
 
-    def maskFullDefectAmplifiers(self, ccdExposure, detector, defects):
+    def maskFullAmplifiers(self, ccdExposure, detector, defects, gains=None):
         """
         Check for fully masked bad amplifiers and mask them.
+
+        This includes defects which cover full amplifiers, as well
+        as amplifiers with nan gain values which should be used
+        if self.config.doApplyGains=True.
 
         Full defect masking happens later to allow for defects which
         cross amplifier boundaries.
@@ -618,6 +622,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         defects : `lsst.ip.isr.Defects`
             List of defects.  Used to determine if an entire
             amplifier is bad.
+        gains : `dict` [`str`, `float`], optional
+            Dictionary of gains to check if
+            self.config.doApplyGains=True.
 
         Returns
         -------
@@ -639,6 +646,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if defects is not None:
                 badAmpDict[ampName] = bool(sum([v.getBBox().contains(amp.getBBox()) for v in defects]))
 
+                if badAmpDict[ampName]:
+                    self.log.warning("Amplifier %s is bad (completely covered with defects)", ampName)
+
+            if gains is not None and self.config.doApplyGains:
+                if not math.isfinite(gains[ampName]):
+                    badAmpDict[ampName] = True
+
+                    self.log.warning("Amplifier %s is bad (non-finite gain)", ampName)
+
             # In the case of a bad amp, we will set mask to "BAD"
             # (here use amp.getRawBBox() for correct association with pixels in
             # current ccdExposure).
@@ -648,8 +664,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskView = dataView.getMask()
                 maskView |= maskView.getPlaneBitMask("BAD")
                 del maskView
-
-                self.log.warning("Amplifier %s is bad (completely covered with defects)", ampName)
 
         return badAmpDict
 
@@ -944,6 +958,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     self.log.debug("  Variance stats for amplifer %s: %f +/- %f.",
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                    qaStats.getValue(afwMath.STDEVCLIP))
+
         if self.config.maskNegativeVariance:
             self.maskNegativeVariance(exposure)
 
@@ -1498,26 +1513,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
 
-        # First we convert the exposure to floating point values
-        # (if necessary).
-        self.log.debug("Converting exposure to floating point values.")
-        ccdExposure = self.convertIntToFloat(ccdExposure)
-
-        # Then we mark which amplifiers are completely bad from defects.
-        badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
-
-        # Now we go through ISR steps.
-
-        # Differential non-linearity correction.
-        # Units: adu
-        if self.config.doDiffNonLinearCorrection:
-            self.diffNonLinearCorrection(ccdExposure, dnlLUT)
-
-        # Dither the integer counts.
-        # Input units: integerized adu
-        # Output units: floating-point adu
-        self.ditherCounts(ccdExposure, overscanDetectorConfig)
-
+        # Make a bootstrap "nominal" PTC and extract gains.
         nominalPtcUsed = False
         if self.config.doBootstrap or ptc is None:
             self.log.info(
@@ -1545,6 +1541,26 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     amp.getName(),
                     gain,
                 )
+
+        # First we convert the exposure to floating point values
+        # (if necessary).
+        self.log.debug("Converting exposure to floating point values.")
+        ccdExposure = self.convertIntToFloat(ccdExposure)
+
+        # Then we mark which amplifiers are completely bad from defects.
+        badAmpDict = self.maskFullAmplifiers(ccdExposure, detector, defects, gains=gains)
+
+        # Now we go through ISR steps.
+
+        # Differential non-linearity correction.
+        # Units: adu
+        if self.config.doDiffNonLinearCorrection:
+            self.diffNonLinearCorrection(ccdExposure, dnlLUT)
+
+        # Dither the integer counts.
+        # Input units: integerized adu
+        # Output units: floating-point adu
+        self.ditherCounts(ccdExposure, overscanDetectorConfig)
 
         # Serial overscan correction.
         # Input units: adu
