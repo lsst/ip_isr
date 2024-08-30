@@ -915,6 +915,70 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             med = np.median(result.exposure[amp.getBBox()].image.array)
             self.assertGreater(med, 50000.0)
 
+    def test_isrBadPtcGain(self):
+        """Test processing when an amp has a bad (nan) PTC gain.
+        """
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+
+        # Set a bad amplifier to a nan gain.
+        bad_amp = self.detector[0].getName()
+
+        ptc = copy.copy(self.ptc)
+        ptc.gain[bad_amp] = np.nan
+
+        # We also want non-zero (but very small) crosstalk values
+        # to ensure that these don't propagate nans.
+        crosstalk = copy.copy(self.crosstalk)
+        for i in range(len(self.detector)):
+            for j in range(len(self.detector)):
+                if i == j:
+                    continue
+                if crosstalk.coeffs[i, j] == 0:
+                    crosstalk.coeffs[i, j] = 1e-10
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=crosstalk,
+                ptc=ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+            )
+        self.assertIn(f"Amplifier {bad_amp} is bad (non-finite gain)", cm.output[0])
+
+        # Confirm that the bad_amp is marked bad and the other amps are not.
+        # We have to special case the amp with the defect.
+        mask = result.exposure.mask
+
+        for amp in self.detector:
+            bbox = amp.getBBox()
+            bad_in_amp = ((mask[bbox].array & 2**mask.getMaskPlaneDict()["BAD"]) > 0)
+
+            if amp.getName() == bad_amp:
+                self.assertTrue(np.all(bad_in_amp))
+            elif amp.getName() == "C:0,2":
+                # This is the amp with the defect.
+                self.assertEqual(np.sum(bad_in_amp), 51)
+            else:
+                self.assertTrue(np.all(~bad_in_amp))
+
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
 
