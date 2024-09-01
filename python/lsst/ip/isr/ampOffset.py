@@ -214,7 +214,8 @@ class AmpOffsetTask(Task):
 
         # Safety check: do any pixels remain for amp offset estimation?
         if (exp.mask.array & bitMask).all():
-            self.log.warning(
+            log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.debug
+            log_fn(
                 "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set "
                 "to zero."
             )
@@ -511,26 +512,27 @@ class AmpOffsetTask(Task):
         edgeDiffAvg[np.isnan(edgeDiff)] = np.nan
         # Take clipped mean of rolling average data as amp offset value.
         interfaceOffset = makeStatistics(edgeDiffAvg, MEANCLIP, sctrl).getValue()
+        ampEdgeGoodFrac = 1 - (np.sum(np.isnan(edgeDiffAvg)) / len(edgeDiffAvg))
         # Perform a couple of do-no-harm safety checks:
         # a) The fraction of unmasked pixel rows is > ampEdgeMinFrac,
         # b) The absolute offset ADU value is < ampEdgeMaxOffset.
-        ampEdgeGoodFrac = 1 - (np.sum(np.isnan(edgeDiffAvg)) / len(edgeDiffAvg))
         minFracFail = ampEdgeGoodFrac < self.config.ampEdgeMinFrac
         maxOffsetFail = np.abs(interfaceOffset) > self.config.ampEdgeMaxOffset
         if minFracFail or maxOffsetFail:
-            interfaceOffset = 0
+            log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.debug
             if minFracFail:
-                self.log.warning(
-                    f"The fraction of unmasked pixels for amp interface {interfaceId} is below the threshold "
-                    f"({ampEdgeGoodFrac:.2f} < {self.config.ampEdgeMinFrac}). Setting the interface offset "
-                    f"to {interfaceOffset}."
+                log_fn(
+                    f"The fraction of unmasked pixels for amp interface {interfaceId} is below the "
+                    f"threshold ({ampEdgeGoodFrac:.2f} < {self.config.ampEdgeMinFrac}). Resetting the "
+                    f"interface offset from {interfaceOffset} to 0."
                 )
             if maxOffsetFail:
-                self.log.warning(
+                log_fn(
                     "The absolute offset value exceeds the limit "
-                    f"({np.abs(interfaceOffset):.2f} > {self.config.ampEdgeMaxOffset} ADU). Setting the "
-                    f"interface offset to {interfaceOffset}."
+                    f"({np.abs(interfaceOffset):.2f} > {self.config.ampEdgeMaxOffset} ADU). Resetting "
+                    f"the interface offset from {interfaceOffset} to 0."
                 )
+            interfaceOffset = 0
         self.log.debug(
             f"amp interface {interfaceId} : "
             f"viable edge difference frac = {ampEdgeGoodFrac}, "
