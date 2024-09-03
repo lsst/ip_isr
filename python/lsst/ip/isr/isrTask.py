@@ -574,7 +574,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     usePtcReadNoise = pexConfig.Field(
         dtype=bool,
         default=False,
-        doc="Use readnoise values from the Photon Transfer Curve?"
+        doc="Use read noise values from the Photon Transfer Curve?"
     )
     maskNegativeVariance = pexConfig.Field(
         dtype=bool,
@@ -1520,7 +1520,7 @@ class IsrTask(pipeBase.PipelineTask):
                                crosstalkSources=crosstalkSources, isTrimmed=True)
             self.debugView(ccdExposure, "doCrosstalk")
 
-        # Masking block. Optionally mask known defects, NAN/inf pixels,
+        # Masking block. Optionally mask known defects,NaN/inf pixels,
         # widen trails, and do anything else the camera needs. Saturated and
         # suspect pixels have already been masked.
         if self.config.doDefect:
@@ -1803,7 +1803,8 @@ class IsrTask(pipeBase.PipelineTask):
         overScans : `list` [`lsst.pipe.base.Struct`]
             List of overscanResults structures
         metadata : `lsst.daf.base.PropertyList`
-            Exposure metadata to update gain and noise provenance.
+            Exposure metadata to update gain and read noise
+            provenance.
 
         Returns
         -------
@@ -1856,7 +1857,7 @@ class IsrTask(pipeBase.PipelineTask):
             # Gain:
             if math.isnan(gain):
                 gain = 1.0
-                self.log.warning("Gain for amp %s set to NAN! Updating to"
+                self.log.warning("Gain for amp %s set to NaN! Updating to"
                                  " 1.0 to generate Poisson variance.", ampName)
             elif gain <= 0:
                 patchedGain = 1.0
@@ -1878,26 +1879,22 @@ class IsrTask(pipeBase.PipelineTask):
                     noise = overscanResults.residualSigma[0]
 
                 # Overscan noise is always in adu; we must standardize
-                # the noise attributes of all PhotonTransferCurveDataset
-                # objects to units of electrons.
-                noise *= gain
-            elif self.config.usePtcReadNoise:
-                # Try then with the PTC noise.
-                noise = ptcDataset.noise[ampName]
-                noiseProvenanceString = "ptc"
-                self.log.debug("Using noise from Photon Transfer Curve.")
-            else:
-                # Finally, try with the amplifier noise.
-                # We already have a detector at this point. If there
-                # was no detector to begin with, one would have
-                # been created with self.config.gain and
-                # self.config.noise.
-                noise = amp.getReadNoise()
-                # Amplifier object noise is always in adu; we must
-                # standardize the noise attributes of all
+                # the read noise attributes of all
                 # PhotonTransferCurveDataset objects to units of
                 # electrons.
                 noise *= gain
+            elif self.config.usePtcReadNoise:
+                # Try then with the PTC noise.
+                self.log.debug("Using noise from Photon Transfer Curve.")
+                noise = ptcDataset.noise[ampName]
+                noiseProvenanceString = "ptc"
+            else:
+                # Finally, try with the amplifier noise.
+                # We already have a detector at this point. If there was no
+                # detector to begin with, one would have been created with
+                # self.config.gain and self.config.noise.
+                # Amplifier object read noise is always in electron
+                noise = amp.getReadNoise()
 
             # PTC Turnoff:
             # Copy it over from the input PTC if it's positive. If it's a nan
@@ -1914,7 +1911,7 @@ class IsrTask(pipeBase.PipelineTask):
 
             effectivePtc.gain[ampName] = gain
             effectivePtc.noise[ampName] = noise
-            # Make sure noise,turnoff, and gain make sense
+            # Make sure read noise, turnoff, and gain make sense
             effectivePtc.validateGainNoiseTurnoffValues(ampName, doWarn=doWarningPtcValidation)
             doWarningPtcValidation = False
 
@@ -2268,7 +2265,7 @@ class IsrTask(pipeBase.PipelineTask):
         """
         ampName = amp.getName()
         # At this point, the effective PTC should have
-        # gain and noise values.
+        # gain and read noise values.
         gain = ptcDataset.gain[ampName]
         readNoise = ptcDataset.noise[ampName]
 
@@ -2321,7 +2318,7 @@ class IsrTask(pipeBase.PipelineTask):
         """
         expScale = exposure.getInfo().getVisitInfo().getDarkTime()
         if math.isnan(expScale):
-            raise RuntimeError("Exposure darktime is NAN.")
+            raise RuntimeError("Exposure darktime is NaN.")
         if darkExposure.getInfo().getVisitInfo() is not None \
                 and not math.isnan(darkExposure.getInfo().getVisitInfo().getDarkTime()):
             darkScale = darkExposure.getInfo().getVisitInfo().getDarkTime()

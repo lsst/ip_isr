@@ -389,9 +389,10 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
 
 def updateVariance(maskedImage, gain, readNoise):
     """Set the variance plane based on the image plane.
-    Expect maskedImage to have units of adu or electron
-    if gain is 1.0. Will always produce a variance plane
-    int the same units as the image.
+
+    The maskedImage must have units of `adu` (if gain != 1.0) or
+    electron (if gain == 1.0). This routine will always produce a
+    variance plane in the same units as the image.
 
     Parameters
     ----------

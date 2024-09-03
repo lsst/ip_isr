@@ -65,7 +65,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                                               ptcFitType='DUMMY_PTC',
                                               covMatrixSide=1)
 
-        # PTC records noise units in electrons.
+        # PTC records noise units in electron, same as the
+        # configuration parameter.
         for amp_name in amp_names:
             self.ptc.gain[amp_name] = mock.config.gainDict.get(amp_name, mock.config.gain)
             self.ptc.noise[amp_name] = mock.config.readNoise
@@ -168,10 +169,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doApplyGains = False
         isr_config.doBias = True
         isr_config.doDark = True
-
-        # Need to make sure we are not masking the negative variance
-        # pixels when directly comparing calibration images and
-        # calibration-corrected calibrations.
         isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
@@ -230,10 +227,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
-
-        # Need to make sure we are not masking the negative variance
-        # pixels when directly comparing calibration images and
-        # calibration-corrected calibrations.
         isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
@@ -282,6 +275,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
 
             expected_variance[amp.getBBox()].array /= gain
+            # Read noise is always in electron units, but since this is a
+            # bootstrap, the gain is 1.0.
             expected_variance[amp.getBBox()].array += (read_noise/gain)**2.
         # And apply the flat-field squared.
         expected_variance.array /= self.flat_adu.image.array**2.
@@ -313,10 +308,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         # We do not do defect correction when processing biases.
         isr_config.doDefect = False
-
-        # Need to make sure we are not masking the negative variance
-        # pixels when directly comparing calibration images and
-        # calibration-corrected calibrations.
         isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
@@ -362,7 +353,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(
             delta[good_pixels],
             self.bias.image.array[good_pixels],
-            atol=5*mock_config.noise2DBias,
+            atol=1e-5,
         )
 
     def test_isrDark(self):
@@ -378,10 +369,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         # We do not do defect correction when processing darks.
         isr_config.doDefect = False
-
-        # Need to make sure we are not masking the negative variance
-        # pixels when directly comparing calibration images and
-        # calibration-corrected calibrations.
         isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
@@ -453,10 +440,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # Although we usually do not do defect interpolation when
         # processing flats, this is a good test of the interpolation.
         isr_config.doDefect = True
-
-        # Need to make sure we are not masking the negative variance
-        # pixels when directly comparing calibration images and
-        # calibration-corrected calibrations.
         isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
@@ -527,10 +510,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         # We do not do defect correction when processing biases.
         isr_config.doDefect = False
-
-        # Need to make sure we are not masking the negative variance
-        # pixels when directly comparing calibration images and
-        # calibration-corrected calibrations.
         isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
@@ -547,12 +526,12 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         for amp in self.detector:
             # The overscan noise is always in adu and the readnoise is always
-            # in electron
+            # in electron.
             gain = result.exposure.metadata[f"LSST ISR GAIN {amp.getName()}"]
             read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
 
             # Chcek that the gain and read noise are consistent with the
-            # values stored in the PTC
+            # values stored in the PTC.
             self.assertEqual(gain, self.ptc.gain[amp.getName()])
             self.assertEqual(read_noise, self.ptc.noise[amp.getName()])
 
@@ -560,7 +539,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.assertIn(key, metadata)
 
             # Determine if the residual serial overscan stddev is consistent
-            # with the PTC readnoise within 3xstandard error
+            # with the PTC readnoise within 3xstandard error.
             serial_overscan_area = amp.getRawHorizontalOverscanBBox().area
             self.assertFloatsAlmostEqual(
                 metadata[key] * gain,

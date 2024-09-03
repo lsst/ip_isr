@@ -190,11 +190,12 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.6 adds the `rowMeanVariance` attribute.
     Version 1.7 adds the `noiseList` attribute.
     Version 1.8 adds the `ptcTurnoffSamplingError` attribute.
+    Version 1.9 standardizes PTC noise units to electron.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.8
+    _VERSION = 1.9
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -694,6 +695,25 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['ptcTurnoffSamplingError'][ampName] = np.nan
             else:
                 inDict['ptcTurnoffSamplingError'][ampName] = record['PTC_TURNOFF_SAMPLING_ERROR']
+            if calibVersion < 1.9 and inDict['ptcFitType'] == "FULLCOVARIANCE":
+                # Before version 1.9, the noise stored in the PTC was in
+                # units of electron^2 only if ptcFitType == FULLCOVARIANCE.
+                # After version 1.9, we standardized the
+                # PhotonTransferCurveDataset noise units to electron to fix
+                # this bug. If a user tries to use an earlier version of
+                # PTC with this fit type, we must be sure to do the
+                # calculations properly. More information about this noise
+                # issue can be found in DM-45976.
+                if ampName == inDict['ampNames'][0]:
+                    cls().log.info(f"Input PTC VERSION ({calibVersion}) < 1.9 and"
+                                   " ptcFitType == FULLCOVARIANCE. Applying fix for"
+                                   f" the DM-45976 noise issue.")
+                # The noiseErr calculation was accidentally correct in the
+                # previous version, so we only need to upday the noise
+                # attribute.
+                inDict['noise'][ampName] = np.sqrt(record['noise'][ampName])
+            else:
+                pass
 
         inDict['auxValues'] = {}
         record = ptcTable[0]

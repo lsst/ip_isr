@@ -1503,6 +1503,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         exposureMetadata["LSST ISR NOMINAL PTC USED"] = nominalPtcUsed
 
+        # Set which gains to use
         gains = ptc.gain
 
         # And check if we have configured gains to override. This is
