@@ -213,7 +213,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
 
     nominalGain = pexConfig.Field(
         dtype=float,
-        default=1.7,
+        default=1.0,
         doc="Nominal gain to use if no PTC is supplied.",
     )
 
@@ -826,7 +826,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                     metadata = ccdExposure.metadata
                     keyBase = "LSST ISR OVERSCAN"
-                    # The overscane is always in adu, and we will make this
+                    # The overscan is always in adu, and we will make this
                     # explicitly clear
                     metadata[f"{keyBase} UNITS"] = "adu"
                     metadata[f"{keyBase} {mode} MEAN {ampName}"] = results.overscanMean
@@ -1534,12 +1534,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     if serialOverscan is None:
                         ptc.noise[amp.getName()] = 0.0
                     else:
-                        ptc.noise[amp.getName()] = serialOverscan.residualSigma
-                    # All PhotonTransferCurveDataset objects should contain
-                    # noise attributes in units of electrons. The read noise
-                    # measured from overscans is always in adu, so we scale
-                    # it by the gain.
-                    ptc.noise[amp.getName()] *= gains[amp.getName()]
+                        # All PhotonTransferCurveDataset objects should contain
+                        # noise attributes in units of electrons. The read
+                        # noise measured from overscans is always in adu, so we
+                        # scale it by the gain.
+                        ptc.noise[amp.getName()] = serialOverscan.residualSigma * gains[amp.getName()]
         else:
             serialOverscans = [None]*len(detector)
 
@@ -1677,7 +1676,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Widening saturation trails.")
             isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
 
-        # Brighter/Fatter
+        # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doBrighterFatter:
             self.log.info("Applying brighter-fatter correction.")

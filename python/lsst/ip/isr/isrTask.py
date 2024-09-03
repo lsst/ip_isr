@@ -1899,7 +1899,6 @@ class IsrTask(pipeBase.PipelineTask):
                 # electrons.
                 noise *= gain
 
-
             # PTC Turnoff:
             # Copy it over from the input PTC if it's positive. If it's a nan
             # set it to a high value.
