@@ -570,11 +570,12 @@ class IsrMockLSST(IsrMock):
 
         # 7b. Add bad column to the parallel overscan region.
         if self.config.doAddBadParallelOverscanColumn and not self.config.isTrimmed:
-            # Only add this to one amp.
-            amp = exposure.getDetector()[1]
+            # We want to place this right above the defect, to simulate
+            # bleeding into the parallel overscan region.
+            amp = exposure.getDetector()[2]
             parBBox = amp.getRawParallelOverscanBBox()
             bboxBad = geom.Box2I(
-                corner=geom.Point2I(parBBox.getMinX() + 30, parBBox.getMinY()),
+                corner=geom.Point2I(50, parBBox.getMinY()),
                 dimensions=geom.Extent2I(1, parBBox.getHeight()),
             )
             exposure[bboxBad].image.array[:, :] = self.config.badParallelOverscanColumnLevel
