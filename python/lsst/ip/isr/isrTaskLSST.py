@@ -848,6 +848,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                             config=config,
                         )
 
+                        metadata = ccdExposure.metadata
+
                         # We need to know the saturation level that was used
                         # for the parallel overscan masking. If it isn't set
                         # then the configured parallelOverscanSaturationLevel
@@ -856,12 +858,19 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         # this will have the correct units (adu or electron)
                         # depending on whether the gain has been applied.
                         if self.config.doSaturation:
-                            saturationLevel = ccdExposure.metadata[
-                                f"LSST ISR SATURATION LEVEL {amp.getName()}"
-                            ]
+                            saturationLevel = metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"]
                             saturationLevel *= config.parallelOverscanSaturationLevelAdjustmentFactor
                         else:
-                            saturationLevel = None
+                            saturationLevel = config.parallelOverscanSaturationLevel
+                            if ccdExposure.metadata["LSST ISR UNITS"] == "electron":
+                                # Need to convert to electron from adu.
+                                saturationLevel *= metadata[f"LSST ISR GAIN {amp.getName()}"]
+
+                        self.log.debug(
+                            "Using saturation level of %.2f for parallel overscan amp %s",
+                            saturationLevel,
+                            amp.getName(),
+                        )
 
                         parallelOverscan.maskParallelOverscanAmp(
                             ccdExposure,
