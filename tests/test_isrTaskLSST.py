@@ -922,7 +922,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # And confirm that the post-ISR levels are high for each amp.
         for amp in detector:
             med = np.median(result.exposure[amp.getBBox()].image.array)
-            self.assertGreater(med, 50000.0)
+            self.assertGreater(med, parallel_overscan_saturation*0.8)
 
     def test_isrFloodedSaturatedITL(self):
         """Test ISR when the amps are completely saturated.
@@ -1019,7 +1019,131 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # And confirm that the post-ISR levels are high for each amp.
         for amp in detector:
             med = np.median(result.exposure[amp.getBBox()].image.array)
-            self.assertGreater(med, 50000.0)
+            self.assertGreater(med, parallel_overscan_saturation*0.8)
+
+    def test_isrBadParallelOverscanColumnsBootstrap(self):
+        """Test processing a bias when we have a bad parallel overscan column.
+
+        This tests in bootstrap mode.
+        """
+        # We base this on the bootstrap bias, and make sure
+        # that the bad column remains.
+        mock_config = self.get_mock_config_no_signal()
+        isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doSaturation = False
+        isr_config.doBootstrap = True
+        isr_config.doApplyGains = False
+
+        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
+        overscan_sat_level_adu = amp_config.parallelOverscanConfig.parallelOverscanSaturationLevel
+        # The defect is in amp 2.
+        amp_gain = mock_config.gainDict[self.detector[2].getName()]
+        overscan_sat_level = amp_gain * overscan_sat_level_adu
+        # The expected defect level is in adu for the bootstrap bias.
+        expected_defect_level = mock_config.brightDefectLevel / amp_gain
+
+        # The levels are set in electron units.
+        # We test 3 levels:
+        #  * 1000.0, a lowish but outlier level (with no neighbor flux).
+        #  * 1.05*saturation.
+        # Note that the default parallel overscan saturation level for
+        # bootstrap (pre-saturation-measure) analysis is very low, in
+        # order to capture all types of amps, even with low saturation.
+        # Therefore, we only need to test above this saturation level.
+        # (c.f. test_isrBadParallelOverscanColumns).
+        levels = mock_config.clockInjectedOffsetLevel + np.array(
+            [1000.0, 1.05*overscan_sat_level],
+        )
+
+        for level in levels:
+            mock_config.badParallelOverscanColumnLevel = level
+            mock_config.doAddBadParallelOverscanColumnNeighbors = False
+            if (level - mock_config.clockInjectedOffsetLevel) > overscan_sat_level:
+                mock_config.doAddBadParallelOverscanColumnNeighbors = True
+            mock = isrMockLSST.IsrMockLSST(config=mock_config)
+            input_exp = mock.run()
+
+            isr_task = IsrTaskLSST(config=isr_config)
+            with self.assertNoLogs(level=logging.WARNING):
+                result = isr_task.run(input_exp.clone())
+
+            for defect in self.defects:
+                bbox = defect.getBBox()
+                defect_image = result.exposure[bbox].image.array
+
+                # Check that the defect is the correct level
+                # (not subtracted away).
+                defect_median = np.median(defect_image)
+                self.assertFloatsAlmostEqual(defect_median, expected_defect_level, rtol=1e-4)
+
+                # Check that the neighbors aren't over-subtracted.
+                for neighbor in [-1, 1]:
+                    bbox_neighbor = bbox.shiftedBy(geom.Extent2I(neighbor, 0))
+                    neighbor_image = result.exposure[bbox_neighbor].image.array
+
+                    neighbor_median = np.median(neighbor_image)
+                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=5.0)
+
+    def test_isrBadParallelOverscanColumns(self):
+        """Test processing a bias when we have a bad parallel overscan column.
+
+        This test uses regular non-bootstrap processing.
+        """
+        mock_config = self.get_mock_config_no_signal()
+        isr_config = self.get_isr_config_electronic_corrections()
+        # We do not do defect correction when processing biases.
+        isr_config.doDefect = False
+
+        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
+        sat_level_adu = amp_config.saturation
+        # The defect is in amp 2.
+        amp_gain = mock_config.gainDict[self.detector[2].getName()]
+        sat_level = amp_gain * sat_level_adu
+        # The expected defect level is in electron for the full bias.
+        expected_defect_level = mock_config.brightDefectLevel
+
+        # The levels are set in electron units.
+        # We test 3 levels:
+        #  * 1000.0, a lowish but outlier level (with no neighbor flux).
+        #  * 0.9*saturation, following ITL-style parallel overscan bleeds.
+        #  * 1.05*saturation, following E2V-style parallel overscan bleeds.
+        levels = mock_config.clockInjectedOffsetLevel + np.array(
+            [1000.0, 0.9*sat_level, 1.1*sat_level],
+        )
+
+        for level in levels:
+            mock_config.badParallelOverscanColumnLevel = level
+            mock_config.doAddBadParallelOverscanColumnNeighbors = False
+            if (level - mock_config.clockInjectedOffsetLevel) > 0.8*sat_level:
+                mock_config.doAddBadParallelOverscanColumnNeighbors = True
+            mock = isrMockLSST.IsrMockLSST(config=mock_config)
+            input_exp = mock.run()
+
+            isr_task = IsrTaskLSST(config=isr_config)
+            with self.assertNoLogs(level=logging.WARNING):
+                result = isr_task.run(
+                    input_exp.clone(),
+                    crosstalk=self.crosstalk,
+                    ptc=self.ptc,
+                    linearizer=self.linearizer,
+                )
+
+            for defect in self.defects:
+                bbox = defect.getBBox()
+                defect_image = result.exposure[bbox].image.array
+
+                # Check that the defect is the correct level
+                # (not subtracted away).
+                defect_median = np.median(defect_image)
+                self.assertFloatsAlmostEqual(defect_median, expected_defect_level, rtol=1e-4)
+
+                # Check that the neighbors aren't over-subtracted.
+                for neighbor in [-1, 1]:
+                    bbox_neighbor = bbox.shiftedBy(geom.Extent2I(neighbor, 0))
+                    neighbor_image = result.exposure[bbox_neighbor].image.array
+
+                    neighbor_median = np.median(neighbor_image)
+                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=5.0)
 
     def test_isrBadPtcGain(self):
         """Test processing when an amp has a bad (nan) PTC gain.
@@ -1165,6 +1289,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+        # Our strong overscan slope in the tests requires an override.
+        defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
         # Override the camera model to use the desired saturation (ADU).
         defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
@@ -1207,6 +1333,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+        # Our strong overscan slope in the tests requires an override.
+        defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
         # Override the camera model to use the desired saturation (ADU).
         defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
