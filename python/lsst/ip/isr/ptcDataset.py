@@ -365,6 +365,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     def updateMetadata(self, **kwargs):
         """Update calibration metadata.
+
         This calls the base class's method after ensuring the required
         calibration keywords will be saved.
 
@@ -381,6 +382,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     @classmethod
     def fromDict(cls, dictionary):
         """Construct a calibration from a dictionary of properties.
+
         Must be implemented by the specific calibration subclasses.
 
         Parameters
@@ -496,6 +498,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     def toDict(self):
         """Return a dictionary containing the calibration properties.
+
         The dictionary should be able to be round-tripped through
         `fromDict`.
 
@@ -561,6 +564,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     @classmethod
     def fromTable(cls, tableList):
         """Construct calibration from a list of tables.
+
         This method uses the `fromDict` method to create the
         calibration, after constructing an appropriate dictionary from
         the input tables.
@@ -797,6 +801,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     def getExpIdsUsed(self, ampName):
         """Get the exposures used, i.e. not discarded, for a given amp.
+
         If no mask has been created yet, all exposures are returned.
 
         Parameters
@@ -830,7 +835,13 @@ class PhotonTransferCurveDataset(IsrCalib):
         return expIdsUsed
 
     def getGoodAmps(self):
-        """Get the good amps from this PTC."""
+        """Get the good amps from this PTC.
+
+        Returns
+        -------
+        results : `list` [`str`]
+            List of good amplifiers.
+        """
         return [amp for amp in self.ampNames if amp not in self.badAmps]
 
     def getGoodPoints(self, ampName):

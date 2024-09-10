@@ -127,7 +127,7 @@ def makeThumbnail(exposure, isrQaConfig=None):
     ----------
     exposure : `lsst.afw.image.Exposure`
         The exposure to be converted into a thumbnail.
-    isrQaConfig : `Config`
+    isrQaConfig : `Config`, optional
         Configuration object containing all parameters to control the
         thumbnail generation.
 

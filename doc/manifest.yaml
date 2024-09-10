@@ -4,3 +4,4 @@
 # For each module there is a corresponding module doc subdirectory.
 modules:
   - "lsst.ip.isr"
+  - "lsst.ip.isr.isrMock"
