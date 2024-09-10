@@ -1163,8 +1163,17 @@ class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
     parallelOverscanSaturationLevel = pexConfig.Field(
         dtype=float,
         doc="The saturation level (adu) to use if not specified in call to "
-            "maskParallelOverscan.",
-        default=100000.,
+            "maskParallelOverscanAmp. This should be low enough to capture "
+            "all possible amplifiers for defect detection.",
+        default=20000.,
+    )
+    parallelOverscanSaturationLevelAdjustmentFactor = pexConfig.Field(
+        dtype=float,
+        doc="The parallel overscan saturation level may be below that of "
+            "the data region. This factor is applied to the amplifier "
+            "saturation value when evaluating saturation in the parallel "
+            "overscan region.",
+        default=0.75,
     )
     parallelOverscanMaskGrowSize = pexConfig.Field(
         dtype=int,
