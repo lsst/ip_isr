@@ -66,6 +66,9 @@ class OverscanAmpConfig(pexConfig.Config):
         self.parallelOverscanConfig.leadingToSkip = 3
         self.parallelOverscanConfig.trailingToSkip = 3
         self.parallelOverscanConfig.overscanIsInt = False
+        # We expect the parallel overscan to not deviate much
+        # after serial overscan subtraction and crosstalk correction.
+        self.parallelOverscanConfig.maxDeviation = 100.0
 
     @property
     def _stringForHash(self):
