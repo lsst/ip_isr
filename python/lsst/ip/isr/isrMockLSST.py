@@ -82,12 +82,12 @@ class IsrMockLSSTConfig(IsrMockConfig):
     )
     doAddBadParallelOverscanColumnNeighbors = pexConfig.Field(
         dtype=bool,
-        default=False,
+        default=True,
         doc="Add low-level bad columns next to parallel overscan bad column.",
     )
     badParallelOverscanColumnNeighborsLevel = pexConfig.Field(
         dtype=float,
-        default=100.0,
+        default=50.0,
         doc="Bright parallel overscan column neighbors level (electron).",
     )
     doAddBrighterFatter = pexConfig.Field(
