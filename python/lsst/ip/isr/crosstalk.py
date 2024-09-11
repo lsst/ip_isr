@@ -965,12 +965,19 @@ class CrosstalkTask(Task):
         invertGains = False
         gainApply = False
         if crosstalk.crosstalkRatiosUnits != exposureUnits:
-            if gains is None:
+            if gains is None and np.all(crosstalk.fitGains == 0.0):
                 raise RuntimeError(
                     f"Unit mismatch between exposure ({exposureUnits}) and "
                     f"crosstalk ratios ({crosstalk.crosstalkRatiosUnits}) and "
-                    "no gains were supplied.",
+                    "no gains were supplied or available in crosstalk calibration.",
                 )
+            elif gains is None:
+                self.log.info("Using crosstalk calib fitGains for gain corrections.")
+                detector = exposure.getDetector()
+                gains = {}
+                for i, amp in enumerate(detector):
+                    gains[amp.getName()] = crosstalk.fitGains[i]
+
             gainApply = True
 
             if crosstalk.crosstalkRatiosUnits == "adu":

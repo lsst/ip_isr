@@ -1654,11 +1654,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doCrosstalk:
             self.log.info("Applying crosstalk corrections to full amplifier region.")
+            if self.config.doBootstrap and numpy.any(crosstalk.fitGains != 0):
+                crosstalkGains = None
+            else:
+                crosstalkGains = gains
             self.crosstalk.run(
                 ccdExposure,
                 crosstalk=crosstalk,
                 isTrimmed=False,
-                gains=gains,
+                gains=crosstalkGains,
                 fullAmplifier=True,
                 badAmpDict=badAmpDict,
             )
