@@ -543,6 +543,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
                     configParallel = ipIsr.overscan.ParallelOverscanCorrectionTask.ConfigClass()
                     configParallel.parallelOverscanMaskGrowSize = 1
+                    configParallel.parallelOverscanMaskedColumnGrowSize = 0
                     configParallel.fitType = fitType
 
                     parallelOverscanTask = ipIsr.overscan.ParallelOverscanCorrectionTask(

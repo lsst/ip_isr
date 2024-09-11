@@ -266,12 +266,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             )
         else:
             median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
-            bad = np.where(np.abs(overscanArray - median) > self.config.maxDeviation)
+            bad = np.where((np.abs(overscanArray - median) > self.config.maxDeviation) & (~overscanMask))
             # Mark the bad pixels as BAD.
             overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("BAD")
 
             # Check for completely masked row/column.
-            if maskedRowColumnGrowSize > 0:
+            if maskedRowColumnGrowSize > 0 and len(bad) > 0:
                 if isTransposed:
                     axis = 0
                     nComp = overscanArray.shape[0]
