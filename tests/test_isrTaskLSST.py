@@ -1080,7 +1080,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # The levels are set in electron units.
         # We test 3 levels:
-        #  * 1000.0, a lowish but outlier level (with no neighbor flux).
+        #  * 1000.0, a lowish but outlier level.
         #  * 1.05*saturation.
         # Note that the default parallel overscan saturation level for
         # bootstrap (pre-saturation-measure) analysis is very low, in
@@ -1093,9 +1093,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         for level in levels:
             mock_config.badParallelOverscanColumnLevel = level
-            mock_config.doAddBadParallelOverscanColumnNeighbors = False
-            if (level - mock_config.clockInjectedOffsetLevel) > overscan_sat_level:
-                mock_config.doAddBadParallelOverscanColumnNeighbors = True
             mock = isrMockLSST.IsrMockLSST(config=mock_config)
             input_exp = mock.run()
 
@@ -1118,7 +1115,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                     neighbor_image = result.exposure[bbox_neighbor].image.array
 
                     neighbor_median = np.median(neighbor_image)
-                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=5.0)
+                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=7.0)
 
     def test_isrBadParallelOverscanColumns(self):
         """Test processing a bias when we have a bad parallel overscan column.
@@ -1140,7 +1137,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # The levels are set in electron units.
         # We test 3 levels:
-        #  * 1000.0, a lowish but outlier level (with no neighbor flux).
+        #  * 1000.0, a lowish but outlier level.
         #  * 0.9*saturation, following ITL-style parallel overscan bleeds.
         #  * 1.05*saturation, following E2V-style parallel overscan bleeds.
         levels = mock_config.clockInjectedOffsetLevel + np.array(
@@ -1149,9 +1146,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         for level in levels:
             mock_config.badParallelOverscanColumnLevel = level
-            mock_config.doAddBadParallelOverscanColumnNeighbors = False
-            if (level - mock_config.clockInjectedOffsetLevel) > 0.8*sat_level:
-                mock_config.doAddBadParallelOverscanColumnNeighbors = True
             mock = isrMockLSST.IsrMockLSST(config=mock_config)
             input_exp = mock.run()
 
@@ -1179,7 +1173,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                     neighbor_image = result.exposure[bbox_neighbor].image.array
 
                     neighbor_median = np.median(neighbor_image)
-                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=5.0)
+                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=7.0)
 
     def test_isrBadPtcGain(self):
         """Test processing when an amp has a bad (nan) PTC gain.
