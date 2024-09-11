@@ -156,7 +156,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
     def correctOverscan(self, exposure, amp, imageBBox, overscanBBox,
                         isTransposed=True, leadingToSkip=0, trailingToSkip=0,
-                        overscanFraction=1.0, imageThreshold=np.inf):
+                        overscanFraction=1.0, imageThreshold=np.inf,
+                        maskedRowColumnGrowSize=0):
         """Trim the exposure, fit the overscan, subtract the fit, and
         calculate statistics.
 
@@ -188,6 +189,10 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             If the overscan region median is greater than overscanFraction
             and the imaging region median is greater than imageThreshold
             then overscan correction will be skipped.
+        maskedRowColumnGrowSize : `int`, optional
+            If a column (parallel overscan) or row (serial overscan) is
+            completely masked, then grow the mask by this radius. If the
+            value is <=0 then this will not be checked.
 
         Returns
         -------
@@ -262,7 +267,47 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         else:
             median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
             bad = np.where(np.abs(overscanArray - median) > self.config.maxDeviation)
-            overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("SAT")
+            # Mark the bad pixels as BAD.
+            overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("BAD")
+
+            # Check for completely masked row/column.
+            if maskedRowColumnGrowSize > 0:
+                if isTransposed:
+                    axis = 0
+                    nComp = overscanArray.shape[0]
+                else:
+                    axis = 1
+                    nComp = overscanArray.shape[1]
+
+                # We only need to look at the bad pixels set here for this
+                # mask growth.
+                overscanMaskTemp = np.zeros_like(overscanMask)
+                overscanMaskTemp[bad] = True
+
+                nMaskedArray = np.sum(overscanMaskTemp, axis=axis, dtype=np.int32)
+                badRowsColumns, = np.where(nMaskedArray == nComp)
+                if len(badRowsColumns) > 0:
+                    dataView = afwImage.MaskedImageF(exposure.maskedImage,
+                                                     overscanBBox,
+                                                     afwImage.PARENT)
+                    if isTransposed:
+                        pixelsCopy = dataView.image.array[:, badRowsColumns].copy()
+                        dataView.image.array[:, badRowsColumns] = 1e30
+                    else:
+                        pixelsCopy = dataView.image.array[badRowsColumns, :].copy()
+                        dataView.image.array[badRowsColumns, :] = 1e30
+
+                    makeThresholdMask(
+                        maskedImage=dataView,
+                        threshold=1e30,
+                        growFootprints=maskedRowColumnGrowSize,
+                        maskName="BAD",
+                    )
+
+                    if isTransposed:
+                        dataView.image.array[:, badRowsColumns] = pixelsCopy
+                    else:
+                        dataView.image.array[badRowsColumns, :] = 1e30
 
             # Do overscan fit.
             # CZW: Handle transposed correctly.
@@ -450,11 +495,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             dataView = afwImage.MaskedImageF(exposure.getMaskedImage(),
                                              amp.getRawParallelOverscanBBox(),
                                              afwImage.PARENT)
+            # This should mark all the saturated pixels as SAT.
             makeThresholdMask(
                 maskedImage=dataView,
                 threshold=self.config.parallelOverscanMaskThreshold,
                 growFootprints=self.config.parallelOverscanMaskGrowSize,
-                maskName="BAD"
+                maskName="SAT"
             )
             if parallelMask is None:
                 parallelMask = dataView.mask.array
@@ -746,6 +792,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
             if self.config.fitType == "MEDIAN_PER_ROW":
                 overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
+                # import IPython
+                # IPython.embed()
             else:
                 overscanVector = fitOverscanImageMean(mi, self.config.maskPlanes, isTransposed)
 
@@ -1182,6 +1230,13 @@ class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
             "This value determined from the ITL chip in the LATISS camera",
         default=7,
     )
+    parallelOverscanMaskedColumnGrowSize = pexConfig.Field(
+        dtype=int,
+        doc="When a full column is masked in the parallel overscan (at less "
+            "than saturation) the mask should be grown by this many pixels. "
+            "This value is determined from ITL chips in LATISS and LSSTCam.",
+        default=2,
+    )
     leadingToSkip = pexConfig.Field(
         dtype=int,
         doc="Number of leading values to skip in parallel overscan correction.",
@@ -1299,6 +1354,7 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             trailingToSkip=self.config.trailingToSkip,
             overscanFraction=self.config.parallelOverscanFraction,
             imageThreshold=self.config.parallelOverscanImageThreshold,
+            maskedRowColumnGrowSize=self.config.parallelOverscanMaskedColumnGrowSize,
         )
         overscanMean = results.overscanMean
         overscanMedian = results.overscanMedian
@@ -1343,9 +1399,10 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
         dataView = afwImage.MaskedImageF(exposure.getMaskedImage(),
                                          amp.getRawParallelOverscanBBox(),
                                          afwImage.PARENT)
+        # This should mark all of these saturated pixels as SAT.
         makeThresholdMask(
             maskedImage=dataView,
             threshold=saturationLevel,
             growFootprints=self.config.parallelOverscanMaskGrowSize,
-            maskName="BAD",
+            maskName="SAT",
         )
