@@ -57,6 +57,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.crosstalk = CrosstalkCalib(nAmp=self.namp)
         self.crosstalk.hasCrosstalk = True
         self.crosstalk.coeffs = isrMockLSST.CrosstalkCoeffMockLSST().run()
+        for i, amp in enumerate(self.detector):
+            self.crosstalk.fitGains[i] = mock.config.gainDict[amp.getName()]
         self.crosstalk.crosstalkRatiosUnits = "electron"
 
         self.defects = isrMockLSST.DefectMockLSST().run()
@@ -100,6 +102,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBootstrap = True
         isr_config.doApplyGains = False
         isr_config.doBias = True
+        isr_config.doCrosstalk = True
 
         # Need to make sure we are not masking the negative variance
         # pixels when directly comparing calibration images and
@@ -108,14 +111,19 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result = isr_task.run(input_exp.clone(), bias=self.bias_adu, ptc=self.ptc)
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                ptc=self.ptc,
+                crosstalk=self.crosstalk,
+            )
         self.assertIn("Ignoring provided PTC", cm.output[0])
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone())
+            result2 = isr_task2.run(input_exp.clone(), crosstalk=self.crosstalk)
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -171,17 +179,24 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.maskNegativeVariance = False
+        isr_config.doCrosstalk = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result = isr_task.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu, ptc=self.ptc)
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+                ptc=self.ptc,
+                crosstalk=self.crosstalk,
+            )
         self.assertIn("Ignoring provided PTC", cm.output[0])
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu)
+            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu, crosstalk=self.crosstalk)
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -229,6 +244,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         isr_config.doFlat = True
         isr_config.maskNegativeVariance = False
+        isr_config.doCrosstalk = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
@@ -238,6 +254,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 dark=self.dark_adu,
                 flat=self.flat_adu,
                 ptc=self.ptc,
+                crosstalk=self.crosstalk,
             )
         self.assertIn("Ignoring provided PTC", cm.output[0])
 
@@ -245,7 +262,12 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu)
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+                crosstalk=self.crosstalk,
+            )
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
