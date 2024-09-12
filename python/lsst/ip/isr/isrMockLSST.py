@@ -32,6 +32,7 @@ import lsst.geom as geom
 import lsst.pex.config as pexConfig
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
+from lsst.afw.cameraGeom import ReadoutCorner
 from lsst.daf.base import PropertyList
 from .crosstalk import CrosstalkCalib
 from .isrMock import IsrMockConfig, IsrMock
@@ -476,7 +477,6 @@ class IsrMockLSST(IsrMock):
         # so the effects go from electron to adu.
         # The ISR steps will then correct these effects in the reverse order.
         for idx, amp in enumerate(exposure.getDetector()):
-
             # Get image bbox and data
             bbox = None
             if self.config.isTrimmed:
@@ -579,13 +579,21 @@ class IsrMockLSST(IsrMock):
 
             # 4. Add serial CTI (electron) to amplifier (imaging + overscan).
             if self.config.doAddDeferredCharge:
+                # Get the free charge area for the amplifier.
+                bboxFreeCharge = amp.getRawDataBBox()
+                bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalOverscanBBox())
+                bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalPrescanBBox())
+                bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawVerticalOverscanBBox())
+                ampFreeChargeData = exposure.image[bboxFreeCharge]
+
                 self.amplifierAddDeferredCharge(
-                    ampFullData,
+                    amp,
                     ampImageData,
-                    cti=self.ctiCalib.globalCti[amp.getName()],
-                    traps=[self.ctiCalib.serialTraps[amp.getName()]],
-                    driftScale=self.ctiCalib.driftScale[amp.getName()],
-                    decayTime=self.ctiCalib.decayTime[amp.getName()],
+                    ampFreeChargeData,
+                    cti=self.deferredChargeCalib.globalCti[amp.getName()],
+                    traps=[self.deferredChargeCalib.serialTraps[amp.getName()]],
+                    driftScale=self.deferredChargeCalib.driftScale[amp.getName()],
+                    decayTime=self.deferredChargeCalib.decayTime[amp.getName()],
                 )
 
             # 5. Add 2D bias residual (electron) to imaging portion of the amp.
@@ -849,8 +857,8 @@ class IsrMockLSST(IsrMock):
         metadataDict['metadata'].add(name="CALIBCLS",
                                      value="lsst.ip.isr.deferredCharge.DeferredChargeCalib")
         self.ctiCalibDict = {**metadataDict, **self.ctiCalibDict}
-        ctiCalib = DeferredChargeCalib()
-        self.cti = ctiCalib.fromDict(self.ctiCalibDict)
+        deferredChargeCalib = DeferredChargeCalib()
+        self.cti = deferredChargeCalib.fromDict(self.ctiCalibDict)
 
         return self.cti
 
@@ -884,6 +892,90 @@ class IsrMockLSST(IsrMock):
         ampImageData.array = measuredImage.array
 
         return totalFluxAdded
+
+    def amplifierAddDeferredCharge(self, amp, ampImageData, ampFreeChargeData, cti, traps, driftScale, decayTime):
+        """Add serial CTI to the ampllifier data.
+
+        Parameters
+        ----------
+        amp : `lsst.afw.image.Amplifier`
+            The amplifier object (contains geometry info).
+        ampImageData : `lsst.afw.image.ImageF`
+            Trimmed amplifier image to operate on. Contains
+            just the imaging region.
+        ampFreeChargeData : `lsst.afw.image.ImageF`
+            Amplifier image to operate on. Contains the
+            imaging region, horizontal prescan, horizontal
+            overscan, and vertical overscan regions.
+        cti : `float`
+            Mean global CTI paramter, b in Snyder+2021.
+        traps : `lsst.ip.isr.SerialTrap`
+            Realistic serial trap shape.
+        driftScale : `float`
+            The local electronic offset drift scale
+            parameter, A_L in Snyder+2021.
+        decayTime : `float`
+            The local electronic offset decay time,
+            \tau_L in Snyder+2021.
+        """
+        # Get the amplifier's geometry parameters.
+        prescanWidth = amp.getRawHorizontalPrescanBBox().getWidth()
+        serialOverscanWidth = amp.getRawHorizontalOverscanBBox().getWidth()
+        parallelOverscanWidth = amp.getRawVerticalOverscanBBox().getHeight()
+        readoutCorner = amp.getReadoutCorner()
+
+        # Create a fake amplifier object that contains some deferred charge
+        # paramters.
+        floatingOutputAmplifier = FloatingOutputAmplifier(
+            gain=1.0,  # The image is in electrons, and we want electrons out.
+            scale=driftScale,
+            decay_time=decayTime,
+            noise=0.0,
+            offset=0.0,
+        )
+
+        def flipImage(arr, readoutCorner):
+            # Flip an array so that the readout corner is in
+            # the lower left.
+            if readoutCorner == ReadoutCorner.LR:
+                return np.fliplr(arr)
+            elif readoutCorner ==  ReadoutCorner.UR:
+                return np.fliplr(np.flipud(arr))
+            elif readoutCorner == ReadoutCorner.UL:
+                return np.flipud(arr)
+            else:
+                pass
+
+            return arr
+
+        # The algorithm expects that the readout corner is in
+        # the lower left corner.  Flip it to be so:
+        imageData = ampImageData.array
+        imageData = flipImage(imageData, readoutCorner)
+
+        # Simulate the amplifier.
+        ampSim = SegmentSimulator(
+            imarr=imageData,
+            prescan_width=prescanWidth,
+            output_amplifier=floatingOutputAmplifier,
+            cti=cti,
+            traps=traps,
+        )
+
+        # Simulate deferred charge!
+        # Note that the readout() method uses the image region data and the
+        # overscan dimensions provided as input parameters. It then creates
+        # overscan nd adds it to the image data to create the raw image.
+        result = ampSim.readout(
+            serial_overscan_width=serialOverscanWidth,
+            parallel_overscan_width=parallelOverscanWidth,
+        )
+
+        # Flip the image back to the original orientation.
+        result = flipImage(result, readoutCorner)
+
+        # Set the image with the deferred charge added.
+        ampFreeChargeData.array[:, :] = result
 
     def makeLinearizer(self):
         # docstring inherited.
@@ -954,52 +1046,6 @@ class IsrMockLSST(IsrMock):
 
         ampData.array[:, :] += delta.reshape(ampData.array.shape)
 
-    def amplifierAddDeferrecCharge(self, ampFullData, ampImageData, cti, traps, driftScale, decayTime):
-        """Add serial CTI to the ampllifier data.
-
-        Parameters
-        ----------
-        ampFullData : `lsst.afw.image.ImageF`
-            Raw amplifier image to operate on.
-        ampImageData : `lsst.afw.image.ImageF`
-            Trimmed amplifier image to operate on.
-        cti : `float`
-            Mean global CTI paramter, b in Snyder+2021.
-        traps : `lsst.ip.isr.SerialTrap`
-            Realistic serial trap shape.
-        driftScale : `float`
-            The local electronic offset drift scale
-            parameter, A_L in Snyder+2021.
-        decayTime : `float`
-            The local electronic offset decay time,
-            \tau_L in Snyder+2021.
-        """
-        floatingOutputAmplifier = FloatingOutputAmplifier(
-            self.config.gainDict,
-            scale=driftScale,
-            decay_time=decayTime,
-            noise=0.0,
-            offset=0.0,
-        )
-
-        ampSim = SegmentSimulator(
-            imarr=ampImageData.array,
-            prescan_width=10,
-            output_amplifier=floatingOutputAmplifier,
-            cti=cti,
-            traps=traps,
-        )
-
-        # The readout() method uses the image region data and the overscan
-        # dimensions provided as input parameters. It then creates overscan
-        # and adds it to the image data to create the raw image. Instead,
-        # we pass it the whole (raw) image and specify serial and parallel
-        # overscan widths to zero. The inverse operation for correcting
-        # deferred charge takes in the raw image anyways. This allows us
-        # to use the same deferred charge calibration for simulating BF
-        # and correcting it.
-        result = ampSim.readout(serial_overscan_width=15, parallel_overscan_width=5)
-        ampFullData.array[2:, :] = result
 
     def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
         """Multiply an amplifier's image data by a flat-like pattern.

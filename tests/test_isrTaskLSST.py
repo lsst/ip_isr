@@ -53,6 +53,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.dark = isrMockLSST.DarkMockLSST().run()
         self.flat = isrMockLSST.FlatMockLSST().run()
         self.bf_kernel = isrMockLSST.BfKernelMockLSST().run()
+        self.cti = isrMockLSST.DeferredChargeMockLSST().run()
 
         # The crosstalk ratios in isrMockLSST are in electrons.
         self.crosstalk = CrosstalkCalib(nAmp=self.namp)
@@ -348,6 +349,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
             )
 
         # Rerun without doing the bias correction.
@@ -359,6 +361,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
             )
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
@@ -416,6 +419,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
             )
 
         # Rerun without doing the dark correction.
@@ -428,6 +432,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
             )
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
@@ -491,6 +496,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 defects=self.defects,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
             )
 
         # Rerun without doing the bias correction.
@@ -505,6 +511,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 defects=self.defects,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
             )
 
         # With defect correction, we should not need to filter out bad
@@ -615,6 +622,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 bias=self.bias,
                 dark=self.dark,
                 flat=self.flat,
+                deferredChargeCalib=self.cti,
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
@@ -647,6 +655,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 bias=self.bias,
                 dark=self.dark,
                 flat=self.flat,
+                deferredChargeCalib=self.cti,
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
@@ -713,6 +722,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 defects=self.defects,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
             )
 
         # Confirm that the output has the defect line as bad.
@@ -834,6 +844,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 bias=self.bias,
                 dark=self.dark,
                 flat=self.flat,
+                deferredChargeCalib=self.cti,
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
@@ -1256,6 +1267,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config.doAdd2DBias = True
         mock_config.doAddBias = True
         mock_config.doAddCrosstalk = True
+        mock_config.doAddDeferredCharge = True
         mock_config.doAddBrightDefects = True
         mock_config.doAddClockInjectedOffset = True
         mock_config.doAddParallelOverscanRamp = True
@@ -1344,13 +1356,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doCrosstalk = True
         isr_config.doDefect = True
         isr_config.doLinearize = True
+        isr_config.doDeferredCharge = True
 
         # This is False because it is only used in a single test case
         # as it takes a while to solve
         isr_config.doBrighterFatter = False
 
         # These are the electronic effects we do not support in tests yet.
-        isr_config.doDeferredCharge = False
         isr_config.doCorrectGains = False
 
         # We override the leading/trailing to skip here because of the limited
