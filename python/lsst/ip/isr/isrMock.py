@@ -229,6 +229,11 @@ class IsrMockConfig(pexConfig.Config):
         default=False,
         doc="Return a simulated brighter-fatter kernel.",
     )
+    doDeferredCharge = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Return a simulated deferred charge calibration.",
+    )
     doCrosstalkCoeffs = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -341,6 +346,7 @@ class IsrMock(pipeBase.Task):
             Simulated ISR data product.
         """
         if sum(map(bool, [self.config.doBrighterFatter,
+                          self.config.doDeferredCharge,
                           self.config.doDefects,
                           self.config.doTransmissionCurve,
                           self.config.doCrosstalkCoeffs,
@@ -348,6 +354,8 @@ class IsrMock(pipeBase.Task):
             raise RuntimeError("Only one data product can be generated at a time.")
         elif self.config.doBrighterFatter:
             return self.makeBfKernel()
+        elif self.config.doDeferredCharge:
+            return self.makeDeferredChargeCalib()
         elif self.config.doDefects:
             return self.makeDefectList()
         elif self.config.doTransmissionCurve:
@@ -368,6 +376,12 @@ class IsrMock(pipeBase.Task):
             Simulated brighter-fatter kernel.
         """
         return self.bfKernel
+
+    def makeDeferredChargeCalib(self):
+        """Generate a CTI calibration.
+        """
+
+        raise NotImplementedError("Mock deferred charge is not implemented for IsrMock.")
 
     def makeDefectList(self):
         """Generate a simple single-entry defect list.
@@ -1003,6 +1017,19 @@ class BfKernelMock(IsrMock):
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
         self.config.doBrighterFatter = True
+        self.config.doDefects = False
+        self.config.doCrosstalkCoeffs = False
+        self.config.doTransmissionCurve = False
+
+
+class DeferredChargeMock(IsrMock):
+    """Simulated deferred charge calibration.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doGenerateImage = False
+        self.config.doGenerateData = True
+        self.config.doDeferredCharge = True
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
