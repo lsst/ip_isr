@@ -220,12 +220,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=False,
     )
 
-    nominalGain = pexConfig.Field(
-        dtype=float,
-        default=1.0,
-        doc="Nominal gain to use if no PTC is supplied.",
-    )
-
     doBootstrap = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -519,14 +513,14 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     def validate(self):
         super().validate()
 
-        if self.doBootstrap and self.doApplyGains:
-            self.log.warning(
-                "Task is being run with doBootstrap=True and also doApplyGains=True; "
-                "this is not a recommended combination of configuration parameters.",
-            )
-
-        if self.doBootstrap and self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
-            raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+        if self.doBootstrap:
+            # Additional checks in bootstrap (no PTC/gains) mode.
+            if self.doApplyGains:
+                raise ValueError("Cannot run task with doBootstrap=True and doApplyGains=True.")
+            if self.doCorrectGains:
+                raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
+            if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
+                raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
 
         # if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
         # DM-41912: Implement doApplyGains in LSST IsrTask
@@ -1532,20 +1526,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
 
-        # Make a bootstrap "nominal" PTC and extract gains.
-        nominalPtcUsed = False
-        if self.config.doBootstrap or ptc is None:
-            self.log.info(
-                "Configured using doBootstrap=True; using nominal gain of %.3f.",
-                self.config.nominalGain,
-            )
-            nominalPtcUsed = True
+        if self.config.doBootstrap:
+            self.log.info("Configured using doBootstrap=True; using gain of 1.0 (adu units)")
             ptc = PhotonTransferCurveDataset([amp.getName() for amp in detector], "NOMINAL_PTC", 1)
             for amp in detector:
-                ptc.gain[amp.getName()] = self.config.nominalGain
+                ptc.gain[amp.getName()] = 1.0
                 ptc.noise[amp.getName()] = 0.0
 
-        exposureMetadata["LSST ISR NOMINAL PTC USED"] = nominalPtcUsed
+        exposureMetadata["LSST ISR BOOTSTRAP"] = self.config.doBootstrap
 
         # Set which gains to use
         gains = ptc.gain
@@ -1593,7 +1581,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ccdExposure,
             )
 
-            if nominalPtcUsed:
+            if self.config.doBootstrap:
                 # Get the empirical read noise
                 for amp, serialOverscan in zip(detector, serialOverscans):
                     if serialOverscan is None:
@@ -1603,6 +1591,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         # noise attributes in units of electrons. The read
                         # noise measured from overscans is always in adu, so we
                         # scale it by the gain.
+                        # Note that in bootstrap mode, these gains will always
+                        # be 1.0, but we put this conversion here for clarity.
                         ptc.noise[amp.getName()] = serialOverscan.residualSigma * gains[amp.getName()]
         else:
             serialOverscans = [None]*len(detector)
@@ -1621,7 +1611,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Apply temperature dependence to the gains.")
             gains, readNoise = self.correctGains(ccdExposure, ptc, gains)
 
-        # Do gain normalization; this may be the nominal gains.
+        # Do gain normalization.
         # Input units: adu
         # Output units: electron
         if self.config.doApplyGains:

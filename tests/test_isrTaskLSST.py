@@ -142,7 +142,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], True)
 
@@ -158,7 +158,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             amp_name = amp.getName()
             key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], isr_config.nominalGain)
+            self.assertEqual(metadata[key], 1.0)
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu)
@@ -218,7 +218,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], True)
 
@@ -317,7 +317,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], True)
 
@@ -750,7 +750,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], False)
 
