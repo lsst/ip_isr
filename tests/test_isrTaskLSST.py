@@ -65,10 +65,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                                               ptcFitType='DUMMY_PTC',
                                               covMatrixSide=1)
 
-        # PTC records noise units in adu.
+        # PTC records noise units in electron, same as the
+        # configuration parameter.
         for amp_name in amp_names:
             self.ptc.gain[amp_name] = mock.config.gainDict.get(amp_name, mock.config.gain)
-            self.ptc.noise[amp_name] = mock.config.readNoise * self.ptc.gain[amp_name]
+            self.ptc.noise[amp_name] = mock.config.readNoise
 
         # TODO:
         # self.cti = isrMockLSST.DeferredChargeMockLSST().run()
@@ -98,6 +99,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBootstrap = True
         isr_config.doApplyGains = False
         isr_config.doBias = True
+
+        # Need to make sure we are not masking the negative variance
+        # pixels when directly comparing calibration images and
+        # calibration-corrected calibrations.
+        isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
@@ -134,17 +140,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "adu")
 
+        key = "LSST ISR READ NOISE UNITS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], "electron")
+
         for amp in self.detector:
             amp_name = amp.getName()
             key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], isr_config.nominalGain)
-            key = f"LSST ISR READNOISE {amp_name}"
-            self.assertIn(key, metadata)
-            # This is an approximate range check because the noise is
-            # determined from the overscan and not the ptc.
-            self.assertGreater(metadata[key], self.ptc.noise[amp_name]*0.7)
-            self.assertLess(metadata[key], self.ptc.noise[amp_name]*1.3)
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu)
@@ -165,6 +169,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doApplyGains = False
         isr_config.doBias = True
         isr_config.doDark = True
+        isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
@@ -222,6 +227,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
+        isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
@@ -257,11 +263,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(ratio[good_pixels], self.flat_adu.image.array[good_pixels], atol=1e-5)
 
         # Test the variance plane in the case of adu units.
-        # The expected variance stars with the image array.
+        # The expected variance starts with the image array.
         expected_variance = result.exposure.image.clone()
         # We have to remove the flat-fielding from the image pixels.
         expected_variance.array *= self.flat_adu.image.array
-        # And add the gain and read noise (in adu) per amp.
+        # And add the gain and read noise (in electron) per amp.
         for amp in self.detector:
             # We need to use the gain and read noise from the header
             # because these are bootstraps.
@@ -269,7 +275,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
 
             expected_variance[amp.getBBox()].array /= gain
-            expected_variance[amp.getBBox()].array += read_noise**2.
+            # Read noise is always in electron units, but since this is a
+            # bootstrap, the gain is 1.0.
+            expected_variance[amp.getBBox()].array += (read_noise/gain)**2.
         # And apply the flat-field squared.
         expected_variance.array /= self.flat_adu.image.array**2.
 
@@ -300,6 +308,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         # We do not do defect correction when processing biases.
         isr_config.doDefect = False
+        isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -328,6 +337,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             np.mean(result.exposure.image.array[good_pixels]),
             np.mean(result2.exposure.image.array[good_pixels]),
         )
+
         self.assertLess(
             np.std(result.exposure.image.array[good_pixels]),
             np.std(result2.exposure.image.array[good_pixels]),
@@ -337,7 +347,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertLess(np.std(result.exposure.image.array[good_pixels]), 2.0*mock_config.readNoise)
 
         delta = result2.exposure.image.array - result.exposure.image.array
-        self.assertFloatsAlmostEqual(delta[good_pixels], self.bias.image.array[good_pixels], atol=1e-5)
+
+        # Note that the bias is made with bias noise + read noise, and
+        # the image contains read noise.
+        self.assertFloatsAlmostEqual(
+            delta[good_pixels],
+            self.bias.image.array[good_pixels],
+            atol=1e-5,
+        )
 
     def test_isrDark(self):
         """Test processing of a dark frame."""
@@ -352,6 +369,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         # We do not do defect correction when processing darks.
         isr_config.doDefect = False
+        isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -422,6 +440,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # Although we usually do not do defect interpolation when
         # processing flats, this is a good test of the interpolation.
         isr_config.doDefect = True
+        isr_config.maskNegativeVariance = False
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -476,6 +495,57 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         ratio = result2.exposure.image.array / result.exposure.image.array
         self.assertFloatsAlmostEqual(ratio, flat_nodefects.image.array, atol=1e-4)
+
+    def test_isrNoise(self):
+        """Test the recorded noise and gain in the metadata."""
+        mock_config = self.get_mock_config_no_signal()
+        # Remove the overscan scale so that the only variation
+        # in the overscan is from the read noise.
+        mock_config.overscanScale = 0.0
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        # We do not do defect correction when processing biases.
+        isr_config.doDefect = False
+        isr_config.maskNegativeVariance = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+            )
+
+        metadata = result.exposure.metadata
+
+        for amp in self.detector:
+            # The overscan noise is always in adu and the readnoise is always
+            # in electron.
+            gain = result.exposure.metadata[f"LSST ISR GAIN {amp.getName()}"]
+            read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
+
+            # Chcek that the gain and read noise are consistent with the
+            # values stored in the PTC.
+            self.assertEqual(gain, self.ptc.gain[amp.getName()])
+            self.assertEqual(read_noise, self.ptc.noise[amp.getName()])
+
+            key = f"LSST ISR OVERSCAN RESIDUAL SERIAL STDEV {amp.getName()}"
+            self.assertIn(key, metadata)
+
+            # Determine if the residual serial overscan stddev is consistent
+            # with the PTC readnoise within 3xstandard error.
+            serial_overscan_area = amp.getRawHorizontalOverscanBBox().area
+            self.assertFloatsAlmostEqual(
+                metadata[key] * gain,
+                read_noise,
+                atol=3*read_noise / np.sqrt(serial_overscan_area),
+            )
 
     def test_isrBrighterFatter(self):
         """Test processing of a flat frame."""
@@ -655,13 +725,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.assertEqual(metadata[key], gain := self.ptc.gain[amp_name])
             key = f"LSST ISR READNOISE {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], gain * self.ptc.noise[amp_name])
+            self.assertEqual(metadata[key], self.ptc.noise[amp_name])
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu * gain)
 
         # Test the variance plane in the case of electron units.
-        # The expected variance stars with the image array.
+        # The expected variance starts with the image array.
         expected_variance = result.exposure.image.clone()
         # We have to remove the flat-fielding from the image pixels.
         expected_variance.array *= self.flat.image.array
@@ -670,7 +740,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             gain = self.ptc.gain[amp.getName()]
             read_noise = self.ptc.noise[amp.getName()]
 
-            expected_variance[amp.getBBox()].array += (gain * read_noise)**2.
+            # The image, read noise, and variance plane should all have
+            # units of electrons, electrons, and electrons^2.
+            expected_variance[amp.getBBox()].array += read_noise**2.
         # And apply the flat-field squared.
         expected_variance.array /= self.flat.image.array**2.
 
