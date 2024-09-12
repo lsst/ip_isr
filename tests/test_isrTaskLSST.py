@@ -163,7 +163,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu)
 
-        self._check_bad_column_crosstalk_correction(result.exposure, units="adu")
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrBootstrapDark(self):
         """Test processing of a ``bootstrap`` dark frame.
@@ -226,7 +226,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "adu")
 
-        self._check_bad_column_crosstalk_correction(result.exposure, units="adu")
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrBootstrapFlat(self):
         """Test processing of a ``bootstrap`` flat frame.
@@ -325,7 +325,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "adu")
 
-        self._check_bad_column_crosstalk_correction(result.exposure, empirical_sigma=True, units="adu")
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrBias(self):
         """Test processing of a bias frame."""
@@ -534,7 +534,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         ratio = result2.exposure.image.array / result.exposure.image.array
         self.assertFloatsAlmostEqual(ratio, flat_nodefects.image.array, atol=1e-4)
 
-        self._check_bad_column_crosstalk_correction(result.exposure, empirical_sigma=True)
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrNoise(self):
         """Test the recorded noise and gain in the metadata."""
@@ -1397,8 +1397,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self,
         exp,
         nsigma_cut=5.0,
-        empirical_sigma=False,
-        units="electron",
     ):
         """Test bad column crosstalk correction.
 
@@ -1413,19 +1411,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             Input exposure.
         nsigma_cut : `float`, optional
             Number of sigma to check for outliers.
-        empirical_sigma : `bool`, optional
-            Use empirical sigma?  Otherwise use read noise.
-        units : `str`, optional
-            Image units?
         """
         amp = self.detector[0]
         amp_image = exp[amp.getBBox()].image.array
-        if empirical_sigma:
-            sigma = median_abs_deviation(amp_image.ravel(), scale="normal")
-        elif units == "electron":
-            sigma = self.ptc.noise[amp.getName()]
-        else:
-            sigma = self.ptc.noise[amp.getName()] / self.ptc.gain[amp.getName()]
+        sigma = median_abs_deviation(amp_image.ravel(), scale="normal")
 
         med = np.median(amp_image.ravel())
         self.assertLess(amp_image.max(), med + nsigma_cut*sigma)
