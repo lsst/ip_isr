@@ -136,7 +136,9 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         for key, value in ptcDataset.auxValues.items():
             self.assertIsInstance(value, np.ndarray)
-            if key == "INTVAL":
+            # This key is explicitly camelCase to ensure that this dataset
+            # can handle mixed-case names.
+            if key == "intVal":
                 self.assertEqual(value.dtype, np.int64)
             elif key == "PROGRAM":
                 self.assertIsInstance(value[0], np.str_)
@@ -188,12 +190,16 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         for useAuxValues in [False, True]:
             if useAuxValues:
+                # This key is explicitly camelCase to ensure that this dataset
+                # can handle mixed-case names.
                 partialDataset.setAuxValuesPartialDataset(
                     {
                         "CCOBCURR": 1.0,
                         "CCDTEMP": 0.0,
                         "PROGRAM": "BLOCK-000",
-                        "INTVAL": 7,
+                        # This key is explicitly camelCase to ensure that this
+                        # dataset can handle mixed-case names.
+                        "intVal": 7,
                     }
                 )
             self._checkTypes(partialDataset)
@@ -308,7 +314,9 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                             "CCOBCURR": np.ones(nSignalPoints),
                             "CCDTEMP": np.zeros(nSignalPoints),
                             "PROGRAM": np.full(nSignalPoints, "BLOCK-000"),
-                            "INTVAL": np.ones(nSignalPoints, dtype=np.int64),
+                            # This key is explicitly camelCase to ensure that
+                            # this dataset can handle mixed-case names.
+                            "intVal": np.ones(nSignalPoints, dtype=np.int64),
                         }
 
                     self._checkTypes(localDataset)
