@@ -129,13 +129,18 @@ class IsrCalib(abc.ABC):
                         # (it's not a number or array of numbers),
                         # then it needs to have its own equivalence
                         # operator.
-                        if attrSelf[key] != attrOther[key]:
+                        if np.all(attrSelf[key] != attrOther[key]):
                             return False
             elif isinstance(attrSelf, np.ndarray):
                 # Bare array.
-                if not np.allclose(attrSelf, attrOther, equal_nan=True):
-                    self.log.debug("Array Failure: %s %s %s", attr, attrSelf, attrOther)
-                    return False
+                if isinstance(attrSelf[0], (str, np.str_, np.string_)):
+                    if not np.all(attrSelf == attrOther):
+                        self.log.debug("Array Failure: %s %s %s", attr, attrSelf, attrOther)
+                        return False
+                else:
+                    if not np.allclose(attrSelf, attrOther, equal_nan=True):
+                        self.log.debug("Array Failure: %s %s %s", attr, attrSelf, attrOther)
+                        return False
             elif type(attrSelf) is not type(attrOther):
                 if set([attrSelf, attrOther]) == set([None, ""]):
                     # Fits converts None to "", but None is not "".
