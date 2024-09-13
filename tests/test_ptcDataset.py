@@ -358,6 +358,90 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         self.assertTrue(np.all(used == [(12, 34), (90, 10)]))
 
+    def test_ptcDatasetSort(self):
+        """Test the sorting function for the PTC dataset.
+        """
+        localDataset = copy.copy(self.dataset)
+
+        testCov = np.zeros((3, 4, 4))
+        for i in range(3):
+            testCov[i, :, :] = np.identity(4)*(2-i)
+
+        testArr = np.array([2.0, 1.0, 0.0])
+
+        for ampName in self.ampNames:
+            localDataset.inputExpIdPairs[ampName] = [(12, 34), (56, 78), (90, 10)]
+            localDataset.expIdMask[ampName] = np.ones(3, dtype=np.bool_)
+            localDataset.expIdMask[ampName][1] = False
+            localDataset.rawExpTimes[ampName] = testArr.copy()
+            localDataset.rawMeans[ampName] = testArr.copy()
+            localDataset.rawVars[ampName] = testArr.copy()
+            localDataset.rowMeanVariance[ampName] = testArr.copy()
+            localDataset.photoCharges[ampName] = testArr.copy()
+            localDataset.ampOffsets[ampName] = testArr.copy()
+            localDataset.gainList[ampName] = testArr.copy()
+            localDataset.noiseList[ampName] = testArr.copy()
+            localDataset.histVars[ampName] = testArr.copy()
+            localDataset.histChi2Dofs[ampName] = testArr.copy()
+            localDataset.kspValues[ampName] = testArr.copy()
+
+            localDataset.covariances[ampName] = testCov.copy()
+            localDataset.covariancesSqrtWeights[ampName] = testCov.copy()
+            localDataset.covariancesModel[ampName] = testCov.copy()
+            localDataset.covariancesModelNoB[ampName] = testCov.copy()
+
+            localDataset.finalMeans[ampName] = testArr.copy()
+            localDataset.finalMeans[ampName][~localDataset.expIdMask[ampName]] = np.nan
+            localDataset.finalVars[ampName] = testArr.copy()
+            localDataset.finalVars[ampName][~localDataset.expIdMask[ampName]] = np.nan
+            localDataset.finalModelVars[ampName] = testArr.copy()
+            localDataset.finalModelVars[ampName][~localDataset.expIdMask[ampName]] = np.nan
+
+        localDataset.auxValues["TEST1"] = testArr
+        localDataset.auxValues["TEST2"] = np.array(["two", "one", "zero"])
+
+        # We know this should be the sort order.
+        sortIndex = np.argsort(testArr)
+        localDataset.sort(sortIndex)
+
+        testArrSorted = testArr[sortIndex]
+        # Do the covariance sorting the "slow way" by hand to
+        # ensure that we have an independent check on the sort method itself.
+        testCovSorted = np.zeros_like(testCov)
+        for i in range(3):
+            testCovSorted[i, :, :] = testCov[sortIndex[i], :, :]
+
+        testArrSortedMasked = testArrSorted.copy()
+        testArrSortedMasked[1] = np.nan
+
+        for ampName in self.ampNames:
+            np.testing.assert_array_equal(
+                np.asarray(localDataset.inputExpIdPairs[ampName]),
+                np.asarray([(90, 10), (56, 78), (12, 34)]),
+            )
+            np.testing.assert_array_equal(localDataset.expIdMask[ampName], np.array([True, False, True]))
+            np.testing.assert_array_equal(localDataset.rawExpTimes[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.rawMeans[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.rawVars[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.rowMeanVariance[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.photoCharges[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.ampOffsets[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.gainList[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.noiseList[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.histVars[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.histChi2Dofs[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.kspValues[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.covariances[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.covariancesSqrtWeights[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.covariancesModel[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.covariancesModelNoB[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.finalVars[ampName], testArrSortedMasked)
+            np.testing.assert_array_equal(localDataset.finalModelVars[ampName], testArrSortedMasked)
+            np.testing.assert_array_equal(localDataset.finalMeans[ampName], testArrSortedMasked)
+
+        np.testing.assert_array_equal(localDataset.auxValues["TEST1"], testArrSorted)
+        np.testing.assert_array_equal(localDataset.auxValues["TEST2"], np.array(["zero", "one", "two"]))
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

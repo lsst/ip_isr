@@ -874,6 +874,64 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         pass
 
+    def sort(self, sortIndex):
+        """Sort the components of the PTC by a given sort index.
+
+        The PTC is sorted in-place.
+
+        Parameters
+        ----------
+        sortIndex : `list` or `np.ndarray`
+            The sorting index, which must be the same length as
+            the number of elements of the PTC.
+        """
+        index = np.atleast_1d(sortIndex)
+
+        # First confirm everything matches.
+        for ampName in self.ampNames:
+            if len(index) != len(self.rawExpTimes[ampName]):
+                raise ValueError(
+                    f"Length of sortIndex ({len(index)}) does not match number of PTC "
+                    f"elements ({len(self.rawExpTimes[ampName])})",
+                )
+
+        # Note that gain, gainUnadjusted, gainErr, noise, noiseErr,
+        # ptcTurnoff, ptcTurnoffSamplingError, and the full covariance fit
+        # parameters are global and not sorted by input pair.
+
+        for ampName in self.ampNames:
+            self.inputExpIdPairs[ampName] = np.array(
+                self.inputExpIdPairs[ampName]
+            )[index].tolist()
+
+            self.expIdMask[ampName] = self.expIdMask[ampName][index]
+            self.rawExpTimes[ampName] = self.rawExpTimes[ampName][index]
+            self.rawMeans[ampName] = self.rawMeans[ampName][index]
+            self.rawVars[ampName] = self.rawVars[ampName][index]
+            self.rowMeanVariance[ampName] = self.rowMeanVariance[ampName][index]
+            self.photoCharges[ampName] = self.photoCharges[ampName][index]
+            self.ampOffsets[ampName] = self.ampOffsets[ampName][index]
+
+            self.gainList[ampName] = self.gainList[ampName][index]
+            self.noiseList[ampName] = self.noiseList[ampName][index]
+
+            self.histVars[ampName] = self.histVars[ampName][index]
+            self.histChi2Dofs[ampName] = self.histChi2Dofs[ampName][index]
+            self.kspValues[ampName] = self.kspValues[ampName][index]
+
+            self.covariances[ampName] = self.covariances[ampName][index]
+            self.covariancesSqrtWeights[ampName] = self.covariancesSqrtWeights[ampName][index]
+            self.covariancesModel[ampName] = self.covariancesModel[ampName][index]
+            self.covariancesModelNoB[ampName] = self.covariancesModelNoB[ampName][index]
+
+            self.finalVars[ampName] = self.finalVars[ampName][index]
+            self.finalModelVars[ampName] = self.finalModelVars[ampName][index]
+            self.finalMeans[ampName] = self.finalMeans[ampName][index]
+
+        # Sort the auxiliary values which are not stored per-amp.
+        for key, value in self.auxValues.items():
+            self.auxValues[key] = value[index]
+
     def getExpIdsUsed(self, ampName):
         """Get the exposures used, i.e. not discarded, for a given amp.
         If no mask has been created yet, all exposures are returned.
