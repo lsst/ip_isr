@@ -442,6 +442,95 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         np.testing.assert_array_equal(localDataset.auxValues["TEST1"], testArrSorted)
         np.testing.assert_array_equal(localDataset.auxValues["TEST2"], np.array(["zero", "one", "two"]))
 
+    def test_ptcDatasetAppend(self):
+        """Test the append function for the PTC dataset.
+        """
+        testCov = np.zeros((3, 4, 4))
+        for i in range(3):
+            testCov[i, :, :] = np.identity(4)*(i)
+
+        testArr = np.array([0.0, 1.0, 2.0])
+
+        testPairs = [(12, 34), (56, 78), (90, 10)]
+
+        testStrValues = ["zero", "one", "two"]
+
+        partials = []
+        for i in range(3):
+            partial = PhotonTransferCurveDataset(self.ampNames, "PARTIAL", covMatrixSide=4)
+
+            for ampName in self.ampNames:
+                partial.setAmpValuesPartialDataset(
+                    ampName,
+                    inputExpIdPair=testPairs[i],
+                    rawExpTime=testArr[i],
+                    rawMean=testArr[i],
+                    rawVar=testArr[i],
+                    rowMeanVariance=testArr[i],
+                    photoCharge=testArr[i],
+                    ampOffset=testArr[i],
+                    expIdMask=True,
+                    covariance=testCov[i, :, :].reshape(4, 4),
+                    covSqrtWeights=testCov[i, :, :].reshape(4, 4),
+                    gain=testArr[i],
+                    noise=testArr[i],
+                    histVar=testArr[i],
+                    histChi2Dof=testArr[i],
+                    kspValue=testArr[i],
+                )
+                partial.setAuxValuesPartialDataset({"TEST1": float(i),
+                                                    "TEST2": testStrValues[i]})
+
+            partials.append(partial)
+
+        ptc = PhotonTransferCurveDataset(
+            ampNames=self.ampNames,
+            ptcFitType="FULLCOVARIANCE",
+            covMatrixSide=4,
+        )
+
+        for partial in partials:
+            ptc.appendPartialPtc(partial)
+
+        for ampName in self.ampNames:
+            np.testing.assert_array_equal(ptc.inputExpIdPairs[ampName], testPairs)
+            np.testing.assert_array_equal(ptc.expIdMask[ampName], np.array([True, True, True]))
+            np.testing.assert_array_equal(ptc.rawExpTimes[ampName], testArr)
+            np.testing.assert_array_equal(ptc.rawMeans[ampName], testArr)
+            np.testing.assert_array_equal(ptc.rawVars[ampName], testArr)
+            np.testing.assert_array_equal(ptc.rowMeanVariance[ampName], testArr)
+            np.testing.assert_array_equal(ptc.photoCharges[ampName], testArr)
+            np.testing.assert_array_equal(ptc.ampOffsets[ampName], testArr)
+            np.testing.assert_array_equal(ptc.gainList[ampName], testArr)
+            np.testing.assert_array_equal(ptc.noiseList[ampName], testArr)
+            np.testing.assert_array_equal(ptc.histVars[ampName], testArr)
+            np.testing.assert_array_equal(ptc.histChi2Dofs[ampName], testArr)
+            np.testing.assert_array_equal(ptc.kspValues[ampName], testArr)
+            np.testing.assert_array_equal(ptc.covariances[ampName], testCov)
+            np.testing.assert_array_equal(ptc.covariancesSqrtWeights[ampName], testCov)
+            # These two should have the same shape, but no useful values.
+            self.assertEqual(ptc.covariancesModel[ampName].shape, testCov.shape)
+            self.assertEqual(ptc.covariancesModelNoB[ampName].shape, testCov.shape)
+            self.assertEqual(ptc.finalVars[ampName].shape, testArr.shape)
+            self.assertEqual(ptc.finalModelVars[ampName].shape, testArr.shape)
+            self.assertEqual(ptc.finalMeans[ampName].shape, testArr.shape)
+
+        np.testing.assert_array_equal(ptc.auxValues["TEST1"], testArr)
+        np.testing.assert_array_equal(ptc.auxValues["TEST2"], np.array(["zero", "one", "two"]))
+
+        # And test illegal inputs
+        with self.assertRaises(ValueError):
+            ptc.appendPartialPtc(ptc)
+
+        badPartial = partials[0]
+        badPartial.ptcFitType = "FULLCOVARIANCE"
+        with self.assertRaises(ValueError):
+            ptc.appendPartialPtc(badPartial)
+
+        ptc.ampNames = ["A", "B"]
+        with self.assertRaises(ValueError):
+            ptc.appendPartialPtc(partials[1])
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

@@ -300,7 +300,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             histVar=np.nan,
             histChi2Dof=np.nan,
             kspValue=0.0,
-            auxValues=None,
     ):
         """
         Set the amp values for a partial PTC Dataset (from cpExtractPtcTask).
@@ -377,6 +376,11 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.aMatrixNoB[ampName] = nanMatrixFit
         self.noiseMatrix[ampName] = nanMatrixFit
         self.noiseMatrixNoB[ampName] = nanMatrixFit
+
+        # Filler values.
+        self.finalVars[ampName] = np.array([np.nan])
+        self.finalModelVars[ampName] = np.array([np.nan])
+        self.finalMeans[ampName] = np.array([np.nan])
 
     def setAuxValuesPartialDataset(self, auxDict):
         """
@@ -873,6 +877,109 @@ class PhotonTransferCurveDataset(IsrCalib):
         """
 
         pass
+
+    def appendPartialPtc(self, partialPtc):
+        """Append a partial PTC dataset to this dataset.
+
+        Parameters
+        ----------
+        partialPtc : `lsst.ip.isr.PhotonTransferCurveDataset`
+            Partial PTC to append. Should only have one element.
+        """
+        if self.ampNames != partialPtc.ampNames:
+            raise ValueError("partialPtc has mis-matched amps.")
+        if len(partialPtc.rawMeans[self.ampNames[0]]) != 1 or partialPtc.ptcFitType != "PARTIAL":
+            raise ValueError("partialPtc does not appear to be the correct format.")
+
+        # Record the initial length of the PTC, for checking auxValues.
+        initialLength = len(self.expIdMask[self.ampNames[0]])
+
+        for key, value in partialPtc.auxValues.items():
+            if key in self.auxValues:
+                self.auxValues[key] = np.append(self.auxValues[key], value)
+            elif initialLength == 0:
+                # This is the first partial, so we can set the dict key.
+                self.auxValues[key] = value
+            else:
+                raise ValueError(f"partialPtc has mismatched auxValue key {key}.")
+
+        for ampName in self.ampNames:
+            # The partial dataset consists of lists of values for each
+            # quantity. In the case of the input exposure pairs, this is a
+            # list of tuples. In all cases we only want the first
+            # (and only) element of the list.
+            self.inputExpIdPairs[ampName].append(partialPtc.inputExpIdPairs[ampName][0])
+            self.expIdMask[ampName] = np.append(self.expIdMask[ampName],
+                                                partialPtc.expIdMask[ampName][0])
+            self.rawExpTimes[ampName] = np.append(self.rawExpTimes[ampName],
+                                                  partialPtc.rawExpTimes[ampName][0])
+            self.rawMeans[ampName] = np.append(self.rawMeans[ampName],
+                                               partialPtc.rawMeans[ampName][0])
+            self.rawVars[ampName] = np.append(self.rawVars[ampName],
+                                              partialPtc.rawVars[ampName][0])
+            self.rowMeanVariance[ampName] = np.append(self.rowMeanVariance[ampName],
+                                                      partialPtc.rowMeanVariance[ampName][0])
+            self.photoCharges[ampName] = np.append(self.photoCharges[ampName],
+                                                   partialPtc.photoCharges[ampName][0])
+            self.ampOffsets[ampName] = np.append(self.ampOffsets[ampName],
+                                                 partialPtc.ampOffsets[ampName][0])
+            self.histVars[ampName] = np.append(self.histVars[ampName],
+                                               partialPtc.histVars[ampName][0])
+            self.histChi2Dofs[ampName] = np.append(self.histChi2Dofs[ampName],
+                                                   partialPtc.histChi2Dofs[ampName][0])
+            self.kspValues[ampName] = np.append(self.kspValues[ampName],
+                                                partialPtc.kspValues[ampName][0])
+            self.gainList[ampName] = np.append(self.gainList[ampName],
+                                               partialPtc.gain[ampName])
+            self.noiseList[ampName] = np.append(self.noiseList[ampName],
+                                                partialPtc.noise[ampName])
+            self.finalVars[ampName] = np.append(self.finalVars[ampName],
+                                                partialPtc.finalVars[ampName][0])
+            self.finalModelVars[ampName] = np.append(self.finalModelVars[ampName],
+                                                     partialPtc.finalModelVars[ampName][0])
+            self.finalMeans[ampName] = np.append(self.finalMeans[ampName],
+                                                 partialPtc.finalMeans[ampName][0])
+
+            self.covariances[ampName] = np.append(
+                self.covariances[ampName].ravel(),
+                partialPtc.covariances[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+            self.covariancesSqrtWeights[ampName] = np.append(
+                self.covariancesSqrtWeights[ampName].ravel(),
+                partialPtc.covariancesSqrtWeights[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+            self.covariancesModel[ampName] = np.append(
+                self.covariancesModel[ampName].ravel(),
+                partialPtc.covariancesModel[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+            self.covariancesModelNoB[ampName] = np.append(
+                self.covariancesModelNoB[ampName].ravel(),
+                partialPtc.covariancesModelNoB[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
 
     def sort(self, sortIndex):
         """Sort the components of the PTC by a given sort index.
