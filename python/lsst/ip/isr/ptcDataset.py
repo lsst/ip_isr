@@ -209,6 +209,20 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
+    # When adding a new field to update the version, be sure to update the
+    # following methods:
+    #  * __init__()
+    #  * fromDict()
+    #  * toDict()
+    #  * fromTable()
+    #  * toTable()
+    #  * setAmpValuesPartialDataset()
+    #  * appendPartialPtc()
+    #  * sort()
+    #  * _checkTypes() in test_ptcDataset.py
+    #  * test_ptcDataset() in test_ptcDataset.py
+    #  * test_ptcDatasetSort in test_ptcDataset.py
+    #  * test_ptcDatasetAppend in test_ptcDataset.py
     _VERSION = 2.0
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
