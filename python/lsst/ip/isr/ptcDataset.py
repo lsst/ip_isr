@@ -25,6 +25,7 @@ Define dataset class for MeasurePhotonTransferCurve task
 
 __all__ = ['PhotonTransferCurveDataset']
 
+import numbers
 import numpy as np
 import math
 from astropy.table import Table
@@ -387,7 +388,12 @@ class PhotonTransferCurveDataset(IsrCalib):
             Dictionary of float values.
         """
         for key, value in auxDict.items():
-            self.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
+            if isinstance(value, numbers.Integral):
+                self.auxValues[key] = np.atleast_1d(np.asarray(value).astype(np.int64))
+            elif isinstance(value, (str, np.str_, np.string_)):
+                self.auxValues[key] = np.atleast_1d(np.asarray(value))
+            else:
+                self.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
 
     def updateMetadata(self, **kwargs):
         """Update calibration metadata.
@@ -518,7 +524,12 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.ampOffsets[ampName] = np.array(dictionary['ampOffsets'][ampName], dtype=np.float64)
 
         for key, value in dictionary['auxValues'].items():
-            calib.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
+            if isinstance(value[0], numbers.Integral):
+                calib.auxValues[key] = np.atleast_1d(np.asarray(value).astype(np.int64))
+            elif isinstance(value[0], (str, np.str_, np.string_)):
+                calib.auxValues[key] = np.atleast_1d(np.asarray(value))
+            else:
+                calib.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
 
         calib.updateMetadata()
         return calib
@@ -759,7 +770,12 @@ class PhotonTransferCurveDataset(IsrCalib):
         for col in record.columns.keys():
             if col.startswith('PTCAUX_'):
                 parts = col.split('PTCAUX_')
-                inDict['auxValues'][parts[1]] = record[col]
+                if isinstance(record[col][0], np.bytes_):
+                    # Convert to a unicode string because astropy fits doesn't
+                    # round-trip properly
+                    inDict['auxValues'][parts[1]] = record[col].astype(np.str_)
+                else:
+                    inDict['auxValues'][parts[1]] = record[col]
 
         return cls().fromDict(inDict)
 
