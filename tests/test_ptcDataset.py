@@ -136,7 +136,12 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         for key, value in ptcDataset.auxValues.items():
             self.assertIsInstance(value, np.ndarray)
-            self.assertEqual(value.dtype, np.float64)
+            if key == "INTVAL":
+                self.assertEqual(value.dtype, np.int64)
+            elif key == "PROGRAM":
+                self.assertIsInstance(value[0], np.str_)
+            else:
+                self.assertEqual(value.dtype, np.float64)
 
     def test_emptyPtcDataset(self):
         """Test an empty PTC dataset."""
@@ -187,6 +192,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     {
                         "CCOBCURR": 1.0,
                         "CCDTEMP": 0.0,
+                        "PROGRAM": "BLOCK-000",
+                        "INTVAL": 7,
                     }
                 )
             self._checkTypes(partialDataset)
@@ -203,7 +210,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertEqual(fromFits, partialDataset)
             self._checkTypes(fromFits)
 
-    def test_ptcDatset(self):
+    def test_ptcDataset(self):
         """Test of a full PTC dataset."""
         # Fill the dataset with made up data.
         nSignalPoints = 5
@@ -300,6 +307,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                         localDataset.auxValues = {
                             "CCOBCURR": np.ones(nSignalPoints),
                             "CCDTEMP": np.zeros(nSignalPoints),
+                            "PROGRAM": np.full(nSignalPoints, "BLOCK-000"),
+                            "INTVAL": np.ones(nSignalPoints, dtype=np.int64),
                         }
 
                     self._checkTypes(localDataset)
