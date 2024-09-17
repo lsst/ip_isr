@@ -136,7 +136,14 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         for key, value in ptcDataset.auxValues.items():
             self.assertIsInstance(value, np.ndarray)
-            self.assertEqual(value.dtype, np.float64)
+            # This key is explicitly camelCase to ensure that this dataset
+            # can handle mixed-case names.
+            if key == "intVal":
+                self.assertEqual(value.dtype, np.int64)
+            elif key == "PROGRAM":
+                self.assertIsInstance(value[0], np.str_)
+            else:
+                self.assertEqual(value.dtype, np.float64)
 
     def test_emptyPtcDataset(self):
         """Test an empty PTC dataset."""
@@ -183,10 +190,16 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         for useAuxValues in [False, True]:
             if useAuxValues:
+                # This key is explicitly camelCase to ensure that this dataset
+                # can handle mixed-case names.
                 partialDataset.setAuxValuesPartialDataset(
                     {
                         "CCOBCURR": 1.0,
                         "CCDTEMP": 0.0,
+                        "PROGRAM": "BLOCK-000",
+                        # This key is explicitly camelCase to ensure that this
+                        # dataset can handle mixed-case names.
+                        "intVal": 7,
                     }
                 )
             self._checkTypes(partialDataset)
@@ -203,7 +216,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertEqual(fromFits, partialDataset)
             self._checkTypes(fromFits)
 
-    def test_ptcDatset(self):
+    def test_ptcDataset(self):
         """Test of a full PTC dataset."""
         # Fill the dataset with made up data.
         nSignalPoints = 5
@@ -300,6 +313,10 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                         localDataset.auxValues = {
                             "CCOBCURR": np.ones(nSignalPoints),
                             "CCDTEMP": np.zeros(nSignalPoints),
+                            "PROGRAM": np.full(nSignalPoints, "BLOCK-000"),
+                            # This key is explicitly camelCase to ensure that
+                            # this dataset can handle mixed-case names.
+                            "intVal": np.ones(nSignalPoints, dtype=np.int64),
                         }
 
                     self._checkTypes(localDataset)
@@ -348,6 +365,179 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         self.assertIn("PTC file was written incorrectly", cm.output[0])
 
         self.assertTrue(np.all(used == [(12, 34), (90, 10)]))
+
+    def test_ptcDatasetSort(self):
+        """Test the sorting function for the PTC dataset.
+        """
+        localDataset = copy.copy(self.dataset)
+
+        testCov = np.zeros((3, 4, 4))
+        for i in range(3):
+            testCov[i, :, :] = np.identity(4)*(2-i)
+
+        testArr = np.array([2.0, 1.0, 0.0])
+
+        for ampName in self.ampNames:
+            localDataset.inputExpIdPairs[ampName] = [(12, 34), (56, 78), (90, 10)]
+            localDataset.expIdMask[ampName] = np.ones(3, dtype=np.bool_)
+            localDataset.expIdMask[ampName][1] = False
+            localDataset.rawExpTimes[ampName] = testArr.copy()
+            localDataset.rawMeans[ampName] = testArr.copy()
+            localDataset.rawVars[ampName] = testArr.copy()
+            localDataset.rowMeanVariance[ampName] = testArr.copy()
+            localDataset.photoCharges[ampName] = testArr.copy()
+            localDataset.ampOffsets[ampName] = testArr.copy()
+            localDataset.gainList[ampName] = testArr.copy()
+            localDataset.noiseList[ampName] = testArr.copy()
+            localDataset.histVars[ampName] = testArr.copy()
+            localDataset.histChi2Dofs[ampName] = testArr.copy()
+            localDataset.kspValues[ampName] = testArr.copy()
+
+            localDataset.covariances[ampName] = testCov.copy()
+            localDataset.covariancesSqrtWeights[ampName] = testCov.copy()
+            localDataset.covariancesModel[ampName] = testCov.copy()
+            localDataset.covariancesModelNoB[ampName] = testCov.copy()
+
+            localDataset.finalMeans[ampName] = testArr.copy()
+            localDataset.finalMeans[ampName][~localDataset.expIdMask[ampName]] = np.nan
+            localDataset.finalVars[ampName] = testArr.copy()
+            localDataset.finalVars[ampName][~localDataset.expIdMask[ampName]] = np.nan
+            localDataset.finalModelVars[ampName] = testArr.copy()
+            localDataset.finalModelVars[ampName][~localDataset.expIdMask[ampName]] = np.nan
+
+        localDataset.auxValues["TEST1"] = testArr
+        localDataset.auxValues["TEST2"] = np.array(["two", "one", "zero"])
+
+        # We know this should be the sort order.
+        sortIndex = np.argsort(testArr)
+        localDataset.sort(sortIndex)
+
+        testArrSorted = testArr[sortIndex]
+        # Do the covariance sorting the "slow way" by hand to
+        # ensure that we have an independent check on the sort method itself.
+        testCovSorted = np.zeros_like(testCov)
+        for i in range(3):
+            testCovSorted[i, :, :] = testCov[sortIndex[i], :, :]
+
+        testArrSortedMasked = testArrSorted.copy()
+        testArrSortedMasked[1] = np.nan
+
+        for ampName in self.ampNames:
+            np.testing.assert_array_equal(
+                np.asarray(localDataset.inputExpIdPairs[ampName]),
+                np.asarray([(90, 10), (56, 78), (12, 34)]),
+            )
+            np.testing.assert_array_equal(localDataset.expIdMask[ampName], np.array([True, False, True]))
+            np.testing.assert_array_equal(localDataset.rawExpTimes[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.rawMeans[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.rawVars[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.rowMeanVariance[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.photoCharges[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.ampOffsets[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.gainList[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.noiseList[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.histVars[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.histChi2Dofs[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.kspValues[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.covariances[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.covariancesSqrtWeights[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.covariancesModel[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.covariancesModelNoB[ampName], testCovSorted)
+            np.testing.assert_array_equal(localDataset.finalVars[ampName], testArrSortedMasked)
+            np.testing.assert_array_equal(localDataset.finalModelVars[ampName], testArrSortedMasked)
+            np.testing.assert_array_equal(localDataset.finalMeans[ampName], testArrSortedMasked)
+
+        np.testing.assert_array_equal(localDataset.auxValues["TEST1"], testArrSorted)
+        np.testing.assert_array_equal(localDataset.auxValues["TEST2"], np.array(["zero", "one", "two"]))
+
+    def test_ptcDatasetAppend(self):
+        """Test the append function for the PTC dataset.
+        """
+        testCov = np.zeros((3, 4, 4))
+        for i in range(3):
+            testCov[i, :, :] = np.identity(4)*(i)
+
+        testArr = np.array([0.0, 1.0, 2.0])
+
+        testPairs = [(12, 34), (56, 78), (90, 10)]
+
+        testStrValues = ["zero", "one", "two"]
+
+        partials = []
+        for i in range(3):
+            partial = PhotonTransferCurveDataset(self.ampNames, "PARTIAL", covMatrixSide=4)
+
+            for ampName in self.ampNames:
+                partial.setAmpValuesPartialDataset(
+                    ampName,
+                    inputExpIdPair=testPairs[i],
+                    rawExpTime=testArr[i],
+                    rawMean=testArr[i],
+                    rawVar=testArr[i],
+                    rowMeanVariance=testArr[i],
+                    photoCharge=testArr[i],
+                    ampOffset=testArr[i],
+                    expIdMask=True,
+                    covariance=testCov[i, :, :].reshape(4, 4),
+                    covSqrtWeights=testCov[i, :, :].reshape(4, 4),
+                    gain=testArr[i],
+                    noise=testArr[i],
+                    histVar=testArr[i],
+                    histChi2Dof=testArr[i],
+                    kspValue=testArr[i],
+                )
+                partial.setAuxValuesPartialDataset({"TEST1": float(i),
+                                                    "TEST2": testStrValues[i]})
+
+            partials.append(partial)
+
+        ptc = PhotonTransferCurveDataset(
+            ampNames=self.ampNames,
+            ptcFitType="FULLCOVARIANCE",
+            covMatrixSide=4,
+        )
+
+        for partial in partials:
+            ptc.appendPartialPtc(partial)
+
+        for ampName in self.ampNames:
+            np.testing.assert_array_equal(ptc.inputExpIdPairs[ampName], testPairs)
+            np.testing.assert_array_equal(ptc.expIdMask[ampName], np.array([True, True, True]))
+            np.testing.assert_array_equal(ptc.rawExpTimes[ampName], testArr)
+            np.testing.assert_array_equal(ptc.rawMeans[ampName], testArr)
+            np.testing.assert_array_equal(ptc.rawVars[ampName], testArr)
+            np.testing.assert_array_equal(ptc.rowMeanVariance[ampName], testArr)
+            np.testing.assert_array_equal(ptc.photoCharges[ampName], testArr)
+            np.testing.assert_array_equal(ptc.ampOffsets[ampName], testArr)
+            np.testing.assert_array_equal(ptc.gainList[ampName], testArr)
+            np.testing.assert_array_equal(ptc.noiseList[ampName], testArr)
+            np.testing.assert_array_equal(ptc.histVars[ampName], testArr)
+            np.testing.assert_array_equal(ptc.histChi2Dofs[ampName], testArr)
+            np.testing.assert_array_equal(ptc.kspValues[ampName], testArr)
+            np.testing.assert_array_equal(ptc.covariances[ampName], testCov)
+            np.testing.assert_array_equal(ptc.covariancesSqrtWeights[ampName], testCov)
+            # These two should have the same shape, but no useful values.
+            self.assertEqual(ptc.covariancesModel[ampName].shape, testCov.shape)
+            self.assertEqual(ptc.covariancesModelNoB[ampName].shape, testCov.shape)
+            self.assertEqual(ptc.finalVars[ampName].shape, testArr.shape)
+            self.assertEqual(ptc.finalModelVars[ampName].shape, testArr.shape)
+            self.assertEqual(ptc.finalMeans[ampName].shape, testArr.shape)
+
+        np.testing.assert_array_equal(ptc.auxValues["TEST1"], testArr)
+        np.testing.assert_array_equal(ptc.auxValues["TEST2"], np.array(["zero", "one", "two"]))
+
+        # And test illegal inputs
+        with self.assertRaises(ValueError):
+            ptc.appendPartialPtc(ptc)
+
+        badPartial = partials[0]
+        badPartial.ptcFitType = "FULLCOVARIANCE"
+        with self.assertRaises(ValueError):
+            ptc.appendPartialPtc(badPartial)
+
+        ptc.ampNames = ["A", "B"]
+        with self.assertRaises(ValueError):
+            ptc.appendPartialPtc(partials[1])
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

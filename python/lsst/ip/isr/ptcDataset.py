@@ -25,6 +25,7 @@ Define dataset class for MeasurePhotonTransferCurve task
 
 __all__ = ['PhotonTransferCurveDataset']
 
+import numbers
 import numpy as np
 import math
 from astropy.table import Table
@@ -101,10 +102,18 @@ class PhotonTransferCurveDataset(IsrCalib):
         Dictionary keyed by amp names containing the KS test p-value from
         fitting the difference image to a Gaussian model.
     gain : `dict`, [`str`, `float`]
-        Dictionary keyed by amp names containing the fitted gains.
+        Dictionary keyed by amp names containing the fitted gains. May be
+        adjusted by amp-offset gain ratios if configured in PTC solver.
+    gainUnadjusted : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing unadjusted (raw) fit gain
+        values. May be the same as gain values if amp-offset adjustment
+        is not turned on.
     gainErr : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the errors on the
         fitted gains.
+    gainList : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the gain estimated from
+        each flat pair.
     noiseList : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the mean overscan
         standard deviation from each flat pair (units: adu).
@@ -114,6 +123,9 @@ class PhotonTransferCurveDataset(IsrCalib):
     noiseErr : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the errors on the fitted
         noise (units: electron).
+    ampOffsets : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing amp-to-amp offsets
+        (units: adu).
     ptcFitPars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the fitted parameters of the
         PTC model for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].
@@ -183,7 +195,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
     Version 1.1 adds the `ptcTurnoff` attribute.
     Version 1.2 adds the `histVars`, `histChi2Dofs`, and `kspValues`
-    attributes.
+        attributes.
     Version 1.3 adds the `noiseMatrix` and `noiseMatrixNoB` attributes.
     Version 1.4 adds the `auxValues` attribute.
     Version 1.5 adds the `covMatrixSideFullCovFit` attribute.
@@ -191,11 +203,27 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.7 adds the `noiseList` attribute.
     Version 1.8 adds the `ptcTurnoffSamplingError` attribute.
     Version 1.9 standardizes PTC noise units to electron.
+    Version 2.0 adds the `ampOffsets`, `gainUnadjusted`, and
+        `gainList` attributes.
     """
 
     _OBSTYPE = 'PTC'
     _SCHEMA = 'Gen3 Photon Transfer Curve'
-    _VERSION = 1.9
+    # When adding a new field to update the version, be sure to update the
+    # following methods:
+    #  * __init__()
+    #  * fromDict()
+    #  * toDict()
+    #  * fromTable()
+    #  * toTable()
+    #  * setAmpValuesPartialDataset()
+    #  * appendPartialPtc()
+    #  * sort()
+    #  * _checkTypes() in test_ptcDataset.py
+    #  * test_ptcDataset() in test_ptcDataset.py
+    #  * test_ptcDatasetSort in test_ptcDataset.py
+    #  * test_ptcDatasetAppend in test_ptcDataset.py
+    _VERSION = 2.0
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -216,9 +244,12 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawVars = {ampName: np.array([]) for ampName in ampNames}
         self.rowMeanVariance = {ampName: np.array([]) for ampName in ampNames}
         self.photoCharges = {ampName: np.array([]) for ampName in ampNames}
+        self.ampOffsets = {ampName: np.array([]) for ampName in ampNames}
 
         self.gain = {ampName: np.nan for ampName in ampNames}
+        self.gainUnadjusted = {ampName: np.nan for ampName in ampNames}
         self.gainErr = {ampName: np.nan for ampName in ampNames}
+        self.gainList = {ampName: np.array([]) for ampName in ampNames}
         self.noiseList = {ampName: np.array([]) for ampName in ampNames}
         self.noise = {ampName: np.nan for ampName in ampNames}
         self.noiseErr = {ampName: np.nan for ampName in ampNames}
@@ -259,7 +290,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'covariancesSqrtWeights', 'covariancesModelNoB',
                                         'aMatrix', 'bMatrix', 'noiseMatrix', 'noiseMatrixNoB', 'finalVars',
                                         'finalModelVars', 'finalMeans', 'photoCharges', 'histVars',
-                                        'histChi2Dofs', 'kspValues', 'auxValues', 'ptcTurnoffSamplingError'])
+                                        'histChi2Dofs', 'kspValues', 'auxValues', 'ptcTurnoffSamplingError',
+                                        'ampOffsets', 'gainUnadjusted', 'gainList'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
         self._validateCovarianceMatrizSizes()
@@ -273,6 +305,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             rawVar=np.nan,
             rowMeanVariance=np.nan,
             photoCharge=np.nan,
+            ampOffset=np.nan,
             expIdMask=False,
             covariance=None,
             covSqrtWeights=None,
@@ -281,7 +314,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             histVar=np.nan,
             histChi2Dof=np.nan,
             kspValue=0.0,
-            auxValues=None,
     ):
         """
         Set the amp values for a partial PTC Dataset (from cpExtractPtcTask).
@@ -303,6 +335,8 @@ class PhotonTransferCurveDataset(IsrCalib):
             of the exposures in this pair.
         photoCharge : `float`, optional
             Integrated photocharge for flat pair for linearity calibration.
+        ampOffset : `float`, optional
+            Amp offset for this amplifier.
         expIdMask : `bool`, optional
             Flag setting if this exposure pair should be used (True)
             or not used (False).
@@ -335,11 +369,15 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawVars[ampName] = np.array([rawVar])
         self.rowMeanVariance[ampName] = np.array([rowMeanVariance])
         self.photoCharges[ampName] = np.array([photoCharge])
+        self.ampOffsets[ampName] = np.array([ampOffset])
         self.expIdMask[ampName] = np.array([expIdMask])
         self.covariances[ampName] = np.array([covariance])
         self.covariancesSqrtWeights[ampName] = np.array([covSqrtWeights])
         self.gain[ampName] = gain
+        self.gainUnadjusted[ampName] = gain
+        self.gainList[ampName] = np.array([gain])
         self.noise[ampName] = noise
+        self.noiseList[ampName] = np.array([noise])
         self.histVars[ampName] = np.array([histVar])
         self.histChi2Dofs[ampName] = np.array([histChi2Dof])
         self.kspValues[ampName] = np.array([kspValue])
@@ -353,6 +391,11 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.noiseMatrix[ampName] = nanMatrixFit
         self.noiseMatrixNoB[ampName] = nanMatrixFit
 
+        # Filler values.
+        self.finalVars[ampName] = np.array([np.nan])
+        self.finalModelVars[ampName] = np.array([np.nan])
+        self.finalMeans[ampName] = np.array([np.nan])
+
     def setAuxValuesPartialDataset(self, auxDict):
         """
         Set a dictionary of auxiliary values for a partial dataset.
@@ -363,7 +406,12 @@ class PhotonTransferCurveDataset(IsrCalib):
             Dictionary of float values.
         """
         for key, value in auxDict.items():
-            self.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
+            if isinstance(value, numbers.Integral):
+                self.auxValues[key] = np.atleast_1d(np.asarray(value).astype(np.int64))
+            elif isinstance(value, (str, np.str_, np.string_)):
+                self.auxValues[key] = np.atleast_1d(np.asarray(value))
+            else:
+                self.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
 
     def updateMetadata(self, **kwargs):
         """Update calibration metadata.
@@ -430,6 +478,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                                       dtype=np.float64)
             calib.gain[ampName] = float(dictionary['gain'][ampName])
             calib.gainErr[ampName] = float(dictionary['gainErr'][ampName])
+            calib.gainUnadjusted[ampName] = float(dictionary['gainUnadjusted'][ampName])
+            calib.gainList[ampName] = np.array(dictionary['gainList'][ampName], dtype=np.float64)
             calib.noiseList[ampName] = np.array(dictionary['noiseList'][ampName], dtype=np.float64)
             calib.noise[ampName] = float(dictionary['noise'][ampName])
             calib.noiseErr[ampName] = float(dictionary['noiseErr'][ampName])
@@ -489,9 +539,15 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName], dtype=np.float64)
             calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName], dtype=np.float64)
             calib.photoCharges[ampName] = np.array(dictionary['photoCharges'][ampName], dtype=np.float64)
+            calib.ampOffsets[ampName] = np.array(dictionary['ampOffsets'][ampName], dtype=np.float64)
 
         for key, value in dictionary['auxValues'].items():
-            calib.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
+            if isinstance(value[0], numbers.Integral):
+                calib.auxValues[key] = np.atleast_1d(np.asarray(value).astype(np.int64))
+            elif isinstance(value[0], (str, np.str_, np.string_)):
+                calib.auxValues[key] = np.atleast_1d(np.asarray(value))
+            else:
+                calib.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
 
         calib.updateMetadata()
         return calib
@@ -532,6 +588,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['rowMeanVariance'] = _dictOfArraysToDictOfLists(self.rowMeanVariance)
         outDict['gain'] = self.gain
         outDict['gainErr'] = self.gainErr
+        outDict['gainUnadjusted'] = self.gainUnadjusted
+        outDict['gainList'] = _dictOfArraysToDictOfLists(self.gainList)
         outDict['noiseList'] = _dictOfArraysToDictOfLists(self.noiseList)
         outDict['noise'] = self.noise
         outDict['noiseErr'] = self.noiseErr
@@ -556,6 +614,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['finalModelVars'] = _dictOfArraysToDictOfLists(self.finalModelVars)
         outDict['finalMeans'] = _dictOfArraysToDictOfLists(self.finalMeans)
         outDict['photoCharges'] = _dictOfArraysToDictOfLists(self.photoCharges)
+        outDict['ampOffsets'] = _dictOfArraysToDictOfLists(self.ampOffsets)
         outDict['auxValues'] = _dictOfArraysToDictOfLists(self.auxValues)
 
         return outDict
@@ -594,6 +653,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['rowMeanVariance'] = dict()
         inDict['gain'] = dict()
         inDict['gainErr'] = dict()
+        inDict['gainUnadjusted'] = dict()
+        inDict['gainList'] = dict()
         inDict['noiseList'] = dict()
         inDict['noise'] = dict()
         inDict['noiseErr'] = dict()
@@ -619,6 +680,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['finalMeans'] = dict()
         inDict['badAmps'] = []
         inDict['photoCharges'] = dict()
+        inDict['ampOffsets'] = dict()
 
         calibVersion = metadata['PTC_VERSION']
         if calibVersion == 1.0:
@@ -712,15 +774,26 @@ class PhotonTransferCurveDataset(IsrCalib):
                 # previous version, so we only need to upday the noise
                 # attribute.
                 inDict['noise'][ampName] = np.sqrt(record['noise'][ampName])
+            if calibVersion < 2.0:
+                inDict['ampOffsets'][ampName] = np.full_like(inDict['rawMeans'][ampName], np.nan)
+                inDict['gainUnadjusted'][ampName] = record['GAIN']
+                inDict['gainList'][ampName] = np.full_like(inDict['rawMeans'][ampName], np.nan)
             else:
-                pass
+                inDict['ampOffsets'][ampName] = record['AMP_OFFSETS']
+                inDict['gainUnadjusted'][ampName] = record['GAIN_UNADJUSTED']
+                inDict['gainList'][ampName] = record['GAIN_LIST']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
         for col in record.columns.keys():
             if col.startswith('PTCAUX_'):
                 parts = col.split('PTCAUX_')
-                inDict['auxValues'][parts[1]] = record[col]
+                if isinstance(record[col][0], np.bytes_):
+                    # Convert to a unicode string because astropy fits doesn't
+                    # round-trip properly
+                    inDict['auxValues'][parts[1]] = record[col].astype(np.str_)
+                else:
+                    inDict['auxValues'][parts[1]] = record[col]
 
         return cls().fromDict(inDict)
 
@@ -757,6 +830,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'ROW_MEAN_VARIANCE': self.rowMeanVariance[ampName],
                 'GAIN': self.gain[ampName],
                 'GAIN_ERR': self.gainErr[ampName],
+                'GAIN_UNADJUSTED': self.gainUnadjusted[ampName],
+                'GAIN_LIST': self.gainList[ampName],
                 'NOISE_LIST': self.noiseList[ampName],
                 'NOISE': self.noise[ampName],
                 'NOISE_ERR': self.noiseErr[ampName],
@@ -775,6 +850,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'NOISE_MATRIX_NO_B': self.noiseMatrixNoB[ampName].ravel(),
                 'BAD_AMPS': badAmps,
                 'PHOTO_CHARGE': self.photoCharges[ampName],
+                'AMP_OFFSETS': self.ampOffsets[ampName],
                 'COVARIANCES': self.covariances[ampName].ravel(),
                 'COVARIANCES_MODEL': self.covariancesModel[ampName].ravel(),
                 'COVARIANCES_SQRT_WEIGHTS': self.covariancesSqrtWeights[ampName].ravel(),
@@ -815,6 +891,167 @@ class PhotonTransferCurveDataset(IsrCalib):
         """
 
         pass
+
+    def appendPartialPtc(self, partialPtc):
+        """Append a partial PTC dataset to this dataset.
+
+        Parameters
+        ----------
+        partialPtc : `lsst.ip.isr.PhotonTransferCurveDataset`
+            Partial PTC to append. Should only have one element.
+        """
+        if self.ampNames != partialPtc.ampNames:
+            raise ValueError("partialPtc has mis-matched amps.")
+        if len(partialPtc.rawMeans[self.ampNames[0]]) != 1 or partialPtc.ptcFitType != "PARTIAL":
+            raise ValueError("partialPtc does not appear to be the correct format.")
+
+        # Record the initial length of the PTC, for checking auxValues.
+        initialLength = len(self.expIdMask[self.ampNames[0]])
+
+        for key, value in partialPtc.auxValues.items():
+            if key in self.auxValues:
+                self.auxValues[key] = np.append(self.auxValues[key], value)
+            elif initialLength == 0:
+                # This is the first partial, so we can set the dict key.
+                self.auxValues[key] = value
+            else:
+                raise ValueError(f"partialPtc has mismatched auxValue key {key}.")
+
+        for ampName in self.ampNames:
+            # The partial dataset consists of lists of values for each
+            # quantity. In the case of the input exposure pairs, this is a
+            # list of tuples. In all cases we only want the first
+            # (and only) element of the list.
+            self.inputExpIdPairs[ampName].append(partialPtc.inputExpIdPairs[ampName][0])
+            self.expIdMask[ampName] = np.append(self.expIdMask[ampName],
+                                                partialPtc.expIdMask[ampName][0])
+            self.rawExpTimes[ampName] = np.append(self.rawExpTimes[ampName],
+                                                  partialPtc.rawExpTimes[ampName][0])
+            self.rawMeans[ampName] = np.append(self.rawMeans[ampName],
+                                               partialPtc.rawMeans[ampName][0])
+            self.rawVars[ampName] = np.append(self.rawVars[ampName],
+                                              partialPtc.rawVars[ampName][0])
+            self.rowMeanVariance[ampName] = np.append(self.rowMeanVariance[ampName],
+                                                      partialPtc.rowMeanVariance[ampName][0])
+            self.photoCharges[ampName] = np.append(self.photoCharges[ampName],
+                                                   partialPtc.photoCharges[ampName][0])
+            self.ampOffsets[ampName] = np.append(self.ampOffsets[ampName],
+                                                 partialPtc.ampOffsets[ampName][0])
+            self.histVars[ampName] = np.append(self.histVars[ampName],
+                                               partialPtc.histVars[ampName][0])
+            self.histChi2Dofs[ampName] = np.append(self.histChi2Dofs[ampName],
+                                                   partialPtc.histChi2Dofs[ampName][0])
+            self.kspValues[ampName] = np.append(self.kspValues[ampName],
+                                                partialPtc.kspValues[ampName][0])
+            self.gainList[ampName] = np.append(self.gainList[ampName],
+                                               partialPtc.gain[ampName])
+            self.noiseList[ampName] = np.append(self.noiseList[ampName],
+                                                partialPtc.noise[ampName])
+            self.finalVars[ampName] = np.append(self.finalVars[ampName],
+                                                partialPtc.finalVars[ampName][0])
+            self.finalModelVars[ampName] = np.append(self.finalModelVars[ampName],
+                                                     partialPtc.finalModelVars[ampName][0])
+            self.finalMeans[ampName] = np.append(self.finalMeans[ampName],
+                                                 partialPtc.finalMeans[ampName][0])
+
+            self.covariances[ampName] = np.append(
+                self.covariances[ampName].ravel(),
+                partialPtc.covariances[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+            self.covariancesSqrtWeights[ampName] = np.append(
+                self.covariancesSqrtWeights[ampName].ravel(),
+                partialPtc.covariancesSqrtWeights[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+            self.covariancesModel[ampName] = np.append(
+                self.covariancesModel[ampName].ravel(),
+                partialPtc.covariancesModel[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+            self.covariancesModelNoB[ampName] = np.append(
+                self.covariancesModelNoB[ampName].ravel(),
+                partialPtc.covariancesModelNoB[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+
+    def sort(self, sortIndex):
+        """Sort the components of the PTC by a given sort index.
+
+        The PTC is sorted in-place.
+
+        Parameters
+        ----------
+        sortIndex : `list` or `np.ndarray`
+            The sorting index, which must be the same length as
+            the number of elements of the PTC.
+        """
+        index = np.atleast_1d(sortIndex)
+
+        # First confirm everything matches.
+        for ampName in self.ampNames:
+            if len(index) != len(self.rawExpTimes[ampName]):
+                raise ValueError(
+                    f"Length of sortIndex ({len(index)}) does not match number of PTC "
+                    f"elements ({len(self.rawExpTimes[ampName])})",
+                )
+
+        # Note that gain, gainUnadjusted, gainErr, noise, noiseErr,
+        # ptcTurnoff, ptcTurnoffSamplingError, and the full covariance fit
+        # parameters are global and not sorted by input pair.
+
+        for ampName in self.ampNames:
+            self.inputExpIdPairs[ampName] = np.array(
+                self.inputExpIdPairs[ampName]
+            )[index].tolist()
+
+            self.expIdMask[ampName] = self.expIdMask[ampName][index]
+            self.rawExpTimes[ampName] = self.rawExpTimes[ampName][index]
+            self.rawMeans[ampName] = self.rawMeans[ampName][index]
+            self.rawVars[ampName] = self.rawVars[ampName][index]
+            self.rowMeanVariance[ampName] = self.rowMeanVariance[ampName][index]
+            self.photoCharges[ampName] = self.photoCharges[ampName][index]
+            self.ampOffsets[ampName] = self.ampOffsets[ampName][index]
+
+            self.gainList[ampName] = self.gainList[ampName][index]
+            self.noiseList[ampName] = self.noiseList[ampName][index]
+
+            self.histVars[ampName] = self.histVars[ampName][index]
+            self.histChi2Dofs[ampName] = self.histChi2Dofs[ampName][index]
+            self.kspValues[ampName] = self.kspValues[ampName][index]
+
+            self.covariances[ampName] = self.covariances[ampName][index]
+            self.covariancesSqrtWeights[ampName] = self.covariancesSqrtWeights[ampName][index]
+            self.covariancesModel[ampName] = self.covariancesModel[ampName][index]
+            self.covariancesModelNoB[ampName] = self.covariancesModelNoB[ampName][index]
+
+            self.finalVars[ampName] = self.finalVars[ampName][index]
+            self.finalModelVars[ampName] = self.finalModelVars[ampName][index]
+            self.finalMeans[ampName] = self.finalMeans[ampName][index]
+
+        # Sort the auxiliary values which are not stored per-amp.
+        for key, value in self.auxValues.items():
+            self.auxValues[key] = value[index]
 
     def getExpIdsUsed(self, ampName):
         """Get the exposures used, i.e. not discarded, for a given amp.
