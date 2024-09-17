@@ -622,6 +622,7 @@ class IsrMock(pipeBase.Task):
             'UR': ReadoutCorner.UR,
             'UL': ReadoutCorner.UL,
         }
+
         for amp in ccd:
             newAmp = amp.rebuild()
             newAmp.setLinearityCoeffs((0., 1., 0., 0.))
@@ -629,7 +630,6 @@ class IsrMock(pipeBase.Task):
             newAmp.setGain(self.config.gain)
             newAmp.setSuspectLevel(25000.0)
             newAmp.setSaturation(32000.0)
-            readoutCorner = 'LL'
 
             # Apply flips to bbox where needed
             imageBBox = amp.getRawDataBBox()
@@ -637,35 +637,12 @@ class IsrMock(pipeBase.Task):
             parallelOscanBBox = amp.getRawParallelOverscanBBox()
             serialOscanBBox = amp.getRawSerialOverscanBBox()
             prescanBBox = amp.getRawPrescanBBox()
+            readoutCorner = amp.getReadoutCorner().name
 
             if self.config.isLsstLike:
                 # This follows cameraGeom.testUtils
                 xoffset, yoffset = amp.getRawXYOffset()
                 offext = lsst.geom.Extent2I(xoffset, yoffset)
-                flipx = bool(amp.getRawFlipX())
-                flipy = bool(amp.getRawFlipY())
-                if flipx:
-                    xExt = rawBbox.getDimensions().getX()
-                    rawBbox.flipLR(xExt)
-                    imageBBox.flipLR(xExt)
-                    parallelOscanBBox.flipLR(xExt)
-                    serialOscanBBox.flipLR(xExt)
-                    prescanBBox.flipLR(xExt)
-                if flipy:
-                    yExt = rawBbox.getDimensions().getY()
-                    rawBbox.flipTB(yExt)
-                    imageBBox.flipTB(yExt)
-                    parallelOscanBBox.flipTB(yExt)
-                    serialOscanBBox.flipTB(yExt)
-                    prescanBBox.flipTB(yExt)
-                if not flipx and not flipy:
-                    readoutCorner = 'LL'
-                elif flipx and not flipy:
-                    readoutCorner = 'LR'
-                elif flipx and flipy:
-                    readoutCorner = 'UR'
-                elif not flipx and flipy:
-                    readoutCorner = 'UL'
                 rawBbox.shift(offext)
                 imageBBox.shift(offext)
                 parallelOscanBBox.shift(offext)
