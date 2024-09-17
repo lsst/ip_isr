@@ -46,6 +46,7 @@ from . import linearize
 from .defects import Defects
 
 from .assembleCcdTask import AssembleCcdTask
+from .binExposureTask import BinExposureTask
 from .crosstalk import CrosstalkTask, CrosstalkCalib
 from .fringe import FringeTask
 from .isr import maskNans
@@ -943,6 +944,10 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Should binned exposures be calculated?",
         default=False,
     )
+    binning = pexConfig.ConfigurableField(
+        target=BinExposureTask,
+        doc="Task to bin the exposure.",
+    )
     binFactor1 = pexConfig.Field(
         dtype=int,
         doc="Binning factor for first binned exposure. This is intended for a finely binned output.",
@@ -1022,6 +1027,7 @@ class IsrTask(pipeBase.PipelineTask):
         self.makeSubtask("ampOffset")
         self.makeSubtask("deferredChargeCorrection")
         self.makeSubtask("isrStats")
+        self.makeSubtask("binning")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
         inputs = butlerQC.get(inputRefs)
@@ -1767,7 +1773,15 @@ class IsrTask(pipeBase.PipelineTask):
         outputBin1Exposure = None
         outputBin2Exposure = None
         if self.config.doBinnedExposures:
-            outputBin1Exposure, outputBin2Exposure = self.makeBinnedImages(ccdExposure)
+            self.log.info("Creating binned exposures.")
+            outputBin1Exposure = self.binning.run(
+                ccdExposure,
+                binFactor=self.config.binFactor1,
+            ).binnedExposure
+            outputBin2Exposure = self.binning.run(
+                ccdExposure,
+                binFactor=self.config.binFactor2,
+            ).binnedExposure
 
         self.debugView(ccdExposure, "postISRCCD")
 
