@@ -821,7 +821,7 @@ class LinearizeSpline(LinearizeBase):
                                          afwMath.stringToInterpStyle("AKIMA_SPLINE"))
 
         ampArr = image.getArray()
-        delta = interp.interpolate(ampArr.flatten())
+        delta = interp.interpolate(ampArr.ravel())
         ampArr -= np.array(delta).reshape(ampArr.shape)
 
         return True, 0

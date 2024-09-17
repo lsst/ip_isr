@@ -107,6 +107,13 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector"],
         isCalibration=True,
     )
+    flat = cT.PrerequisiteInput(
+        name="flat",
+        doc="Input flat calibration.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "detector", "physical_filter"],
+        isCalibration=True,
+    )
     outputExposure = cT.Output(
         name='postISRCCD',
         doc="Output ISR processed exposure.",
@@ -160,6 +167,8 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.bfKernel
         if config.doDark is not True:
             del self.dark
+        if config.doFlat is not True:
+            del self.flat
 
         if config.doBinnedExposures is not True:
             del self.outputBin1Exposure
@@ -209,12 +218,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=bool,
         doc="Do differential non-linearity correction?",
         default=False,
-    )
-
-    nominalGain = pexConfig.Field(
-        dtype=float,
-        default=1.0,
-        doc="Nominal gain to use if no PTC is supplied.",
     )
 
     doBootstrap = pexConfig.Field(
@@ -510,14 +513,14 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     def validate(self):
         super().validate()
 
-        if self.doBootstrap and self.doApplyGains:
-            self.log.warning(
-                "Task is being run with doBootstrap=True and also doApplyGains=True; "
-                "this is not a recommended combination of configuration parameters.",
-            )
-
-        if self.doBootstrap and self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
-            raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+        if self.doBootstrap:
+            # Additional checks in bootstrap (no PTC/gains) mode.
+            if self.doApplyGains:
+                raise ValueError("Cannot run task with doBootstrap=True and doApplyGains=True.")
+            if self.doCorrectGains:
+                raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
+            if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
+                raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
 
         # if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
         # DM-41912: Implement doApplyGains in LSST IsrTask
@@ -541,6 +544,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         self.makeSubtask("crosstalk")
         self.makeSubtask("masking")
         self.makeSubtask("isrStats")
+        self.makeSubtask("ampOffset")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
 
@@ -592,9 +596,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # isrFunctions.diffNonLinearCorrection
         pass
 
-    def maskFullDefectAmplifiers(self, ccdExposure, detector, defects):
+    def maskFullAmplifiers(self, ccdExposure, detector, defects, gains=None):
         """
         Check for fully masked bad amplifiers and mask them.
+
+        This includes defects which cover full amplifiers, as well
+        as amplifiers with nan gain values which should be used
+        if self.config.doApplyGains=True.
 
         Full defect masking happens later to allow for defects which
         cross amplifier boundaries.
@@ -608,6 +616,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         defects : `lsst.ip.isr.Defects`
             List of defects.  Used to determine if an entire
             amplifier is bad.
+        gains : `dict` [`str`, `float`], optional
+            Dictionary of gains to check if
+            self.config.doApplyGains=True.
 
         Returns
         -------
@@ -629,6 +640,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if defects is not None:
                 badAmpDict[ampName] = bool(sum([v.getBBox().contains(amp.getBBox()) for v in defects]))
 
+                if badAmpDict[ampName]:
+                    self.log.warning("Amplifier %s is bad (completely covered with defects)", ampName)
+
+            if gains is not None and self.config.doApplyGains:
+                if not math.isfinite(gains[ampName]):
+                    badAmpDict[ampName] = True
+
+                    self.log.warning("Amplifier %s is bad (non-finite gain)", ampName)
+
             # In the case of a bad amp, we will set mask to "BAD"
             # (here use amp.getRawBBox() for correct association with pixels in
             # current ccdExposure).
@@ -638,8 +658,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskView = dataView.getMask()
                 maskView |= maskView.getPlaneBitMask("BAD")
                 del maskView
-
-                self.log.warning("Amplifier %s is bad (completely covered with defects)", ampName)
 
         return badAmpDict
 
@@ -819,9 +837,41 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         serialOverscan = SerialOverscanCorrectionTask(config=ampConfig.serialOverscanConfig)
                         results = serialOverscan.run(ccdExposure, amp)
                     else:
+                        config = ampConfig.parallelOverscanConfig
                         parallelOverscan = ParallelOverscanCorrectionTask(
-                            config=ampConfig.parallelOverscanConfig,
+                            config=config,
                         )
+
+                        metadata = ccdExposure.metadata
+
+                        # We need to know the saturation level that was used
+                        # for the parallel overscan masking. If it isn't set
+                        # then the configured parallelOverscanSaturationLevel
+                        # will be used instead (assuming
+                        # doParallelOverscanSaturation is True). Note that
+                        # this will have the correct units (adu or electron)
+                        # depending on whether the gain has been applied.
+                        if self.config.doSaturation:
+                            saturationLevel = metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"]
+                            saturationLevel *= config.parallelOverscanSaturationLevelAdjustmentFactor
+                        else:
+                            saturationLevel = config.parallelOverscanSaturationLevel
+                            if ccdExposure.metadata["LSST ISR UNITS"] == "electron":
+                                # Need to convert to electron from adu.
+                                saturationLevel *= metadata[f"LSST ISR GAIN {amp.getName()}"]
+
+                        self.log.debug(
+                            "Using saturation level of %.2f for parallel overscan amp %s",
+                            saturationLevel,
+                            amp.getName(),
+                        )
+
+                        parallelOverscan.maskParallelOverscanAmp(
+                            ccdExposure,
+                            amp,
+                            saturationLevel=saturationLevel,
+                        )
+
                         results = parallelOverscan.run(ccdExposure, amp)
 
                     metadata = ccdExposure.metadata
@@ -915,6 +965,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     self.log.debug("  Variance stats for amplifer %s: %f +/- %f.",
                                    amp.getName(), qaStats.getValue(afwMath.MEDIAN),
                                    qaStats.getValue(afwMath.STDEVCLIP))
+
         if self.config.maskNegativeVariance:
             self.maskNegativeVariance(exposure)
 
@@ -998,8 +1049,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if numNans > 0:
             self.log.warning("There were %d unmasked NaNs.", numNans)
 
-    def countBadPixels(self, exposure):
-        """
+    def setBadRegions(self, exposure):
+        """Set bad regions from large contiguous regions.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.Exposure`
+            Exposure to set bad regions.
+
         Notes
         -----
         Reset and interpolate bad pixels.
@@ -1460,7 +1517,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
         if self.config.doFlat:
             if flat is None:
-                raise RuntimeError("doFlat is True but not flat provided.")
+                raise RuntimeError("doFlat is True but no flat provided.")
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
 
         # FIXME: Make sure that if linearity is done then it is matched
@@ -1469,39 +1526,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
 
-        # First we convert the exposure to floating point values
-        # (if necessary).
-        self.log.debug("Converting exposure to floating point values.")
-        ccdExposure = self.convertIntToFloat(ccdExposure)
-
-        # Then we mark which amplifiers are completely bad from defects.
-        badAmpDict = self.maskFullDefectAmplifiers(ccdExposure, detector, defects)
-
-        # Now we go through ISR steps.
-
-        # Differential non-linearity correction.
-        # Units: adu
-        if self.config.doDiffNonLinearCorrection:
-            self.diffNonLinearCorrection(ccdExposure, dnlLUT)
-
-        # Dither the integer counts.
-        # Input units: integerized adu
-        # Output units: floating-point adu
-        self.ditherCounts(ccdExposure, overscanDetectorConfig)
-
-        nominalPtcUsed = False
-        if self.config.doBootstrap or ptc is None:
-            self.log.info(
-                "Configured using doBootstrap=True; using nominal gain of %.3f.",
-                self.config.nominalGain,
-            )
-            nominalPtcUsed = True
+        if self.config.doBootstrap:
+            self.log.info("Configured using doBootstrap=True; using gain of 1.0 (adu units)")
             ptc = PhotonTransferCurveDataset([amp.getName() for amp in detector], "NOMINAL_PTC", 1)
             for amp in detector:
-                ptc.gain[amp.getName()] = self.config.nominalGain
+                ptc.gain[amp.getName()] = 1.0
                 ptc.noise[amp.getName()] = 0.0
 
-        exposureMetadata["LSST ISR NOMINAL PTC USED"] = nominalPtcUsed
+        exposureMetadata["LSST ISR BOOTSTRAP"] = self.config.doBootstrap
 
         # Set which gains to use
         gains = ptc.gain
@@ -1517,6 +1549,26 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     gain,
                 )
 
+        # First we convert the exposure to floating point values
+        # (if necessary).
+        self.log.debug("Converting exposure to floating point values.")
+        ccdExposure = self.convertIntToFloat(ccdExposure)
+
+        # Then we mark which amplifiers are completely bad from defects.
+        badAmpDict = self.maskFullAmplifiers(ccdExposure, detector, defects, gains=gains)
+
+        # Now we go through ISR steps.
+
+        # Differential non-linearity correction.
+        # Units: adu
+        if self.config.doDiffNonLinearCorrection:
+            self.diffNonLinearCorrection(ccdExposure, dnlLUT)
+
+        # Dither the integer counts.
+        # Input units: integerized adu
+        # Output units: floating-point adu
+        self.ditherCounts(ccdExposure, overscanDetectorConfig)
+
         # Serial overscan correction.
         # Input units: adu
         # Output units: adu
@@ -1529,7 +1581,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ccdExposure,
             )
 
-            if nominalPtcUsed:
+            if self.config.doBootstrap:
                 # Get the empirical read noise
                 for amp, serialOverscan in zip(detector, serialOverscans):
                     if serialOverscan is None:
@@ -1539,6 +1591,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         # noise attributes in units of electrons. The read
                         # noise measured from overscans is always in adu, so we
                         # scale it by the gain.
+                        # Note that in bootstrap mode, these gains will always
+                        # be 1.0, but we put this conversion here for clarity.
                         ptc.noise[amp.getName()] = serialOverscan.residualSigma * gains[amp.getName()]
         else:
             serialOverscans = [None]*len(detector)
@@ -1557,7 +1611,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Apply temperature dependence to the gains.")
             gains, readNoise = self.correctGains(ccdExposure, ptc, gains)
 
-        # Do gain normalization; this may be the nominal gains.
+        # Do gain normalization.
         # Input units: adu
         # Output units: electron
         if self.config.doApplyGains:
@@ -1590,12 +1644,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doCrosstalk:
             self.log.info("Applying crosstalk corrections to full amplifier region.")
+            if self.config.doBootstrap and numpy.any(crosstalk.fitGains != 0):
+                crosstalkGains = None
+            else:
+                crosstalkGains = gains
             self.crosstalk.run(
                 ccdExposure,
                 crosstalk=crosstalk,
                 isTrimmed=False,
-                gains=gains,
+                gains=crosstalkGains,
                 fullAmplifier=True,
+                badAmpDict=badAmpDict,
             )
 
         # Parallel overscan correction.
@@ -1724,8 +1783,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             preInterpExp = ccdExposure.clone()
 
         if self.config.doSetBadRegions:
-            self.log.info('Counting pixels in BAD regions.')
-            self.countBadPixels(ccdExposure)
+            self.log.info('Setting values in large contiguous bad regions.')
+            self.setBadRegions(ccdExposure)
 
         if self.config.doInterpolate:
             self.log.info("Interpolating masked pixels.")

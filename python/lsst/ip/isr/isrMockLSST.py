@@ -70,6 +70,26 @@ class IsrMockLSSTConfig(IsrMockConfig):
         default=30000.0,
         doc="Bright defect level (electron).",
     )
+    doAddBadParallelOverscanColumn = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add a bad column to the parallel overscan.",
+    )
+    badParallelOverscanColumnLevel = pexConfig.Field(
+        dtype=float,
+        default=300000.,
+        doc="Bright parallel overscan column level (electron). Should be above saturation.",
+    )
+    doAddBadParallelOverscanColumnNeighbors = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Add low-level bad columns next to parallel overscan bad column.",
+    )
+    badParallelOverscanColumnNeighborsLevel = pexConfig.Field(
+        dtype=float,
+        default=50.0,
+        doc="Bright parallel overscan column neighbors level (electron).",
+    )
     doAddBrighterFatter = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -557,6 +577,26 @@ class IsrMockLSST(IsrMock):
                         self.config.readNoise,
                         rng=rngOverscan,
                     )
+
+        # 7b. Add bad column to the parallel overscan region.
+        if self.config.doAddBadParallelOverscanColumn and not self.config.isTrimmed:
+            # We want to place this right above the defect, to simulate
+            # bleeding into the parallel overscan region.
+            amp = exposure.getDetector()[2]
+            parBBox = amp.getRawParallelOverscanBBox()
+            bboxBad = geom.Box2I(
+                corner=geom.Point2I(50, parBBox.getMinY()),
+                dimensions=geom.Extent2I(1, parBBox.getHeight()),
+            )
+            exposure[bboxBad].image.array[:, :] = self.config.badParallelOverscanColumnLevel
+
+            if self.config.doAddBadParallelOverscanColumnNeighbors:
+                for neighbor in [49, 51]:
+                    bboxBad = geom.Box2I(
+                        corner=geom.Point2I(neighbor, parBBox.getMinY()),
+                        dimensions=geom.Extent2I(1, parBBox.getHeight()),
+                    )
+                    exposure[bboxBad].image.array[:, :] += self.config.badParallelOverscanColumnNeighborsLevel
 
         # 11. Add crosstalk (electron) to all the amplifiers
         #     (imaging + overscan).

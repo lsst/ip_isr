@@ -112,8 +112,8 @@ class CrosstalkCalib(IsrCalib):
         self.coeffErr = np.zeros(self.crosstalkShape) if self.nAmp else None
         self.coeffNum = np.zeros(self.crosstalkShape,
                                  dtype=int) if self.nAmp else None
-        self.coeffValid = np.zeros(self.crosstalkShape,
-                                   dtype=bool) if self.nAmp else None
+        self.coeffValid = np.ones(self.crosstalkShape,
+                                  dtype=bool) if self.nAmp else None
         # Quadratic terms, if any.
         self.coeffsSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
         self.coeffErrSqr = np.zeros(self.crosstalkShape) if self.nAmp else None
@@ -555,11 +555,11 @@ class CrosstalkCalib(IsrCalib):
         return lsst.afw.math.makeStatistics(mi, lsst.afw.math.MEDIAN, stats).getValue()
 
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
-                          crosstalkCoeffsSqr=None,
+                          crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
                           badPixels=["BAD"], minPixelToMask=45000,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
-                          parallelOverscan=False, detectorConfig=None):
+                          parallelOverscan=False, detectorConfig=None, badAmpDict=None):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -584,6 +584,8 @@ class CrosstalkCalib(IsrCalib):
             Coefficients to use to correct crosstalk.
         crosstalkCoeffsSqr : `numpy.ndarray`, optional.
             Quadratic coefficients to use to correct crosstalk.
+        crosstalkCoeffsValid : `numpy.ndarray`, optional
+            Boolean array that is True where coefficients are valid.
         badPixels : `list` of `str`, optional
             Mask planes to ignore.
         minPixelToMask : `float`, optional
@@ -610,6 +612,9 @@ class CrosstalkCalib(IsrCalib):
             Only correct the parallel overscan region.
         detectorConfig : `lsst.ip.isr.overscanDetectorConfig`, optional
             Per-amplifier configs to use if parallelOverscan is True.
+        badAmpDict : `dict` [`str`, `bool`], optional
+            Dictionary to identify bad amplifiers that should not be
+            source or target for crosstalk correction.
 
         Notes
         -----
@@ -676,6 +681,13 @@ class CrosstalkCalib(IsrCalib):
             else:
                 coeffsSqr = self.coeffsSqr
             self.log.debug("CT COEFF SQR: %s", coeffsSqr)
+
+        if crosstalkCoeffsValid is not None:
+            # Add an additional check for finite coeffs.
+            valid = crosstalkCoeffsValid & np.isfinite(coeffs)
+        else:
+            valid = np.isfinite(coeffs)
+
         # Set background level based on the requested method.  The
         # thresholdBackground holds the offset needed so that we only mask
         # pixels high relative to the background, not in an absolute
@@ -705,6 +717,7 @@ class CrosstalkCalib(IsrCalib):
         subtrahend.set((0, 0, 0))
 
         coeffs = coeffs.transpose()
+        valid = valid.transpose()
         # Apply NL coefficients
         if doSqrCrosstalk:
             coeffsSqr = coeffsSqr.transpose()
@@ -725,8 +738,12 @@ class CrosstalkCalib(IsrCalib):
             else:
                 sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
             for tt, tAmp in enumerate(detector):
-                if coeffs[ss, tt] == 0.0:
+                # Skip 0.0 and invalid coefficients.
+                if coeffs[ss, tt] == 0.0 or not valid[ss, tt]:
                     continue
+                if badAmpDict is not None:
+                    if badAmpDict[sAmp.getName()] or badAmpDict[tAmp.getName()]:
+                        continue
                 tImage = self.extractAmp(
                     mi,
                     tAmp,
@@ -876,6 +893,7 @@ class CrosstalkTask(Task):
         detectorConfig=None,
         fullAmplifier=False,
         gains=None,
+        badAmpDict=None,
     ):
         """Apply intra-detector crosstalk correction
 
@@ -908,6 +926,9 @@ class CrosstalkTask(Task):
         gains : `dict` [`str`, `float`], optional
             Dictionary of amp name to gain.  Required if there is a unit
             mismatch between the exposure and the crosstalk matrix.
+        badAmpDict : `dict` [`str`, `bool`], optional
+            Dictionary to identify bad amplifiers that should not be
+            source or target for crosstalk correction.
 
         Raises
         ------
@@ -944,12 +965,19 @@ class CrosstalkTask(Task):
         invertGains = False
         gainApply = False
         if crosstalk.crosstalkRatiosUnits != exposureUnits:
-            if gains is None:
+            if gains is None and np.all(crosstalk.fitGains == 0.0):
                 raise RuntimeError(
                     f"Unit mismatch between exposure ({exposureUnits}) and "
                     f"crosstalk ratios ({crosstalk.crosstalkRatiosUnits}) and "
-                    "no gains were supplied.",
+                    "no gains were supplied or available in crosstalk calibration.",
                 )
+            elif gains is None:
+                self.log.info("Using crosstalk calib fitGains for gain corrections.")
+                detector = exposure.getDetector()
+                gains = {}
+                for i, amp in enumerate(detector):
+                    gains[amp.getName()] = crosstalk.fitGains[i]
+
             gainApply = True
 
             if crosstalk.crosstalkRatiosUnits == "adu":
@@ -981,6 +1009,7 @@ class CrosstalkTask(Task):
                 exposure,
                 crosstalkCoeffs=crosstalk.coeffs,
                 crosstalkCoeffsSqr=crosstalkCoeffsSqr,
+                crosstalkCoeffsValid=crosstalk.coeffValid,
                 minPixelToMask=self.config.minPixelToMask,
                 crosstalkStr=self.config.crosstalkMaskPlane,
                 isTrimmed=isTrimmed,
@@ -988,6 +1017,7 @@ class CrosstalkTask(Task):
                 doSqrCrosstalk=doSqrCrosstalk,
                 fullAmplifier=fullAmplifier,
                 parallelOverscan=parallelOverscanRegion,
+                badAmpDict=badAmpDict,
             )
 
         if crosstalk.interChip:

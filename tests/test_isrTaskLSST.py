@@ -25,7 +25,9 @@ import unittest
 import numpy as np
 import logging
 import galsim
+from scipy.stats import median_abs_deviation
 
+import lsst.geom as geom
 import lsst.ip.isr.isrMockLSST as isrMockLSST
 import lsst.utils.tests
 from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
@@ -56,6 +58,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.crosstalk = CrosstalkCalib(nAmp=self.namp)
         self.crosstalk.hasCrosstalk = True
         self.crosstalk.coeffs = isrMockLSST.CrosstalkCoeffMockLSST().run()
+        for i, amp in enumerate(self.detector):
+            self.crosstalk.fitGains[i] = mock.config.gainDict[amp.getName()]
         self.crosstalk.crosstalkRatiosUnits = "electron"
 
         self.defects = isrMockLSST.DefectMockLSST().run()
@@ -99,6 +103,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBootstrap = True
         isr_config.doApplyGains = False
         isr_config.doBias = True
+        isr_config.doCrosstalk = True
 
         # Need to make sure we are not masking the negative variance
         # pixels when directly comparing calibration images and
@@ -107,14 +112,19 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result = isr_task.run(input_exp.clone(), bias=self.bias_adu, ptc=self.ptc)
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                ptc=self.ptc,
+                crosstalk=self.crosstalk,
+            )
         self.assertIn("Ignoring provided PTC", cm.output[0])
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone())
+            result2 = isr_task2.run(input_exp.clone(), crosstalk=self.crosstalk)
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -132,7 +142,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], True)
 
@@ -148,10 +158,12 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             amp_name = amp.getName()
             key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], isr_config.nominalGain)
+            self.assertEqual(metadata[key], 1.0)
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu)
+
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrBootstrapDark(self):
         """Test processing of a ``bootstrap`` dark frame.
@@ -170,17 +182,24 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.maskNegativeVariance = False
+        isr_config.doCrosstalk = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
-            result = isr_task.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu, ptc=self.ptc)
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+                ptc=self.ptc,
+                crosstalk=self.crosstalk,
+            )
         self.assertIn("Ignoring provided PTC", cm.output[0])
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu)
+            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu, crosstalk=self.crosstalk)
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -199,13 +218,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], True)
 
         key = "LSST ISR UNITS"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "adu")
+
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrBootstrapFlat(self):
         """Test processing of a ``bootstrap`` flat frame.
@@ -228,6 +249,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         isr_config.doFlat = True
         isr_config.maskNegativeVariance = False
+        isr_config.doCrosstalk = True
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
@@ -237,6 +259,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 dark=self.dark_adu,
                 flat=self.flat_adu,
                 ptc=self.ptc,
+                crosstalk=self.crosstalk,
             )
         self.assertIn("Ignoring provided PTC", cm.output[0])
 
@@ -244,7 +267,12 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doFlat = False
         isr_task2 = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
-            result2 = isr_task2.run(input_exp.clone(), bias=self.bias_adu, dark=self.dark_adu)
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+                crosstalk=self.crosstalk,
+            )
 
         good_pixels = self.get_non_defect_pixels(result.exposure.mask)
 
@@ -289,13 +317,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], True)
 
         key = "LSST ISR UNITS"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "adu")
+
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrBias(self):
         """Test processing of a bias frame."""
@@ -343,7 +373,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             np.std(result2.exposure.image.array[good_pixels]),
         )
 
-        # Confirm that it is flat with an arbitrary cutoff that depend
+        # Confirm that it is flat with an arbitrary cutoff that depends
+        # on the read noise.
         self.assertLess(np.std(result.exposure.image.array[good_pixels]), 2.0*mock_config.readNoise)
 
         delta = result2.exposure.image.array - result.exposure.image.array
@@ -356,10 +387,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             atol=1e-5,
         )
 
+        self._check_bad_column_crosstalk_correction(result.exposure)
+
     def test_isrDark(self):
         """Test processing of a dark frame."""
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
+        # We turn off the bad parallel overscan column because it does
+        # add more noise to that region.
+        mock_config.doAddBadParallelOverscanColumn = False
 
         mock = isrMockLSST.IsrMockLSST(config=mock_config)
         input_exp = mock.run()
@@ -411,7 +447,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # factor for the extra noise from the overscan subtraction.
         self.assertLess(
             np.std(result.exposure.image.array[good_pixels]),
-            1.5*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
+            1.6*np.sqrt(mock_config.darkRate*mock_config.expTime + mock_config.readNoise),
         )
 
         delta = result2.exposure.image.array - result.exposure.image.array
@@ -421,6 +457,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.dark.image.array[good_pixels] * exp_time,
             atol=1e-12,
         )
+
+        self._check_bad_column_crosstalk_correction(result.exposure)
 
     def test_isrFlat(self):
         """Test processing of a flat frame."""
@@ -496,6 +534,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         ratio = result2.exposure.image.array / result.exposure.image.array
         self.assertFloatsAlmostEqual(ratio, flat_nodefects.image.array, atol=1e-4)
 
+        self._check_bad_column_crosstalk_correction(result.exposure)
+
     def test_isrNoise(self):
         """Test the recorded noise and gain in the metadata."""
         mock_config = self.get_mock_config_no_signal()
@@ -530,7 +570,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             gain = result.exposure.metadata[f"LSST ISR GAIN {amp.getName()}"]
             read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
 
-            # Chcek that the gain and read noise are consistent with the
+            # Check that the gain and read noise are consistent with the
             # values stored in the PTC.
             self.assertEqual(gain, self.ptc.gain[amp.getName()])
             self.assertEqual(read_noise, self.ptc.noise[amp.getName()])
@@ -698,7 +738,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # We compare the good pixels in the entirety.
         self.assertLess(np.std(delta[good_pixels]), 5.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*7)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
@@ -710,7 +750,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         metadata = result.exposure.metadata
 
-        key = "LSST ISR NOMINAL PTC USED"
+        key = "LSST ISR BOOTSTRAP"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], False)
 
@@ -825,7 +865,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # We compare the good pixels in the entirety.
         self.assertLess(np.std(delta[good_pixels]), 5.0)
-        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*5)
+        # This is sensitive to parallel overscan masking.
+        self.assertLess(np.max(np.abs(delta[good_pixels])), 5.0*7)
 
         # Make sure the corrected image is overall consistent with the
         # straight image.
@@ -836,6 +877,367 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # the defect case because of the widening of the saturation
         # trail.
         self.assertLess(np.std(delta), 7.0)
+
+    def test_isrFloodedSaturatedE2V(self):
+        """Test ISR when the amps are completely saturated.
+
+        This version tests what happens when the parallel overscan
+        region is flooded like E2V detectors, where the saturation
+        spreads evenly, but at a greater level than the saturation
+        value.
+        """
+        # We are simulating a flat field.
+        # Note that these aren't very important because we are replacing
+        # the flux, but we may as well.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doBootstrap = True
+        isr_config.doApplyGains = False
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        # Tun off saturation masking to simulate a PTC flat.
+        isr_config.doSaturation = False
+
+        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
+        parallel_overscan_saturation = amp_config.parallelOverscanConfig.parallelOverscanSaturationLevel
+
+        detector = input_exp.getDetector()
+        for i, amp in enumerate(detector):
+            # For half of the amps we are testing what happens when the
+            # parallel overscan region is above the configured saturation
+            # level; for the other half we are testing the other branch
+            # when it saturates below this level (which is a priori
+            # unknown).
+            if i < len(detector) // 2:
+                data_level = (parallel_overscan_saturation * 1.05
+                              + mock_config.biasLevel
+                              + mock_config.clockInjectedOffsetLevel)
+                parallel_overscan_level = (parallel_overscan_saturation * 1.1
+                                           + mock_config.biasLevel
+                                           + mock_config.clockInjectedOffsetLevel)
+            else:
+                data_level = (parallel_overscan_saturation * 0.7
+                              + mock_config.biasLevel
+                              + mock_config.clockInjectedOffsetLevel)
+                parallel_overscan_level = (parallel_overscan_saturation * 0.75
+                                           + mock_config.biasLevel
+                                           + mock_config.clockInjectedOffsetLevel)
+
+            input_exp[amp.getRawDataBBox()].image.array[:, :] = data_level
+            input_exp[amp.getRawParallelOverscanBBox()].image.array[:, :] = parallel_overscan_level
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+            )
+        self.assertEqual(len(cm.records), len(detector))
+
+        n_all = 0
+        n_level = 0
+        for record in cm.records:
+            if "All overscan pixels masked" in record.message:
+                n_all += 1
+            if "The level in the overscan region" in record.message:
+                n_level += 1
+
+        self.assertEqual(n_all, len(detector) // 2)
+        self.assertEqual(n_level, len(detector) // 2)
+
+        # And confirm that the post-ISR levels are high for each amp.
+        for amp in detector:
+            med = np.median(result.exposure[amp.getBBox()].image.array)
+            self.assertGreater(med, parallel_overscan_saturation*0.8)
+
+    def test_isrFloodedSaturatedITL(self):
+        """Test ISR when the amps are completely saturated.
+
+        This version tests what happens when the parallel overscan
+        region is flooded like ITL detectors, where the saturation
+        is at a lower level than the imaging region, and also
+        spreads partly into the serial/parallel region.
+        """
+        # We are simulating a flat field.
+        # Note that these aren't very important because we are replacing
+        # the flux, but we may as well.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doBootstrap = True
+        isr_config.doApplyGains = False
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        # Tun off saturation masking to simulate a PTC flat.
+        isr_config.doSaturation = False
+
+        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
+        parallel_overscan_saturation = amp_config.parallelOverscanConfig.parallelOverscanSaturationLevel
+
+        detector = input_exp.getDetector()
+        for i, amp in enumerate(detector):
+            # For half of the amps we are testing what happens when the
+            # parallel overscan region is above the configured saturation
+            # level; for the other half we are testing the other branch
+            # when it saturates below this level (which is a priori
+            # unknown).
+            if i < len(detector) // 2:
+                data_level = (parallel_overscan_saturation * 1.1
+                              + mock_config.biasLevel
+                              + mock_config.clockInjectedOffsetLevel)
+                parallel_overscan_level = (parallel_overscan_saturation * 1.05
+                                           + mock_config.biasLevel
+                                           + mock_config.clockInjectedOffsetLevel)
+            else:
+                data_level = (parallel_overscan_saturation * 0.75
+                              + mock_config.biasLevel
+                              + mock_config.clockInjectedOffsetLevel)
+                parallel_overscan_level = (parallel_overscan_saturation * 0.7
+                                           + mock_config.biasLevel
+                                           + mock_config.clockInjectedOffsetLevel)
+
+            input_exp[amp.getRawDataBBox()].image.array[:, :] = data_level
+            input_exp[amp.getRawParallelOverscanBBox()].image.array[:, :] = parallel_overscan_level
+            # The serial/parallel region for the test camera looks like this:
+            serial_overscan_bbox = amp.getRawSerialOverscanBBox()
+            parallel_overscan_bbox = amp.getRawParallelOverscanBBox()
+
+            overscan_corner_bbox = geom.Box2I(
+                geom.Point2I(
+                    serial_overscan_bbox.getMinX(),
+                    parallel_overscan_bbox.getMinY(),
+                ),
+                geom.Extent2I(
+                    serial_overscan_bbox.getWidth(),
+                    parallel_overscan_bbox.getHeight(),
+                ),
+            )
+            input_exp[overscan_corner_bbox].image.array[-2:, :] = parallel_overscan_level
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias_adu,
+                dark=self.dark_adu,
+            )
+        self.assertEqual(len(cm.records), len(detector))
+
+        n_all = 0
+        n_level = 0
+        for record in cm.records:
+            if "All overscan pixels masked" in record.message:
+                n_all += 1
+            if "The level in the overscan region" in record.message:
+                n_level += 1
+
+        self.assertEqual(n_all, len(detector) // 2)
+        self.assertEqual(n_level, len(detector) // 2)
+
+        # And confirm that the post-ISR levels are high for each amp.
+        for amp in detector:
+            med = np.median(result.exposure[amp.getBBox()].image.array)
+            self.assertGreater(med, parallel_overscan_saturation*0.8)
+
+    def test_isrBadParallelOverscanColumnsBootstrap(self):
+        """Test processing a bias when we have a bad parallel overscan column.
+
+        This tests in bootstrap mode.
+        """
+        # We base this on the bootstrap bias, and make sure
+        # that the bad column remains.
+        mock_config = self.get_mock_config_no_signal()
+        isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doSaturation = False
+        isr_config.doBootstrap = True
+        isr_config.doApplyGains = False
+
+        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
+        overscan_sat_level_adu = amp_config.parallelOverscanConfig.parallelOverscanSaturationLevel
+        # The defect is in amp 2.
+        amp_gain = mock_config.gainDict[self.detector[2].getName()]
+        overscan_sat_level = amp_gain * overscan_sat_level_adu
+        # The expected defect level is in adu for the bootstrap bias.
+        expected_defect_level = mock_config.brightDefectLevel / amp_gain
+
+        # The levels are set in electron units.
+        # We test 3 levels:
+        #  * 1000.0, a lowish but outlier level.
+        #  * 1.05*saturation.
+        # Note that the default parallel overscan saturation level for
+        # bootstrap (pre-saturation-measure) analysis is very low, in
+        # order to capture all types of amps, even with low saturation.
+        # Therefore, we only need to test above this saturation level.
+        # (c.f. test_isrBadParallelOverscanColumns).
+        levels = mock_config.clockInjectedOffsetLevel + np.array(
+            [1000.0, 1.05*overscan_sat_level],
+        )
+
+        for level in levels:
+            mock_config.badParallelOverscanColumnLevel = level
+            mock = isrMockLSST.IsrMockLSST(config=mock_config)
+            input_exp = mock.run()
+
+            isr_task = IsrTaskLSST(config=isr_config)
+            with self.assertNoLogs(level=logging.WARNING):
+                result = isr_task.run(input_exp.clone())
+
+            for defect in self.defects:
+                bbox = defect.getBBox()
+                defect_image = result.exposure[bbox].image.array
+
+                # Check that the defect is the correct level
+                # (not subtracted away).
+                defect_median = np.median(defect_image)
+                self.assertFloatsAlmostEqual(defect_median, expected_defect_level, rtol=1e-4)
+
+                # Check that the neighbors aren't over-subtracted.
+                for neighbor in [-1, 1]:
+                    bbox_neighbor = bbox.shiftedBy(geom.Extent2I(neighbor, 0))
+                    neighbor_image = result.exposure[bbox_neighbor].image.array
+
+                    neighbor_median = np.median(neighbor_image)
+                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=7.0)
+
+    def test_isrBadParallelOverscanColumns(self):
+        """Test processing a bias when we have a bad parallel overscan column.
+
+        This test uses regular non-bootstrap processing.
+        """
+        mock_config = self.get_mock_config_no_signal()
+        isr_config = self.get_isr_config_electronic_corrections()
+        # We do not do defect correction when processing biases.
+        isr_config.doDefect = False
+
+        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
+        sat_level_adu = amp_config.saturation
+        # The defect is in amp 2.
+        amp_gain = mock_config.gainDict[self.detector[2].getName()]
+        sat_level = amp_gain * sat_level_adu
+        # The expected defect level is in electron for the full bias.
+        expected_defect_level = mock_config.brightDefectLevel
+
+        # The levels are set in electron units.
+        # We test 3 levels:
+        #  * 1000.0, a lowish but outlier level.
+        #  * 0.9*saturation, following ITL-style parallel overscan bleeds.
+        #  * 1.05*saturation, following E2V-style parallel overscan bleeds.
+        levels = mock_config.clockInjectedOffsetLevel + np.array(
+            [1000.0, 0.9*sat_level, 1.1*sat_level],
+        )
+
+        for level in levels:
+            mock_config.badParallelOverscanColumnLevel = level
+            mock = isrMockLSST.IsrMockLSST(config=mock_config)
+            input_exp = mock.run()
+
+            isr_task = IsrTaskLSST(config=isr_config)
+            with self.assertNoLogs(level=logging.WARNING):
+                result = isr_task.run(
+                    input_exp.clone(),
+                    crosstalk=self.crosstalk,
+                    ptc=self.ptc,
+                    linearizer=self.linearizer,
+                )
+
+            for defect in self.defects:
+                bbox = defect.getBBox()
+                defect_image = result.exposure[bbox].image.array
+
+                # Check that the defect is the correct level
+                # (not subtracted away).
+                defect_median = np.median(defect_image)
+                self.assertFloatsAlmostEqual(defect_median, expected_defect_level, rtol=1e-4)
+
+                # Check that the neighbors aren't over-subtracted.
+                for neighbor in [-1, 1]:
+                    bbox_neighbor = bbox.shiftedBy(geom.Extent2I(neighbor, 0))
+                    neighbor_image = result.exposure[bbox_neighbor].image.array
+
+                    neighbor_median = np.median(neighbor_image)
+                    self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=7.0)
+
+    def test_isrBadPtcGain(self):
+        """Test processing when an amp has a bad (nan) PTC gain.
+        """
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+
+        # Set a bad amplifier to a nan gain.
+        bad_amp = self.detector[0].getName()
+
+        ptc = copy.copy(self.ptc)
+        ptc.gain[bad_amp] = np.nan
+
+        # We also want non-zero (but very small) crosstalk values
+        # to ensure that these don't propagate nans.
+        crosstalk = copy.copy(self.crosstalk)
+        for i in range(len(self.detector)):
+            for j in range(len(self.detector)):
+                if i == j:
+                    continue
+                if crosstalk.coeffs[i, j] == 0:
+                    crosstalk.coeffs[i, j] = 1e-10
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=crosstalk,
+                ptc=ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+            )
+        self.assertIn(f"Amplifier {bad_amp} is bad (non-finite gain)", cm.output[0])
+
+        # Confirm that the bad_amp is marked bad and the other amps are not.
+        # We have to special case the amp with the defect.
+        mask = result.exposure.mask
+
+        for amp in self.detector:
+            bbox = amp.getBBox()
+            bad_in_amp = ((mask[bbox].array & 2**mask.getMaskPlaneDict()["BAD"]) > 0)
+
+            if amp.getName() == bad_amp:
+                self.assertTrue(np.all(bad_in_amp))
+            elif amp.getName() == "C:0,2":
+                # This is the amp with the defect.
+                self.assertEqual(np.sum(bad_in_amp), 51)
+            else:
+                self.assertTrue(np.all(~bad_in_amp))
 
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
@@ -917,6 +1319,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+        # Our strong overscan slope in the tests requires an override.
+        defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
         # Override the camera model to use the desired saturation (ADU).
         defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
@@ -959,6 +1363,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
+        # Our strong overscan slope in the tests requires an override.
+        defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
         # Override the camera model to use the desired saturation (ADU).
         defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
@@ -986,6 +1392,33 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             mask_temp[defect.getBBox()] = 1
 
         return np.where(mask_temp.array == 0)
+
+    def _check_bad_column_crosstalk_correction(
+        self,
+        exp,
+        nsigma_cut=5.0,
+    ):
+        """Test bad column crosstalk correction.
+
+        This includes possible provblems from parallel overscan
+        crosstalk and gain mismatches.
+
+        The target amp is self.detector[0], "C:0,0".
+
+        Parameters
+        ----------
+        exp : `lsst.afw.image.Exposure`
+            Input exposure.
+        nsigma_cut : `float`, optional
+            Number of sigma to check for outliers.
+        """
+        amp = self.detector[0]
+        amp_image = exp[amp.getBBox()].image.array
+        sigma = median_abs_deviation(amp_image.ravel(), scale="normal")
+
+        med = np.median(amp_image.ravel())
+        self.assertLess(amp_image.max(), med + nsigma_cut*sigma)
+        self.assertGreater(amp_image.min(), med - nsigma_cut*sigma)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

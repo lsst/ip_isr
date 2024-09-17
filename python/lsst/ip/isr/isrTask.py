@@ -1362,18 +1362,21 @@ class IsrTask(pipeBase.PipelineTask):
         exposureMetadata = ccdExposure.getMetadata()
         if self.config.doBias:
             self.compareCameraKeywords(exposureMetadata, bias, "bias")
+            self.compareUnits(bias.metadata, "bias")
         if self.config.doBrighterFatter:
             self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
         if self.config.doCrosstalk:
             self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
         if self.config.doDark:
             self.compareCameraKeywords(exposureMetadata, dark, "dark")
+            self.compareUnits(dark.metadata, "dark")
         if self.config.doDefect:
             self.compareCameraKeywords(exposureMetadata, defects, "defects")
         if self.config.doDeferredCharge:
             self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
         if self.config.doFlat:
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
+            self.compareUnits(flat.metadata, "flat")
         if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
             self.compareCameraKeywords(exposureMetadata, fringes.fringes, "fringe")
         if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
@@ -2036,6 +2039,37 @@ class IsrTask(pipeBase.PipelineTask):
             else:
                 self.log.debug("Sequencer keyword %s not found.", keyword)
 
+    def compareUnits(self, calibMetadata, calibName):
+        """Compare units from calibration to ISR units.
+
+        For the regular IsrTask this is used to confirm that calibs
+        suitable for IsrTaskLSST are not used with the old IsrTask.
+
+        Parameters
+        ----------
+        calibMetadata : `lsst.daf.base.PropertyList`
+            Calibration metadata from header.
+        calibName : `str`
+            Calibration name for log message.
+        """
+        calibUnits = calibMetadata.get("LSST ISR UNITS", "adu")
+        isrUnits = "adu"
+        if calibUnits != isrUnits:
+            if self.config.doRaiseOnCalibMismatch:
+                raise RuntimeError(
+                    "Unit mismatch: isr has %s units but %s has %s units",
+                    isrUnits,
+                    calibName,
+                    calibUnits,
+                )
+            else:
+                self.log.warning(
+                    "Unit mismatch: isr has %s units but %s has %s units",
+                    isrUnits,
+                    calibName,
+                    calibUnits,
+                )
+
     def convertIntToFloat(self, exposure):
         """Convert exposure image from uint16 to float.
 
@@ -2645,10 +2679,18 @@ class IsrTask(pipeBase.PipelineTask):
                     skyLevels[i, j] = afwMath.makeStatistics(miMesh, stat, statsControl).getValue()
 
             good = numpy.where(numpy.isfinite(skyLevels))
-            skyMedian = numpy.median(skyLevels[good])
-            flatness = (skyLevels[good] - skyMedian) / skyMedian
-            flatness_rms = numpy.std(flatness)
-            flatness_pp = flatness.max() - flatness.min() if len(flatness) > 0 else numpy.nan
+            if len(good[0]) == 0:
+                # There are no good pixels.
+                self.log.warning("No good pixels to measure sky levels.")
+                skyMedian = numpy.nan
+                flatness = numpy.nan
+                flatness_rms = numpy.nan
+                flatness_pp = numpy.nan
+            else:
+                skyMedian = numpy.median(skyLevels[good])
+                flatness = (skyLevels[good] - skyMedian) / skyMedian
+                flatness_rms = numpy.std(flatness)
+                flatness_pp = flatness.max() - flatness.min() if len(flatness) > 0 else numpy.nan
 
             self.log.info("Measuring sky levels in %dx%d grids: %f.", nX, nY, skyMedian)
             self.log.info("Sky flatness in %dx%d grids - pp: %f rms: %f.",
