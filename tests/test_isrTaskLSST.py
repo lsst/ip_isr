@@ -150,7 +150,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "adu")
 
-        key = "LSST ISR READ NOISE UNITS"
+        key = "LSST ISR READNOISE UNITS"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], "electron")
 
