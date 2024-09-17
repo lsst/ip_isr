@@ -1918,8 +1918,11 @@ class IsrTask(pipeBase.PipelineTask):
             effectivePtc.validateGainNoiseTurnoffValues(ampName, doWarn=doWarningPtcValidation)
             doWarningPtcValidation = False
 
+            # These keys are duplicated for compatability with isrTaskLSST
             metadata[f"LSST GAIN {amp.getName()}"] = effectivePtc.gain[ampName]
+            metadata[f"LSST ISR GAIN {amp.getName()}"] = effectivePtc.gain[ampName]
             metadata[f"LSST READNOISE {amp.getName()}"] = effectivePtc.noise[ampName]
+            metadata[f"LSST ISR READNOISE {amp.getName()}"] = effectivePtc.noise[ampName]
 
         self.log.info("Det: %s - Noise provenance: %s, Gain provenance: %s",
                       detName,
@@ -1927,6 +1930,7 @@ class IsrTask(pipeBase.PipelineTask):
                       gainProvenanceString)
         metadata["LSST ISR GAIN SOURCE"] = gainProvenanceString
         metadata["LSST ISR NOISE SOURCE"] = noiseProvenanceString
+        metadata["LSST ISR READNOISE UNITS"] = "electron"
 
         return effectivePtc
 

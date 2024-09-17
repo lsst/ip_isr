@@ -1631,7 +1631,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Record gain and read noise in header.
         metadata = ccdExposure.metadata
-        metadata["LSST ISR READ NOISE UNITS"] = "electron"
+        metadata["LSST ISR READNOISE UNITS"] = "electron"
         for amp in detector:
             # This includes any gain correction (if applied).
             metadata[f"LSST ISR GAIN {amp.getName()}"] = gains[amp.getName()]
