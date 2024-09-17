@@ -1699,7 +1699,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
+            if exposureMetadata["LSST ISR UNITS"] == "electron":
+                self.deferredChargeCorrection.config.useGains = False
+            else:
+                self.deferredChargeCorrection.config.useGains = True
+            self.deferredChargeCorrection.run(
+                ccdExposure,
+                deferredChargeCalib,
+                gains=gains
+            )
 
         # Assemble/trim
         # Output units: electron (adu if doBootstrap=True)

@@ -646,7 +646,7 @@ class SegmentSimulator:
                     released_charge = trap.release_charge()
                     free_charge += released_charge
 
-        return image
+        return image/float(self.output_amplifier.gain)
 
 
 class FloatingOutputAmplifier:
@@ -1105,7 +1105,6 @@ class DeferredChargeTask(Task):
 
                 # The algorithm expects that the readout corner is in
                 # the lower left corner.  Flip it to be so:
-
                 ampData = self.flipData(ampImage.array, amp)
 
                 if ctiCalib.driftScale[ampName] > 0.0:
