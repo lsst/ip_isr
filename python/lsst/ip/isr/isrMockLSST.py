@@ -210,6 +210,8 @@ class IsrMockLSSTConfig(IsrMockConfig):
         self.gain = 1.7  # Default value.
         self.skyLevel = 1700.0  # electron
         self.sourceFlux = [50_000.0]  # electron
+        self.sourceX = [35.0]  # pixel
+        self.sourceY = [37.0]  # pixel
         self.overscanScale = 170.0  # electron
         self.biasLevel = 20_000.0  # adu
         self.doAddCrosstalk = True
@@ -330,7 +332,7 @@ class IsrMockLSST(IsrMock):
                                   -8.44782871e-01, 3.54369868e-02, 5.31096720e-01,
                                    8.10171823e-01, 4.83499829e-01]]) * 1e-10
 
-         # Spline trap coefficients and the ctiCalibDict are all taken from a
+        # Spline trap coefficients and the ctiCalibDict are all taken from a
         # cti calibration measured from LSSTCam sensor R03_S12 during Run 5
         # EO testing. These are the coefficients for the spline trap model
         # used in the deferred charge calibration. The collection can be
@@ -580,21 +582,7 @@ class IsrMockLSST(IsrMock):
             # 4. Add serial CTI (electron) to amplifier (imaging + overscan).
             if self.config.doAddDeferredCharge:
                 # Get the free charge area for the amplifier.
-                bboxFreeCharge = amp.getRawDataBBox()
-                bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalOverscanBBox())
-                bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalPrescanBBox())
-                bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawVerticalOverscanBBox())
-                ampFreeChargeData = exposure.image[bboxFreeCharge]
-
-                self.amplifierAddDeferredCharge(
-                    amp,
-                    ampImageData,
-                    ampFreeChargeData,
-                    cti=self.deferredChargeCalib.globalCti[amp.getName()],
-                    traps=[self.deferredChargeCalib.serialTraps[amp.getName()]],
-                    driftScale=self.deferredChargeCalib.driftScale[amp.getName()],
-                    decayTime=self.deferredChargeCalib.decayTime[amp.getName()],
-                )
+                self.amplifierAddDeferredCharge(exposure, amp)
 
             # 5. Add 2D bias residual (electron) to imaging portion of the amp.
             if self.config.doAdd2DBias:
@@ -856,8 +844,13 @@ class IsrMockLSST(IsrMock):
         metadataDict['metadata'].add(name="OBSTYPE", value="CTI")
         metadataDict['metadata'].add(name="CALIBCLS",
                                      value="lsst.ip.isr.deferredCharge.DeferredChargeCalib")
+        # This should always be True for the new ISR task
+        # because gains have already been applied and the
+        # mock and the correction are always in electrons.
+        # We will pass where necessary gains of 1.0.
+        metadataDict['metadata'].add("USEGAINS", value=True)
         self.ctiCalibDict = {**metadataDict, **self.ctiCalibDict}
-        deferredChargeCalib = DeferredChargeCalib()
+        deferredChargeCalib = DeferredChargeCalib(useGains=True)
         self.cti = deferredChargeCalib.fromDict(self.ctiCalibDict)
 
         return self.cti
@@ -878,51 +871,57 @@ class IsrMockLSST(IsrMock):
         """
 
         incidentImage = galsim.Image(ampImageData.array, scale=1)
-        measuredImage = galsim.ImageF(ampImageData.array.shape[1],
-                                      ampImageData.array.shape[0],
-                                      scale=1)
+        measuredImage = galsim.ImageF(
+            ampImageData.array.shape[1],
+            ampImageData.array.shape[0],
+            scale=1,
+        )
         photons = galsim.PhotonArray.makeFromImage(incidentImage)
 
-        sensorModel = galsim.SiliconSensor(strength=bfStrength,
-                                           rng=rng,
-                                           diffusion_factor=0.0,
-                                           nrecalc=nRecalc)
+        sensorModel = galsim.SiliconSensor(
+            strength=bfStrength,
+            rng=rng,
+            diffusion_factor=0.0,
+            nrecalc=nRecalc,
+        )
 
         totalFluxAdded = sensorModel.accumulate(photons, measuredImage)
         ampImageData.array = measuredImage.array
 
         return totalFluxAdded
 
-    def amplifierAddDeferredCharge(self, amp, ampImageData, ampFreeChargeData, cti, traps, driftScale, decayTime):
-        """Add serial CTI to the ampllifier data.
+    def amplifierAddDeferredCharge(self, exposure, amp):
+        """Add serial CTI to the amplifier data.
 
         Parameters
         ----------
+        exposure : `lsst.afw.image.ExposureF`
+            The exposure object containing the amplifier
+            to apply deferred charge to.
         amp : `lsst.afw.image.Amplifier`
             The amplifier object (contains geometry info).
-        ampImageData : `lsst.afw.image.ImageF`
-            Trimmed amplifier image to operate on. Contains
-            just the imaging region.
-        ampFreeChargeData : `lsst.afw.image.ImageF`
-            Amplifier image to operate on. Contains the
-            imaging region, horizontal prescan, horizontal
-            overscan, and vertical overscan regions.
-        cti : `float`
-            Mean global CTI paramter, b in Snyder+2021.
-        traps : `lsst.ip.isr.SerialTrap`
-            Realistic serial trap shape.
-        driftScale : `float`
-            The local electronic offset drift scale
-            parameter, A_L in Snyder+2021.
-        decayTime : `float`
-            The local electronic offset decay time,
-            \tau_L in Snyder+2021.
         """
         # Get the amplifier's geometry parameters.
+        # When adding deferred charge, we have already assured that
+        # isTrimmed is False. Therefore we want to make sure that we
+        # get the RawDataBBox.
+        readoutCorner = amp.getReadoutCorner()
         prescanWidth = amp.getRawHorizontalPrescanBBox().getWidth()
         serialOverscanWidth = amp.getRawHorizontalOverscanBBox().getWidth()
         parallelOverscanWidth = amp.getRawVerticalOverscanBBox().getHeight()
-        readoutCorner = amp.getReadoutCorner()
+        bboxFreeCharge = amp.getRawDataBBox()
+        bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalOverscanBBox())
+        bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalPrescanBBox())
+        bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawVerticalOverscanBBox())
+
+        ampFreeChargeData = exposure.image[bboxFreeCharge]
+        ampImageData = exposure.image[amp.getRawDataBBox()]
+
+        # Get the deferred charge parameters for this amplifier.
+        cti = self.deferredChargeCalib.globalCti[amp.getName()]
+        traps = self.deferredChargeCalib.serialTraps[amp.getName()]
+        driftScale = self.deferredChargeCalib.driftScale[amp.getName()]
+        decayTime = self.deferredChargeCalib.decayTime[amp.getName()]
 
         # Create a fake amplifier object that contains some deferred charge
         # paramters.
@@ -939,7 +938,7 @@ class IsrMockLSST(IsrMock):
             # the lower left.
             if readoutCorner == ReadoutCorner.LR:
                 return np.fliplr(arr)
-            elif readoutCorner ==  ReadoutCorner.UR:
+            elif readoutCorner == ReadoutCorner.UR:
                 return np.fliplr(np.flipud(arr))
             elif readoutCorner == ReadoutCorner.UL:
                 return np.flipud(arr)
@@ -1045,7 +1044,6 @@ class IsrMockLSST(IsrMock):
         delta = np.asarray(spl.interpolate(ampData.array.ravel() - offset))
 
         ampData.array[:, :] += delta.reshape(ampData.array.shape)
-
 
     def amplifierMultiplyFlat(self, amp, ampData, fracDrop, u0=100.0, v0=100.0):
         """Multiply an amplifier's image data by a flat-like pattern.

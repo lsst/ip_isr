@@ -1698,15 +1698,21 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # (to make it simpler!)
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doDeferredCharge:
-            self.log.info("Applying deferred charge/CTI correction.")
-            if exposureMetadata["LSST ISR UNITS"] == "electron":
-                self.deferredChargeCorrection.config.useGains = False
+            # Pass it gains of 1 to always stay in the same units.
+            imageUnits = exposureMetadata["LSST ISR UNITS"]
+            ctiCalibUnits = "electron" if deferredChargeCalib.metadata["USEGAINS"] else "adu"
+            if imageUnits == ctiCalibUnits:
+                deferredChargeGains = {key: 1.0 for key in gains}
+            elif ctiCalibUnits == "adu" and imageUnits == "electron":
+                raise NotImplementedError("ctiCalibUnits == adu and imageUnits == electron, but"
+                                          "cannot invert gain context in DeferredChargeTask")
             else:
-                self.deferredChargeCorrection.config.useGains = True
+                deferredChargeGains = gains
+
             self.deferredChargeCorrection.run(
                 ccdExposure,
                 deferredChargeCalib,
-                gains=gains
+                gains=deferredChargeGains,
             )
 
         # Assemble/trim

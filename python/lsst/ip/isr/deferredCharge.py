@@ -347,7 +347,7 @@ class OverscanModel:
     def difference(self, params, signal, data, error, *args, **kwargs):
         """Calculate the flattened difference array between model and data.
 
-            Parameters
+        Parameters
         ----------
         params : `lmfit.Parameters`
             Object containing the model parameters.
@@ -398,7 +398,7 @@ class SimpleModel(OverscanModel):
             last imaging column, and needs to be adjusted by one when
             using the overscan bounding box.
 
-                Returns
+        Returns
         -------
         res : `np.ndarray`, (nMeasurements, nCols)
             Model results.
@@ -556,6 +556,7 @@ class SegmentSimulator:
 
     def ramp_exp(self, signal_list):
         """Simulate an image with varying flux illumination per row.
+
         This method simulates a segment image where the signal level
         increases along the horizontal direction, according to the
         provided list of signal levels.

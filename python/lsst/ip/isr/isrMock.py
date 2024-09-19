@@ -549,6 +549,17 @@ class IsrMock(pipeBase.Task):
     def getCamera(self, isForAssembly=False):
         """Construct a test camera object.
 
+        Parameters
+        -------
+        isForAssembly : `bool`
+            If True, construct a camera with "super raw"
+            orientation (all amplifiers have LL readout
+            corner but still contains the necessary flip
+            and offset info needed for assembly. This is
+            needed if isLsstLike is True. If False, return
+            a camera with bboxes flipped and offset to the
+            correct orientation given the readout corner.
+
         Returns
         -------
         camera : `lsst.afw.cameraGeom.camera`
