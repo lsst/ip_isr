@@ -792,8 +792,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
             if self.config.fitType == "MEDIAN_PER_ROW":
                 overscanVector = fitOverscanImage(mi, self.config.maskPlanes, isTransposed)
-                # import IPython
-                # IPython.embed()
             else:
                 overscanVector = fitOverscanImageMean(mi, self.config.maskPlanes, isTransposed)
 
