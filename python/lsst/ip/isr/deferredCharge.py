@@ -19,8 +19,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ('DeferredChargeConfig', 'DeferredChargeTask', 'SerialTrap', 'DeferredChargeCalib')
+__all__ = ('DeferredChargeConfig',
+           'DeferredChargeTask',
+           'SerialTrap',
+           'OverscanModel',
+           'SimpleModel',
+           'SimulatedModel',
+           'SegmentSimulator',
+           'FloatingOutputAmplifier',
+           'DeferredChargeCalib',
+           )
 
+import copy
 import numpy as np
 from astropy.table import Table
 
@@ -208,6 +218,506 @@ class SerialTrap():
             return self.interp(pixel_signals)
         else:
             raise RuntimeError(f"Invalid trap capture type: {self.trap_type}.")
+
+
+class OverscanModel:
+    """Base class for handling model/data fit comparisons.
+    This handles all of the methods needed for the lmfit Minimizer to
+    run.
+    """
+
+    @staticmethod
+    def model_results(params, signal, num_transfers, start=1, stop=10):
+        """Generate a realization of the overscan model, using the specified
+        fit parameters and input signal.
+
+        Parameters
+        ----------
+        params : `lmfit.Parameters`
+            Object containing the model parameters.
+        signal : `np.ndarray`, (nMeasurements)
+            Array of image means.
+        num_transfers : `int`
+            Number of serial transfers that the charge undergoes.
+        start : `int`, optional
+            First overscan column to fit. This number includes the
+            last imaging column, and needs to be adjusted by one when
+            using the overscan bounding box.
+        stop : `int`, optional
+            Last overscan column to fit. This number includes the
+            last imaging column, and needs to be adjusted by one when
+            using the overscan bounding box.
+
+            Returns
+        -------
+        results : `np.ndarray`, (nMeasurements, nCols)
+            Model results.
+        """
+        raise NotImplementedError("Subclasses must implement the model calculation.")
+
+    def loglikelihood(self, params, signal, data, error, *args, **kwargs):
+        """Calculate log likelihood of the model.
+
+        Parameters
+        ----------
+        params : `lmfit.Parameters`
+            Object containing the model parameters.
+        signal : `np.ndarray`, (nMeasurements)
+            Array of image means.
+        data : `np.ndarray`, (nMeasurements, nCols)
+            Array of overscan column means from each measurement.
+        error : `float`
+            Fixed error value.
+        *args :
+            Additional position arguments.
+        **kwargs :
+            Additional keyword arguments.
+
+        Returns
+        -------
+        logL : `float`
+            The log-likelihood of the observed data given the model
+            parameters.
+        """
+        model_results = self.model_results(params, signal, *args, **kwargs)
+
+        inv_sigma2 = 1.0/(error**2.0)
+        diff = model_results - data
+
+        return -0.5*(np.sum(inv_sigma2*(diff)**2.))
+
+    def negative_loglikelihood(self, params, signal, data, error, *args, **kwargs):
+        """Calculate negative log likelihood of the model.
+
+        Parameters
+        ----------
+        params : `lmfit.Parameters`
+            Object containing the model parameters.
+        signal : `np.ndarray`, (nMeasurements)
+            Array of image means.
+        data : `np.ndarray`, (nMeasurements, nCols)
+            Array of overscan column means from each measurement.
+        error : `float`
+            Fixed error value.
+        *args :
+            Additional position arguments.
+        **kwargs :
+            Additional keyword arguments.
+
+        Returns
+        -------
+        negativelogL : `float`
+            The negative log-likelihood of the observed data given the
+            model parameters.
+        """
+        ll = self.loglikelihood(params, signal, data, error, *args, **kwargs)
+
+        return -ll
+
+    def rms_error(self, params, signal, data, error, *args, **kwargs):
+        """Calculate RMS error between model and data.
+
+        Parameters
+        ----------
+        params : `lmfit.Parameters`
+            Object containing the model parameters.
+        signal : `np.ndarray`, (nMeasurements)
+            Array of image means.
+        data : `np.ndarray`, (nMeasurements, nCols)
+            Array of overscan column means from each measurement.
+        error : `float`
+            Fixed error value.
+        *args :
+            Additional position arguments.
+        **kwargs :
+            Additional keyword arguments.
+
+        Returns
+        -------
+        rms : `float`
+            The rms error between the model and input data.
+        """
+        model_results = self.model_results(params, signal, *args, **kwargs)
+
+        diff = model_results - data
+        rms = np.sqrt(np.mean(np.square(diff)))
+
+        return rms
+
+    def difference(self, params, signal, data, error, *args, **kwargs):
+        """Calculate the flattened difference array between model and data.
+
+        Parameters
+        ----------
+        params : `lmfit.Parameters`
+            Object containing the model parameters.
+        signal : `np.ndarray`, (nMeasurements)
+            Array of image means.
+        data : `np.ndarray`, (nMeasurements, nCols)
+            Array of overscan column means from each measurement.
+        error : `float`
+            Fixed error value.
+        *args :
+            Additional position arguments.
+        **kwargs :
+            Additional keyword arguments.
+
+        Returns
+        -------
+        difference : `np.ndarray`, (nMeasurements*nCols)
+            The rms error between the model and input data.
+        """
+        model_results = self.model_results(params, signal, *args, **kwargs)
+        diff = (model_results-data).flatten()
+
+        return diff
+
+
+class SimpleModel(OverscanModel):
+    """Simple analytic overscan model."""
+
+    @staticmethod
+    def model_results(params, signal, num_transfers, start=1, stop=10):
+        """Generate a realization of the overscan model, using the specified
+        fit parameters and input signal.
+
+        Parameters
+        ----------
+        params : `lmfit.Parameters`
+            Object containing the model parameters.
+        signal : `np.ndarray`, (nMeasurements)
+            Array of image means.
+        num_transfers : `int`
+            Number of serial transfers that the charge undergoes.
+        start : `int`, optional
+            First overscan column to fit. This number includes the
+            last imaging column, and needs to be adjusted by one when
+            using the overscan bounding box.
+        stop : `int`, optional
+            Last overscan column to fit. This number includes the
+            last imaging column, and needs to be adjusted by one when
+            using the overscan bounding box.
+
+        Returns
+        -------
+        res : `np.ndarray`, (nMeasurements, nCols)
+            Model results.
+        """
+        v = params.valuesdict()
+        v['cti'] = 10**v['ctiexp']
+
+        # Adjust column numbering to match DM overscan bbox.
+        start += 1
+        stop += 1
+
+        x = np.arange(start, stop+1)
+        res = np.zeros((signal.shape[0], x.shape[0]))
+
+        for i, s in enumerate(signal):
+            # This is largely equivalent to equation 2.  The minimum
+            # indicates that a trap cannot emit more charge than is
+            # available, nor can it emit more charge than it can hold.
+            # This scales the exponential release of charge from the
+            # trap.  The next term defines the contribution from the
+            # global CTI at each pixel transfer, and the final term
+            # includes the contribution from local CTI effects.
+            res[i, :] = (np.minimum(v['trapsize'], s*v['scaling'])
+                         * (np.exp(1/v['emissiontime']) - 1.0)
+                         * np.exp(-x/v['emissiontime'])
+                         + s*num_transfers*v['cti']**x
+                         + v['driftscale']*s*np.exp(-x/float(v['decaytime'])))
+
+        return res
+
+
+class SimulatedModel(OverscanModel):
+    """Simulated overscan model."""
+
+    @staticmethod
+    def model_results(params, signal, num_transfers, amp, start=1, stop=10, trap_type=None):
+        """Generate a realization of the overscan model, using the specified
+        fit parameters and input signal.
+
+        Parameters
+        ----------
+        params : `lmfit.Parameters`
+            Object containing the model parameters.
+        signal : `np.ndarray`, (nMeasurements)
+            Array of image means.
+        num_transfers : `int`
+            Number of serial transfers that the charge undergoes.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            Amplifier to use for geometry information.
+        start : `int`, optional
+            First overscan column to fit. This number includes the
+            last imaging column, and needs to be adjusted by one when
+            using the overscan bounding box.
+        stop : `int`, optional
+            Last overscan column to fit. This number includes the
+            last imaging column, and needs to be adjusted by one when
+            using the overscan bounding box.
+        trap_type : `str`, optional
+            Type of trap model to use.
+
+        Returns
+        -------
+        results : `np.ndarray`, (nMeasurements, nCols)
+            Model results.
+        """
+        v = params.valuesdict()
+
+        # Adjust column numbering to match DM overscan bbox.
+        start += 1
+        stop += 1
+
+        # Electronics effect optimization
+        output_amplifier = FloatingOutputAmplifier(1.0, v['driftscale'], v['decaytime'])
+
+        # CTI optimization
+        v['cti'] = 10**v['ctiexp']
+
+        # Trap type for optimization
+        if trap_type is None:
+            trap = None
+        elif trap_type == 'linear':
+            trap = SerialTrap(v['trapsize'], v['emissiontime'], 1, 'linear',
+                              [v['scaling']])
+        elif trap_type == 'logistic':
+            trap = SerialTrap(v['trapsize'], v['emissiontime'], 1, 'logistic',
+                              [v['f0'], v['k']])
+        else:
+            raise ValueError('Trap type must be linear or logistic or None')
+
+        # Simulate ramp readout
+        imarr = np.zeros((signal.shape[0], amp.getRawDataBBox().getWidth()))
+        ramp = SegmentSimulator(imarr, amp.getRawSerialPrescanBBox().getWidth(), output_amplifier,
+                                cti=v['cti'], traps=trap)
+        ramp.ramp_exp(signal)
+        model_results = ramp.readout(serial_overscan_width=amp.getRawSerialOverscanBBox().getWidth(),
+                                     parallel_overscan_width=0)
+
+        ncols = amp.getRawSerialPrescanBBox().getWidth() + amp.getRawDataBBox().getWidth()
+
+        return model_results[:, ncols+start-1:ncols+stop]
+
+
+class SegmentSimulator:
+    """Controls the creation of simulated segment images.
+
+    Parameters
+    ----------
+    imarr : `np.ndarray` (nx, ny)
+        Image data array.
+    prescan_width : `int`
+        Number of serial prescan columns.
+    output_amplifier : `lsst.cp.pipe.FloatingOutputAmplifier`
+        An object holding the gain, read noise, and global_offset.
+    cti : `float`
+        Global CTI value.
+    traps : `list` [`lsst.ip.isr.SerialTrap`]
+        Serial traps to simulate.
+    """
+
+    def __init__(self, imarr, prescan_width, output_amplifier, cti=0.0, traps=None):
+        # Image array geometry
+        self.prescan_width = prescan_width
+        self.ny, self.nx = imarr.shape
+
+        self.segarr = np.zeros((self.ny, self.nx+prescan_width))
+        self.segarr[:, prescan_width:] = imarr
+
+        # Serial readout information
+        self.output_amplifier = output_amplifier
+        if isinstance(cti, np.ndarray):
+            raise ValueError("cti must be single value, not an array.")
+        self.cti = cti
+
+        self.serial_traps = None
+        self.do_trapping = False
+        if traps is not None:
+            if not isinstance(traps, list):
+                traps = [traps]
+            for trap in traps:
+                self.add_trap(trap)
+
+    def add_trap(self, serial_trap):
+        """Add a trap to the serial register.
+
+        Parameters
+        ----------
+        serial_trap : `lsst.ip.isr.SerialTrap`
+            The trap to add.
+        """
+        try:
+            self.serial_traps.append(serial_trap)
+        except AttributeError:
+            self.serial_traps = [serial_trap]
+            self.do_trapping = True
+
+    def ramp_exp(self, signal_list):
+        """Simulate an image with varying flux illumination per row.
+
+        This method simulates a segment image where the signal level
+        increases along the horizontal direction, according to the
+        provided list of signal levels.
+
+        Parameters
+        ----------
+        signal_list : `list` [`float`]
+            List of signal levels.
+
+        Raises
+        ------
+        ValueError
+            Raised if the length of the signal list does not equal the
+            number of rows.
+        """
+        if len(signal_list) != self.ny:
+            raise ValueError("Signal list does not match row count.")
+
+        ramp = np.tile(signal_list, (self.nx, 1)).T
+        self.segarr[:, self.prescan_width:] += ramp
+
+    def readout(self, serial_overscan_width=10, parallel_overscan_width=0):
+        """Simulate serial readout of the segment image.
+
+        This method performs the serial readout of a segment image
+        given the appropriate SerialRegister object and the properties
+        of the ReadoutAmplifier.  Additional arguments can be provided
+        to account for the number of desired overscan transfers. The
+        result is a simulated final segment image, in ADU.
+
+        Parameters
+        ----------
+        serial_overscan_width : `int`, optional
+            Number of serial overscan columns.
+        parallel_overscan_width : `int`, optional
+            Number of parallel overscan rows.
+
+        Returns
+        -------
+        result : `np.ndarray` (nx, ny)
+            Simulated image, including serial prescan, serial
+            overscan, and parallel overscan regions. Result in electrons.
+        """
+        # Create output array
+        iy = int(self.ny + parallel_overscan_width)
+        ix = int(self.nx + self.prescan_width + serial_overscan_width)
+
+        image = np.random.normal(
+            loc=self.output_amplifier.global_offset,
+            scale=self.output_amplifier.noise,
+            size=(iy, ix),
+        )
+
+        free_charge = copy.deepcopy(self.segarr)
+
+        # Set flow control parameters
+        do_trapping = self.do_trapping
+        cti = self.cti
+
+        offset = np.zeros(self.ny)
+        cte = 1 - cti
+        if do_trapping:
+            for trap in self.serial_traps:
+                trap.initialize(self.ny, self.nx, self.prescan_width)
+
+        for i in range(ix):
+            # Trap capture
+            if do_trapping:
+                for trap in self.serial_traps:
+                    captured_charge = trap.trap_charge(free_charge)
+                    free_charge -= captured_charge
+
+            # Pixel-to-pixel proportional loss
+            transferred_charge = free_charge*cte
+            deferred_charge = free_charge*cti
+
+            # Pixel transfer and readout
+            offset = self.output_amplifier.local_offset(offset,
+                                                        transferred_charge[:, 0])
+            image[:iy-parallel_overscan_width, i] += transferred_charge[:, 0] + offset
+
+            free_charge = np.pad(transferred_charge, ((0, 0), (0, 1)),
+                                 mode='constant')[:, 1:] + deferred_charge
+
+            # Trap emission
+            if do_trapping:
+                for trap in self.serial_traps:
+                    released_charge = trap.release_charge()
+                    free_charge += released_charge
+
+        return image/float(self.output_amplifier.gain)
+
+
+class FloatingOutputAmplifier:
+    """Object representing the readout amplifier of a single channel.
+
+    Parameters
+    ----------
+    gain : `float`
+        Amplifier gain.
+    scale : `float`
+        Drift scale for the amplifier.
+    decay_time : `float`
+        Decay time for the bias drift.
+    noise : `float`, optional
+        Amplifier read noise.
+    offset : `float`, optional
+        Global CTI offset.
+    """
+
+    def __init__(self, gain, scale, decay_time, noise=0.0, offset=0.0):
+
+        self.gain = gain
+        self.noise = noise
+        self.global_offset = offset
+
+        self.update_parameters(scale, decay_time)
+
+    def local_offset(self, old, signal):
+        """Calculate local offset hysteresis.
+
+        Parameters
+        ----------
+        old : `np.ndarray`, (,)
+            Previous iteration.
+        signal : `np.ndarray`, (,)
+            Current column measurements.
+        Returns
+        -------
+        offset : `np.ndarray`
+            Local offset.
+        """
+        new = self.scale*signal
+
+        return np.maximum(new, old*np.exp(-1/self.decay_time))
+
+    def update_parameters(self, scale, decay_time):
+        """Update parameter values, if within acceptable values.
+
+        Parameters
+        ----------
+        scale : `float`
+            Drift scale for the amplifier.
+        decay_time : `float`
+            Decay time for the bias drift.
+
+        Raises
+        ------
+        ValueError
+            Raised if the input parameters are out of range.
+        """
+        if scale < 0.0:
+            raise ValueError("Scale must be greater than or equal to 0.")
+        if np.isnan(scale):
+            raise ValueError("Scale must be real-valued number, not NaN.")
+        self.scale = scale
+        if decay_time <= 0.0:
+            raise ValueError("Decay time must be greater than 0.")
+        if np.isnan(decay_time):
+            raise ValueError("Decay time must be real-valued number, not NaN.")
+        self.decay_time = decay_time
 
 
 class DeferredChargeCalib(IsrCalib):
@@ -596,7 +1106,6 @@ class DeferredChargeTask(Task):
 
                 # The algorithm expects that the readout corner is in
                 # the lower left corner.  Flip it to be so:
-
                 ampData = self.flipData(ampImage.array, amp)
 
                 if ctiCalib.driftScale[ampName] > 0.0:

@@ -32,12 +32,19 @@ import lsst.geom as geom
 import lsst.pex.config as pexConfig
 import lsst.afw.detection as afwDetection
 import lsst.afw.math as afwMath
+from lsst.afw.cameraGeom import ReadoutCorner
+from lsst.daf.base import PropertyList
 from .crosstalk import CrosstalkCalib
 from .isrMock import IsrMockConfig, IsrMock
 from .defects import Defects
 from .assembleCcdTask import AssembleCcdTask
 from .linearize import Linearizer
 from .brighterFatterKernel import BrighterFatterKernel
+from .deferredCharge import (
+    SegmentSimulator,
+    FloatingOutputAmplifier,
+    DeferredChargeCalib
+)
 
 
 class IsrMockLSSTConfig(IsrMockConfig):
@@ -94,6 +101,11 @@ class IsrMockLSSTConfig(IsrMockConfig):
         dtype=bool,
         default=False,
         doc="Add brighter fatter and/or diffusion effects to image.",
+    )
+    doAddDeferredCharge = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Add serial CTI at the amp level?",
     )
     bfStrength = pexConfig.Field(
         dtype=float,
@@ -188,12 +200,18 @@ class IsrMockLSSTConfig(IsrMockConfig):
         if self.doAddLowSignalNonlinearity:
             raise NotImplementedError("Low signal non-linearity is not implemented.")
 
+        if self.doAddDeferredCharge and self.isTrimmed:
+            raise NotImplementedError("Must be untrimmed for mock serial CTI to"
+                                      "realistically add charge into overscan regions.")
+
     def setDefaults(self):
         super().setDefaults()
 
         self.gain = 1.7  # Default value.
         self.skyLevel = 1700.0  # electron
         self.sourceFlux = [50_000.0]  # electron
+        self.sourceX = [35.0]  # pixel
+        self.sourceY = [37.0]  # pixel
         self.overscanScale = 170.0  # electron
         self.biasLevel = 20_000.0  # adu
         self.doAddCrosstalk = True
@@ -314,7 +332,93 @@ class IsrMockLSST(IsrMock):
                                   -8.44782871e-01, 3.54369868e-02, 5.31096720e-01,
                                    8.10171823e-01, 4.83499829e-01]]) * 1e-10
 
-        # cross-talk coeffs are defined in the parent class.
+        # Spline trap coefficients and the ctiCalibDict are all taken from a
+        # cti calibration measured from LSSTCam sensor R03_S12 during Run 5
+        # EO testing. These are the coefficients for the spline trap model
+        # used in the deferred charge calibration. The collection can be
+        # found in /repo/ir2: u/abrought/13144/cti (processed 3/4/2024).
+        self.splineTrapCoeffs = np.array([0.0, 28.1, 47.4, 56.4, 66.6, 78.6, 92.4, 109.4,
+                                          129.0, 151.9, 179.4, 211.9, 250.5, 296.2, 350.0,
+                                          413.5, 488.0, 576.0, 680.4, 753.0, 888.2, 1040.5,
+                                          1254.1, 1478.9, 1747.0, 2055.7, 2416.9, 2855.2,
+                                          3361.9, 3969.4, 4665.9, 5405.3, 6380.0, 7516.7,
+                                          8875.9, 10488.6, 12681.9, 14974.2, 17257.6, 20366.5,
+                                          24026.7, 28372.1, 33451.7, 39550.4, 46624.8, 55042.9,
+                                          64862.7, 76503.1, 90265.6, 106384.2, 0.0, 0.0, 0.0,
+                                          0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1,
+                                          0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0,
+                                          0.1, 0.2, 0.6, 0.1, 0.0, 0.1, 0.0, 0.6, 0.3, 0.5, 0.8,
+                                          0.8, 1.5, 2.0, 1.8, 2.4, 2.6, 3.7, 5.0, 6.4, 8.4, 10.9,
+                                          14.5, 21.1, 28.9])
+
+        self.ctiCalibDict = {'driftScale': {'C:0,0': 0.000127,
+                                            'C:0,1': 0.000137,
+                                            'C:0,2': 0.000138,
+                                            'C:0,3': 0.000147,
+                                            'C:1,0': 0.000147,
+                                            'C:1,1': 0.000122,
+                                            'C:1,2': 0.000123,
+                                            'C:1,3': 0.000116},
+                             'decayTime': {'C:0,0': 2.30,
+                                           'C:0,1': 2.21,
+                                           'C:0,2': 2.28,
+                                           'C:0,3': 2.34,
+                                           'C:1,0': 2.30,
+                                           'C:1,1': 2.40,
+                                           'C:1,2': 2.51,
+                                           'C:1,3': 2.21},
+                             'globalCti': {'C:0,0': 5.25e-07,
+                                           'C:0,1': 5.38e-07,
+                                           'C:0,2': 5.80e-07,
+                                           'C:0,3': 5.91e-07,
+                                           'C:1,0': 6.24e-07,
+                                           'C:1,1': 5.72e-07,
+                                           'C:1,2': 5.60e-07,
+                                           'C:1,3': 4.40e-07},
+                             'serialTraps': {'C:0,0': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs},
+                                             'C:0,1': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs},
+                                             'C:0,2': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs},
+                                             'C:0,3': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs},
+                                             'C:1,0': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs},
+                                             'C:1,1': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs},
+                                             'C:1,2': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs},
+                                             'C:1,3': {'size': 20000.0,
+                                                       'emissionTime': 0.4,
+                                                       'pixel': 1,
+                                                       'trap_type': 'spline',
+                                                       'coeffs': self.splineTrapCoeffs}}}
+
+        self.deferredChargeCalib = self.makeDeferredChargeCalib()
+
+        # Cross-talk coeffs are defined in the parent class.
 
         self.makeSubtask("assembleCcd")
 
@@ -375,7 +479,6 @@ class IsrMockLSST(IsrMock):
         # so the effects go from electron to adu.
         # The ISR steps will then correct these effects in the reverse order.
         for idx, amp in enumerate(exposure.getDetector()):
-
             # Get image bbox and data
             bbox = None
             if self.config.isTrimmed:
@@ -469,13 +572,17 @@ class IsrMockLSST(IsrMock):
 
             # 3. Add BF effect (electron) to imaging portion of the amp.
             if self.config.doAddBrighterFatter is True:
-                self.amplifierAddBrighterFatter(ampImageData,
-                                                rngBrighterFatter,
-                                                self.config.bfStrength,
-                                                self.config.nRecalc)
+                self.amplifierAddBrighterFatter(
+                    ampImageData,
+                    rngBrighterFatter,
+                    self.config.bfStrength,
+                    self.config.nRecalc,
+                )
 
             # 4. Add serial CTI (electron) to amplifier (imaging + overscan).
-            # TODO
+            if self.config.doAddDeferredCharge:
+                # Get the free charge area for the amplifier.
+                self.amplifierAddDeferredCharge(exposure, amp)
 
             # 5. Add 2D bias residual (electron) to imaging portion of the amp.
             if self.config.doAdd2DBias:
@@ -724,6 +831,30 @@ class IsrMockLSST(IsrMock):
 
         return bfKernelObject
 
+    def makeDeferredChargeCalib(self):
+        """Generate a CTI calibration.
+
+        Returns
+        -------
+        cti : `lsst.ip.isr.deferredCharge.DeferredChargeCalib`
+            Simulated deferred charge calibration.
+        """
+
+        metadataDict = {'metadata': PropertyList()}
+        metadataDict['metadata'].add(name="OBSTYPE", value="CTI")
+        metadataDict['metadata'].add(name="CALIBCLS",
+                                     value="lsst.ip.isr.deferredCharge.DeferredChargeCalib")
+        # This should always be True for the new ISR task
+        # because gains have already been applied and the
+        # mock and the correction are always in electrons.
+        # We will pass where necessary gains of 1.0.
+        metadataDict['metadata'].add("USEGAINS", value=True)
+        self.ctiCalibDict = {**metadataDict, **self.ctiCalibDict}
+        deferredChargeCalib = DeferredChargeCalib(useGains=True)
+        self.cti = deferredChargeCalib.fromDict(self.ctiCalibDict)
+
+        return self.cti
+
     def amplifierAddBrighterFatter(self, ampImageData, rng, bfStrength, nRecalc):
         """Add brighter fatter effect and/or diffusion to the image.
           Parameters
@@ -740,20 +871,110 @@ class IsrMockLSST(IsrMock):
         """
 
         incidentImage = galsim.Image(ampImageData.array, scale=1)
-        measuredImage = galsim.ImageF(ampImageData.array.shape[1],
-                                      ampImageData.array.shape[0],
-                                      scale=1)
+        measuredImage = galsim.ImageF(
+            ampImageData.array.shape[1],
+            ampImageData.array.shape[0],
+            scale=1,
+        )
         photons = galsim.PhotonArray.makeFromImage(incidentImage)
 
-        sensorModel = galsim.SiliconSensor(strength=bfStrength,
-                                           rng=rng,
-                                           diffusion_factor=0.0,
-                                           nrecalc=nRecalc)
+        sensorModel = galsim.SiliconSensor(
+            strength=bfStrength,
+            rng=rng,
+            diffusion_factor=0.0,
+            nrecalc=nRecalc,
+        )
 
         totalFluxAdded = sensorModel.accumulate(photons, measuredImage)
         ampImageData.array = measuredImage.array
 
         return totalFluxAdded
+
+    def amplifierAddDeferredCharge(self, exposure, amp):
+        """Add serial CTI to the amplifier data.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.ExposureF`
+            The exposure object containing the amplifier
+            to apply deferred charge to.
+        amp : `lsst.afw.image.Amplifier`
+            The amplifier object (contains geometry info).
+        """
+        # Get the amplifier's geometry parameters.
+        # When adding deferred charge, we have already assured that
+        # isTrimmed is False. Therefore we want to make sure that we
+        # get the RawDataBBox.
+        readoutCorner = amp.getReadoutCorner()
+        prescanWidth = amp.getRawHorizontalPrescanBBox().getWidth()
+        serialOverscanWidth = amp.getRawHorizontalOverscanBBox().getWidth()
+        parallelOverscanWidth = amp.getRawVerticalOverscanBBox().getHeight()
+        bboxFreeCharge = amp.getRawDataBBox()
+        bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalOverscanBBox())
+        bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawHorizontalPrescanBBox())
+        bboxFreeCharge = bboxFreeCharge.expandedTo(amp.getRawVerticalOverscanBBox())
+
+        ampFreeChargeData = exposure.image[bboxFreeCharge]
+        ampImageData = exposure.image[amp.getRawDataBBox()]
+
+        # Get the deferred charge parameters for this amplifier.
+        cti = self.deferredChargeCalib.globalCti[amp.getName()]
+        traps = self.deferredChargeCalib.serialTraps[amp.getName()]
+        driftScale = self.deferredChargeCalib.driftScale[amp.getName()]
+        decayTime = self.deferredChargeCalib.decayTime[amp.getName()]
+
+        # Create a fake amplifier object that contains some deferred charge
+        # paramters.
+        floatingOutputAmplifier = FloatingOutputAmplifier(
+            gain=1.0,  # The image is in electrons, and we want electrons out.
+            scale=driftScale,
+            decay_time=decayTime,
+            noise=0.0,
+            offset=0.0,
+        )
+
+        def flipImage(arr, readoutCorner):
+            # Flip an array so that the readout corner is in
+            # the lower left.
+            if readoutCorner == ReadoutCorner.LR:
+                return np.fliplr(arr)
+            elif readoutCorner == ReadoutCorner.UR:
+                return np.fliplr(np.flipud(arr))
+            elif readoutCorner == ReadoutCorner.UL:
+                return np.flipud(arr)
+            else:
+                pass
+
+            return arr
+
+        # The algorithm expects that the readout corner is in
+        # the lower left corner.  Flip it to be so:
+        imageData = ampImageData.array
+        imageData = flipImage(imageData, readoutCorner)
+
+        # Simulate the amplifier.
+        ampSim = SegmentSimulator(
+            imarr=imageData,
+            prescan_width=prescanWidth,
+            output_amplifier=floatingOutputAmplifier,
+            cti=cti,
+            traps=traps,
+        )
+
+        # Simulate deferred charge!
+        # Note that the readout() method uses the image region data and the
+        # overscan dimensions provided as input parameters. It then creates
+        # overscan nd adds it to the image data to create the raw image.
+        result = ampSim.readout(
+            serial_overscan_width=serialOverscanWidth,
+            parallel_overscan_width=parallelOverscanWidth,
+        )
+
+        # Flip the image back to the original orientation.
+        result = flipImage(result, readoutCorner)
+
+        # Set the image with the deferred charge added.
+        ampFreeChargeData.array[:, :] = result
 
     def makeLinearizer(self):
         # docstring inherited.
@@ -1080,6 +1301,19 @@ class BfKernelMockLSST(IsrMockLSST):
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
         self.config.doLinearizer = False
+
+
+class DeferredChargeMockLSST(IsrMockLSST):
+    """Simulated deferred charge calibration.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doGenerateImage = False
+        self.config.doGenerateData = True
+        self.config.doDeferredCharge = True
+        self.config.doDefects = False
+        self.config.doCrosstalkCoeffs = False
+        self.config.doTransmissionCurve = False
 
 
 class DefectMockLSST(IsrMockLSST):

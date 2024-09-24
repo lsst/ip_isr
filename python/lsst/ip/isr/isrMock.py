@@ -229,6 +229,11 @@ class IsrMockConfig(pexConfig.Config):
         default=False,
         doc="Return a simulated brighter-fatter kernel.",
     )
+    doDeferredCharge = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Return a simulated deferred charge calibration.",
+    )
     doCrosstalkCoeffs = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -341,6 +346,7 @@ class IsrMock(pipeBase.Task):
             Simulated ISR data product.
         """
         if sum(map(bool, [self.config.doBrighterFatter,
+                          self.config.doDeferredCharge,
                           self.config.doDefects,
                           self.config.doTransmissionCurve,
                           self.config.doCrosstalkCoeffs,
@@ -348,6 +354,8 @@ class IsrMock(pipeBase.Task):
             raise RuntimeError("Only one data product can be generated at a time.")
         elif self.config.doBrighterFatter:
             return self.makeBfKernel()
+        elif self.config.doDeferredCharge:
+            return self.makeDeferredChargeCalib()
         elif self.config.doDefects:
             return self.makeDefectList()
         elif self.config.doTransmissionCurve:
@@ -368,6 +376,12 @@ class IsrMock(pipeBase.Task):
             Simulated brighter-fatter kernel.
         """
         return self.bfKernel
+
+    def makeDeferredChargeCalib(self):
+        """Generate a CTI calibration.
+        """
+
+        raise NotImplementedError("Mock deferred charge is not implemented for IsrMock.")
 
     def makeDefectList(self):
         """Generate a simple single-entry defect list.
@@ -532,8 +546,19 @@ class IsrMock(pipeBase.Task):
             return exposure
 
     # afw primatives to construct the image structure
-    def getCamera(self):
+    def getCamera(self, isForAssembly=False):
         """Construct a test camera object.
+
+        Parameters
+        -------
+        isForAssembly : `bool`
+            If True, construct a camera with "super raw"
+            orientation (all amplifiers have LL readout
+            corner but still contains the necessary flip
+            and offset info needed for assembly. This is
+            needed if isLsstLike is True. If False, return
+            a camera with bboxes flipped and offset to the
+            correct orientation given the readout corner.
 
         Returns
         -------
@@ -543,7 +568,7 @@ class IsrMock(pipeBase.Task):
         cameraWrapper = afwTestUtils.CameraWrapper(
             plateScale=self.config.plateScale,
             radialDistortion=self.config.radialDistortion,
-            isLsstLike=self.config.isLsstLike,
+            isLsstLike=self.config.isLsstLike and isForAssembly,
         )
         camera = cameraWrapper.camera
         return camera
@@ -571,14 +596,16 @@ class IsrMock(pipeBase.Task):
         else:
             _isTrimmed = isTrimmed
 
-        camera = self.getCamera()
+        camera = self.getCamera(isForAssembly=self.config.isLsstLike)
         detector = camera[self.config.detectorIndex]
-        image = afwUtils.makeImageFromCcd(detector,
-                                          isTrimmed=_isTrimmed,
-                                          showAmpGain=False,
-                                          rcMarkSize=0,
-                                          binSize=1,
-                                          imageFactory=afwImage.ImageF)
+        image = afwUtils.makeImageFromCcd(
+            detector,
+            isTrimmed=_isTrimmed,
+            showAmpGain=False,
+            rcMarkSize=0,
+            binSize=1,
+            imageFactory=afwImage.ImageF,
+        )
 
         var = afwImage.ImageF(image.getDimensions())
         mask = afwImage.Mask(image.getDimensions())
@@ -615,7 +642,7 @@ class IsrMock(pipeBase.Task):
             newAmp.setGain(self.config.gain)
             newAmp.setSuspectLevel(25000.0)
             newAmp.setSaturation(32000.0)
-            readoutCorner = 'LL'
+            readoutCorner = amp.getReadoutCorner().name
 
             # Apply flips to bbox where needed
             imageBBox = amp.getRawDataBBox()
@@ -1003,6 +1030,19 @@ class BfKernelMock(IsrMock):
         self.config.doGenerateImage = False
         self.config.doGenerateData = True
         self.config.doBrighterFatter = True
+        self.config.doDefects = False
+        self.config.doCrosstalkCoeffs = False
+        self.config.doTransmissionCurve = False
+
+
+class DeferredChargeMock(IsrMock):
+    """Simulated deferred charge calibration.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doGenerateImage = False
+        self.config.doGenerateData = True
+        self.config.doDeferredCharge = True
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
