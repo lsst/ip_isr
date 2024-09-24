@@ -75,7 +75,7 @@ class DefectTestCases(lsst.utils.tests.TestCase):
                 afwDisplay.utils.drawBBox(d.getBBox(), ctype=afwDisplay.CYAN, borderWidth=.5)
                 disp.incrDefaultFrame()
 
-        ipIsr.interpolateDefectList(ccdImage, defectList, 2.)
+        ipIsr.interpolateDefectList(ccdImage, defectList, 2., maskNameList=["BAD"])
         im = ccdImage.getImage()
         for d in defectList:
             intrp = im.Factory(im, d.getBBox())
