@@ -8,6 +8,7 @@ from . import isrQa
 from .defects import Defects
 
 from contextlib import contextmanager
+from deprecated.sphinx import deprecated
 import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
@@ -16,6 +17,7 @@ import lsst.pipe.base.connectionTypes as cT
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
 from .ampOffset import AmpOffsetTask
+from .binExposureTask import BinExposureTask
 from .overscan import SerialOverscanCorrectionTask, ParallelOverscanCorrectionTask
 from .overscanAmpConfig import OverscanCameraConfig
 from .assembleCcdTask import AssembleCcdTask
@@ -502,6 +504,10 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Should binned exposures be calculated?",
         default=False,
     )
+    binning = pexConfig.ConfigurableField(
+        target=BinExposureTask,
+        doc="Task to bin the exposure.",
+    )
     binFactor1 = pexConfig.Field(
         dtype=int,
         doc="Binning factor for first binned exposure. This is intended for a finely binned output.",
@@ -550,6 +556,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         self.makeSubtask("masking")
         self.makeSubtask("isrStats")
         self.makeSubtask("ampOffset")
+        self.makeSubtask("binning")
 
     def runQuantum(self, butlerQC, inputRefs, outputRefs):
 
@@ -1439,6 +1446,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             invert=invert,
         )
 
+    @deprecated(
+        reason=(
+            "makeBinnedImages is no longer used. "
+            "Please subtask lsst.ip.isr.BinExposureTask instead."
+        ),
+        version="v28", category=FutureWarning
+    )
     def makeBinnedImages(self, exposure):
         """Make visualizeVisit style binned exposures.
 
@@ -1863,7 +1877,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         outputBin1Exposure = None
         outputBin2Exposure = None
         if self.config.doBinnedExposures:
-            outputBin1Exposure, outputBin2Exposure = self.makeBinnedImages(ccdExposure)
+            self.log.info("Creating binned exposures.")
+            outputBin1Exposure = self.binning.run(
+                ccdExposure,
+                binFactor=self.config.binFactor1,
+            ).binnedExposure
+            outputBin2Exposure = self.binning.run(
+                ccdExposure,
+                binFactor=self.config.binFactor2,
+            ).binnedExposure
 
         return pipeBase.Struct(
             exposure=ccdExposure,
