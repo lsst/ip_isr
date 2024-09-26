@@ -29,8 +29,37 @@ import numbers
 import numpy as np
 import math
 from astropy.table import Table
+import numpy.polynomial.polynomial as poly
+from scipy.signal import fftconvolve
 
 from lsst.ip.isr import IsrCalib
+
+
+def symmetrize(inputArray):
+    """ Copy array over 4 quadrants prior to convolution.
+
+    Parameters
+    ----------
+    inputarray : `numpy.array`
+        Input array to symmetrize.
+
+    Returns
+    -------
+    aSym : `numpy.array`
+        Symmetrized array.
+    """
+
+    targetShape = list(inputArray.shape)
+    r1, r2 = inputArray.shape[-1], inputArray.shape[-2]
+    targetShape[-1] = 2*r1-1
+    targetShape[-2] = 2*r2-1
+    aSym = np.ndarray(tuple(targetShape))
+    aSym[..., r2-1:, r1-1:] = inputArray
+    aSym[..., r2-1:, r1-1::-1] = inputArray
+    aSym[..., r2-1::-1, r1-1::-1] = inputArray
+    aSym[..., r2-1::-1, r1-1:] = inputArray
+
+    return aSym
 
 
 class PhotonTransferCurveDataset(IsrCalib):
@@ -128,14 +157,14 @@ class PhotonTransferCurveDataset(IsrCalib):
         (units: adu).
     ptcFitPars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the fitted parameters of the
-        PTC model for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        PTC model for ptcFitType in ["POLYNOMIAL", "EXPAPPROXIMATION"].
     ptcFitParsError : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the errors on the fitted
-        parameters of the PTC model for ptcFitTye in
+        parameters of the PTC model for ptcFitType in
         ["POLYNOMIAL", "EXPAPPROXIMATION"].
     ptcFitChiSq : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the reduced chi squared
-        of the fit for ptcFitTye in ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        of the fit for ptcFitType in ["POLYNOMIAL", "EXPAPPROXIMATION"].
     ptcTurnoff : `dict` [`str, `float`]
         Flux value (in adu) where the variance of the PTC curve starts
         decreasing consistently.
@@ -1144,6 +1173,131 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.gain[ampName] = gain
         self.noise[ampName] = noise
         self.ptcTurnoff[ampName] = ptcTurnoff
+
+    def evalPtcModel(self, mu, setBtoZero=False):
+        """Computes the covariance model at specific signal levels.
+
+        Parameters
+        ----------
+        mu : `numpy.array`, (N,)
+            List of mean signals in ADU.
+        setBtoZero: `bool`, optional
+            Set "b" parameter in full model (see Astier+19) to zero.
+            This parameter is ignored if ptcFitType != FULLCOVARIANCE.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if ptcFitType is invalid.
+
+        Returns
+        -------
+        covModel : `numpy.array`, (N, M, M)
+            Covariances model at mu (in ADU^2).
+
+        Notes
+        -----
+        Computes the covModel for all mu, and it returns
+        cov[N, M, M], where the variance model is cov[:,0,0].
+        Both mu and cov are in ADUs and ADUs squared. This
+        routine evaulates the n-degree polynomial model (defined
+        by polynomialFitDegree) if self.ptcFitType == POLYNOMIAL,
+        the approximation in Eq. 16 of Astier+19 (1905.08677)
+        if self.ptcFitType == EXPAPPROXIMATION, and Eq. 20 of
+        Astier+19 if self.ptcFitType == FULLCOVARIANCE.
+
+        The POLYNOMIAL model and the EXPAPPROXIMATION model
+        (Eq. 16 of Astier+19) are only approximations for the
+        variance (cov[0,0]), so the function returns covModel
+        of shape (N,), representing an array of [C_{00}]
+        if self.ptcFitType == EXPAPPROXIMATION or
+        self.ptcFitType == POLYNOMAIL.
+
+        Note that the PhotoTransferCurveDataset does not store
+        the gain fit parameter for FULLCOVARIANCE with b=0, so
+        we can't recompute the covariance model with
+        setBtoZero=True exactly.
+        """
+
+        ampNames = self.ampNames
+        covModel = {ampName: np.array([]) for ampName in ampNames}
+
+        if self.ptcFitType == "POLYNOMIAL":
+            pars = self.ptcFitPars
+
+            for ampName in ampNames:
+                c00 = poly.polyval(mu, [*pars[ampName]])
+                covModel[ampName] = c00
+
+        elif self.ptcFitType == "EXPAPPROXIMATION":
+            pars = self.ptcFitPars
+
+            for ampName in ampNames:
+                a00, gain, noise = pars[ampName]
+                f1 = 0.5/(a00*gain*gain)*(np.exp(2*a00*mu*gain)-1)
+                f2 = noise/(gain*gain)
+                c00 = f1 + f2
+                covModel[ampName] = c00
+
+        elif self.ptcFitType == "FULLCOVARIANCE":
+            for ampName in ampNames:
+                noiseMatrix = self.noiseMatrix[ampName]
+                gain = self.gain[ampName]
+                aMatrix = self.aMatrix[ampName]
+                bMatrix = self.bMatrix[ampName]
+                cMatrix = aMatrix*bMatrix
+
+                if setBtoZero:
+                    # Note that the PhotoTransferCurveDataset does not store
+                    # the gain fit parameter for FULLCOVARIANCE with b=0, so
+                    # we can't recompute the covariance model with
+                    # setBtoZero=True.
+                    raise NotImplementedError("Cannot evaulate the PTC model"
+                                              "with b=0 for FULLCOVARIANCE.")
+
+                matrixSideFit = self.covMatrixSideFullCovFit
+                sa = (matrixSideFit, matrixSideFit)
+
+                # pad a with zeros and symmetrize
+                aEnlarged = np.zeros((int(sa[0]*1.5)+1, int(sa[1]*1.5)+1))
+                aEnlarged[0:sa[0], 0:sa[1]] = aMatrix
+                aSym = symmetrize(aEnlarged)
+
+                # pad c with zeros and symmetrize
+                cEnlarged = np.zeros((int(sa[0]*1.5)+1, int(sa[1]*1.5)+1))
+                cEnlarged[0:sa[0], 0:sa[1]] = cMatrix
+
+                cSym = symmetrize(cEnlarged)
+                a2 = fftconvolve(aSym, aSym, mode='same')
+                a3 = fftconvolve(a2, aSym, mode='same')
+                ac = fftconvolve(aSym, cSym, mode='same')
+                (xc, yc) = np.unravel_index(np.abs(aSym).argmax(), a2.shape)
+
+                a1 = aMatrix[np.newaxis, :, :]
+                a2 = a2[np.newaxis, xc:xc + matrixSideFit, yc:yc + matrixSideFit]
+                a3 = a3[np.newaxis, xc:xc + matrixSideFit, yc:yc + matrixSideFit]
+                ac = ac[np.newaxis, xc:xc + matrixSideFit, yc:yc + matrixSideFit]
+                c1 = cMatrix[np.newaxis, ::]
+
+                # assumes that mu is 1d
+                bigMu = mu[:, np.newaxis, np.newaxis]*gain
+                # c(=a*b in Astier+19) also has a contribution to the last
+                # term, that is absent for now.
+                if setBtoZero:
+                    c1 = np.zeros_like(c1)
+                    ac = np.zeros_like(ac)
+
+                covModel[ampName] = (bigMu/(gain*gain)*(a1*bigMu+2./3.*(bigMu*bigMu)*(a2 + c1)
+                                     + (1./3.*a3 + 5./6.*ac)*(bigMu*bigMu*bigMu))
+                                     + noiseMatrix[np.newaxis, :, :]/gain**2)
+
+                # add the Poisson term, and the read out noise (variance)
+                covModel[ampName][:, 0, 0] += mu/gain
+        else:
+            raise RuntimeError("Cannot compute PTC  model for "
+                               "ptcFitType %s." % self.ptcFitType)
+
+        return covModel
 
     def _validateCovarianceMatrizSizes(self):
         """Ensure  covMatrixSideFullCovFit <= covMatrixSide."""
