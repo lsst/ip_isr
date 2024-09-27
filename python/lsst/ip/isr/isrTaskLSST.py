@@ -887,7 +887,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         results = parallelOverscan.run(ccdExposure, amp)
 
                     metadata = ccdExposure.metadata
-                    keyBase = "LSST ISR OVERSCAN"
+                    keyBase = ""LSST ISR OVERSCAN
                     # The overscan is always in adu, and we will make this
                     # explicitly clear
                     metadata[f"{keyBase} UNITS"] = "adu"
