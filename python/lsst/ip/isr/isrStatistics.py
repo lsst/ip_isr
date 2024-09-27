@@ -43,12 +43,6 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Measure CTI statistics from image and overscans?",
         default=False,
     )
-    doApplyGainsForCtiStatistics = pexConfig.Field(
-        dtype=bool,
-        doc="Apply gain to the overscan region when measuring CTI statistics?",
-        default=True,
-    )
-
     doBandingStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure image banding metric?",
@@ -77,7 +71,6 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Use only the first half set of amplifiers.",
         default=True,
     )
-
     doProjectionStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure projection metric?",
@@ -140,7 +133,6 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Percentile levels expected in the calibration header.",
         default=[0, 5, 16, 50, 84, 95, 100],
     )
-
     doBiasShiftStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure number of image shifts in overscan?",
@@ -176,13 +168,11 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Number of columns to skip when averaging the overscan region.",
         default=3,
     )
-
     doAmplifierCorrelationStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure amplifier correlations?",
         default=False,
     )
-
     stat = pexConfig.Field(
         dtype=str,
         default="MEANCLIP",
@@ -347,6 +337,9 @@ class IsrStatisticsTask(pipeBase.Task):
         detector = inputExp.getDetector()
         image = inputExp.image
 
+        imageUnits = inputExp.getMetadata().get("LSST ISR UNITS")
+        overscanUnits = inputExp.getMetadata().get("LSST ISR OVERSCAN UNITS")
+
         # Ensure we have the same number of overscans as amplifiers.
         assert len(overscans) == len(detector.getAmplifiers())
 
@@ -354,8 +347,18 @@ class IsrStatisticsTask(pipeBase.Task):
             ampStats = {}
             gain = gains[amp.getName()]
             readoutCorner = amp.getReadoutCorner()
+
             # Full data region.
             dataRegion = image[amp.getBBox()]
+
+            # We want to work with everything in units of electron.
+            # Here, we will check if the units of the image are in
+            # in electron, and later on, we will also check if the
+            # overscan image is also in electron.
+            if imageUnits == "adu":
+                dataRegion *= gain
+
+            # Get the mean of the image
             ampStats["IMAGE_MEAN"] = afwMath.makeStatistics(dataRegion, self.statType,
                                                             self.statControl).getValue()
 
@@ -387,6 +390,11 @@ class IsrStatisticsTask(pipeBase.Task):
                 ampStats["OVERSCAN_VALUES"] = np.full((nCols, ), np.nan)
             else:
                 overscanImage = overscans[ampIter].overscanImage
+
+                # We want to work with everything in units of electron.
+                if overscanUnits == "adu":
+                    overscanImage *= gain
+
                 columns = []
                 values = []
                 for column in range(0, overscanImage.getWidth()):
@@ -400,10 +408,7 @@ class IsrStatisticsTask(pipeBase.Task):
                     osMean = afwMath.makeStatistics(overscanImage.image.array[:nRows, column],
                                                     self.statType, self.statControl).getValue()
                     columns.append(column)
-                    if self.config.doApplyGainsForCtiStatistics:
-                        values.append(gain * osMean)
-                    else:
-                        values.append(osMean)
+                    values.append(osMean)
 
                 # We want these relative to the readout corner.  If that's
                 # on the right side, we need to swap them.
