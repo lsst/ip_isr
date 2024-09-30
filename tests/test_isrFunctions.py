@@ -344,6 +344,48 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         mi.mask[noDataBox] ^= NODATABIT  # XOR to reset what we did
         self.assertEqual(ipIsr.countMaskedPixels(mi, 'NO_DATA'), 0)
 
+    def test_getExposureGains(self):
+        exposure = self.inputExp.clone()
+        metadata = exposure.metadata
+        amps = exposure.getDetector().getAmplifiers()
+
+        # Check the default values
+        values = ipIsr.getExposureGains(exposure).values()
+        self.assertEqual(list(values), len(amps)*[1.0])
+
+        # Set values using old ISR keys
+        for amp in amps:
+            metadata[f"LSST GAIN {amp.getName()}"] = 2.0
+        values = ipIsr.getExposureGains(exposure).values()
+        self.assertEqual(list(values), len(amps)*[2.0])
+
+        # Set values using new ISR keys
+        for amp in amps:
+            metadata[f"LSST ISR GAIN {amp.getName()}"] = 3.0
+        values = ipIsr.getExposureGains(exposure).values()
+        self.assertEqual(list(values), len(amps)*[3.0])
+
+    def test_getExposureReadNoises(self):
+        exposure = self.inputExp.clone()
+        metadata = exposure.metadata
+        amps = exposure.getDetector().getAmplifiers()
+
+        # Check the default values
+        values = ipIsr.getExposureReadNoises(exposure).values()
+        self.assertEqual(list(values), len(amps)*[10.0])
+
+        # Set values using old ISR keys
+        for amp in amps:
+            metadata[f"LSST READNOISE {amp.getName()}"] = 2.0
+        values = ipIsr.getExposureReadNoises(exposure).values()
+        self.assertEqual(list(values), len(amps)*[2.0])
+
+        # Set values using new ISR keys
+        for amp in amps:
+            metadata[f"LSST ISR READNOISE {amp.getName()}"] = 3.0
+        values = ipIsr.getExposureReadNoises(exposure).values()
+        self.assertEqual(list(values), len(amps)*[3.0])
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

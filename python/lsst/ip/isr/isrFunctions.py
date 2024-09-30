@@ -45,6 +45,8 @@ __all__ = [
     "trimToMatchCalibBBox",
     "updateVariance",
     "widenSaturationTrails",
+    "getExposureGains",
+    "getExposureReadNoises",
 ]
 
 import math
@@ -1222,3 +1224,67 @@ def countMaskedPixels(maskedIm, maskPlane):
     maskBit = maskedIm.mask.getPlaneBitMask(maskPlane)
     nPix = numpy.where(numpy.bitwise_and(maskedIm.mask.array, maskBit))[0].flatten().size
     return nPix
+
+
+def getExposureGains(exposure):
+    """Get the per-amplifier gains used for this exposure.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        The exposure to find gains for.
+
+    Returns
+    -------
+    gains : `dict` [`str` `float`]
+        Dictionary of gain values, keyed by amplifier name.
+        Returns empty dict when detector is None.
+    """
+    det = exposure.getDetector()
+    if det is None:
+        return dict()
+
+    metadata = exposure.getMetadata()
+    gains = {}
+    for amp in det:
+        ampName = amp.getName()
+        # The key may use the new LSST ISR or the old LSST prefix
+        if (key1 := f"LSST ISR GAIN {ampName}") in metadata:
+            gains[ampName] = metadata[key1]
+        elif (key2 := f"LSST GAIN {ampName}") in metadata:
+            gains[ampName] = metadata[key2]
+        else:
+            gains[ampName] = amp.getGain()
+    return gains
+
+
+def getExposureReadNoises(exposure):
+    """Get the per-amplifier read noise used for this exposure.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        The exposure to find read noise for.
+
+    Returns
+    -------
+    readnoises : `dict` [`str` `float`]
+        Dictionary of read noise values, keyed by amplifier name.
+        Returns empty dict when detector is None.
+    """
+    det = exposure.getDetector()
+    if det is None:
+        return dict()
+
+    metadata = exposure.getMetadata()
+    readnoises = {}
+    for amp in det:
+        ampName = amp.getName()
+        # The key may use the new LSST ISR or the old LSST prefix
+        if (key1 := f"LSST ISR READNOISE {ampName}") in metadata:
+            readnoises[ampName] = metadata[key1]
+        elif (key2 := f"LSST READNOISE {ampName}") in metadata:
+            readnoises[ampName] = metadata[key2]
+        else:
+            readnoises[ampName] = amp.getReadNoise()
+    return readnoises
