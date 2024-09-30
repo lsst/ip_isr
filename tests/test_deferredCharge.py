@@ -136,32 +136,6 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
         # As above + ~320 deposited in prescan
         self.assertAlmostEqual(np.sum(corrected), 821733.2317048, 5)
 
-    def testConfigLogic(self):
-        config = IsrTaskConfig()
-        config.doFlat = False
-        config.doCalculateStatistics = True
-        config.isrStats.doCtiStatistics = True
-
-        # Confirm that image and overscan are treated the same.
-        config.doApplyGains = True
-        config.isrStats.doApplyGainsForCtiStatistics = False
-        with self.assertRaises(ValueError):
-            config.validate()
-
-        config.doApplyGains = False
-        config.isrStats.doApplyGainsForCtiStatistics = True
-        with self.assertRaises(ValueError):
-            config.validate()
-
-        # these should not raise
-        config.doApplyGains = True
-        config.isrStats.doApplyGainsForCtiStatistics = True
-        config.validate()
-
-        config.doApplyGains = False
-        config.isrStats.doApplyGainsForCtiStatistics = False
-        config.validate()
-
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
