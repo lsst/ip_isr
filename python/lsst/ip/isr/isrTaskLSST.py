@@ -887,7 +887,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         results = parallelOverscan.run(ccdExposure, amp)
 
                     metadata = ccdExposure.metadata
-                    keyBase = ""LSST ISR OVERSCAN
+                    keyBase = "LSST ISR OVERSCAN"
                     # The overscan is always in adu, and we will make this
                     # explicitly clear
                     metadata[f"{keyBase} UNITS"] = "adu"
@@ -1707,26 +1707,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 gains=linearityGains,
             )
 
-        # Serial CTI (deferred charge)
-        # FIXME: watch out for gain units; cti code may need update
-        # (to make it simpler!)
-        # Output units: electron (adu if doBootstrap=True)
+        # Serial CTI (deferred charge) correction
+        # This will be performed in electron units
+        # Output units: same as input units
         if self.config.doDeferredCharge:
-            # Pass it gains of 1 to always stay in the same units.
-            imageUnits = exposureMetadata["LSST ISR UNITS"]
-            ctiCalibUnits = "electron" if deferredChargeCalib.metadata["USEGAINS"] else "adu"
-            if imageUnits == ctiCalibUnits:
-                deferredChargeGains = {key: 1.0 for key in gains}
-            elif ctiCalibUnits == "adu" and imageUnits == "electron":
-                raise NotImplementedError("ctiCalibUnits == adu and imageUnits == electron, but"
-                                          "cannot invert gain context in DeferredChargeTask")
-            else:
-                deferredChargeGains = gains
-
             self.deferredChargeCorrection.run(
                 ccdExposure,
                 deferredChargeCalib,
-                gains=deferredChargeGains,
+                gains=gains,
             )
 
         # Assemble/trim
@@ -1783,6 +1771,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 brighterFatterApplyGain = False
             else:
                 brighterFatterApplyGain = True
+                exposureMetadata["LSST ISR UNITS"] = "electron"
 
             if brighterFatterApplyGain and (ptc is not None) and (bfGains != gains):
                 # The supplied ptc should be the same as the ptc used to

@@ -1451,7 +1451,7 @@ class IsrTask(pipeBase.PipelineTask):
                             residMean = overscanResults.residualMean[0]
                             residSigma = overscanResults.residualSigma[0]
 
-                        self.metadata(f"LSST ISR OVERSCAN UNITS {amp.getName()}") = "adu"
+                        self.metadata[f"LSST ISR OVERSCAN UNITS {amp.getName()}"] = "adu"
                         self.metadata[f"FIT MEDIAN {amp.getName()}"] = mean
                         self.metadata[f"FIT STDEV {amp.getName()}"] = sigma
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",

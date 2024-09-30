@@ -647,7 +647,7 @@ class SegmentSimulator:
                     released_charge = trap.release_charge()
                     free_charge += released_charge
 
-        return image/float(self.output_amplifier.gain)
+        return image
 
 
 class FloatingOutputAmplifier:
@@ -655,8 +655,6 @@ class FloatingOutputAmplifier:
 
     Parameters
     ----------
-    gain : `float`
-        Amplifier gain.
     scale : `float`
         Drift scale for the amplifier.
     decay_time : `float`
@@ -744,12 +742,21 @@ class DeferredChargeCalib(IsrCalib):
     serialTraps : `dict` [`str`, `lsst.ip.isr.SerialTrap`]
         A dictionary, keyed by amplifier name, containing a single
         serial trap for each amplifier.
+
+    Also, the values contained in this calibration are all derived
+    from and image and overscan in units of electron as these are
+    the most natural units in which to compute deferred charge.
+    However, this means the the user should supply a reliable set
+    of gains when computing the CTI statistics during ISR.
+
+    Version 1.1 deprecates the USEGAINS attribute and standardizes
+        everything to electron units.
     """
     _OBSTYPE = 'CTI'
     _SCHEMA = 'Deferred Charge'
-    _VERSION = 1.0
+    _VERSION = 1.1
 
-    def __init__(self, useGains=True, **kwargs):
+    def __init__(self, **kwargs):
         self.driftScale = {}
         self.decayTime = {}
         self.globalCti = {}
@@ -757,8 +764,8 @@ class DeferredChargeCalib(IsrCalib):
 
         super().__init__(**kwargs)
 
-        units = 'electrons' if useGains else 'ADU'
-        self.updateMetadata(USEGAINS=useGains, UNITS=units)
+        # Units are always in electron.
+        self.updateMetadata(UNITS='electron')
 
         self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps'])
 
@@ -858,7 +865,7 @@ class DeferredChargeCalib(IsrCalib):
         Parameters
         ----------
         tableList : `list` [`lsst.afw.table.Table`]
-            List of tables to use to construct the crosstalk
+            List of tables to use to construct the CTI
             calibration.  Two tables are expected in this list, the
             first containing the per-amplifier CTI parameters, and the
             second containing the parameters for serial traps.
@@ -878,6 +885,7 @@ class DeferredChargeCalib(IsrCalib):
 
         inDict = {}
         inDict['metadata'] = ampTable.meta
+        calibVersion = inDict['metadata']['CTI_VERSION']
 
         amps = ampTable['AMPLIFIER']
         driftScale = ampTable['DRIFT_SCALE']
@@ -940,6 +948,34 @@ class DeferredChargeCalib(IsrCalib):
                 raise ValueError('Unknown trap type: %s', ampTrap['trap_type'])
 
             inDict['serialTraps'][amp] = ampTrap
+
+        if calibVersion < 1.1:
+            oldCalibUnits = inDict['metadata']["UNITS"]
+            cls().log.warning(f"Using old version of CTI calibration ({calibVersion}), which "
+                              f"reports units of {oldCalibUnits}, however these units are "
+                              "likely misleading may be correct or incorrect. This version "
+                              "also does not contain enough information to reconcile it "
+                              "into the correct units (electron). Must assume it is in "
+                              "units of electron and move forward.")
+            # Need to standardize the header units.
+            if oldCalibUnits == "electrons":
+                # The calibration *might* be in the correct units,
+                # but we cannot be sure.
+                inDict['metadata']['UNITS'] = "electron"
+            elif oldCalibUnits == "ADU":
+                # The calibration was *likely* made from images in units of adu
+                # Attempt to convert, but note that there is not enough
+                # information in the header to ensure this. The old calib
+                # dictionary also did not store gain information to even
+                # attempt to convert the only parameter (trap size) that is not
+                # unitless. If this calibration is used to correct an image
+                # during ISR, the ISR task will issue a warning and attempt to
+                # correct this using the gains supplied during ISR.
+                inDict['metadata']['UNITS'] = "adu"
+            else:
+                cls().log.warning("Reconciling units of old CTI calibration (Version "
+                                  f"{calibVersion}), but do not recognize units of "
+                                  f"\"{oldCalibUnits}\".")
 
         return cls.fromDict(inDict)
 
@@ -1032,11 +1068,6 @@ class DeferredChargeConfig(Config):
         doc="Number of prior pixels to use for trap correction.",
         default=6,
     )
-    useGains = Field(
-        dtype=bool,
-        doc="If true, scale by the gain.",
-        default=False,
-    )
     zeroUnusedPixels = Field(
         dtype=bool,
         doc="If true, set serial prescan and parallel overscan to zero before correction.",
@@ -1067,33 +1098,59 @@ class DeferredChargeTask(Task):
         gains : `dict` [`str`, `float`]
             A dictionary, keyed by amplifier name, of the gains to
             use.  If gains is None, the nominal gains in the amplifier
-            object are used.
+            object are used if necessary.
 
         Returns
         -------
         exposure : `lsst.afw.image.Exposure`
             The corrected exposure.
+
+        Notes
+        -------
+        This task will read the exposure metadata and determine if
+        applying gains if necessary. The correction takes place in
+        units of electrons. If bootstrapping, the gains used
+        will just be 1.0. and the input/output units will stay in
+        adu. If the input image is in adu, the output image will be
+        in units of electron. If the input image is in electron, the
+        output image will be in electron.
         """
         image = exposure.getMaskedImage().image
         detector = exposure.getDetector()
 
-        # If gains were supplied, they should be used.  If useGains is
-        # true, but no external gains were supplied, use the nominal
-        # gains listed in the detector.  Finally, if useGains is
-        # false, fake a dictionary of unit gains for ``gainContext``.
-        useGains = True
-        if "USEGAINS" in ctiCalib.getMetadata().keys():
-            useGains = ctiCalib.getMetadata()["USEGAINS"]
-            self.log.info(f"useGains = {useGains} from calibration metadata.")
-        else:
-            useGains = self.config.useGains
-            self.log.info(f"USEGAINS not found in calibration metadata.  Using {useGains} from config.")
+        # Get the image and overscan units.
+        imageUnits = exposure.getMetadata().get("LSST ISR UNITS")
+        calibUnits = ctiCalib.getMetadata().get("UNITS")
+        calibVersion = ctiCalib.getMetadata().get("CTI_VERSION")
 
-        if useGains:
+        if calibUnits == "adu":
+            self.log.warning("CTI calibration is in adu, but the deferred charge correction "
+                             "expects electron units. The calibration is likely old (version "
+                             f"{calibVersion} < 1.1). Attempting to reconcile units, but "
+                             "cannot guarantee that everything is correct.")
+            # Luckily, the trap size is the only parameter that is
+            # not unitless.
+            ctiCalib = ctiCalib.copy()
+            for ampName in ctiCalib.serialTraps:
+                ctiCalib.serialTraps[ampName].size *= gains[ampName]
+                ctiCalib.setMetadata(UNITS="electron")
+
+        # The deferred charge correction assumes that everything is in
+        # electron units. Make it so:
+        applyGains = False
+        if imageUnits == "adu":
+            applyGains = True
+
+        # If we need to convert the image to electrons, check that gains
+        # were supplied, they should be used. If no external gains were
+        # supplied, use the nominal gains listed in the detector.
+        if applyGains:
             if gains is None:
+                self.log.warning("No gains supplied for deferred charge correction. Using nominal gains.")
                 gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
 
-        with gainContext(exposure, image, useGains, gains):
+        with gainContext(exposure, image, apply=applyGains, gains=gains, isTrimmed=False):
+            # Both the image and the overscan are in electron units.
             for amp in detector.getAmplifiers():
                 ampName = amp.getName()
 
