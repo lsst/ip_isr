@@ -926,7 +926,6 @@ class IsrMockLSST(IsrMock):
         # Create a fake amplifier object that contains some deferred charge
         # paramters.
         floatingOutputAmplifier = FloatingOutputAmplifier(
-            gain=1.0,  # The image is in electrons, and we want electrons out.
             scale=driftScale,
             decay_time=decayTime,
             noise=0.0,

@@ -471,7 +471,7 @@ class SimulatedModel(OverscanModel):
         stop += 1
 
         # Electronics effect optimization
-        output_amplifier = FloatingOutputAmplifier(1.0, v['driftscale'], v['decaytime'])
+        output_amplifier = FloatingOutputAmplifier(v['driftscale'], v['decaytime'])
 
         # CTI optimization
         v['cti'] = 10**v['ctiexp']
@@ -511,7 +511,7 @@ class SegmentSimulator:
     prescan_width : `int`
         Number of serial prescan columns.
     output_amplifier : `lsst.cp.pipe.FloatingOutputAmplifier`
-        An object holding the gain, read noise, and global_offset.
+        An object holding some deferred charge parameters.
     cti : `float`
         Global CTI value.
     traps : `list` [`lsst.ip.isr.SerialTrap`]
@@ -665,9 +665,8 @@ class FloatingOutputAmplifier:
         Global CTI offset.
     """
 
-    def __init__(self, gain, scale, decay_time, noise=0.0, offset=0.0):
+    def __init__(self, scale, decay_time, noise=0.0, offset=0.0):
 
-        self.gain = gain
         self.noise = noise
         self.global_offset = offset
 

@@ -23,8 +23,7 @@ import numpy as np
 import tempfile
 import lsst.utils.tests
 
-from lsst.ip.isr import (DeferredChargeCalib, DeferredChargeTask, SerialTrap,
-                         IsrTaskConfig)
+from lsst.ip.isr import (DeferredChargeCalib, DeferredChargeTask, SerialTrap)
 
 
 class SerialTrapTestCase(lsst.utils.tests.TestCase):
