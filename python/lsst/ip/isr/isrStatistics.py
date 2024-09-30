@@ -44,6 +44,13 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Measure CTI statistics from image and overscans?",
         default=False,
     )
+    doApplyGainsForCtiStatistics = pexConfig.Field(
+        dtype=bool,
+        doc="Apply gain to the overscan region when measuring CTI statistics?",
+        default=True,
+        deprecated="This field is no longer used. Will be removed after v28.",
+    )
+
     doBandingStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure image banding metric?",
@@ -72,6 +79,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Use only the first half set of amplifiers.",
         default=True,
     )
+
     doProjectionStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure projection metric?",
@@ -99,6 +107,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
             "NONE": "No window."
         }
     )
+
     doDivisaderoStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure divisadero tearing statistics?",
@@ -124,6 +133,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Maximum row to consider when taking robust mean of columns",
         default=210,
     )
+
     doCopyCalibDistributionStatistics = pexConfig.Field(
         dtype=bool,
         doc="Copy calibration distribution statistics to output?",
@@ -134,6 +144,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Percentile levels expected in the calibration header.",
         default=[0, 5, 16, 50, 84, 95, 100],
     )
+
     doBiasShiftStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure number of image shifts in overscan?",
@@ -169,11 +180,13 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Number of columns to skip when averaging the overscan region.",
         default=3,
     )
+
     doAmplifierCorrelationStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure amplifier correlations?",
         default=False,
     )
+
     stat = pexConfig.Field(
         dtype=str,
         default="MEANCLIP",
