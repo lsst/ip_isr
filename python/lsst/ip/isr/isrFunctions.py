@@ -1238,6 +1238,7 @@ def getExposureGains(exposure):
     -------
     gains : `dict` [`str` `float`]
         Dictionary of gain values, keyed by amplifier name.
+        Returns empty dict when detector is None.
     """
     det = exposure.getDetector()
     if det is None:
@@ -1269,6 +1270,7 @@ def getExposureReadNoises(exposure):
     -------
     readnoises : `dict` [`str` `float`]
         Dictionary of read noise values, keyed by amplifier name.
+        Returns empty dict when detector is None.
     """
     det = exposure.getDetector()
     if det is None:
