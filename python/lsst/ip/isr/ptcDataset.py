@@ -200,6 +200,15 @@ class PhotonTransferCurveDataset(IsrCalib):
     noiseMatrixNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "noise" parameters from
         the model in Eq. 20 of Astier+19, with 'b' = 0 (units: electron^2).
+    gainNoB : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing the gain estimated from
+        the model in Eq. 20 of Astier+19, with 'b' = 0.
+    gainNoBUnadjusted : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing the unadjusted gain
+        estimated from the model in Eq. 20 of Astier+19, with 'b' = 0.
+    gainNoBErr : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing the error on the gain
+        estimated from the model in Eq. 20 of Astier+19, with 'b' = 0.
     finalVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the masked variance of the
         difference image of each flat
@@ -234,6 +243,8 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.9 standardizes PTC noise units to electron.
     Version 2.0 adds the `ampOffsets`, `gainUnadjusted`, and
         `gainList` attributes.
+    Version 2.1 adds the `gainNoB`, `gainNoBErr`, and
+        `gainNoBUnadjusted` attributes.
     """
 
     _OBSTYPE = 'PTC'
@@ -252,7 +263,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     #  * test_ptcDataset() in test_ptcDataset.py
     #  * test_ptcDatasetSort in test_ptcDataset.py
     #  * test_ptcDatasetAppend in test_ptcDataset.py
-    _VERSION = 2.0
+    _VERSION = 2.1
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -278,6 +289,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.gain = {ampName: np.nan for ampName in ampNames}
         self.gainUnadjusted = {ampName: np.nan for ampName in ampNames}
         self.gainErr = {ampName: np.nan for ampName in ampNames}
+        self.gainNoB = {ampName: np.nan for ampName in ampNames}
+        self.gainNoBUnadjusted = {ampName: np.nan for ampName in ampNames}
+        self.gainNoBErr = {ampName: np.nan for ampName in ampNames}
         self.gainList = {ampName: np.array([]) for ampName in ampNames}
         self.noiseList = {ampName: np.array([]) for ampName in ampNames}
         self.noise = {ampName: np.nan for ampName in ampNames}
@@ -320,7 +334,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'aMatrix', 'bMatrix', 'noiseMatrix', 'noiseMatrixNoB', 'finalVars',
                                         'finalModelVars', 'finalMeans', 'photoCharges', 'histVars',
                                         'histChi2Dofs', 'kspValues', 'auxValues', 'ptcTurnoffSamplingError',
-                                        'ampOffsets', 'gainUnadjusted', 'gainList'])
+                                        'ampOffsets', 'gainUnadjusted', 'gainList', 'gainNoB', 'gainNoBErr',
+                                        'gainNoBUnadjusted'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
         self._validateCovarianceMatrizSizes()
@@ -404,6 +419,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.covariancesSqrtWeights[ampName] = np.array([covSqrtWeights])
         self.gain[ampName] = gain
         self.gainUnadjusted[ampName] = gain
+        self.gainNoB[ampName] = gain
+        self.gainNoBUnadjusted[ampName] = gain
         self.gainList[ampName] = np.array([gain])
         self.noise[ampName] = noise
         self.noiseList[ampName] = np.array([noise])
@@ -508,6 +525,9 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.gain[ampName] = float(dictionary['gain'][ampName])
             calib.gainErr[ampName] = float(dictionary['gainErr'][ampName])
             calib.gainUnadjusted[ampName] = float(dictionary['gainUnadjusted'][ampName])
+            calib.gainNoB[ampName] = float(dictionary['gainNoB'][ampName])
+            calib.gainNoBErr[ampName] = float(dictionary['gainNoBErr'][ampName])
+            calib.gainNoBUnadjusted[ampName] = float(dictionary['gainNoBUnadjusted'][ampName])
             calib.gainList[ampName] = np.array(dictionary['gainList'][ampName], dtype=np.float64)
             calib.noiseList[ampName] = np.array(dictionary['noiseList'][ampName], dtype=np.float64)
             calib.noise[ampName] = float(dictionary['noise'][ampName])
@@ -618,6 +638,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['gain'] = self.gain
         outDict['gainErr'] = self.gainErr
         outDict['gainUnadjusted'] = self.gainUnadjusted
+        outDict['gainNoB'] = self.gainNoB
+        outDict['gainNoBErr'] = self.gainNoBErr
+        outDict['gainNoBUnadjusted'] = self.gainNoBUnadjusted
         outDict['gainList'] = _dictOfArraysToDictOfLists(self.gainList)
         outDict['noiseList'] = _dictOfArraysToDictOfLists(self.noiseList)
         outDict['noise'] = self.noise
@@ -683,6 +706,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['gain'] = dict()
         inDict['gainErr'] = dict()
         inDict['gainUnadjusted'] = dict()
+        inDict['gainNoB'] = dict()
+        inDict['gainNoBErr'] = dict()
+        inDict['gainNoBUnadjusted'] = dict()
         inDict['gainList'] = dict()
         inDict['noiseList'] = dict()
         inDict['noise'] = dict()
@@ -811,6 +837,14 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['ampOffsets'][ampName] = record['AMP_OFFSETS']
                 inDict['gainUnadjusted'][ampName] = record['GAIN_UNADJUSTED']
                 inDict['gainList'][ampName] = record['GAIN_LIST']
+            if calibVersion < 2.1:
+                inDict['gainNoB'][ampName] = record['GAIN']
+                inDict['gainNoBUnadjusted'][ampName] = record['GAIN']
+                inDict['gainNoBErr'][ampName] = np.full_like(inDict['gainErr'][ampName], np.nan)
+            else:
+                inDict['gainNoB'][ampName] = record['GAIN_NO_B']
+                inDict['gainNoBUnadjusted'][ampName] = record['GAIN_NO_B_UNADJUSTED']
+                inDict['gainNoBErr'][ampName] = record['GAIN_NO_B_ERR']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -860,6 +894,9 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'GAIN': self.gain[ampName],
                 'GAIN_ERR': self.gainErr[ampName],
                 'GAIN_UNADJUSTED': self.gainUnadjusted[ampName],
+                'GAIN_NO_B': self.gainNoB[ampName],
+                'GAIN_NO_B_ERR': self.gainNoBErr[ampName],
+                'GAIN_NO_B_UNADJUSTED': self.gainNoBUnadjusted[ampName],
                 'GAIN_LIST': self.gainList[ampName],
                 'NOISE_LIST': self.noiseList[ampName],
                 'NOISE': self.noise[ampName],
