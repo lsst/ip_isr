@@ -321,7 +321,7 @@ class CrosstalkCalib(IsrCalib):
             else:
                 calib.ampGainRatios = np.zeros_like(calib.coeffs)
             if 'fitGains' in dictionary:
-                calib.fitGains = np.array(dictionary['fitGains'])
+                calib.fitGains = np.array(dictionary['fitGains']).reshape(calib.nAmp)
             else:
                 calib.fitGains = np.zeros_like(calib.nAmp)
 
