@@ -48,6 +48,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         dtype=bool,
         doc="Apply gain to the overscan region when measuring CTI statistics?",
         default=True,
+        # TODO: DM-46721
         deprecated="This field is no longer used. Will be removed after v28.",
     )
 
@@ -365,7 +366,7 @@ class IsrStatisticsTask(pipeBase.Task):
         # Ensure we have the same number of overscans as amplifiers.
         assert len(overscans) == len(detector.getAmplifiers())
 
-        with gainContext(inputExp, image, applyGain, gains, isTrimmed=isTrimmed:
+        with gainContext(inputExp, image, applyGain, gains, isTrimmed=isTrimmed):
             for ampIter, amp in enumerate(detector.getAmplifiers()):
                 ampStats = {}
                 readoutCorner = amp.getReadoutCorner()
@@ -412,7 +413,7 @@ class IsrStatisticsTask(pipeBase.Task):
                         # If overscan.doParallelOverscan=True, the
                         # overscanImage will contain both the serial
                         # and parallel overscan regions.
-                        # Only the serial overscan correction is
+                        # Only the serial CTI correction has been
                         # implemented, so we must select only the
                         # serial overscan rows for a given column.
                         nRows = amp.getRawSerialOverscanBBox().getHeight()

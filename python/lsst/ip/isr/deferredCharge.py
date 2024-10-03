@@ -32,6 +32,7 @@ __all__ = ('DeferredChargeConfig',
 
 import copy
 import numpy as np
+import warnings
 from astropy.table import Table
 
 from lsst.afw.cameraGeom import ReadoutCorner
@@ -764,6 +765,11 @@ class DeferredChargeCalib(IsrCalib):
         self.globalCti = {}
         self.serialTraps = {}
 
+        # Check for deprecated kwargs
+        if kwargs.pop("useGains", None) is not None:
+            warnings.warn("useGains is deprecated, and will be removed "
+                          "after v28.", FutureWarning)
+
         super().__init__(**kwargs)
 
         # Units are always in electron.
@@ -953,11 +959,11 @@ class DeferredChargeCalib(IsrCalib):
 
         # Version check
         if calibVersion < 1.1:
-            #This version might be in the wrong units (not electron), and does not
-            # contain the gain information to convert into a a new calibration
-            # version.
+            # This version might be in the wrong units (not electron),
+            # and does not contain the gain information to convert
+            # into a new calibration version.
             raise RuntimeError(f"Using old version of CTI calibration (ver. {calibVersion} < 1.1), "
-                                "which is no longer supported.")
+                               "which is no longer supported.")
 
         return cls.fromDict(inDict)
 
@@ -1054,6 +1060,7 @@ class DeferredChargeConfig(Config):
         dtype=bool,
         doc="If true, scale by the gain.",
         default=False,
+        # TODO: DM-46721
         deprecated="This field is no longer used. Will be removed after v28.",
     )
     zeroUnusedPixels = Field(
@@ -1086,7 +1093,7 @@ class DeferredChargeTask(Task):
         gains : `dict` [`str`, `float`]
             A dictionary, keyed by amplifier name, of the gains to
             use.  If gains is None, the nominal gains in the amplifier
-            object are used if necessary.
+            object are used.
 
         Returns
         -------
@@ -1100,8 +1107,8 @@ class DeferredChargeTask(Task):
         units of electrons. If bootstrapping, the gains used
         will just be 1.0. and the input/output units will stay in
         adu. If the input image is in adu, the output image will be
-        in units of electron. If the input image is in electron, the
-        output image will be in electron.
+        in units of electrons. If the input image is in electron,
+        the output image will be in electron.
         """
         image = exposure.getMaskedImage().image
         detector = exposure.getDetector()
@@ -1116,19 +1123,18 @@ class DeferredChargeTask(Task):
             applyGains = True
 
         # If we need to convert the image to electrons, check that gains
-        # were supplied, they should be used. If no external gains were
-        # supplied, use the nominal gains listed in the detector.
+        # were supplied. CTI should not be solved or corrected without
+        # supplied gains.
         if applyGains:
             if gains is None:
-                self.log.warning("No gains supplied for deferred charge correction. Using nominal gains.")
-                gains = {amp.getName(): amp.getGain() for amp in detector.getAmplifiers()}
+                raise RuntimeError("No gains supplied for deferred charge correction.")
 
         with gainContext(exposure, image, apply=applyGains, gains=gains, isTrimmed=False):
             # Both the image and the overscan are in electron units.
             for amp in detector.getAmplifiers():
                 ampName = amp.getName()
 
-                ampImage = image[amp.getRawDataBBox()]
+                ampImage = image[amp.getRawBBox()]
                 if self.config.zeroUnusedPixels:
                     # We don't apply overscan subtraction, so zero these
                     # out for now.

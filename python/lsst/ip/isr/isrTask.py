@@ -1437,23 +1437,29 @@ class IsrTask(pipeBase.PipelineTask):
                         if isinstance(overscanResults.overscanMean, float):
                             # Only serial overscan was run
                             mean = overscanResults.overscanMean
+                            median = overscanResults.overscanMedian
                             sigma = overscanResults.overscanSigma
                             residMean = overscanResults.residualMean
+                            residMedian = overscanResults.residualMedian
                             residSigma = overscanResults.residualSigma
                         else:
                             # Both serial and parallel overscan were
                             # run.  Only report serial here.
                             mean = overscanResults.overscanMean[0]
+                            median = overscanResults.overscanMedian[0]
                             sigma = overscanResults.overscanSigma[0]
                             residMean = overscanResults.residualMean[0]
+                            residMedian = overscanResults.residualMedian[0]
                             residSigma = overscanResults.residualSigma[0]
 
-                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = mean
+                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = median
+                        self.metadata[f"FIT MEAN {amp.getName()}"] = mean
                         self.metadata[f"FIT STDEV {amp.getName()}"] = sigma
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",
                                        amp.getName(), mean, sigma)
 
-                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = residMean
+                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = residMedian
+                        self.metadata[f"RESIDUAL MEAN {amp.getName()}"] = residMean
                         self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = residSigma
                         self.log.debug("  Overscan stats for amplifer %s after correction: %f +/- %f",
                                        amp.getName(), residMean, residSigma)

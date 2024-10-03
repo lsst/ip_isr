@@ -774,6 +774,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         Returns
         -------
         overscans : `list` [`lsst.pipe.base.Struct` or None]
+            Overscan measurements (always in adu).
             Each result struct has components:
 
             ``imageFit``
@@ -1770,7 +1771,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 brighterFatterApplyGain = False
             else:
                 brighterFatterApplyGain = True
-                exposureMetadata["LSST ISR UNITS"] = "electron"
 
             if brighterFatterApplyGain and (ptc is not None) and (bfGains != gains):
                 # The supplied ptc should be the same as the ptc used to

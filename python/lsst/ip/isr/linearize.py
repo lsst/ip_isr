@@ -498,7 +498,9 @@ class Linearizer(IsrCalib):
         self.validate(detector)
 
         # Check if the image is trimmed.
-        isTrimmed = isTrimmedImage(image, detector)
+        isTrimmed = None
+        if detector:
+            isTrimmed = isTrimmedImage(image, detector)
 
         numAmps = 0
         numLinearized = 0
