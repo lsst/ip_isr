@@ -27,6 +27,7 @@ from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
+from .isrFunctions import isTrimmedExposure
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -833,10 +834,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 results = None
             else:
                 # This check is to confirm that we are not trying to run
-                # overscan on an already trimmed image. Therefore, always
-                # checking just the horizontal overscan bounding box is
-                # sufficient.
-                if amp.getRawHorizontalOverscanBBox().isEmpty():
+                # overscan on an already trimmed image.
+                if isTrimmedExposure(ccdExposure):
                     self.log.warning(
                         "ISR_OSCAN: No overscan region for amp %s. Not performing overscan correction.",
                         ampName,
@@ -950,8 +949,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             Detector with geometry info.
         """
         # NOTE: this will fail if the exposure is not trimmed.
-        # I am not sure if this is something we need to check for
-        # (or how to do it efficiently).
+        if not isTrimmedExposure(exposure):
+            raise RuntimeError("Exposure must be trimmed to add variance plane.")
 
         isElectrons = (exposure.metadata["LSST ISR UNITS"] == "electron")
 

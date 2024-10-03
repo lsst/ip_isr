@@ -1287,3 +1287,39 @@ def getExposureReadNoises(exposure):
         else:
             readnoises[ampName] = amp.getReadNoise()
     return readnoises
+
+
+def isTrimmedExposure(exposure):
+    """Check if the unused pixels (pre-/over-scan pixels) have
+    been trimmed from an exposure.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        The exposure to check.
+
+    Returns
+    -------
+    result : `bool`
+        True if the image is trimmed, else False.
+    """
+    return exposure.getDetector().getBBox() == exposure.getBBox()
+
+
+def isTrimmedImage(image, detector):
+    """Check if the unused pixels (pre-/over-scan pixels) have
+    been trimmed from an image
+
+    Parameters
+    ----------
+    image : `lsst.afw.image.Image`
+        The image to check.
+    detector : `lsst.afw.cameraGeom.Detector`
+        The detector associated with the image.
+
+    Returns
+    -------
+    result : `bool`
+        True if the image is trimmed, else False.
+    """
+    return detector.getBBox() == image.getBBox()

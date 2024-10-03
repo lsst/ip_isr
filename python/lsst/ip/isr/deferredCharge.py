@@ -471,7 +471,7 @@ class SimulatedModel(OverscanModel):
         stop += 1
 
         # Electronics effect optimization
-        output_amplifier = FloatingOutputAmplifier(v['driftscale'], v['decaytime'])
+        output_amplifier = FloatingOutputAmplifier(1.0, v['driftscale'], v['decaytime'])
 
         # CTI optimization
         v['cti'] = 10**v['ctiexp']
@@ -655,6 +655,8 @@ class FloatingOutputAmplifier:
 
     Parameters
     ----------
+    gain : `float`
+        Gain of the amplifier. Currently not used.
     scale : `float`
         Drift scale for the amplifier.
     decay_time : `float`
@@ -665,8 +667,9 @@ class FloatingOutputAmplifier:
         Global CTI offset.
     """
 
-    def __init__(self, scale, decay_time, noise=0.0, offset=0.0):
+    def __init__(self, gain, scale, decay_time, noise=0.0, offset=0.0):
 
+        self.gain = gain
         self.noise = noise
         self.global_offset = offset
 
@@ -948,33 +951,13 @@ class DeferredChargeCalib(IsrCalib):
 
             inDict['serialTraps'][amp] = ampTrap
 
+        # Version check
         if calibVersion < 1.1:
-            oldCalibUnits = inDict['metadata']["UNITS"]
-            cls().log.warning(f"Using old version of CTI calibration ({calibVersion}), which "
-                              f"reports units of {oldCalibUnits}, however these units are "
-                              "likely misleading may be correct or incorrect. This version "
-                              "also does not contain enough information to reconcile it "
-                              "into the correct units (electron). Must assume it is in "
-                              "units of electron and move forward.")
-            # Need to standardize the header units.
-            if oldCalibUnits == "electrons":
-                # The calibration *might* be in the correct units,
-                # but we cannot be sure.
-                inDict['metadata']['UNITS'] = "electron"
-            elif oldCalibUnits == "ADU":
-                # The calibration was *likely* made from images in units of adu
-                # Attempt to convert, but note that there is not enough
-                # information in the header to ensure this. The old calib
-                # dictionary also did not store gain information to even
-                # attempt to convert the only parameter (trap size) that is not
-                # unitless. If this calibration is used to correct an image
-                # during ISR, the ISR task will issue a warning and attempt to
-                # correct this using the gains supplied during ISR.
-                inDict['metadata']['UNITS'] = "adu"
-            else:
-                cls().log.warning("Reconciling units of old CTI calibration (Version "
-                                  f"{calibVersion}), but do not recognize units of "
-                                  f"\"{oldCalibUnits}\".")
+            #This version might be in the wrong units (not electron), and does not
+            # contain the gain information to convert into a a new calibration
+            # version.
+            raise RuntimeError(f"Using old version of CTI calibration (ver. {calibVersion} < 1.1), "
+                                "which is no longer supported.")
 
         return cls.fromDict(inDict)
 
@@ -1067,6 +1050,12 @@ class DeferredChargeConfig(Config):
         doc="Number of prior pixels to use for trap correction.",
         default=6,
     )
+    useGains = Field(
+        dtype=bool,
+        doc="If true, scale by the gain.",
+        default=False,
+        deprecated="This field is no longer used. Will be removed after v28.",
+    )
     zeroUnusedPixels = Field(
         dtype=bool,
         doc="If true, set serial prescan and parallel overscan to zero before correction.",
@@ -1119,20 +1108,6 @@ class DeferredChargeTask(Task):
 
         # Get the image and overscan units.
         imageUnits = exposure.getMetadata().get("LSST ISR UNITS")
-        calibUnits = ctiCalib.getMetadata().get("UNITS")
-        calibVersion = ctiCalib.getMetadata().get("CTI_VERSION")
-
-        if calibUnits == "adu":
-            self.log.warning("CTI calibration is in adu, but the deferred charge correction "
-                             "expects electron units. The calibration is likely old (version "
-                             f"{calibVersion} < 1.1). Attempting to reconcile units, but "
-                             "cannot guarantee that everything is correct.")
-            # Luckily, the trap size is the only parameter that is
-            # not unitless.
-            ctiCalib = ctiCalib.copy()
-            for ampName in ctiCalib.serialTraps:
-                ctiCalib.serialTraps[ampName].size *= gains[ampName]
-                ctiCalib.setMetadata(UNITS="electron")
 
         # The deferred charge correction assumes that everything is in
         # electron units. Make it so:
@@ -1153,7 +1128,7 @@ class DeferredChargeTask(Task):
             for amp in detector.getAmplifiers():
                 ampName = amp.getName()
 
-                ampImage = image[amp.getRawBBox()]
+                ampImage = image[amp.getRawDataBBox()]
                 if self.config.zeroUnusedPixels:
                     # We don't apply overscan subtraction, so zero these
                     # out for now.

@@ -33,7 +33,7 @@ import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
 from lsst.afw.cameraGeom import ReadoutCorner
-from .isrFunctions import gainContext
+from .isrFunctions import gainContext, isTrimmedExposure
 
 
 class IsrStatisticsTaskConfig(pexConfig.Config):
@@ -324,7 +324,8 @@ class IsrStatisticsTask(pipeBase.Task):
         inputExp : `lsst.afw.image.Exposure`
             Exposure to measure.
         overscans : `list` [`lsst.pipe.base.Struct`]
-            List of overscan results.  Expected fields are:
+            List of overscan results (expects base units of adu).
+            Expected fields are:
 
             ``imageFit``
                 Value or fit subtracted from the amplifier image data
@@ -358,16 +359,19 @@ class IsrStatisticsTask(pipeBase.Task):
         if imageUnits == "adu":
             applyGain = True
 
+        # Check if the image is trimmed.
+        isTrimmed = isTrimmedExposure(inputExp)
+
         # Ensure we have the same number of overscans as amplifiers.
         assert len(overscans) == len(detector.getAmplifiers())
 
-        with gainContext(inputExp, image, applyGain, gains, isTrimmed=False):
+        with gainContext(inputExp, image, applyGain, gains, isTrimmed=isTrimmed:
             for ampIter, amp in enumerate(detector.getAmplifiers()):
                 ampStats = {}
                 readoutCorner = amp.getReadoutCorner()
 
                 # Full data region.
-                dataRegion = image[amp.getRawDataBBox()]
+                dataRegion = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
 
                 # Get the mean of the image
                 ampStats["IMAGE_MEAN"] = afwMath.makeStatistics(dataRegion, self.statType,
@@ -415,7 +419,9 @@ class IsrStatisticsTask(pipeBase.Task):
                         osMean = afwMath.makeStatistics(overscanImage.image.array[:nRows, column],
                                                         self.statType, self.statControl).getValue()
                         columns.append(column)
-                        values.append(osMean)
+                        # The overscan input is always in adu, but it only
+                        # makes sense to measure CTI in electron units.
+                        values.append(osMean * gains[amp.getName()])
 
                     # We want these relative to the readout corner.  If that's
                     # on the right side, we need to swap them.
