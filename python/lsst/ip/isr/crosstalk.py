@@ -988,8 +988,10 @@ class CrosstalkTask(Task):
                 if np.all(badGains):
                     raise RuntimeError("No valid (finite, non-zero) gains found for crosstalk correction.")
 
-                self.log.warning("Illegal gain value found for %d amplifiers in crosstalk correction; "
-                                 "substituting with median gain.", badGains.sum())
+                badAmpNames = [amp.getName() for i, amp in enumerate(detector) if badGains[i]]
+
+                self.log.warning("Illegal gain value found for %d amplifiers %r in crosstalk correction; "
+                                 "substituting with median gain.", badGains.sum(), badAmpNames)
                 medGain = np.median(gainArray[~badGains])
                 gainArray[badGains] = medGain
                 for i, amp in enumerate(detector):
