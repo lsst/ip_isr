@@ -321,7 +321,7 @@ class CrosstalkCalib(IsrCalib):
             else:
                 calib.ampGainRatios = np.zeros_like(calib.coeffs)
             if 'fitGains' in dictionary:
-                calib.fitGains = np.array(dictionary['fitGains'])
+                calib.fitGains = np.array(dictionary['fitGains']).reshape(calib.nAmp)
             else:
                 calib.fitGains = np.zeros_like(calib.nAmp)
 
@@ -965,6 +965,8 @@ class CrosstalkTask(Task):
         invertGains = False
         gainApply = False
         if crosstalk.crosstalkRatiosUnits != exposureUnits:
+            detector = exposure.getDetector()
+
             if gains is None and np.all(crosstalk.fitGains == 0.0):
                 raise RuntimeError(
                     f"Unit mismatch between exposure ({exposureUnits}) and "
@@ -973,10 +975,27 @@ class CrosstalkTask(Task):
                 )
             elif gains is None:
                 self.log.info("Using crosstalk calib fitGains for gain corrections.")
-                detector = exposure.getDetector()
                 gains = {}
                 for i, amp in enumerate(detector):
                     gains[amp.getName()] = crosstalk.fitGains[i]
+
+            # Check individual gains for finite-ness.
+            gainArray = np.zeros(len(detector))
+            for i, amp in enumerate(detector):
+                gainArray[i] = gains[amp.getName()]
+            badGains = (~np.isfinite(gainArray) | (gainArray == 0.0))
+            if np.any(badGains):
+                if np.all(badGains):
+                    raise RuntimeError("No valid (finite, non-zero) gains found for crosstalk correction.")
+
+                badAmpNames = [amp.getName() for i, amp in enumerate(detector) if badGains[i]]
+
+                self.log.warning("Illegal gain value found for %d amplifiers %r in crosstalk correction; "
+                                 "substituting with median gain.", badGains.sum(), badAmpNames)
+                medGain = np.median(gainArray[~badGains])
+                gainArray[badGains] = medGain
+                for i, amp in enumerate(detector):
+                    gains[amp.getName()] = gainArray[i]
 
             gainApply = True
 
