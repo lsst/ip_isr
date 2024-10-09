@@ -1235,7 +1235,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 c00 = f1 + f2
                 covModel[ampName] = c00
 
-        elif self.ptcFitType == "FULLCOVARIANCE":
+        elif self.ptcFitType in ["FULLCOVARIANCE", "FULLCOVARIANCE_NO_B"]:
             for ampName in ampNames:
                 noiseMatrix = self.noiseMatrix[ampName]
                 gain = self.gain[ampName]
