@@ -336,6 +336,8 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 linearizer.fitResiduals[ampName] = np.array([])
                 linearizer.fitResidualsSigmaMad[ampName] = np.nan
                 linearizer.linearFit[ampName] = np.array([])
+                linearizer.linearityTurnoff[ampName] = np.nan
+                linearizer.linearityMaxSignal[ampName] = np.nan
 
         return linearizer
 
