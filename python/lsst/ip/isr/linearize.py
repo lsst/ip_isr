@@ -103,10 +103,14 @@ class Linearizer(IsrCalib):
         [intercept, slope].
     tableData : `numpy.array`, optional
         Lookup table data for the linearity correction.
+
+    Notes
+    -----
+    Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.3
+    _VERSION = 1.4
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -122,6 +126,8 @@ class Linearizer(IsrCalib):
         self.fitResiduals = dict()
         self.fitResidualsSigmaMad = dict()
         self.linearFit = dict()
+        self.linearityTurnoff = dict()
+        self.linearityMaxSignal = dict()
         self.tableData = None
         if table is not None:
             if len(table.shape) != 2:
@@ -130,6 +136,8 @@ class Linearizer(IsrCalib):
                 raise RuntimeError("table shape = %s; indices are switched" % (table.shape,))
             self.tableData = np.array(table, order="C")
 
+        # The linearizer is always natively in adu because it
+        # is computed prior to computing gains.
         self.linearityUnits = 'adu'
 
         super().__init__(**kwargs)
@@ -138,7 +146,7 @@ class Linearizer(IsrCalib):
                                         'linearityCoeffs', 'linearityType', 'linearityBBox',
                                         'fitParams', 'fitParamsErr', 'fitChiSq',
                                         'fitResiduals', 'fitResidualsSigmaMad', 'linearFit', 'tableData',
-                                        'units'])
+                                        'units', 'linearityTurnoff', 'linearityMaxSignal'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -187,6 +195,7 @@ class Linearizer(IsrCalib):
             self.linearityCoeffs[ampName] = amp.getLinearityCoeffs()
             self.linearityBBox[ampName] = amp.getBBox()
 
+        # Detector linearizers (legacy) are assumed to be adu units.
         self.linearityUnits = 'adu'
 
         return self
@@ -224,6 +233,9 @@ class Linearizer(IsrCalib):
                                             dictionary['metadata'].get('HAS_LINEARITY', False))
         calib.override = dictionary.get('override', True)
 
+        # Old linearizers which do not have linearityUnits are
+        # assumed to be adu because that's all that has been
+        # supported.
         calib.linearityUnits = dictionary.get('linearityUnits', 'adu')
 
         if calib.hasLinearity:
@@ -240,6 +252,9 @@ class Linearizer(IsrCalib):
                 calib.fitResiduals[ampName] = np.array(amp.get('fitResiduals', [0.0]))
                 calib.fitResidualsSigmaMad[ampName] = np.array(amp.get('fitResidualsSigmaMad', np.nan))
                 calib.linearFit[ampName] = np.array(amp.get('linearFit', [0.0]))
+
+                calib.linearityTurnoff[ampName] = np.array(amp.get('linearityTurnoff', np.nan))
+                calib.linearityMaxSignal[ampName] = np.array(amp.get('linearityMaxSignal', np.nan))
 
             calib.tableData = dictionary.get('tableData', None)
             if calib.tableData:
@@ -265,15 +280,19 @@ class Linearizer(IsrCalib):
                    'linearityUnits': self.linearityUnits,
                    }
         for ampName in self.linearityType:
-            outDict['amplifiers'][ampName] = {'linearityType': self.linearityType[ampName],
-                                              'linearityCoeffs': self.linearityCoeffs[ampName].tolist(),
-                                              'linearityBBox': self.linearityBBox[ampName],
-                                              'fitParams': self.fitParams[ampName].tolist(),
-                                              'fitParamsErr': self.fitParamsErr[ampName].tolist(),
-                                              'fitChiSq': self.fitChiSq[ampName],
-                                              'fitResiduals': self.fitResiduals[ampName].tolist(),
-                                              'fitResidualsSigmaMad': self.fitResiduals[ampName],
-                                              'linearFit': self.linearFit[ampName].tolist()}
+            outDict['amplifiers'][ampName] = {
+                'linearityType': self.linearityType[ampName],
+                'linearityCoeffs': self.linearityCoeffs[ampName].tolist(),
+                'linearityBBox': self.linearityBBox[ampName],
+                'fitParams': self.fitParams[ampName].tolist(),
+                'fitParamsErr': self.fitParamsErr[ampName].tolist(),
+                'fitChiSq': self.fitChiSq[ampName],
+                'fitResiduals': self.fitResiduals[ampName].tolist(),
+                'fitResidualsSigmaMad': self.fitResiduals[ampName],
+                'linearFit': self.linearFit[ampName].tolist(),
+                'linearityTurnoff': self.linearityTurnoff[ampName],
+                'linearityMaxSignal': self.linearityMaxSignal[ampName],
+            }
         if self.tableData is not None:
             outDict['tableData'] = self.tableData.tolist()
 
@@ -327,6 +346,11 @@ class Linearizer(IsrCalib):
             fitResidualsSigmaMad = record['FIT_RES_SIGMAD'] if 'FIT_RES_SIGMAD' in record.columns else np.nan
             linearFit = record['LIN_FIT'] if 'LIN_FIT' in record.columns else np.array([0.0])
 
+            linearityTurnoff = record['LINEARITY_TURNOFF'] if 'LINEARITY_TURNOFF' in record.columns \
+                else np.nan
+            linearityMaxSignal = record['LINEARITY_MAX_SIGNAL'] if 'LINEARITY_MAX_SIGNAL' in record.columns \
+                else np.nan
+
             inDict['amplifiers'][ampName] = {
                 'linearityType': record['TYPE'],
                 'linearityCoeffs': record['COEFFS'],
@@ -338,6 +362,8 @@ class Linearizer(IsrCalib):
                 'fitResiduals': fitResiduals,
                 'fitResidualsSigmaMad': fitResidualsSigmaMad,
                 'linearFit': linearFit,
+                'linearityTurnoff': linearityTurnoff,
+                'linearityMaxSignal': linearityMaxSignal,
             }
 
         if len(tableList) > 1:
@@ -375,6 +401,8 @@ class Linearizer(IsrCalib):
                           'FIT_RES': self.fitResiduals[ampName],
                           'FIT_RES_SIGMAD': self.fitResidualsSigmaMad[ampName],
                           'LIN_FIT': self.linearFit[ampName],
+                          'LINEARITY_TURNOFF': self.linearityTurnoff[ampName],
+                          'LINEARITY_MAX_SIGNAL': self.linearityMaxSignal[ampName],
                           } for ampName in self.ampNames])
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
