@@ -148,8 +148,7 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None,
         # need further testing.
         kwargs = {"bin_spacing": 20,
                   "threshold_dynamic_binning": 2000,
-                  "threshold_subdivide": 20000,
-                  "method": "jax"}
+                  "threshold_subdivide": 20000}
         fwhm = 15
 
     measAlg.interpolateOverDefects(maskedImage, psf, defectList,
