@@ -888,9 +888,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                     metadata = ccdExposure.metadata
                     keyBase = "LSST ISR OVERSCAN"
-                    # The overscan is always in adu, and we will make this
-                    # explicitly clear
-                    metadata[f"{keyBase} UNITS"] = "adu"
+
+                    # The overscan is always in adu for the serial mode,
+                    # but, it may be electron in the parallel mode if
+                    # doApplyGains==True. If doApplyGains==True, then the
+                    # gains are applied to the untrimmed image, so the
+                    # overscan statistics units here will always match the
+                    # units of the image at this point.
+                    metadata[f"{keyBase} {mode} UNITS"] = ccdExposure.metadata["LSST ISR UNITS"]
                     metadata[f"{keyBase} {mode} MEAN {ampName}"] = results.overscanMean
                     metadata[f"{keyBase} {mode} MEDIAN {ampName}"] = results.overscanMedian
                     metadata[f"{keyBase} {mode} STDEV {ampName}"] = results.overscanSigma
