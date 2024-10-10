@@ -1480,7 +1480,11 @@ class IsrTask(pipeBase.PipelineTask):
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
+            self.deferredChargeCorrection.run(
+                ccdExposure,
+                deferredChargeCalib,
+                gains=ptc.gain,
+            )
             self.debugView(ccdExposure, "doDeferredCharge")
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
@@ -2274,7 +2278,10 @@ class IsrTask(pipeBase.PipelineTask):
         ampName = amp.getName()
 
         keyBase = "LSST ISR OVERSCAN"
-        metadata[f"{keyBase} UNITS {amp.getName()}"] = "adu"
+        # The overscan statistics units will always match the units of
+        # the image at the point they are calculated.
+        metadata[f"{keyBase} SERIAL UNITS"] = metadata.get("LSST ISR UNITS")
+
         # Updated quantities
         if isinstance(overscanResults.overscanMean, float):
             # Serial overscan correction only:
@@ -2287,6 +2294,7 @@ class IsrTask(pipeBase.PipelineTask):
             metadata[f"{keyBase} RESIDUAL SERIAL STDEV {ampName}"] = overscanResults.residualSigma
         elif isinstance(overscanResults.overscanMean, tuple):
             # Both serial and parallel overscan have run:
+            metadata[f"{keyBase} PARALLEL UNITS"] = metadata.get("LSST ISR UNITS")
             metadata[f"{keyBase} SERIAL MEAN {ampName}"] = overscanResults.overscanMean[0]
             metadata[f"{keyBase} SERIAL MEDIAN {ampName}"] = overscanResults.overscanMedian[0]
             metadata[f"{keyBase} SERIAL STDEV {ampName}"] = overscanResults.overscanSigma[0]
