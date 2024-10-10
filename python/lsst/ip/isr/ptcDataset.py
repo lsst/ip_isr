@@ -234,6 +234,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.9 standardizes PTC noise units to electron.
     Version 2.0 adds the `ampOffsets`, `gainUnadjusted`, and
         `gainList` attributes.
+    Version 2.1 adds the `rawMjds` attribute.
     """
 
     _OBSTYPE = 'PTC'
@@ -252,7 +253,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     #  * test_ptcDataset() in test_ptcDataset.py
     #  * test_ptcDatasetSort in test_ptcDataset.py
     #  * test_ptcDatasetAppend in test_ptcDataset.py
-    _VERSION = 2.0
+    _VERSION = 2.1
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -274,6 +275,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rowMeanVariance = {ampName: np.array([]) for ampName in ampNames}
         self.photoCharges = {ampName: np.array([]) for ampName in ampNames}
         self.ampOffsets = {ampName: np.array([]) for ampName in ampNames}
+        self.rawMjds = {ampName: np.array([]) for ampName in ampNames}
 
         self.gain = {ampName: np.nan for ampName in ampNames}
         self.gainUnadjusted = {ampName: np.nan for ampName in ampNames}
@@ -343,6 +345,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             histVar=np.nan,
             histChi2Dof=np.nan,
             kspValue=0.0,
+            rawMjd=np.nan,
     ):
         """
         Set the amp values for a partial PTC Dataset (from cpExtractPtcTask).
@@ -383,6 +386,8 @@ class PhotonTransferCurveDataset(IsrCalib):
             Chi-squared per degree of freedom from Gaussian histogram fit.
         kspValue : `float`, optional
             KS test p-value from the Gaussian histogram fit.
+        rawMjd : `float`, optional
+            MJD date of flat pair.
         """
         nanMatrix = np.full((self.covMatrixSide, self.covMatrixSide), np.nan)
         nanMatrixFit = np.full((self.covMatrixSideFullCovFit,
@@ -396,6 +401,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawExpTimes[ampName] = np.array([rawExpTime])
         self.rawMeans[ampName] = np.array([rawMean])
         self.rawVars[ampName] = np.array([rawVar])
+        self.rawMjds[ampName] = np.array([rawMjd])
         self.rowMeanVariance[ampName] = np.array([rowMeanVariance])
         self.photoCharges[ampName] = np.array([photoCharge])
         self.ampOffsets[ampName] = np.array([ampOffset])
@@ -503,6 +509,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName], dtype=np.float64)
             calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName], dtype=np.float64)
             calib.rawVars[ampName] = np.array(dictionary['rawVars'][ampName], dtype=np.float64)
+            calib.rawMjds[ampName] = np.array(dictionary['rawMjds'][ampName], dtype=np.float64)
             calib.rowMeanVariance[ampName] = np.array(dictionary['rowMeanVariance'][ampName],
                                                       dtype=np.float64)
             calib.gain[ampName] = float(dictionary['gain'][ampName])
@@ -614,6 +621,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['rawExpTimes'] = _dictOfArraysToDictOfLists(self.rawExpTimes)
         outDict['rawMeans'] = _dictOfArraysToDictOfLists(self.rawMeans)
         outDict['rawVars'] = _dictOfArraysToDictOfLists(self.rawVars)
+        outDict['rawMjds'] = _dictOfArraysToDictOfLists(self.rawMjds)
         outDict['rowMeanVariance'] = _dictOfArraysToDictOfLists(self.rowMeanVariance)
         outDict['gain'] = self.gain
         outDict['gainErr'] = self.gainErr
@@ -679,6 +687,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['rawExpTimes'] = dict()
         inDict['rawMeans'] = dict()
         inDict['rawVars'] = dict()
+        inDict['rawMjds'] = dict()
         inDict['rowMeanVariance'] = dict()
         inDict['gain'] = dict()
         inDict['gainErr'] = dict()
@@ -811,6 +820,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['ampOffsets'][ampName] = record['AMP_OFFSETS']
                 inDict['gainUnadjusted'][ampName] = record['GAIN_UNADJUSTED']
                 inDict['gainList'][ampName] = record['GAIN_LIST']
+            if calibVersion < 2.1:
+                inDict['rawMjds'][ampName] = np.full_like(inDict['rawMeans'][ampName], np.nan)
+            else:
+                inDict['rawMjds'][ampName] = record['RAW_MJDS']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -856,6 +869,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'RAW_EXP_TIMES': self.rawExpTimes[ampName],
                 'RAW_MEANS': self.rawMeans[ampName],
                 'RAW_VARS': self.rawVars[ampName],
+                'RAW_MJDS': self.rawMjds[ampName],
                 'ROW_MEAN_VARIANCE': self.rowMeanVariance[ampName],
                 'GAIN': self.gain[ampName],
                 'GAIN_ERR': self.gainErr[ampName],
@@ -960,6 +974,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                                partialPtc.rawMeans[ampName][0])
             self.rawVars[ampName] = np.append(self.rawVars[ampName],
                                               partialPtc.rawVars[ampName][0])
+            self.rawMjds[ampName] = np.append(self.rawMjds[ampName],
+                                              partialPtc.rawMjds[ampName][0])
             self.rowMeanVariance[ampName] = np.append(self.rowMeanVariance[ampName],
                                                       partialPtc.rowMeanVariance[ampName][0])
             self.photoCharges[ampName] = np.append(self.photoCharges[ampName],
@@ -1058,6 +1074,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             self.rawExpTimes[ampName] = self.rawExpTimes[ampName][index]
             self.rawMeans[ampName] = self.rawMeans[ampName][index]
             self.rawVars[ampName] = self.rawVars[ampName][index]
+            self.rawMjds[ampName] = self.rawMjds[ampName][index]
             self.rowMeanVariance[ampName] = self.rowMeanVariance[ampName][index]
             self.photoCharges[ampName] = self.photoCharges[ampName][index]
             self.ampOffsets[ampName] = self.ampOffsets[ampName][index]
