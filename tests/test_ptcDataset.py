@@ -87,6 +87,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertEqual(ptcDataset.rawMeans[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.rawVars[ampName], np.ndarray)
             self.assertEqual(ptcDataset.rawVars[ampName].dtype, np.float64)
+            self.assertIsInstance(ptcDataset.rawMjds[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.rawMjds[ampName].dtype, np.float64)
             self.assertEqual(ptcDataset.rowMeanVariance[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.noiseList[ampName], np.ndarray)
             self.assertEqual(ptcDataset.noiseList[ampName].dtype, np.float64)
@@ -241,6 +243,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.rawExpTimes[ampName] = np.arange(nSignalPoints, dtype=np.float64)
                     localDataset.rawMeans[ampName] = self.flux*np.arange(nSignalPoints)
                     localDataset.rawVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
+                    localDataset.rawMjds[ampName] = np.zeros(nSignalPoints, dtype=np.float64)
                     localDataset.photoCharges[ampName] = np.full(nSignalPoints, np.nan)
                     localDataset.gain[ampName] = self.gain
                     localDataset.gainErr[ampName] = 0.1
@@ -384,6 +387,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             localDataset.rawExpTimes[ampName] = testArr.copy()
             localDataset.rawMeans[ampName] = testArr.copy()
             localDataset.rawVars[ampName] = testArr.copy()
+            localDataset.rawMjds[ampName] = testArr.copy()
             localDataset.rowMeanVariance[ampName] = testArr.copy()
             localDataset.photoCharges[ampName] = testArr.copy()
             localDataset.ampOffsets[ampName] = testArr.copy()
@@ -431,6 +435,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             np.testing.assert_array_equal(localDataset.rawExpTimes[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.rawMeans[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.rawVars[ampName], testArrSorted)
+            np.testing.assert_array_equal(localDataset.rawMjds[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.rowMeanVariance[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.photoCharges[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.ampOffsets[ampName], testArrSorted)
@@ -485,6 +490,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     histVar=testArr[i],
                     histChi2Dof=testArr[i],
                     kspValue=testArr[i],
+                    rawMjd=testArr[i],
                 )
                 partial.setAuxValuesPartialDataset({"TEST1": float(i),
                                                     "TEST2": testStrValues[i]})
@@ -506,6 +512,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             np.testing.assert_array_equal(ptc.rawExpTimes[ampName], testArr)
             np.testing.assert_array_equal(ptc.rawMeans[ampName], testArr)
             np.testing.assert_array_equal(ptc.rawVars[ampName], testArr)
+            np.testing.assert_array_equal(ptc.rawMjds[ampName], testArr)
             np.testing.assert_array_equal(ptc.rowMeanVariance[ampName], testArr)
             np.testing.assert_array_equal(ptc.photoCharges[ampName], testArr)
             np.testing.assert_array_equal(ptc.ampOffsets[ampName], testArr)
