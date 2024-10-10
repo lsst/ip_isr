@@ -33,6 +33,7 @@ import lsst.pipe.base as pipeBase
 import lsst.pex.config as pexConfig
 
 from lsst.afw.cameraGeom import ReadoutCorner
+from .isrFunctions import gainContext, isTrimmedExposure
 
 
 class IsrStatisticsTaskConfig(pexConfig.Config):
@@ -47,6 +48,8 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         dtype=bool,
         doc="Apply gain to the overscan region when measuring CTI statistics?",
         default=True,
+        # TODO: DM-46721
+        deprecated="This field is no longer used. Will be removed after v28.",
     )
 
     doBandingStatistics = pexConfig.Field(
@@ -105,6 +108,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
             "NONE": "No window."
         }
     )
+
     doDivisaderoStatistics = pexConfig.Field(
         dtype=bool,
         doc="Measure divisadero tearing statistics?",
@@ -130,6 +134,7 @@ class IsrStatisticsTaskConfig(pexConfig.Config):
         doc="Maximum row to consider when taking robust mean of columns",
         default=210,
     )
+
     doCopyCalibDistributionStatistics = pexConfig.Field(
         dtype=bool,
         doc="Copy calibration distribution statistics to output?",
@@ -320,7 +325,8 @@ class IsrStatisticsTask(pipeBase.Task):
         inputExp : `lsst.afw.image.Exposure`
             Exposure to measure.
         overscans : `list` [`lsst.pipe.base.Struct`]
-            List of overscan results.  Expected fields are:
+            List of overscan results (expects base units of adu).
+            Expected fields are:
 
             ``imageFit``
                 Value or fit subtracted from the amplifier image data
@@ -340,81 +346,94 @@ class IsrStatisticsTask(pipeBase.Task):
         -------
         outputStats : `dict` [`str`, [`dict` [`str`, `float`]]]
             Dictionary of measurements, keyed by amplifier name and
-            statistics segment.
+            statistics segment. Everything in units based on electron.
         """
         outputStats = {}
 
         detector = inputExp.getDetector()
         image = inputExp.image
 
+        # It only makes sense to measure CTI in electron units.
+        # Make it so.
+        imageUnits = inputExp.getMetadata().get("LSST ISR UNITS")
+        applyGain = False
+        if imageUnits == "adu":
+            applyGain = True
+
+        # Check if the image is trimmed.
+        isTrimmed = isTrimmedExposure(inputExp)
+
         # Ensure we have the same number of overscans as amplifiers.
         assert len(overscans) == len(detector.getAmplifiers())
 
-        for ampIter, amp in enumerate(detector.getAmplifiers()):
-            ampStats = {}
-            gain = gains[amp.getName()]
-            readoutCorner = amp.getReadoutCorner()
-            # Full data region.
-            dataRegion = image[amp.getBBox()]
-            ampStats["IMAGE_MEAN"] = afwMath.makeStatistics(dataRegion, self.statType,
-                                                            self.statControl).getValue()
+        with gainContext(inputExp, image, applyGain, gains, isTrimmed=isTrimmed):
+            for ampIter, amp in enumerate(detector.getAmplifiers()):
+                ampStats = {}
+                readoutCorner = amp.getReadoutCorner()
 
-            # First and last image columns.
-            pixelA = afwMath.makeStatistics(dataRegion.array[:, 0],
-                                            self.statType,
-                                            self.statControl).getValue()
-            pixelZ = afwMath.makeStatistics(dataRegion.array[:, -1],
-                                            self.statType,
-                                            self.statControl).getValue()
+                # Full data region.
+                dataRegion = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
 
-            # We want these relative to the readout corner.  If that's
-            # on the right side, we need to swap them.
-            if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                ampStats["FIRST_MEAN"] = pixelZ
-                ampStats["LAST_MEAN"] = pixelA
-            else:
-                ampStats["FIRST_MEAN"] = pixelA
-                ampStats["LAST_MEAN"] = pixelZ
+                # Get the mean of the image
+                ampStats["IMAGE_MEAN"] = afwMath.makeStatistics(dataRegion, self.statType,
+                                                                self.statControl).getValue()
 
-            # Measure the columns of the overscan.
-            if overscans[ampIter] is None:
-                # The amplifier is likely entirely bad, and needs to
-                # be skipped.
-                self.log.warning("No overscan information available for ISR statistics for amp %s.",
-                                 amp.getName())
-                nCols = amp.getRawSerialOverscanBBox().getWidth()
-                ampStats["OVERSCAN_COLUMNS"] = np.full((nCols, ), np.nan)
-                ampStats["OVERSCAN_VALUES"] = np.full((nCols, ), np.nan)
-            else:
-                overscanImage = overscans[ampIter].overscanImage
-                columns = []
-                values = []
-                for column in range(0, overscanImage.getWidth()):
-                    # If overscan.doParallelOverscan=True, the overscanImage
-                    # will contain both the serial and parallel overscan
-                    # regions.
-                    # Only the serial overscan correction is implemented,
-                    # so we must select only the serial overscan rows
-                    # for a given column.
-                    nRows = amp.getRawSerialOverscanBBox().getHeight()
-                    osMean = afwMath.makeStatistics(overscanImage.image.array[:nRows, column],
-                                                    self.statType, self.statControl).getValue()
-                    columns.append(column)
-                    if self.config.doApplyGainsForCtiStatistics:
-                        values.append(gain * osMean)
-                    else:
-                        values.append(osMean)
+                # First and last image columns.
+                pixelA = afwMath.makeStatistics(dataRegion.array[:, 0],
+                                                self.statType,
+                                                self.statControl).getValue()
+                pixelZ = afwMath.makeStatistics(dataRegion.array[:, -1],
+                                                self.statType,
+                                                self.statControl).getValue()
 
                 # We want these relative to the readout corner.  If that's
                 # on the right side, we need to swap them.
                 if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                    ampStats["OVERSCAN_COLUMNS"] = list(reversed(columns))
-                    ampStats["OVERSCAN_VALUES"] = list(reversed(values))
+                    ampStats["FIRST_MEAN"] = pixelZ
+                    ampStats["LAST_MEAN"] = pixelA
                 else:
-                    ampStats["OVERSCAN_COLUMNS"] = columns
-                    ampStats["OVERSCAN_VALUES"] = values
+                    ampStats["FIRST_MEAN"] = pixelA
+                    ampStats["LAST_MEAN"] = pixelZ
 
-            outputStats[amp.getName()] = ampStats
+                # Measure the columns of the overscan.
+                if overscans[ampIter] is None:
+                    # The amplifier is likely entirely bad, and needs to
+                    # be skipped.
+                    self.log.warning("No overscan information available for ISR statistics for amp %s.",
+                                     amp.getName())
+                    nCols = amp.getRawSerialOverscanBBox().getWidth()
+                    ampStats["OVERSCAN_COLUMNS"] = np.full((nCols, ), np.nan)
+                    ampStats["OVERSCAN_VALUES"] = np.full((nCols, ), np.nan)
+                else:
+                    overscanImage = overscans[ampIter].overscanImage
+
+                    columns = []
+                    values = []
+                    for column in range(0, overscanImage.getWidth()):
+                        # If overscan.doParallelOverscan=True, the
+                        # overscanImage will contain both the serial
+                        # and parallel overscan regions.
+                        # Only the serial CTI correction has been
+                        # implemented, so we must select only the
+                        # serial overscan rows for a given column.
+                        nRows = amp.getRawSerialOverscanBBox().getHeight()
+                        osMean = afwMath.makeStatistics(overscanImage.image.array[:nRows, column],
+                                                        self.statType, self.statControl).getValue()
+                        columns.append(column)
+                        # The overscan input is always in adu, but it only
+                        # makes sense to measure CTI in electron units.
+                        values.append(osMean * gains[amp.getName()])
+
+                    # We want these relative to the readout corner.  If that's
+                    # on the right side, we need to swap them.
+                    if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
+                        ampStats["OVERSCAN_COLUMNS"] = list(reversed(columns))
+                        ampStats["OVERSCAN_VALUES"] = list(reversed(values))
+                    else:
+                        ampStats["OVERSCAN_COLUMNS"] = columns
+                        ampStats["OVERSCAN_VALUES"] = values
+
+                outputStats[amp.getName()] = ampStats
 
         return outputStats
 

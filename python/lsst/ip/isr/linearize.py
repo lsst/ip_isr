@@ -34,6 +34,7 @@ from lsst.pipe.base import Struct
 from lsst.geom import Box2I, Point2I, Extent2I
 from .applyLookupTable import applyLookupTable
 from .calibType import IsrCalib
+from .isrFunctions import isTrimmedImage
 
 
 class Linearizer(IsrCalib):
@@ -496,12 +497,10 @@ class Linearizer(IsrCalib):
 
         self.validate(detector)
 
+        # Check if the image is trimmed.
         isTrimmed = None
         if detector:
-            if detector.getBBox() == image.getBBox():
-                isTrimmed = True
-            else:
-                isTrimmed = False
+            isTrimmed = isTrimmedImage(image, detector)
 
         numAmps = 0
         numLinearized = 0
