@@ -27,6 +27,7 @@ from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
+from .isrFunctions import isTrimmedExposure
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -773,6 +774,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         Returns
         -------
         overscans : `list` [`lsst.pipe.base.Struct` or None]
+            Overscan measurements (always in adu).
             Each result struct has components:
 
             ``imageFit``
@@ -833,10 +835,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 results = None
             else:
                 # This check is to confirm that we are not trying to run
-                # overscan on an already trimmed image. Therefore, always
-                # checking just the horizontal overscan bounding box is
-                # sufficient.
-                if amp.getRawHorizontalOverscanBBox().isEmpty():
+                # overscan on an already trimmed image.
+                if isTrimmedExposure(ccdExposure):
                     self.log.warning(
                         "ISR_OSCAN: No overscan region for amp %s. Not performing overscan correction.",
                         ampName,
@@ -888,9 +888,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                     metadata = ccdExposure.metadata
                     keyBase = "LSST ISR OVERSCAN"
-                    # The overscan is always in adu, and we will make this
-                    # explicitly clear
-                    metadata[f"{keyBase} UNITS"] = "adu"
+
+                    # The overscan is always in adu for the serial mode,
+                    # but, it may be electron in the parallel mode if
+                    # doApplyGains==True. If doApplyGains==True, then the
+                    # gains are applied to the untrimmed image, so the
+                    # overscan statistics units here will always match the
+                    # units of the image at this point.
+                    metadata[f"{keyBase} {mode} UNITS"] = ccdExposure.metadata["LSST ISR UNITS"]
                     metadata[f"{keyBase} {mode} MEAN {ampName}"] = results.overscanMean
                     metadata[f"{keyBase} {mode} MEDIAN {ampName}"] = results.overscanMedian
                     metadata[f"{keyBase} {mode} STDEV {ampName}"] = results.overscanSigma
@@ -950,8 +955,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             Detector with geometry info.
         """
         # NOTE: this will fail if the exposure is not trimmed.
-        # I am not sure if this is something we need to check for
-        # (or how to do it efficiently).
+        if not isTrimmedExposure(exposure):
+            raise RuntimeError("Exposure must be trimmed to add variance plane.")
 
         isElectrons = (exposure.metadata["LSST ISR UNITS"] == "electron")
 
@@ -1707,26 +1712,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 gains=linearityGains,
             )
 
-        # Serial CTI (deferred charge)
-        # FIXME: watch out for gain units; cti code may need update
-        # (to make it simpler!)
-        # Output units: electron (adu if doBootstrap=True)
+        # Serial CTI (deferred charge) correction
+        # This will be performed in electron units
+        # Output units: same as input units
         if self.config.doDeferredCharge:
-            # Pass it gains of 1 to always stay in the same units.
-            imageUnits = exposureMetadata["LSST ISR UNITS"]
-            ctiCalibUnits = "electron" if deferredChargeCalib.metadata["USEGAINS"] else "adu"
-            if imageUnits == ctiCalibUnits:
-                deferredChargeGains = {key: 1.0 for key in gains}
-            elif ctiCalibUnits == "adu" and imageUnits == "electron":
-                raise NotImplementedError("ctiCalibUnits == adu and imageUnits == electron, but"
-                                          "cannot invert gain context in DeferredChargeTask")
-            else:
-                deferredChargeGains = gains
-
             self.deferredChargeCorrection.run(
                 ccdExposure,
                 deferredChargeCalib,
-                gains=deferredChargeGains,
+                gains=gains,
             )
 
         # Assemble/trim

@@ -987,9 +987,6 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             self.maskListToInterpolate.remove(self.saturatedMaskName)
         if self.doNanInterpolation and "UNMASKEDNAN" not in self.maskListToInterpolate:
             self.maskListToInterpolate.append("UNMASKEDNAN")
-        if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
-            if self.doApplyGains != self.isrStats.doApplyGainsForCtiStatistics:
-                raise ValueError("doApplyGains must match isrStats.applyGainForCtiStatistics.")
         if self.ampOffset.doApplyAmpOffset and not self.doAmpOffset:
             raise ValueError("ampOffset.doApplyAmpOffset requires doAmpOffset to be True.")
 
@@ -1440,23 +1437,29 @@ class IsrTask(pipeBase.PipelineTask):
                         if isinstance(overscanResults.overscanMean, float):
                             # Only serial overscan was run
                             mean = overscanResults.overscanMean
+                            median = overscanResults.overscanMedian
                             sigma = overscanResults.overscanSigma
                             residMean = overscanResults.residualMean
+                            residMedian = overscanResults.residualMedian
                             residSigma = overscanResults.residualSigma
                         else:
                             # Both serial and parallel overscan were
                             # run.  Only report serial here.
                             mean = overscanResults.overscanMean[0]
+                            median = overscanResults.overscanMedian[0]
                             sigma = overscanResults.overscanSigma[0]
                             residMean = overscanResults.residualMean[0]
+                            residMedian = overscanResults.residualMedian[0]
                             residSigma = overscanResults.residualSigma[0]
 
-                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = mean
+                        self.metadata[f"FIT MEDIAN {amp.getName()}"] = median
+                        self.metadata[f"FIT MEAN {amp.getName()}"] = mean
                         self.metadata[f"FIT STDEV {amp.getName()}"] = sigma
                         self.log.debug("  Overscan stats for amplifer %s: %f +/- %f",
                                        amp.getName(), mean, sigma)
 
-                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = residMean
+                        self.metadata[f"RESIDUAL MEDIAN {amp.getName()}"] = residMedian
+                        self.metadata[f"RESIDUAL MEAN {amp.getName()}"] = residMean
                         self.metadata[f"RESIDUAL STDEV {amp.getName()}"] = residSigma
                         self.log.debug("  Overscan stats for amplifer %s after correction: %f +/- %f",
                                        amp.getName(), residMean, residSigma)
@@ -1477,7 +1480,11 @@ class IsrTask(pipeBase.PipelineTask):
 
         if self.config.doDeferredCharge:
             self.log.info("Applying deferred charge/CTI correction.")
-            self.deferredChargeCorrection.run(ccdExposure, deferredChargeCalib)
+            self.deferredChargeCorrection.run(
+                ccdExposure,
+                deferredChargeCalib,
+                gains=ptc.gain,
+            )
             self.debugView(ccdExposure, "doDeferredCharge")
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
@@ -2271,6 +2278,10 @@ class IsrTask(pipeBase.PipelineTask):
         ampName = amp.getName()
 
         keyBase = "LSST ISR OVERSCAN"
+        # The overscan statistics units will always match the units of
+        # the image at the point they are calculated.
+        metadata[f"{keyBase} SERIAL UNITS"] = metadata.get("LSST ISR UNITS")
+
         # Updated quantities
         if isinstance(overscanResults.overscanMean, float):
             # Serial overscan correction only:
@@ -2283,6 +2294,7 @@ class IsrTask(pipeBase.PipelineTask):
             metadata[f"{keyBase} RESIDUAL SERIAL STDEV {ampName}"] = overscanResults.residualSigma
         elif isinstance(overscanResults.overscanMean, tuple):
             # Both serial and parallel overscan have run:
+            metadata[f"{keyBase} PARALLEL UNITS"] = metadata.get("LSST ISR UNITS")
             metadata[f"{keyBase} SERIAL MEAN {ampName}"] = overscanResults.overscanMean[0]
             metadata[f"{keyBase} SERIAL MEDIAN {ampName}"] = overscanResults.overscanMedian[0]
             metadata[f"{keyBase} SERIAL STDEV {ampName}"] = overscanResults.overscanSigma[0]
