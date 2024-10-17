@@ -119,12 +119,6 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             self.assertEqual(ptcDataset.bMatrix[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.noiseMatrix[ampName], np.ndarray)
             self.assertEqual(ptcDataset.noiseMatrix[ampName].dtype, np.float64)
-            self.assertIsInstance(ptcDataset.covariancesModelNoB[ampName], np.ndarray)
-            self.assertEqual(ptcDataset.covariancesModelNoB[ampName].dtype, np.float64)
-            self.assertIsInstance(ptcDataset.aMatrixNoB[ampName], np.ndarray)
-            self.assertEqual(ptcDataset.aMatrixNoB[ampName].dtype, np.float64)
-            self.assertIsInstance(ptcDataset.noiseMatrixNoB[ampName], np.ndarray)
-            self.assertEqual(ptcDataset.noiseMatrixNoB[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.finalVars[ampName], np.ndarray)
             self.assertEqual(ptcDataset.finalVars[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.finalModelVars[ampName], np.ndarray)
@@ -273,13 +267,6 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                                                                 nSideCovMatrixFullCovFit), np.nan)
                         localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
                                                                     nSideCovMatrixFullCovFit), np.nan)
-                        localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints,
-                                                                            nSideCovMatrixFullCovFit,
-                                                                            nSideCovMatrixFullCovFit), np.nan)
-                        localDataset.aMatrixNoB[ampName] = np.full(
-                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
-                        localDataset.noiseMatrixNoB[ampName] = np.full(
-                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), np.nan)
 
                     if localDataset.ptcFitType in ['FULLCOVARIANCE', ]:
                         localDataset.ptcFitPars[ampName] = np.array([np.nan, np.nan])
@@ -300,13 +287,6 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                                                                 nSideCovMatrixFullCovFit), 1e-7)
                         localDataset.noiseMatrix[ampName] = np.full((nSideCovMatrixFullCovFit,
                                                                     nSideCovMatrixFullCovFit), 3.0)
-                        localDataset.covariancesModelNoB[ampName] = np.full((nSignalPoints,
-                                                                            nSideCovMatrixFullCovFit,
-                                                                            nSideCovMatrixFullCovFit), 15.0)
-                        localDataset.aMatrixNoB[ampName] = np.full(
-                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 2e-6)
-                        localDataset.noiseMatrixNoB[ampName] = np.full(
-                            (nSideCovMatrixFullCovFit, nSideCovMatrixFullCovFit), 3.0)
 
                 for useAuxValues in [False, True]:
                     if useAuxValues:
@@ -396,7 +376,6 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             localDataset.covariances[ampName] = testCov.copy()
             localDataset.covariancesSqrtWeights[ampName] = testCov.copy()
             localDataset.covariancesModel[ampName] = testCov.copy()
-            localDataset.covariancesModelNoB[ampName] = testCov.copy()
 
             localDataset.finalMeans[ampName] = testArr.copy()
             localDataset.finalMeans[ampName][~localDataset.expIdMask[ampName]] = np.nan
@@ -442,7 +421,6 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             np.testing.assert_array_equal(localDataset.covariances[ampName], testCovSorted)
             np.testing.assert_array_equal(localDataset.covariancesSqrtWeights[ampName], testCovSorted)
             np.testing.assert_array_equal(localDataset.covariancesModel[ampName], testCovSorted)
-            np.testing.assert_array_equal(localDataset.covariancesModelNoB[ampName], testCovSorted)
             np.testing.assert_array_equal(localDataset.finalVars[ampName], testArrSortedMasked)
             np.testing.assert_array_equal(localDataset.finalModelVars[ampName], testArrSortedMasked)
             np.testing.assert_array_equal(localDataset.finalMeans[ampName], testArrSortedMasked)
@@ -518,7 +496,6 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             np.testing.assert_array_equal(ptc.covariancesSqrtWeights[ampName], testCov)
             # These two should have the same shape, but no useful values.
             self.assertEqual(ptc.covariancesModel[ampName].shape, testCov.shape)
-            self.assertEqual(ptc.covariancesModelNoB[ampName].shape, testCov.shape)
             self.assertEqual(ptc.finalVars[ampName].shape, testArr.shape)
             self.assertEqual(ptc.finalModelVars[ampName].shape, testArr.shape)
             self.assertEqual(ptc.finalMeans[ampName].shape, testArr.shape)
