@@ -321,9 +321,16 @@ class CrosstalkCalib(IsrCalib):
             else:
                 calib.ampGainRatios = np.zeros_like(calib.coeffs)
             if 'fitGains' in dictionary:
-                calib.fitGains = np.array(dictionary['fitGains']).reshape(calib.nAmp)
+                # Compatibility for matrices that were stored with fitGains
+                # of length 1.
+                fitGains = np.array(dictionary['fitGains'])
+                if len(fitGains) == 1:
+                    # Expand to the correct number of amps, all zero (unknown).
+                    calib.fitGains = np.zeros(calib.nAmp)
+                else:
+                    calib.fitGains = np.array(dictionary['fitGains']).reshape(calib.nAmp)
             else:
-                calib.fitGains = np.zeros_like(calib.nAmp)
+                calib.fitGains = np.zeros(calib.nAmp)
 
             calib.interChip = dictionary.get('interChip', None)
             if calib.interChip:
