@@ -104,8 +104,6 @@ class Linearizer(IsrCalib):
     tableData : `numpy.array`, optional
         Lookup table data for the linearity correction.
 
-    Notes
-    -----
     Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
     """
     _OBSTYPE = "LINEARIZER"
