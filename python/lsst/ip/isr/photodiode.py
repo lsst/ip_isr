@@ -94,6 +94,22 @@ class PhotodiodeCalib(IsrCalib):
         else:
             self.baselineOffset = None
 
+        # Settings for .integrateIterativeSum
+        if 'numOutliers' in kwargs:
+            self.numOutliers = kwargs.pop('numOutliers')
+        else:
+            self.numOutliers = 10
+
+        if 'numIterations' in kwargs:
+            self.numIterations = kwargs.pop('numIterations')
+        else:
+            self.numIterations = 5
+
+        if 'tolerance' in kwargs:
+            self.tolerance = kwargs.pop('tolerance')
+        else:
+            self.tolerance = 1e-14
+
         self.requiredAttributes.update(['timeSamples', 'currentSamples', 'integrationMethod'])
 
     @classmethod
@@ -254,6 +270,8 @@ class PhotodiodeCalib(IsrCalib):
             return self.integrateTrimmedSum()
         elif self.integrationMethod == 'CHARGE_SUM':
             return self.integrateChargeSum()
+        elif self.integrationMethod == 'ITERATIVE_SUM':
+            return self.integrateIterativeSum()
         else:
             raise RuntimeError(f"Unknown integration method {self.integrationMethod}")
 
@@ -333,3 +351,58 @@ class PhotodiodeCalib(IsrCalib):
         bg_current = np.sum(charge[bg])/np.sum(dt[bg])
         # Return the background-subtracted total charge.
         return np.sum(charge - bg_current*dt)
+
+    def integrateIterativeSum(self):
+        """Iterative evaluation of the pd integral.  At each iteration, fit
+        the baseline current level, estimate the integral using the
+        baseline-subtracted current samples, and remove the highest
+        self.numOutliers for the next iteration of baseline fitting.
+        Iterate until the integral from the current iteration agrees
+        with the previous iteration self.numIterations in a row within
+        self.tolerance.
+
+        This implementation assumes a constant sampling interval.
+        """
+        import scipy.stats as stats
+        cs = self.currentSamples
+
+        # Compute the sampling interval using the mean.
+        times = self.timeSamples
+        dt = np.mean(times[1:] - times[:-1])
+
+        iteration = 0
+        step = []
+        integral = []
+        last_integral = 0
+        ix_list = list(range(0, len(cs)))  # original index list
+        pared_ix_list = ix_list
+        for cycle in range(0, len(cs) - 2, self.numOutliers):
+            pcs = [cs[i] for i in pared_ix_list]  # downselected current samples
+            lr = stats.linregress(pared_ix_list, pcs)
+
+            # Compute the baseline model for all sample points
+            bg_model = [lr.intercept + lr.slope*ix for ix in ix_list]
+
+            # Baseline subtracted current samples:
+            csmm = np.array([cs[ix] - bg_model[ix] for ix in ix_list])
+            this_integral = csmm.sum()
+            integral.append(this_integral)
+            step.append(cycle)
+
+            # Metric for outlier rejection.
+            csmmsq = csmm * csmm
+            pared_ix_list = sorted(range(len(cs)), key=lambda k: csmmsq[k])
+
+            # Remove the next set of outliers
+            pared_ix_list = pared_ix_list[:-(1+cycle)]
+
+            # Check convergence
+            if (abs(last_integral - this_integral) < self.tolerance):
+                iteration += 1
+            else:
+                iteration = 0
+            last_integral = this_integral
+            if iteration > self.numIterations:
+                break
+
+        return this_integral*dt
