@@ -88,6 +88,12 @@ class PhotodiodeCalib(IsrCalib):
         if 'seq_num' in kwargs:
             self.updateMetadata(seq_num=kwargs['seq_num'])
 
+        # Setting for .integrateDirectSum
+        if 'baselineOffset' in kwargs:
+            self.baselineOffset = kwargs.pop('baselineOffset')
+        else:
+            self.baselineOffset = None
+
         self.requiredAttributes.update(['timeSamples', 'currentSamples', 'integrationMethod'])
 
     @classmethod
@@ -261,7 +267,17 @@ class PhotodiodeCalib(IsrCalib):
         sum : `float`
             Total charge measured.
         """
-        return np.trapz(self.currentSamples, x=self.timeSamples)
+        cs = self.currentSamples*self.currentScale
+        baseline = 0
+        if self.baselineOffset is not None:
+            # If there are enough points, estimate the baseline from the
+            # samples beyond the nominal signal region.
+            min_cs = min(cs)
+            threshold = (max(cs) - min_cs)/2. + min_cs
+            index = np.argwhere(cs > threshold)[-1][0] + self.baselineOffset
+            if index < len(cs) - 1:
+                baseline = np.median(cs[index:])/self.currentScale
+        return np.trapz(self.currentSamples - baseline, x=self.timeSamples)
 
     def integrateTrimmedSum(self):
         """Integrate points with a baseline level subtracted.
