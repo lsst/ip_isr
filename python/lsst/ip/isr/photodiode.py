@@ -277,11 +277,13 @@ class PhotodiodeCalib(IsrCalib):
         --------
         lsst.eotask.gen3.eoPtc
         """
-        currentThreshold = ((max(self.currentSamples) - min(self.currentSamples))/5.0
-                            + min(self.currentSamples))
-        lowValueIndices = np.where(self.currentSamples < currentThreshold)
-        baseline = np.median(self.currentSamples[lowValueIndices])
-        return np.trapz(self.currentSamples - baseline, self.timeSamples)
+        # Apply the current scale to pick up any sign flip in the
+        # current sample values.
+        cs = self.currentScale * self.currentSamples
+        currentThreshold = (max(cs) - min(cs))/5.0 + min(cs)
+        lowValueIndices = np.where(cs < currentThreshold)
+        baseline = np.median(cs[lowValueIndices])
+        return np.trapz(cs - baseline, self.timeSamples)
 
     def integrateChargeSum(self):
         """For this method, the values in .currentSamples are actually the
