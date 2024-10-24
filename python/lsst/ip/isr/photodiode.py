@@ -88,12 +88,6 @@ class PhotodiodeCalib(IsrCalib):
         if 'seq_num' in kwargs:
             self.updateMetadata(seq_num=kwargs['seq_num'])
 
-        # Setting for .integrateDirectSum
-        if 'baselineOffset' in kwargs:
-            self.baselineOffset = kwargs.pop('baselineOffset')
-        else:
-            self.baselineOffset = None
-
         # Settings for .integrateIterativeSum
         if 'numOutliers' in kwargs:
             self.numOutliers = kwargs.pop('numOutliers')
@@ -285,17 +279,7 @@ class PhotodiodeCalib(IsrCalib):
         sum : `float`
             Total charge measured.
         """
-        cs = self.currentSamples*self.currentScale
-        baseline = 0
-        if self.baselineOffset is not None:
-            # If there are enough points, estimate the baseline from the
-            # samples beyond the nominal signal region.
-            min_cs = min(cs)
-            threshold = (max(cs) - min_cs)/2. + min_cs
-            index = np.argwhere(cs > threshold)[-1][0] + self.baselineOffset
-            if index < len(cs) - 1:
-                baseline = np.median(cs[index:])/self.currentScale
-        return np.trapz(self.currentSamples - baseline, x=self.timeSamples)
+        return np.trapz(self.currentSamples, x=self.timeSamples)
 
     def integrateTrimmedSum(self):
         """Integrate points with a baseline level subtracted.
@@ -311,10 +295,12 @@ class PhotodiodeCalib(IsrCalib):
         --------
         lsst.eotask.gen3.eoPtc
         """
-        currentThreshold = ((max(self.currentSamples) - min(self.currentSamples))/5.0
-                            + min(self.currentSamples))
-        lowValueIndices = np.where(self.currentSamples < currentThreshold)
-        baseline = np.median(self.currentSamples[lowValueIndices])
+        # Apply the current scale to pick up any sign flip in the
+        # current sample value.
+        cs = self.currentScale * self.currentSamples
+        currentThreshold = (max(cs) - min(cs))/5.0 + min(cs)
+        lowValueIndices = np.where(cs < currentThreshold)
+        baseline = np.median(cs[lowValueIndices])/self.currentScale
         return np.trapz(self.currentSamples - baseline, self.timeSamples)
 
     def integrateChargeSum(self):
