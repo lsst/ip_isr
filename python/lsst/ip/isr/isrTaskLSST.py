@@ -1705,6 +1705,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 linearityGains = gains
             else:
                 linearityGains = None
+
+            applyOffset = {}
+            for amp in detector:
+                ampConfig = overscanDetectorConfig.getOverscanAmpConfig(amp)
+                applyOffset[amp.getName()] = ampConfig.doApplyLinearizerOffset
+
             linearizer.applyLinearity(
                 image=ccdExposure.image,
                 detector=detector,

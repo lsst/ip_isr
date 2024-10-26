@@ -54,6 +54,11 @@ class OverscanAmpConfig(pexConfig.Config):
             "Units are e-/ADU.",
         default=float("NaN"),
     )
+    doApplyLinearizerOffset = pexConfig.Field(
+        dtype=bool,
+        doc="Apply the linearity offset to the data?",
+        default=False,
+    )
 
     def setDefaults(self):
         super().setDefaults()

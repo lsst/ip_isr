@@ -494,7 +494,7 @@ class Linearizer(IsrCalib):
                     raise RuntimeError("Amplifier %s coeffs %s does not match saved value %s" %
                                        (ampName, amp.getLinearityCoeffs(), self.linearityCoeffs[ampName]))
 
-    def applyLinearity(self, image, detector=None, log=None, gains=None):
+    def applyLinearity(self, image, detector=None, log=None, gains=None, applyOffset={}):
         """Apply the linearity to an image.
 
         If the linearity parameters are populated, use those,
@@ -515,6 +515,9 @@ class Linearizer(IsrCalib):
             Dictionary of amp name to gain. If this is provided then
             linearity terms will be converted from adu to electrons.
             Only used for Spline linearity corrections.
+        applyOffset : `dict` [`str`, `bool`], optional
+            Apply linearity offset per amp?  Only used for spline
+            linearity corrections.
         """
         if log is None:
             log = self.log
@@ -540,6 +543,8 @@ class Linearizer(IsrCalib):
             else:
                 gainValue = 1.0
 
+            doApplyOffset = applyOffset.get(ampName, False)
+
             if linearizer is not None:
                 match isTrimmed:
                     case True:
@@ -554,8 +559,14 @@ class Linearizer(IsrCalib):
                                                                'table': self.tableData,
                                                                'log': self.log,
                                                                'gain': gainValue})
+
                 numOutOfRange += outOfRange
                 if success:
+                    if doApplyOffset:
+                        # FIXME THIS IS NOT CORRECT IN GENERAL NEEDS PROPER
+                        # FIELD
+                        ampView.array[:, :] -= self.fitParams[ampName][-1]
+
                     numLinearized += 1
                 elif log is not None:
                     log.warning("Amplifier %s did not linearize.",
