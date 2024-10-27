@@ -1716,6 +1716,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 detector=detector,
                 log=self.log,
                 gains=linearityGains,
+                applyOffset=applyOffset,
             )
 
         # Serial CTI (deferred charge) correction

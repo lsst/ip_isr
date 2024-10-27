@@ -57,7 +57,7 @@ class OverscanAmpConfig(pexConfig.Config):
     doApplyLinearizerOffset = pexConfig.Field(
         dtype=bool,
         doc="Apply the linearity offset to the data?",
-        default=False,
+        default=True,
     )
 
     def setDefaults(self):
