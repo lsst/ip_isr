@@ -808,6 +808,11 @@ class CrosstalkConfig(Config):
         doc="Name for crosstalk mask plane.",
         default="CROSSTALK"
     )
+    doSubtrahendMasking = Field(
+        dtype=bool,
+        doc="Use subtrahend based mask calculation?",
+        default=False,
+    )
     crosstalkBackgroundMethod = ChoiceField(
         dtype=str,
         doc="Type of background subtraction to use when applying correction.",
@@ -1051,6 +1056,7 @@ class CrosstalkTask(Task):
                 crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                 crosstalkCoeffsValid=crosstalk.coeffValid,
                 minPixelToMask=self.config.minPixelToMask,
+                doSubtrahendMasking=self.config.doSubtrahendMasking,
                 crosstalkStr=self.config.crosstalkMaskPlane,
                 isTrimmed=isTrimmed,
                 backgroundMethod=self.config.crosstalkBackgroundMethod,

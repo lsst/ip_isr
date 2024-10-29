@@ -219,7 +219,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.assertIn(self.crosstalkStr, mask.getMaskPlaneDict())
         self.assertGreater((mask.getArray() & mask.getPlaneBitMask(self.crosstalkStr) > 0).sum(), 0)
 
-    def checkTaskAPI_NL(self, this_isr_task):
+    def checkTaskAPI_NL(self, this_isr_task, doSubtrahendMasking=False):
         """Check the the crosstalk task under different ISR tasks.
         (e.g., IsrTask and IsrTaskLSST)
 
@@ -233,6 +233,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         config = this_isr_task.ConfigClass()
         config.crosstalk.minPixelToMask = self.value - 1
         config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
+        if doSubtrahendMasking:
+            config.crosstalk.doSubtrahendMasking = True
+            config.crosstalk.minPixelToMask = 1.0
         # Turn on the NL correction
         config.crosstalk.doQuadraticCrosstalkCorrection = True
         isr = this_isr_task(config=config)
@@ -282,7 +285,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         correction.
         """
         for this_isr_task in [IsrTask, IsrTaskLSST]:
-            self.checkTaskAPI_NL(this_isr_task)
+            for subtrahendMasking in [False, True]:
+                self.checkTaskAPI_NL(this_isr_task, subtrahendMasking)
 
     def test_nullCrosstalkTask(self):
         """Test that the null crosstalk task does not create an error.
