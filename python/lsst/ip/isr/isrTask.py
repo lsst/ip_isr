@@ -1731,9 +1731,9 @@ class IsrTask(pipeBase.PipelineTask):
         # Calculate amp offset corrections within the CCD.
         if self.config.doAmpOffset:
             if self.config.ampOffset.doApplyAmpOffset:
-                self.log.info("Calculating and applying amp offset corrections.")
+                self.log.info("Measuring and applying amp offset corrections.")
             else:
-                self.log.info("Calculating amp offset corrections without applying them.")
+                self.log.info("Measuring amp offset corrections only, without applying them.")
             self.ampOffset.run(ccdExposure)
 
         if self.config.doMeasureBackground:
