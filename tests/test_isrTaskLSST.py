@@ -70,11 +70,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                                               ptcFitType='DUMMY_PTC',
                                               covMatrixSide=1)
 
+        self.saturation_adu = 100_000.0
+
         # PTC records noise units in electron, same as the
         # configuration parameter.
         for amp_name in amp_names:
             self.ptc.gain[amp_name] = mock.config.gainDict.get(amp_name, mock.config.gain)
             self.ptc.noise[amp_name] = mock.config.readNoise
+            self.ptc.ptcTurnoff[amp_name] = self.saturation_adu
 
         # TODO:
         # self.cti = isrMockLSST.DeferredChargeMockLSST().run()
@@ -87,8 +90,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             centers, values = np.split(coeffs, 2)
             values[centers < mock_config.highSignalNonlinearityThreshold] = 0.0
             self.linearizer.linearityCoeffs[amp_name] = np.concatenate((centers, values))
-
-        self.saturation_adu = 100_000.0
 
     def test_isrBootstrapBias(self):
         """Test processing of a ``bootstrap`` bias frame.
@@ -777,6 +778,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu * gain)
+            key = f"LSST ISR SUSPECT LEVEL {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], self.saturation_adu * gain)
 
         # Test the variance plane in the case of electron units.
         # The expected variance starts with the image array.
@@ -827,10 +831,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # However, the same pixels below should be masked/interpolated.
         isr_config.doDefect = False
 
+        # Use a config override saturation value, confirm it is picked up.
+        saturation_level = self.saturation_adu * 1.05
+
         # This code will set the gain of one amp to the same as the ptc
         # value, and we will check that it is logged and used but the
         # results should be the same.
         detectorConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector)
+        detectorConfig.defaultAmpConfig.saturation = saturation_level
         overscanAmpConfig = copy.copy(detectorConfig.defaultAmpConfig)
         overscanAmpConfig.gain = self.ptc.gain[self.detector[1].getName()]
         detectorConfig.ampRules[self.detector[1].getName()] = overscanAmpConfig
@@ -886,6 +894,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # the defect case because of the widening of the saturation
         # trail.
         self.assertLess(np.std(delta), 7.0)
+
+        metadata = result.exposure.metadata
+
+        for amp in self.detector:
+            amp_name = amp.getName()
+            key = f"LSST ISR GAIN {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], gain := self.ptc.gain[amp_name])
+            key = f"LSST ISR READNOISE {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], self.ptc.noise[amp_name])
+            key = f"LSST ISR SATURATION LEVEL {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], saturation_level * gain)
 
     def test_isrFloodedSaturatedE2V(self):
         """Test ISR when the amps are completely saturated.
@@ -1136,9 +1158,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # We do not do defect correction when processing biases.
         isr_config.doDefect = False
 
-        amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
-        sat_level_adu = amp_config.saturation
         # The defect is in amp 2.
+        sat_level_adu = self.ptc.ptcTurnoff[self.detector[2].getName()]
         amp_gain = mock_config.gainDict[self.detector[2].getName()]
         sat_level = amp_gain * sat_level_adu
         # The expected defect level is in electron for the full bias.
@@ -1377,8 +1398,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
         # Our strong overscan slope in the tests requires an override.
         defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
-        # Override the camera model to use the desired saturation (ADU).
-        defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
         isr_config.doAssembleCcd = True
 
