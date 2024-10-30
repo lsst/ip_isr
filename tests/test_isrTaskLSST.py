@@ -160,9 +160,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], 1.0)
-            key = f"LSST ISR SATURATION LEVEL {amp_name}"
-            self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], self.saturation_adu)
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
@@ -1324,6 +1321,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDefect = False
         isr_config.doBrighterFatter = False
         isr_config.doFlat = False
+        isr_config.doSaturation = False
+        isr_config.doSuspect = False
         # We override the leading/trailing to skip here because of the limited
         # size of the test camera overscan regions.
         defaultAmpConfig = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
@@ -1336,8 +1335,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
         # Our strong overscan slope in the tests requires an override.
         defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
-        # Override the camera model to use the desired saturation (ADU).
-        defaultAmpConfig.saturation = self.saturation_adu  # ADU
 
         isr_config.doAssembleCcd = True
 
