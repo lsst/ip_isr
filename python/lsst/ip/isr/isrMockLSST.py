@@ -844,13 +844,8 @@ class IsrMockLSST(IsrMock):
         metadataDict['metadata'].add(name="OBSTYPE", value="CTI")
         metadataDict['metadata'].add(name="CALIBCLS",
                                      value="lsst.ip.isr.deferredCharge.DeferredChargeCalib")
-        # This should always be True for the new ISR task
-        # because gains have already been applied and the
-        # mock and the correction are always in electrons.
-        # We will pass where necessary gains of 1.0.
-        metadataDict['metadata'].add("USEGAINS", value=True)
         self.ctiCalibDict = {**metadataDict, **self.ctiCalibDict}
-        deferredChargeCalib = DeferredChargeCalib(useGains=True)
+        deferredChargeCalib = DeferredChargeCalib()
         self.cti = deferredChargeCalib.fromDict(self.ctiCalibDict)
 
         return self.cti
