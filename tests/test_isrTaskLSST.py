@@ -1271,6 +1271,65 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             else:
                 self.assertTrue(np.all(~bad_in_amp))
 
+    def test_saturationModes(self):
+        """Test the different saturation modes."""
+        # Use a simple bias run for these.
+        mock_config = self.get_mock_config_no_signal()
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doSaturation = True
+        isr_config.maskNegativeVariance = False
+        detector_config = copy.copy(isr_config.overscanCamera.defaultDetectorConfig)
+        amp_config = copy.copy(detector_config.defaultAmpConfig)
+
+        for mode in ["NONE", "CAMERAMODEL", "PTCTURNOFF"]:
+            isr_config.defaultSaturationSource = mode
+
+            # Reset the PTC.
+            ptc = copy.copy(self.ptc)
+            # Reset the detector config.
+            isr_config.overscanCamera.defaultDetectorConfig = detector_config
+            if mode == "NONE":
+                # We must use the config.
+                sat_level = 1.2 * self.saturation_adu
+                amp_config_new = copy.copy(amp_config)
+                amp_config_new.saturation = sat_level
+                detector_config_new = copy.copy(detector_config)
+                detector_config_new.defaultAmpConfig = amp_config_new
+                isr_config.overscanCamera.defaultDetectorConfig = detector_config_new
+            elif mode == "CAMERAMODEL":
+                sat_level = input_exp.getDetector()[0].getSaturation()
+            elif mode == "PTCTURNOFF":
+                sat_level = 1.3 * self.saturation_adu
+                for amp_name in ptc.ampNames:
+                    ptc.ptcTurnoff[amp_name] = sat_level
+
+            isr_task = IsrTaskLSST(config=isr_config)
+            with self.assertNoLogs(level=logging.WARNING):
+                result = isr_task.run(
+                    input_exp.clone(),
+                    bias=self.bias,
+                    crosstalk=self.crosstalk,
+                    ptc=self.ptc,
+                    linearizer=self.linearizer,
+                    deferredChargeCalib=self.cti,
+                    defects=self.defects,
+                )
+
+            metadata = result.exposure.metadata
+
+            for amp in self.detector:
+                amp_name = amp.getName()
+                key = f"LSST ISR GAIN {amp_name}"
+                self.assertIn(key, metadata)
+                self.assertEqual(metadata[key], gain := self.ptc.gain[amp_name])
+                key = f"LSST ISR SATURATION LEVEL {amp_name}"
+                self.assertIn(key, metadata)
+                self.assertEqual(metadata[key], sat_level * gain)
+
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
 
