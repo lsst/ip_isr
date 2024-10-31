@@ -773,6 +773,8 @@ class CrosstalkCalib(IsrCalib):
                         fullAmplifier=fullAmplifier,
                         parallelOverscan=parallelOverscan,
                     )
+                    tImageSqr.getMask().getArray()[:] &= crosstalk  # Remove all other masks
+                    tImageSqr -= backgrounds[tt]**2
                     sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
         # Set crosstalkStr bit only for those pixels that have been
