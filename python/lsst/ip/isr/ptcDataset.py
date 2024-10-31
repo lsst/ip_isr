@@ -425,6 +425,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.finalModelVars[ampName] = np.array([np.nan])
         self.finalMeans[ampName] = np.array([np.nan])
 
+        self._covariancesModelNoB[ampName] = np.array([nanMatrixFit])
+        self._aMatrixNoB[ampName] = nanMatrixFit
+        self._noiseMatrixNoB[ampName] = nanMatrixFit
+
     def setAuxValuesPartialDataset(self, auxDict):
         """
         Set a dictionary of auxiliary values for a partial dataset.
@@ -489,6 +493,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
         calib.ampNames = []
 
+        calibVersion = dictionary['metadata']['PTC_VERSION']
+
         # The cov matrices are square
         covMatrixSide = calib.covMatrixSide
         covMatrixSideFullCovFit = calib.covMatrixSideFullCovFit
@@ -543,6 +549,19 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.noiseMatrix[ampName] = np.array(
                     dictionary['noiseMatrix'][ampName],
                     dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+
+                # Deprecated to be removed after v28
+                if calibVersion < 2.1:
+                    calib._covariancesModelNoB[ampName] = np.array(
+                        dictionary['covariancesModelNoB'][ampName], dtype=np.float64).reshape(
+                            (nSignalPoints, covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+                    calib._aMatrixNoB[ampName] = np.array(
+                        dictionary['aMatrixNoB'][ampName],
+                        dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+                    calib._noiseMatrixNoB[ampName] = np.array(
+                        dictionary['noiseMatrixNoB'][ampName],
+                        dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+
             else:
                 # Empty dataset
                 calib.covariances[ampName] = np.array([], dtype=np.float64)
@@ -692,6 +711,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['badAmps'] = []
         inDict['photoCharges'] = dict()
         inDict['ampOffsets'] = dict()
+        inDict['noiseMatrixNoB'] = dict()
+        inDict['covariancesModelNoB'] = dict()
+        inDict['aMatrixNoB'] = dict()
 
         calibVersion = metadata['PTC_VERSION']
         if calibVersion == 1.0:
@@ -745,8 +767,14 @@ class PhotonTransferCurveDataset(IsrCalib):
             if calibVersion < 1.3:
                 nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
                 inDict['noiseMatrix'][ampName] = nanMatrix
+                inDict['noiseMatrixNoB'][ampName] = nanMatrix
+            elif calibVersion >= 1.3 and calibVersion < 2.1:
+                inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
+                inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
             else:
                 inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
+                nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
+                inDict['noiseMatrixNoB'][ampName] = nanMatrix
             if calibVersion < 1.5:
                 # Matched to `COV_MATRIX_SIDE`. Same for all amps.
                 inDict['covMatrixSideFullCovFit'] = inDict['covMatrixSide']
@@ -789,6 +817,15 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['ampOffsets'][ampName] = record['AMP_OFFSETS']
                 inDict['gainUnadjusted'][ampName] = record['GAIN_UNADJUSTED']
                 inDict['gainList'][ampName] = record['GAIN_LIST']
+            if calibVersion < 2.1:
+                inDict['covariancesModelNoB'][ampName] = record['COVARIANCES_MODEL_NO_B']
+                inDict['aMatrixNoB'][ampName] = record['A_MATRIX_NO_B']
+            else:
+                inDict['covariancesModelNoB'][ampName] = np.full_like(
+                    inDict['covariancesModel'][ampName],
+                    np.nan,
+                )
+                inDict['aMatrixNoB'][ampName] = np.full_like(inDict['aMatrix'][ampName], np.nan)
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -981,6 +1018,16 @@ class PhotonTransferCurveDataset(IsrCalib):
             self.covariancesModel[ampName] = np.append(
                 self.covariancesModel[ampName].ravel(),
                 partialPtc.covariancesModel[ampName].ravel()
+            ).reshape(
+                (
+                    len(self.rawExpTimes[ampName]),
+                    self.covMatrixSide,
+                    self.covMatrixSide,
+                )
+            )
+            self._covariancesModelNoB[ampName] = np.append(
+                self._covariancesModelNoB[ampName].ravel(),
+                partialPtc._covariancesModelNoB[ampName].ravel()
             ).reshape(
                 (
                     len(self.rawExpTimes[ampName]),
