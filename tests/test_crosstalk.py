@@ -162,6 +162,10 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.exposure = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
         self.exposure.setDetector(ccd1)
 
+        # Add a saturated region so we can confirm it doesn't get duplicated.
+        saturatedBit = self.exposure.mask.getPlaneBitMask("SAT")
+        self.exposure.mask.array[0:5, 0:5] |= saturatedBit
+
         # Create a single ctSource that will be used for interChip CT
         # correction.
         self.ctSource = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
@@ -218,6 +222,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(image.getArray(), self.corrected.getArray(), atol=2.0e-2)
         self.assertIn(self.crosstalkStr, mask.getMaskPlaneDict())
         self.assertGreater((mask.getArray() & mask.getPlaneBitMask(self.crosstalkStr) > 0).sum(), 0)
+        self.assertEqual((mask.getArray() & mask.getPlaneBitMask("SAT") > 0).sum(), 25)
 
     def checkTaskAPI_NL(self, this_isr_task, doSubtrahendMasking=False):
         """Check the the crosstalk task under different ISR tasks.
@@ -226,6 +231,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         Parameters
         ----------
         this_isr_task : `lsst.pipe.base.PipelineTask`
+            The ISR Task instance to use.
+        doSubtrahendMasking : `bool`
+            Enable subtrahend masking code.
         """
         self.setUp_general(doSqrCrosstalk=True)
         coeff = np.array(self.crosstalk).transpose()
