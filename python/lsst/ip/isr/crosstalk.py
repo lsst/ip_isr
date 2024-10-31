@@ -563,7 +563,7 @@ class CrosstalkCalib(IsrCalib):
 
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
                           crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
-                          badPixels=["BAD"], minPixelToMask=45000,
+                          badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
                           parallelOverscan=False, detectorConfig=None, badAmpDict=None):
@@ -781,6 +781,18 @@ class CrosstalkCalib(IsrCalib):
         # significantly modified (i.e., those masked as such in 'subtrahend'),
         # not necessarily those that are bright originally.
         mask.clearMaskPlane(crosstalkPlane)
+
+        if doSubtrahendMasking:
+            subtrahend.mask.clearMaskPlane(crosstalkPlane)
+            # Run detection twice to avoid needing an absolute value image
+            threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=True)
+            footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
+            footprints.setMask(subtrahend.mask, crosstalkStr)
+
+            threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=False)
+            footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
+            footprints.setMask(subtrahend.mask, crosstalkStr)
+
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
 
