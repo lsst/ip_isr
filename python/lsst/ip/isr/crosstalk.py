@@ -810,7 +810,7 @@ class CrosstalkConfig(Config):
     )
     doSubtrahendMasking = Field(
         dtype=bool,
-        doc="Use subtrahend based mask calculation?",
+        doc="Use subtrahend image thresholding instead of input image thesholding to set crosstalk mask?",
         default=False,
     )
     crosstalkBackgroundMethod = ChoiceField(
