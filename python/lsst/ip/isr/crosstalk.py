@@ -563,7 +563,7 @@ class CrosstalkCalib(IsrCalib):
 
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
                           crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
-                          badPixels=["BAD"], minPixelToMask=45000,
+                          badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
                           crosstalkStr="CROSSTALK", isTrimmed=False,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
                           parallelOverscan=False, detectorConfig=None, badAmpDict=None):
@@ -773,12 +773,26 @@ class CrosstalkCalib(IsrCalib):
                         fullAmplifier=fullAmplifier,
                         parallelOverscan=parallelOverscan,
                     )
+                    tImageSqr.getMask().getArray()[:] &= crosstalk  # Remove all other masks
+                    tImageSqr -= backgrounds[tt]**2
                     sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
         # Set crosstalkStr bit only for those pixels that have been
         # significantly modified (i.e., those masked as such in 'subtrahend'),
         # not necessarily those that are bright originally.
         mask.clearMaskPlane(crosstalkPlane)
+
+        if doSubtrahendMasking:
+            subtrahend.mask.clearMaskPlane(crosstalkPlane)
+            # Run detection twice to avoid needing an absolute value image
+            threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=True)
+            footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
+            footprints.setMask(subtrahend.mask, crosstalkStr)
+
+            threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=False)
+            footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
+            footprints.setMask(subtrahend.mask, crosstalkStr)
+
         mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
 
 
@@ -793,6 +807,11 @@ class CrosstalkConfig(Config):
         dtype=str,
         doc="Name for crosstalk mask plane.",
         default="CROSSTALK"
+    )
+    doSubtrahendMasking = Field(
+        dtype=bool,
+        doc="Use subtrahend image thresholding instead of input image thesholding to set crosstalk mask?",
+        default=False,
     )
     crosstalkBackgroundMethod = ChoiceField(
         dtype=str,
@@ -1037,6 +1056,7 @@ class CrosstalkTask(Task):
                 crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                 crosstalkCoeffsValid=crosstalk.coeffValid,
                 minPixelToMask=self.config.minPixelToMask,
+                doSubtrahendMasking=self.config.doSubtrahendMasking,
                 crosstalkStr=self.config.crosstalkMaskPlane,
                 isTrimmed=isTrimmed,
                 backgroundMethod=self.config.crosstalkBackgroundMethod,

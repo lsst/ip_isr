@@ -162,6 +162,10 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.exposure = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
         self.exposure.setDetector(ccd1)
 
+        # Add a saturated region so we can confirm it doesn't get duplicated.
+        saturatedBit = self.exposure.mask.getPlaneBitMask("SAT")
+        self.exposure.mask.array[0:5, 0:5] |= saturatedBit
+
         # Create a single ctSource that will be used for interChip CT
         # correction.
         self.ctSource = lsst.afw.image.makeExposure(lsst.afw.image.makeMaskedImage(construct(withCrosstalk)))
@@ -218,14 +222,18 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(image.getArray(), self.corrected.getArray(), atol=2.0e-2)
         self.assertIn(self.crosstalkStr, mask.getMaskPlaneDict())
         self.assertGreater((mask.getArray() & mask.getPlaneBitMask(self.crosstalkStr) > 0).sum(), 0)
+        self.assertEqual((mask.getArray() & mask.getPlaneBitMask("SAT") > 0).sum(), 25)
 
-    def checkTaskAPI_NL(self, this_isr_task):
+    def checkTaskAPI_NL(self, this_isr_task, doSubtrahendMasking=False):
         """Check the the crosstalk task under different ISR tasks.
         (e.g., IsrTask and IsrTaskLSST)
 
         Parameters
         ----------
         this_isr_task : `lsst.pipe.base.PipelineTask`
+            The ISR Task instance to use.
+        doSubtrahendMasking : `bool`
+            Enable subtrahend masking code.
         """
         self.setUp_general(doSqrCrosstalk=True)
         coeff = np.array(self.crosstalk).transpose()
@@ -233,6 +241,9 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         config = this_isr_task.ConfigClass()
         config.crosstalk.minPixelToMask = self.value - 1
         config.crosstalk.crosstalkMaskPlane = self.crosstalkStr
+        if doSubtrahendMasking:
+            config.crosstalk.doSubtrahendMasking = True
+            config.crosstalk.minPixelToMask = 1.0
         # Turn on the NL correction
         config.crosstalk.doQuadraticCrosstalkCorrection = True
         isr = this_isr_task(config=config)
@@ -282,7 +293,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         correction.
         """
         for this_isr_task in [IsrTask, IsrTaskLSST]:
-            self.checkTaskAPI_NL(this_isr_task)
+            for subtrahendMasking in [False, True]:
+                self.checkTaskAPI_NL(this_isr_task, subtrahendMasking)
 
     def test_nullCrosstalkTask(self):
         """Test that the null crosstalk task does not create an error.
