@@ -313,15 +313,35 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Name of mask plane to use in saturation detection and interpolation.",
         default="SAT",
     )
+    defaultSaturationSource = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Source to retrieve default amp-level saturation values.",
+        allowed={
+            "NONE": "No default saturation values; only config overrides will be used.",
+            "CAMERAMODEL": "Use the default from the camera model (old defaults).",
+            "PTCTURNOFF": "Use the ptcTurnoff value as the saturation level.",
+        },
+        default="PTCTURNOFF",
+    )
     doSuspect = pexConfig.Field(
         dtype=bool,
         doc="Mask suspect pixels?",
-        default=False,
+        default=True,
     )
     suspectMaskName = pexConfig.Field(
         dtype=str,
         doc="Name of mask plane to use for suspect pixels.",
         default="SUSPECT",
+    )
+    defaultSuspectSource = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Source to retrieve default amp-level suspect values.",
+        allowed={
+            "NONE": "No default suspect values; only config overrides will be used.",
+            "CAMERAMODEL": "Use the default from the camera model (old defaults).",
+            "PTCTURNOFF": "Use the ptcTurnoff value as the suspect level.",
+        },
+        default="PTCTURNOFF",
     )
 
     # Crosstalk.
@@ -674,7 +694,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return badAmpDict
 
-    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector, detectorConfig):
+    def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector, detectorConfig, ptc=None):
         """
         Mask SATURATED and SUSPECT pixels and check if any amplifiers
         are fully masked.
@@ -693,6 +713,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             amplifier is bad.
         detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`
             Per-amplifier configurations.
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+            PTC dataset (used if configured to use PTCTURNOFF).
 
         Returns
         -------
@@ -702,6 +724,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         maskedImage = ccdExposure.getMaskedImage()
 
         metadata = ccdExposure.metadata
+
+        if self.config.doSaturation and self.config.defaultSaturationSource == "PTCTURNOFF" and ptc is None:
+            raise RuntimeError("Must provide ptc if using PTCTURNOFF as saturation source.")
+        if self.config.doSuspect and self.config.defaultSuspectSource == "PTCTURNOFF" and ptc is None:
+            raise RuntimeError("Must provide ptc if using PTCTURNOFF as suspect source.")
 
         for amp in detector:
             ampName = amp.getName()
@@ -715,15 +742,28 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Mask saturated and suspect pixels.
             limits = {}
             if self.config.doSaturation:
-                # Set to the default from the camera model.
-                limits.update({self.config.saturatedMaskName: amp.getSaturation()})
+                if self.config.defaultSaturationSource == "PTCTURNOFF":
+                    limits.update({self.config.saturatedMaskName: ptc.ptcTurnoff[amp.getName()]})
+                elif self.config.defaultSaturationSource == "CAMERAMODEL":
+                    # Set to the default from the camera model.
+                    limits.update({self.config.saturatedMaskName: amp.getSaturation()})
+                elif self.config.defaultSaturationSource == "NONE":
+                    limits.update({self.config.saturatedMaskName: 1e100})
+
                 # And update if it is set in the config.
                 if math.isfinite(ampConfig.saturation):
                     limits.update({self.config.saturatedMaskName: ampConfig.saturation})
                 metadata[f"LSST ISR SATURATION LEVEL {ampName}"] = limits[self.config.saturatedMaskName]
 
             if self.config.doSuspect:
-                limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
+                if self.config.defaultSuspectSource == "PTCTURNOFF":
+                    limits.update({self.config.suspectMaskName: ptc.ptcTurnoff[amp.getName()]})
+                elif self.config.defaultSuspectSource == "CAMERAMODEL":
+                    # Set to the default from the camera model.
+                    limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
+                elif self.config.defaultSuspectSource == "NONE":
+                    limits.update({self.config.suspectMaskName: 1e100})
+
                 # And update if it set in the config.
                 if math.isfinite(ampConfig.suspectLevel):
                     limits.update({self.config.suspectMaskName: ampConfig.suspectLevel})
@@ -1545,6 +1585,21 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 raise RuntimeError("doFlat is True but no flat provided.")
             self.compareCameraKeywords(exposureMetadata, flat, "flat")
 
+        if self.config.doSaturation:
+            if self.config.defaultSaturationSource in ["PTCTURNOFF",]:
+                if ptc is None:
+                    raise RuntimeError(
+                        "doSaturation is True and defaultSaturationSource is "
+                        f"{self.config.defaultSaturationSource}, but no ptc provided."
+                    )
+        if self.config.doSuspect:
+            if self.config.defaultSuspectSource in ["PTCTURNOFF",]:
+                if ptc is None:
+                    raise RuntimeError(
+                        "doSuspect is True and defaultSuspectSource is "
+                        f"{self.config.defaultSuspectSource}, but no ptc provided."
+                    )
+
         # FIXME: Make sure that if linearity is done then it is matched
         # with the right PTC.
 
@@ -1628,7 +1683,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # The saturation is currently assumed to be recorded in
         # overscan-corrected adu.
-        badAmpDict = self.maskSaturatedPixels(badAmpDict, ccdExposure, detector, overscanDetectorConfig)
+        badAmpDict = self.maskSaturatedPixels(
+            badAmpDict,
+            ccdExposure,
+            detector,
+            overscanDetectorConfig,
+            ptc=ptc,
+        )
 
         if self.config.doCorrectGains:
             # TODO: DM-36639
