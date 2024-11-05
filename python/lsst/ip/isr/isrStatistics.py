@@ -379,20 +379,28 @@ class IsrStatisticsTask(pipeBase.Task):
                                                                 self.statControl).getValue()
 
                 # First and last image columns.
-                colA = afwMath.makeStatistics(dataRegion.array[:, 0],
-                                                self.statType,
-                                                self.statControl).getValue()
-                colZ = afwMath.makeStatistics(dataRegion.array[:, -1],
-                                                self.statType,
-                                                self.statControl).getValue()
+                colA = afwMath.makeStatistics(
+                    dataRegion.array[:, 0],
+                    self.statType,
+                    self.statControl,
+                ).getValue()
+                colZ = afwMath.makeStatistics(
+                    dataRegion.array[:, -1],
+                    self.statType,
+                    self.statControl,
+                ).getValue()
 
                 # First and last image rows.
-                rowA = afwMath.makeStatistics(dataRegion.array[0, :],
-                                                self.statType,
-                                                self.statControl).getValue()
-                rowZ = afwMath.makeStatistics(dataRegion.array[-1, :],
-                                                self.statType,
-                                                self.statControl).getValue()
+                rowA = afwMath.makeStatistics(
+                    dataRegion.array[0, :],
+                    self.statType,
+                    self.statControl,
+                ).getValue()
+                rowZ = afwMath.makeStatistics(
+                    dataRegion.array[-1, :],
+                    self.statType,
+                    self.statControl,
+                ).getValue()
 
                 # We want these relative to the readout corner.  If that's
                 # on the right side, we need to swap them.
@@ -415,7 +423,6 @@ class IsrStatisticsTask(pipeBase.Task):
                 # Measure the columns of the overscan.
                 nSerialOverscanCols = amp.getRawSerialOverscanBBox().getWidth()
                 nSerialOverscanRows = amp.getRawSerialOverscanBBox().getHeight()
-                nParallelOverscanCols = amp.getRawParallelOverscanBBox().getWidth()
                 nParallelOverscanRows = amp.getRawParallelOverscanBBox().getHeight()
                 if overscans[ampIter] is None:
                     # The amplifier is likely entirely bad, and needs to
@@ -438,8 +445,11 @@ class IsrStatisticsTask(pipeBase.Task):
                         # Only the serial CTI correction has been
                         # implemented, so we must select only the
                         # serial overscan rows for a given column.
-                        serialOverscanColMean = afwMath.makeStatistics(overscanImage.image.array[:nSerialOverscanRows, idx],
-                                                                       self.statType, self.statControl).getValue()
+                        serialOverscanColMean = afwMath.makeStatistics(
+                            overscanImage.image.array[:nSerialOverscanRows, idx],
+                            self.statType,
+                            self.statControl,
+                        ).getValue()
                         columns.append(idx)
                         # The overscan input is always in adu, but it only
                         # makes sense to measure CTI in electron units.
@@ -448,8 +458,11 @@ class IsrStatisticsTask(pipeBase.Task):
                     rows = []
                     rowValues = []
                     for idx in range(0, nParallelOverscanRows):
-                        parallelOverscanRowMean = afwMath.makeStatistics(overscanImage.image.array[nSerialOverscanRows + idx, :],
-                                                                         self.statType, self.statControl).getValue()
+                        parallelOverscanRowMean = afwMath.makeStatistics(
+                            overscanImage.image.array[nSerialOverscanRows + idx, :],
+                            self.statType,
+                            self.statControl,
+                        ).getValue()
                         rows.append(idx)
                         # The overscan input is always in adu, but it only
                         # makes sense to measure CTI in electron units.
@@ -467,10 +480,10 @@ class IsrStatisticsTask(pipeBase.Task):
                     # We want these relative to the readout corner.  If that's
                     # on the top, we need to swap them.
                     if readoutCorner in (ReadoutCorner.UR, ReadoutCorner.UL):
-                        ampStats["PARALLEL_OVERSCAN_COLUMNS"] = list(reversed(rows))
+                        ampStats["PARALLEL_OVERSCAN_ROWS"] = list(reversed(rows))
                         ampStats["PARALLEL_OVERSCAN_VALUES"] = list(reversed(rowValues))
                     else:
-                        ampStats["PARALLEL_OVERSCAN_COLUMNS"] = rows
+                        ampStats["PARALLEL_OVERSCAN_ROWS"] = rows
                         ampStats["PARALLEL_OVERSCAN_VALUES"] = rowValues
 
                 outputStats[amp.getName()] = ampStats

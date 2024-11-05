@@ -753,17 +753,22 @@ class DeferredChargeCalib(IsrCalib):
     of gains when computing the CTI statistics during ISR.
 
     Version 1.1 deprecates the USEGAINS attribute and standardizes
-        everything to electron units.
+        everything to electron units.'
+    Version 1.2 adds the signal, serialEper, and parallelEper
+        attributes.
     """
     _OBSTYPE = 'CTI'
     _SCHEMA = 'Deferred Charge'
-    _VERSION = 1.1
+    _VERSION = 1.2
 
     def __init__(self, **kwargs):
         self.driftScale = {}
         self.decayTime = {}
         self.globalCti = {}
         self.serialTraps = {}
+        self.signals = {}
+        self.serialEper = {}
+        self.parallelEper = {}
 
         # Check for deprecated kwargs
         if kwargs.pop("useGains", None) is not None:
@@ -775,7 +780,8 @@ class DeferredChargeCalib(IsrCalib):
         # Units are always in electron.
         self.updateMetadata(UNITS='electron')
 
-        self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps'])
+        self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps',
+                                        'signals', 'serialEper', 'parallelEper'])
 
     def fromDetector(self, detector):
         """Read metadata parameters from a detector.
@@ -825,11 +831,22 @@ class DeferredChargeCalib(IsrCalib):
         calib.decayTime = dictionary['decayTime']
         calib.globalCti = dictionary['globalCti']
 
+        allAmpNames = dictionary['driftScale'].keys()
+
+        # Some amps might not have a serial trap solution, so
+        # dictionary['serialTraps'].keys() might not be equal
+        # to dictionary['driftScale'].keys()
         for ampName in dictionary['serialTraps']:
             ampTraps = dictionary['serialTraps'][ampName]
             calib.serialTraps[ampName] = SerialTrap(ampTraps['size'], ampTraps['emissionTime'],
                                                     ampTraps['pixel'], ampTraps['trap_type'],
                                                     ampTraps['coeffs'])
+
+        for ampName in allAmpNames:
+            calib.signals[ampName] = np.array(dictionary['signals'][ampName], dtype=np.float64)
+            calib.serialEper[ampName] = np.array(dictionary['serialEper'][ampName], dtype=np.float64)
+            calib.parallelEper[ampName] = np.array(dictionary['parallelEper'][ampName], dtype=np.float64)
+
         calib.updateMetadata()
         return calib
 
@@ -850,6 +867,9 @@ class DeferredChargeCalib(IsrCalib):
         outDict['driftScale'] = self.driftScale
         outDict['decayTime'] = self.decayTime
         outDict['globalCti'] = self.globalCti
+        outDict['signals'] = self.signals
+        outDict['serialEper'] = self.serialEper
+        outDict['parallelEper'] = self.parallelEper
 
         outDict['serialTraps'] = {}
         for ampName in self.serialTraps:
@@ -904,6 +924,25 @@ class DeferredChargeCalib(IsrCalib):
         inDict['decayTime'] = {amp: value for amp, value in zip(amps, decayTime)}
         inDict['globalCti'] = {amp: value for amp, value in zip(amps, globalCti)}
 
+        # Version check
+        if calibVersion < 1.1:
+            # This version might be in the wrong units (not electron),
+            # and does not contain the gain information to convert
+            # into a new calibration version.
+            raise RuntimeError(f"Using old version of CTI calibration (ver. {calibVersion} < 1.1), "
+                               "which is no longer supported.")
+        if calibVersion < 1.2:
+            inDict['signals'] = {amp: np.array([np.nan]) for amp in amps}
+            inDict['serialEper'] = {amp: np.array([np.nan]) for amp in amps}
+            inDict['parallelEper'] = {amp: np.array([np.nan]) for amp in amps}
+        else:
+            signals = ampTable['SIGNALS']
+            serialEper = ampTable['SERIAL_EPER']
+            parallelEper = ampTable['PARALLEL_EPER']
+            inDict['signals'] = {amp: value for amp, value in zip(amps, signals)}
+            inDict['serialEper'] = {amp: value for amp, value in zip(amps, serialEper)}
+            inDict['parallelEper'] = {amp: value for amp, value in zip(amps, parallelEper)}
+
         inDict['serialTraps'] = {}
         trapTable = tableList[1]
 
@@ -957,14 +996,6 @@ class DeferredChargeCalib(IsrCalib):
 
             inDict['serialTraps'][amp] = ampTrap
 
-        # Version check
-        if calibVersion < 1.1:
-            # This version might be in the wrong units (not electron),
-            # and does not contain the gain information to convert
-            # into a new calibration version.
-            raise RuntimeError(f"Using old version of CTI calibration (ver. {calibVersion} < 1.1), "
-                               "which is no longer supported.")
-
         return cls.fromDict(inDict)
 
     def toTable(self):
@@ -989,18 +1020,28 @@ class DeferredChargeCalib(IsrCalib):
         driftScale = []
         decayTime = []
         globalCti = []
+        signals = []
+        serialEper = []
+        parallelEper = []
 
         for amp in self.driftScale.keys():
             ampList.append(amp)
             driftScale.append(self.driftScale[amp])
             decayTime.append(self.decayTime[amp])
             globalCti.append(self.globalCti[amp])
+            signals.append(self.signals[amp])
+            serialEper.append(self.serialEper[amp])
+            parallelEper.append(self.parallelEper[amp])
 
-        ampTable = Table({'AMPLIFIER': ampList,
-                          'DRIFT_SCALE': driftScale,
-                          'DECAY_TIME': decayTime,
-                          'GLOBAL_CTI': globalCti,
-                          })
+        ampTable = Table({
+            'AMPLIFIER': ampList,
+            'DRIFT_SCALE': driftScale,
+            'DECAY_TIME': decayTime,
+            'GLOBAL_CTI': globalCti,
+            'SIGNALS': signals,
+            'SERIAL_EPER': serialEper,
+            'PARALLEL_EPER': parallelEper,
+        })
 
         ampTable.meta = self.getMetadata().toDict()
         tableList.append(ampTable)
