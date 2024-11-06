@@ -108,6 +108,10 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
         self.calib.serialCtiTurnoff['amp1'] = 1.0e5
         self.calib.parallelCtiTurnoff['amp0'] = 1.0e5
         self.calib.parallelCtiTurnoff['amp1'] = 1.0e5
+        self.calib.serialCtiTurnoffSamplingErr['amp0'] = 1.0e3
+        self.calib.serialCtiTurnoffSamplingErr['amp1'] = 1.0e3
+        self.calib.parallelCtiTurnoffSamplingErr['amp0'] = 1.0e3
+        self.calib.parallelCtiTurnoffSamplingErr['amp1'] = 1.0e3
 
         self.calib.serialTraps['amp0'] = SerialTrap(self.trapSize, self.trapDecay,
                                                     self.trapPixel, 'linear', self.trapCoeffs)
