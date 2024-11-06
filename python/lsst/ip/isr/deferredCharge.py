@@ -745,6 +745,23 @@ class DeferredChargeCalib(IsrCalib):
     serialTraps : `dict` [`str`, `lsst.ip.isr.SerialTrap`]
         A dictionary, keyed by amplifier name, containing a single
         serial trap for each amplifier.
+    signals : `dict` [`str`, `np.ndarray`, `float`]
+        A dictionary, keyed by amplifier name, of the mean signal
+        level for each input measurement.
+    serialEper : `dict` [`str`, `np.ndarray`, `float`]
+        A dictionary, keyed by amplifier name, of the serial EPER
+        estimator of serial CTI, given in a list for each input
+        measurement.
+    parallelEper : `dict` [`str`, `np.ndarray`, `float`]
+        A dictionary, keyed by amplifier name, of the parallel
+        EPER estimator of parallel CTI, given in a list for each
+        input measurement.
+    serialCtiTurnoff : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the serial CTI
+        turnoff (unit: electrons).
+    parallelCtiTurnoff : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the parallel CTI
+        turnoff (unit: electrons).
 
     Also, the values contained in this calibration are all derived
     from and image and overscan in units of electron as these are
@@ -753,9 +770,9 @@ class DeferredChargeCalib(IsrCalib):
     of gains when computing the CTI statistics during ISR.
 
     Version 1.1 deprecates the USEGAINS attribute and standardizes
-        everything to electron units.'
-    Version 1.2 adds the signal, serialEper, and parallelEper
-        attributes.
+        everything to electron units.
+    Version 1.2 adds the signal, serialEper, parallelEper,
+        serialCtiTurnoff, and parallelCtiTurnoff attributes.
     """
     _OBSTYPE = 'CTI'
     _SCHEMA = 'Deferred Charge'
@@ -769,6 +786,8 @@ class DeferredChargeCalib(IsrCalib):
         self.signals = {}
         self.serialEper = {}
         self.parallelEper = {}
+        self.serialCtiTurnoff = {}
+        self.parallelCtiTurnoff = {}
 
         # Check for deprecated kwargs
         if kwargs.pop("useGains", None) is not None:
@@ -781,7 +800,8 @@ class DeferredChargeCalib(IsrCalib):
         self.updateMetadata(UNITS='electron')
 
         self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps',
-                                        'signals', 'serialEper', 'parallelEper'])
+                                        'signals', 'serialEper', 'parallelEper', 'serialCtiTurnoff',
+                                        'parallelCtiTurnoff'])
 
     def fromDetector(self, detector):
         """Read metadata parameters from a detector.
@@ -830,6 +850,8 @@ class DeferredChargeCalib(IsrCalib):
         calib.driftScale = dictionary['driftScale']
         calib.decayTime = dictionary['decayTime']
         calib.globalCti = dictionary['globalCti']
+        calib.serialCtiTurnoff = dictionary['serialCtiTurnoff']
+        calib.parallelCtiTurnoff = dictionary['parallelCtiTurnoff']
 
         allAmpNames = dictionary['driftScale'].keys()
 
@@ -870,6 +892,8 @@ class DeferredChargeCalib(IsrCalib):
         outDict['signals'] = self.signals
         outDict['serialEper'] = self.serialEper
         outDict['parallelEper'] = self.parallelEper
+        outDict['serialCtiTurnoff'] = self.serialCtiTurnoff
+        outDict['parallelCtiTurnoff'] = self.parallelCtiTurnoff
 
         outDict['serialTraps'] = {}
         for ampName in self.serialTraps:
@@ -935,13 +959,19 @@ class DeferredChargeCalib(IsrCalib):
             inDict['signals'] = {amp: np.array([np.nan]) for amp in amps}
             inDict['serialEper'] = {amp: np.array([np.nan]) for amp in amps}
             inDict['parallelEper'] = {amp: np.array([np.nan]) for amp in amps}
+            inDict['serialCtiTurnoff'] = {amp: np.nan for amp in amps}
+            inDict['parallelCtiTurnoff'] = {amp: np.nan for amp in amps}
         else:
             signals = ampTable['SIGNALS']
             serialEper = ampTable['SERIAL_EPER']
             parallelEper = ampTable['PARALLEL_EPER']
+            serialCtiTurnoff = ampTable['SERIAL_CTI_TURNOFF']
+            parallelCtiTurnoff = ampTable['PARALLEL_CTI_TURNOFF']
             inDict['signals'] = {amp: value for amp, value in zip(amps, signals)}
             inDict['serialEper'] = {amp: value for amp, value in zip(amps, serialEper)}
             inDict['parallelEper'] = {amp: value for amp, value in zip(amps, parallelEper)}
+            inDict['serialCtiTurnoff'] = {amp: value for amp, value in zip(amps, serialCtiTurnoff)}
+            inDict['parallelCtiTurnoff'] = {amp: value for amp, value in zip(amps, parallelCtiTurnoff)}
 
         inDict['serialTraps'] = {}
         trapTable = tableList[1]
@@ -1023,6 +1053,8 @@ class DeferredChargeCalib(IsrCalib):
         signals = []
         serialEper = []
         parallelEper = []
+        serialCtiTurnoff = []
+        parallelCtiTurnoff = []
 
         for amp in self.driftScale.keys():
             ampList.append(amp)
@@ -1032,6 +1064,8 @@ class DeferredChargeCalib(IsrCalib):
             signals.append(self.signals[amp])
             serialEper.append(self.serialEper[amp])
             parallelEper.append(self.parallelEper[amp])
+            serialCtiTurnoff.append(self.serialCtiTurnoff[amp])
+            parallelCtiTurnoff.append(self.parallelCtiTurnoff[amp])
 
         ampTable = Table({
             'AMPLIFIER': ampList,
@@ -1041,6 +1075,8 @@ class DeferredChargeCalib(IsrCalib):
             'SIGNALS': signals,
             'SERIAL_EPER': serialEper,
             'PARALLEL_EPER': parallelEper,
+            'SERIAL_CTI_TURNOFF': serialCtiTurnoff,
+            'PARALLEL_CTI_TURNOFF': parallelCtiTurnoff,
         })
 
         ampTable.meta = self.getMetadata().toDict()
@@ -1166,9 +1202,8 @@ class DeferredChargeTask(Task):
         # If we need to convert the image to electrons, check that gains
         # were supplied. CTI should not be solved or corrected without
         # supplied gains.
-        if applyGains:
-            if gains is None:
-                raise RuntimeError("No gains supplied for deferred charge correction.")
+        if applyGains and gains is None:
+            raise RuntimeError("No gains supplied for deferred charge correction.")
 
         with gainContext(exposure, image, apply=applyGains, gains=gains, isTrimmed=False):
             # Both the image and the overscan are in electron units.
