@@ -1741,7 +1741,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Output units: electron (adu if doBootstrap=True)
         if overscanDetectorConfig.doAnyParallelOverscan:
             # At the moment we do not use the return values from this task.
-            _ = self.overscanCorrection(
+            parallelOverscans = self.overscanCorrection(
                 "PARALLEL",
                 overscanDetectorConfig,
                 detector,
@@ -1776,6 +1776,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 deferredChargeCalib,
                 gains=gains,
             )
+
+        # Save the untrimmed version for later statistics,
+        # which still contains the overscan information
+        if self.config.doCalculateStatistics:
+            untrimmedCcdExposure = ccdExposure.clone()
 
         # Assemble/trim
         # Output units: electron (adu if doBootstrap=True)
@@ -1917,9 +1922,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # calculate additional statistics.
         outputStatistics = None
         if self.config.doCalculateStatistics:
-            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=serialOverscans,
-                                                 bias=bias, dark=dark, flat=flat, ptc=ptc,
-                                                 defects=defects).results
+            outputStatistics = self.isrStats.run(ccdExposure,
+                                                 untrimmedInputExposure=untrimmedCcdExposure,
+                                                 serialOverscanResults=serialOverscans,
+                                                 parallelOverscanResults=parallelOverscans,
+                                                 bias=bias, dark=dark, flat=flat,
+                                                 ptc=ptc, defects=defects).results
 
         # do image binning.
         outputBin1Exposure = None

@@ -762,6 +762,12 @@ class DeferredChargeCalib(IsrCalib):
     parallelCtiTurnoff : `dict` [`str`, `float`]
         A dictionary, keyed by amplifier name, of the parallel CTI
         turnoff (unit: electrons).
+    serialCtiTurnoffSamplingErr : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the serial CTI
+        turnoff sampling error (unit: electrons).
+    parallelCtiTurnoffSamplingErr : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the parallel CTI
+        turnoff sampling error (unit: electrons).
 
     Also, the values contained in this calibration are all derived
     from and image and overscan in units of electron as these are
@@ -772,7 +778,9 @@ class DeferredChargeCalib(IsrCalib):
     Version 1.1 deprecates the USEGAINS attribute and standardizes
         everything to electron units.
     Version 1.2 adds the signal, serialEper, parallelEper,
-        serialCtiTurnoff, and parallelCtiTurnoff attributes.
+        serialCtiTurnoff, parallelCtiTurnoff,
+        serialCtiTurnoffSamplingErr, parallelCtiTurnoffSamplingErr
+        attributes.
     """
     _OBSTYPE = 'CTI'
     _SCHEMA = 'Deferred Charge'
@@ -788,6 +796,8 @@ class DeferredChargeCalib(IsrCalib):
         self.parallelEper = {}
         self.serialCtiTurnoff = {}
         self.parallelCtiTurnoff = {}
+        self.serialCtiTurnoffSamplingErr = {}
+        self.parallelCtiTurnoffSamplingErr = {}
 
         # Check for deprecated kwargs
         if kwargs.pop("useGains", None) is not None:
@@ -801,7 +811,8 @@ class DeferredChargeCalib(IsrCalib):
 
         self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps',
                                         'signals', 'serialEper', 'parallelEper', 'serialCtiTurnoff',
-                                        'parallelCtiTurnoff'])
+                                        'parallelCtiTurnoff', 'serialCtiTurnoffSamplingErr',
+                                        'parallelCtiTurnoffSamplingErr'])
 
     def fromDetector(self, detector):
         """Read metadata parameters from a detector.
@@ -852,6 +863,8 @@ class DeferredChargeCalib(IsrCalib):
         calib.globalCti = dictionary['globalCti']
         calib.serialCtiTurnoff = dictionary['serialCtiTurnoff']
         calib.parallelCtiTurnoff = dictionary['parallelCtiTurnoff']
+        calib.serialCtiTurnoffSamplingErr = dictionary['serialCtiTurnoffSamplingErr']
+        calib.parallelCtiTurnoffSamplingErr = dictionary['parallelCtiTurnoffSamplingErr']
 
         allAmpNames = dictionary['driftScale'].keys()
 
@@ -894,6 +907,8 @@ class DeferredChargeCalib(IsrCalib):
         outDict['parallelEper'] = self.parallelEper
         outDict['serialCtiTurnoff'] = self.serialCtiTurnoff
         outDict['parallelCtiTurnoff'] = self.parallelCtiTurnoff
+        outDict['serialCtiTurnoffSamplingErr'] = self.serialCtiTurnoffSamplingErr
+        outDict['parallelCtiTurnoffSamplingErr'] = self.parallelCtiTurnoffSamplingErr
 
         outDict['serialTraps'] = {}
         for ampName in self.serialTraps:
@@ -961,17 +976,27 @@ class DeferredChargeCalib(IsrCalib):
             inDict['parallelEper'] = {amp: np.array([np.nan]) for amp in amps}
             inDict['serialCtiTurnoff'] = {amp: np.nan for amp in amps}
             inDict['parallelCtiTurnoff'] = {amp: np.nan for amp in amps}
+            inDict['serialCtiTurnoffSamplingErr'] = {amp: np.nan for amp in amps}
+            inDict['parallelCtiTurnoffSamplingErr'] = {amp: np.nan for amp in amps}
         else:
             signals = ampTable['SIGNALS']
             serialEper = ampTable['SERIAL_EPER']
             parallelEper = ampTable['PARALLEL_EPER']
             serialCtiTurnoff = ampTable['SERIAL_CTI_TURNOFF']
             parallelCtiTurnoff = ampTable['PARALLEL_CTI_TURNOFF']
+            serialCtiTurnoffSamplingErr = ampTable['SERIAL_CTI_TURNOFF_SAMPLING_ERR']
+            parallelCtiTurnoffSamplingErr = ampTable['PARALLEL_CTI_TURNOFF_SAMPLING_ERR']
             inDict['signals'] = {amp: value for amp, value in zip(amps, signals)}
             inDict['serialEper'] = {amp: value for amp, value in zip(amps, serialEper)}
             inDict['parallelEper'] = {amp: value for amp, value in zip(amps, parallelEper)}
             inDict['serialCtiTurnoff'] = {amp: value for amp, value in zip(amps, serialCtiTurnoff)}
             inDict['parallelCtiTurnoff'] = {amp: value for amp, value in zip(amps, parallelCtiTurnoff)}
+            inDict['serialCtiTurnoffSamplingErr'] = {
+                amp: value for amp, value in zip(amps, serialCtiTurnoffSamplingErr)
+            }
+            inDict['parallelCtiTurnoffSamplingErr'] = {
+                amp: value for amp, value in zip(amps, parallelCtiTurnoffSamplingErr)
+            }
 
         inDict['serialTraps'] = {}
         trapTable = tableList[1]
@@ -1055,6 +1080,8 @@ class DeferredChargeCalib(IsrCalib):
         parallelEper = []
         serialCtiTurnoff = []
         parallelCtiTurnoff = []
+        serialCtiTurnoffSamplingErr = []
+        parallelCtiTurnoffSamplingErr = []
 
         for amp in self.driftScale.keys():
             ampList.append(amp)
@@ -1066,6 +1093,12 @@ class DeferredChargeCalib(IsrCalib):
             parallelEper.append(self.parallelEper[amp])
             serialCtiTurnoff.append(self.serialCtiTurnoff[amp])
             parallelCtiTurnoff.append(self.parallelCtiTurnoff[amp])
+            serialCtiTurnoffSamplingErr.append(
+                self.serialCtiTurnoffSamplingErr[amp]
+            )
+            parallelCtiTurnoffSamplingErr.append(
+                self.parallelCtiTurnoffSamplingErr[amp]
+            )
 
         ampTable = Table({
             'AMPLIFIER': ampList,
@@ -1077,6 +1110,8 @@ class DeferredChargeCalib(IsrCalib):
             'PARALLEL_EPER': parallelEper,
             'SERIAL_CTI_TURNOFF': serialCtiTurnoff,
             'PARALLEL_CTI_TURNOFF': parallelCtiTurnoff,
+            'SERIAL_CTI_TURNOFF_SAMPLING_ERR': serialCtiTurnoffSamplingErr,
+            'PARALLEL_CTI_TURNOFF_SAMPLING_ERR': parallelCtiTurnoffSamplingErr,
         })
 
         ampTable.meta = self.getMetadata().toDict()
