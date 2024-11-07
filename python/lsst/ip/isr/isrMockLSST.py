@@ -1030,6 +1030,9 @@ class IsrMockLSST(IsrMock):
         """
         # I'm not sure what to do about negative values...
 
+        # Note that we are using the afw AKIMA_SPLINE to offset the
+        # data but using the equivalent but faster scipy Akima1DInterpolator to
+        # correct the data.
         spl = afwMath.makeInterpolate(
             centers,
             values,

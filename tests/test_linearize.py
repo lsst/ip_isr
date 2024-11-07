@@ -87,6 +87,9 @@ def referenceImage(image, detector, linearityType, inputData, table=None):
             array += summation
         elif linearityType == 'Spline':
             centers, values = np.split(inputData, 2)  # This uses the full data
+            # Note that we are using the slow afw AKIMA_SPLINE interpolator
+            # to offset the data, but using the equivalent but faster scipy
+            # Akima1DInterpolator to correct the data.
             interp = afwMath.makeInterpolate(centers.tolist(), values.tolist(),
                                              afwMath.stringToInterpStyle('AKIMA_SPLINE'))
             array = imageView.getArray()
