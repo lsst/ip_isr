@@ -820,12 +820,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             if calibVersion < 2.1:
                 inDict['covariancesModelNoB'][ampName] = record['COVARIANCES_MODEL_NO_B']
                 inDict['aMatrixNoB'][ampName] = record['A_MATRIX_NO_B']
-            else:
-                inDict['covariancesModelNoB'][ampName] = np.full_like(
-                    inDict['covariancesModel'][ampName],
-                    np.nan,
-                )
-                inDict['aMatrixNoB'][ampName] = np.full_like(inDict['aMatrix'][ampName], np.nan)
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -1025,16 +1019,16 @@ class PhotonTransferCurveDataset(IsrCalib):
                     self.covMatrixSide,
                 )
             )
-            self._covariancesModelNoB[ampName] = np.append(
-                self._covariancesModelNoB[ampName].ravel(),
-                partialPtc._covariancesModelNoB[ampName].ravel()
-            ).reshape(
-                (
-                    len(self.rawExpTimes[ampName]),
-                    self.covMatrixSide,
-                    self.covMatrixSide,
-                )
-            )
+            # self._covariancesModelNoB[ampName] = np.append(
+            #     self._covariancesModelNoB[ampName].ravel(),
+            #     partialPtc._covariancesModelNoB[ampName].ravel()
+            # ).reshape(
+            #     (
+            #         len(self.rawExpTimes[ampName]),
+            #         self.covMatrixSide,
+            #         self.covMatrixSide,
+            #     )
+            # )
 
     def sort(self, sortIndex):
         """Sort the components of the PTC by a given sort index.
