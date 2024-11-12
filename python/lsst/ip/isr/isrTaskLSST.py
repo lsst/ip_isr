@@ -369,7 +369,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     doWidenSaturationTrails = pexConfig.Field(
         dtype=bool,
         doc="Widen bleed trails based on their width.",
-        default=True,
+        default=False,
     )
     masking = pexConfig.ConfigurableField(
         target=MaskingTask,
