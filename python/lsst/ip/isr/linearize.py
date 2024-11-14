@@ -26,10 +26,10 @@ __all__ = ["Linearizer",
 
 import abc
 import numpy as np
+from scipy.interpolate import Akima1DInterpolator
 
 from astropy.table import Table
 
-import lsst.afw.math as afwMath
 from lsst.pipe.base import Struct
 from lsst.geom import Box2I, Point2I, Extent2I
 from .applyLookupTable import applyLookupTable
@@ -842,12 +842,15 @@ class LinearizeSpline(LinearizeBase):
             centers = np.concatenate(([0.0], centers))
             values = np.concatenate(([0.0], values))
 
-        interp = afwMath.makeInterpolate(centers.tolist(), values.tolist(),
-                                         afwMath.stringToInterpStyle("AKIMA_SPLINE"))
+        ampArr = image.array
 
-        ampArr = image.getArray()
-        delta = interp.interpolate(ampArr.ravel())
-        ampArr -= np.array(delta).reshape(ampArr.shape)
+        if np.any(~np.isfinite(values)):
+            # This cannot be used; turns everything into nans.
+            ampArr[:] = np.nan
+        else:
+            interp = Akima1DInterpolator(centers, values, method="akima")
+            # Clip to avoid extrapolation and hitting the top end.
+            ampArr -= interp(np.clip(ampArr, centers[0], centers[-1] - 0.1))
 
         return True, 0
 
