@@ -640,7 +640,7 @@ def brighterFatterCorrection(
                 afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
                 outArray = outImage.array
             else:
-                if testingMode == "ACIPY_DIRECT":
+                if testingMode == "SCIPY_DIRECT":
                     method = "direct"
                 else:
                     method = "fft"
