@@ -461,6 +461,17 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         "(currently unused).",
         default=1.0,
     )
+    brighterFatterTestingMode = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Testing mode.",
+        default="AFW_SINGLE",
+        allowed={
+            "AFW_SINGLE": "afw convolution, single precision.",
+            "AFW_DOUBLE": "afw convolution, double precision.",
+            "SCIPY_DIRECT": "scipy convolution, direct.",
+            "SCIPY_FFT": "scipy convolution, fft.",
+        },
+    )
     growSaturationFootprintSize = pexConfig.Field(
         dtype=int,
         doc="Number of pixels by which to grow the saturation footprints.",
@@ -1227,7 +1238,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                                           self.config.brighterFatterMaxIter,
                                                           self.config.brighterFatterThreshold,
                                                           brighterFatterApplyGain,
-                                                          bfGains)
+                                                          gains=bfGains,
+                                                          testingMode=self.config.brighterFatterTestingMode,
+        )
         if bfResults[1] == self.config.brighterFatterMaxIter:
             self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
                              bfResults[0])

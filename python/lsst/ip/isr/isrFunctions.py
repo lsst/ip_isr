@@ -51,6 +51,8 @@ __all__ = [
 
 import math
 import numpy
+import scipy.signal
+import time
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -522,7 +524,15 @@ def illuminationCorrection(maskedImage, illumMaskedImage, illumScale, trimToFit=
     maskedImage.scaledDivides(1.0/illumScale, illumMaskedImage)
 
 
-def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, gains=None):
+def brighterFatterCorrection(
+    exposure,
+    kernel,
+    maxIter,
+    threshold,
+    applyGain,
+    gains=None,
+    testingMode="AFW_SINGLE",
+):
     """Apply brighter fatter correction in place for the image.
 
     Parameters
@@ -581,7 +591,7 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
     The edges as defined by the kernel are not corrected because they
     have spurious values due to the convolution.
     """
-    image = exposure.getMaskedImage().getImage()
+    image = exposure.image
 
     # The image needs to be units of electrons/holes
     with gainContext(exposure, image, applyGain, gains):
@@ -590,12 +600,23 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
         kLy = numpy.shape(kernel)[1]
         kernelImage = afwImage.ImageD(kLx, kLy)
         kernelImage.getArray()[:, :] = kernel
-        tempImage = image.clone()
 
-        nanIndex = numpy.isnan(tempImage.getArray())
-        tempImage.getArray()[nanIndex] = 0.
+        if testingMode == "AFW_SINGLE":
+            tempImage = image.clone()
+        elif testingMode == "AFW_DOUBLE":
+            tempImage = afwImage.ImageD(image.getDimensions())
+            tempImage.array[:, :] = image.array[:, :]
+        elif testingMode in ("SCIPY_DIRECT", "SCIPY_FFT"):
+            tempImage = afwImage.ImageD(image.getDimensions())
+            tempImage.array[:, :] = image.array[:, :]
 
-        outImage = afwImage.ImageF(image.getDimensions())
+        nanIndex = numpy.isnan(tempImage.array)
+        tempImage.array[nanIndex] = 0.
+
+        if testingMode == "AFW_SINGLE":
+            outImage = afwImage.ImageF(image.getDimensions())
+        elif testingMode == "AFW_DOUBLE":
+            outImage = afwImage.ImageD(image.getDimensions())
         corr = numpy.zeros_like(image.getArray())
         prev_image = numpy.zeros_like(image.getArray())
         convCntrl = afwMath.ConvolutionControl(False, True, 1)
@@ -611,11 +632,27 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
         startY = kLy//2
         endY = -kLy//2
 
+        start_time = time.time()
+
         for iteration in range(maxIter):
 
-            afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
-            tmpArray = tempImage.getArray()
-            outArray = outImage.getArray()
+            if testingMode in ("AFW_SINGLE", "AFW_DOUBLE"):
+                afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
+                outArray = outImage.array
+            else:
+                if testingMode == "ACIPY_DIRECT":
+                    method = "direct"
+                else:
+                    method = "fft"
+
+                outArray = scipy.signal.convolve(
+                    tempImage.array,
+                    kernelImage.array,
+                    mode="same",
+                    method=method,
+                )
+
+            tmpArray = tempImage.array
 
             with numpy.errstate(invalid="ignore", over="ignore"):
                 # First derivative term
@@ -630,7 +667,9 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
                 corr[startY + 1:endY - 1, startX + 1:endX - 1] = 0.5*(first + second)
 
-                tmpArray[:, :] = image.getArray()[:, :]
+                print("Correction sum = ", corr[startY + 1:endY - 1, startX + 1:endX - 1].sum())
+
+                tmpArray[:, :] = image.array[:, :]
                 tmpArray[nanIndex] = 0.
                 tmpArray[startY:endY, startX:endX] += corr[startY:endY, startX:endX]
 
@@ -641,8 +680,10 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
                     break
                 prev_image[:, :] = tmpArray[:, :]
 
-        image.getArray()[startY + 1:endY - 1, startX + 1:endX - 1] += \
+        image.array[startY + 1:endY - 1, startX + 1:endX - 1] += \
             corr[startY + 1:endY - 1, startX + 1:endX - 1]
+
+        print("Time taken: ", time.time() - start_time)
 
     return diff, iteration
 
