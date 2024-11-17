@@ -194,15 +194,15 @@ class PhotonTransferCurveDataset(IsrCalib):
     covariancesModelNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing covariances model
         (with 'b'=0 in Eq. 20 of Astier+19) per mean flux (units:
-        adu^2). Will be deprecated in v28.
+        adu^2). Will be removed after v29.
     aMatrixNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "a" parameters from the
         model in Eq. 20 of Astier+19 (and 'b' = 0) (units: 1/electron).
-        Will be deprecated in v28.
+        Will be removed after v29.
     noiseMatrixNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "noise" parameters from
         the model in Eq. 20 of Astier+19, with 'b' = 0 (units: electron^2).
-        Will be deprecated in v28.
+        Will be removed after v29.
     finalVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the masked variance of the
         difference image of each flat
@@ -237,7 +237,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.9 standardizes PTC noise units to electron.
     Version 2.0 adds the `ampOffsets`, `gainUnadjusted`, and
         `gainList` attributes.
-    Version 2.1 removes the `covariancesModelNoB`, `aMatrixNoB`, and
+    Version 2.1 deprecates the `covariancesModelNoB`, `aMatrixNoB`, and
         `noiseMatrixNoB` attributes.
     """
 
@@ -304,6 +304,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.aMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.bMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.noiseMatrix = {ampName: np.array([]) for ampName in ampNames}
+        # TODO: Remove deprecated attributes in DM-47610
         self._covariancesModelNoB = {ampName: np.array([]) for ampName in ampNames}
         self._aMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
         self._noiseMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
@@ -425,6 +426,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.finalModelVars[ampName] = np.array([np.nan])
         self.finalMeans[ampName] = np.array([np.nan])
 
+        # TODO: Remove deprecated attributes in DM-47610
         self._covariancesModelNoB[ampName] = np.array([nanMatrixFit])
         self._aMatrixNoB[ampName] = nanMatrixFit
         self._noiseMatrixNoB[ampName] = nanMatrixFit
@@ -550,7 +552,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                     dictionary['noiseMatrix'][ampName],
                     dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
 
-                # Deprecated to be removed after v28
+                # TODO: Remove deprecated attributes in DM-47610
+                # Deprecated to be removed after v29
                 if calibVersion < 2.1:
                     calib._covariancesModelNoB[ampName] = np.array(
                         dictionary['covariancesModelNoB'][ampName], dtype=np.float64).reshape(
@@ -711,6 +714,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['badAmps'] = []
         inDict['photoCharges'] = dict()
         inDict['ampOffsets'] = dict()
+
+        # TODO: DM-47610, remove after v29
         inDict['noiseMatrixNoB'] = dict()
         inDict['covariancesModelNoB'] = dict()
         inDict['aMatrixNoB'] = dict()
@@ -820,6 +825,11 @@ class PhotonTransferCurveDataset(IsrCalib):
             if calibVersion < 2.1:
                 inDict['covariancesModelNoB'][ampName] = record['COVARIANCES_MODEL_NO_B']
                 inDict['aMatrixNoB'][ampName] = record['A_MATRIX_NO_B']
+            else:
+                nanMatrixList = np.full_like(inDict['covariances'][ampName], np.nan)
+                inDict['covariancesModelNoB'][ampName] = nanMatrixList
+                nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
+                inDict['aMatrixNoB'][ampName] = nanMatrix
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -1019,16 +1029,6 @@ class PhotonTransferCurveDataset(IsrCalib):
                     self.covMatrixSide,
                 )
             )
-            # self._covariancesModelNoB[ampName] = np.append(
-            #     self._covariancesModelNoB[ampName].ravel(),
-            #     partialPtc._covariancesModelNoB[ampName].ravel()
-            # ).reshape(
-            #     (
-            #         len(self.rawExpTimes[ampName]),
-            #         self.covMatrixSide,
-            #         self.covMatrixSide,
-            #     )
-            # )
 
     def sort(self, sortIndex):
         """Sort the components of the PTC by a given sort index.
