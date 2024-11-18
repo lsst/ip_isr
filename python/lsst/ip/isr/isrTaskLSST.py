@@ -601,7 +601,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     exposureMetadata[idKey] = idValue
                     exposureMetadata[dateKey] = dateValue
 
-        super().runQuantum(butlerQC, inputRefs, outputRefs)
+        outputs = self.run(**inputs)
+        butlerQC.put(outputs, outputRefs)
 
     def validateInput(self, inputs):
         """
