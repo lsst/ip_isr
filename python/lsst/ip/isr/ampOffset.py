@@ -214,10 +214,10 @@ class AmpOffsetTask(Task):
 
         # Safety check: do any pixels remain for amp offset estimation?
         if (exp.mask.array & bitMask).all():
-            log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.debug
+            log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.info
             log_fn(
-                "All pixels masked: cannot calculate any amp offset corrections. All pedestals are being set "
-                "to zero."
+                "All pixels masked: cannot calculate any amp offset corrections. "
+                "All pedestals are being set to zero."
             )
             pedestals = np.zeros(len(amps))
         else:
@@ -243,8 +243,8 @@ class AmpOffsetTask(Task):
 
         metadata = exposure.getMetadata()  # Exposure metadata.
         self.metadata["AMPOFFSET_PEDESTALS"] = {}  # Task metadata.
-        for amp, pedestal in zip(amps, pedestals):
-            ampName = amp.getName()
+        ampNames = [amp.getName() for amp in amps]
+        for ampName, amp, pedestal in zip(ampNames, amps, pedestals):
             # Add the amp pedestal to the exposure metadata.
             metadata.set(
                 f"LSST ISR AMPOFFSET PEDESTAL {ampName}",
@@ -259,15 +259,16 @@ class AmpOffsetTask(Task):
             self.metadata["AMPOFFSET_PEDESTALS"][ampName] = float(pedestal)
         if self.config.doApplyAmpOffset:
             status = "subtracted from exposure"
-            metadata.set(
-                "LSST ISR AMPOFFSET PEDESTAL SUBTRACTED", True, "Amp pedestals have been subtracted"
-            )
+            metadata.set("LSST ISR AMPOFFSET PEDESTAL SUBTRACTED", True, "Amp pedestals have been subtracted")
         else:
             status = "not subtracted from exposure"
             metadata.set(
                 "LSST ISR AMPOFFSET PEDESTAL SUBTRACTED", False, "Amp pedestals have not been subtracted"
             )
-        self.log.info(f"amp pedestal values ({status}): {', '.join([f'{x:.4f}' for x in pedestals])}")
+        ampPedestalReport = ", ".join(
+            [f"{ampName}: {ampPedestal:.4f}" for (ampName, ampPedestal) in zip(ampNames, pedestals)]
+        )
+        self.log.info(f"Amp pedestal values ({status}): {ampPedestalReport}")
 
         return Struct(pedestals=pedestals)
 
@@ -344,8 +345,9 @@ class AmpOffsetTask(Task):
         if not np.all(ampAssociations == ampAssociations.T):
             raise RuntimeError("The `ampAssociations` is not symmetric about the diagonal.")
 
-        self.log.debug("amp associations:\n%s", ampAssociations)
-        self.log.debug("amp sides:\n%s", ampSides)
+        with np.printoptions(linewidth=200):
+            self.log.debug("amp associations:\n%s", ampAssociations)
+            self.log.debug("amp sides:\n%s", ampSides)
 
         return ampAssociations, ampSides
 
@@ -408,8 +410,14 @@ class AmpOffsetTask(Task):
         """
         ampsOffsets = np.zeros(len(amps))
         ampsEdges = self.getAmpEdges(im, amps, sides)
+        ampsNames = [amp.getName() for amp in amps]
         interfaceOffsetLookup = {}
 
+        interfaceIds = []
+        interfaceOffsetOriginals = []
+        ampEdgeGoodFracs = []
+        minFracFails = []
+        maxOffsetFails = []
         for ampId, ampAssociations in enumerate(associations):
             ampNeighbors = np.ravel(np.where(ampAssociations < 0))
             for ampNeighbor in ampNeighbors:
@@ -420,11 +428,69 @@ class AmpOffsetTask(Task):
                 edgeA = ampsEdges[ampId][ampSide]
                 edgeB = ampsEdges[ampNeighbor][(ampSide + 2) % 4]
                 if ampId < ampNeighbor:
-                    interfaceOffset = self.getInterfaceOffset(ampId, ampNeighbor, edgeA, edgeB)
-                    interfaceOffsetLookup[f"{ampId}{ampNeighbor}"] = interfaceOffset
+                    (
+                        interfaceId,
+                        interfaceOffset,
+                        interfaceOffsetOriginal,
+                        ampEdgeGoodFrac,
+                        minFracFail,
+                        maxOffsetFail,
+                    ) = self.getInterfaceOffset(ampsNames[ampId], ampsNames[ampNeighbor], edgeA, edgeB)
+                    interfaceIds.append(interfaceId)
+                    interfaceOffsetOriginals.append(interfaceOffsetOriginal)
+                    ampEdgeGoodFracs.append(ampEdgeGoodFrac)
+                    minFracFails.append(minFracFail)
+                    maxOffsetFails.append(maxOffsetFail)
+                    interfaceOffsetLookup[f"{ampId:02d}:{ampNeighbor:02d}"] = interfaceOffset
                 else:
-                    interfaceOffset = -interfaceOffsetLookup[f"{ampNeighbor}{ampId}"]
+                    interfaceOffset = -interfaceOffsetLookup[f"{ampNeighbor:02d}:{ampId:02d}"]
                 ampsOffsets[ampId] += interfaceWeight * interfaceOffset
+        if interfaceOffsetOriginals:
+            self.log.debug(
+                "Amp offset values for all interfaces: %s",
+                ", ".join(
+                    [
+                        f"{interfaceId}={interfaceOffset:0.2f}"
+                        for interfaceId, interfaceOffset in zip(interfaceIds, interfaceOffsetOriginals)
+                    ]
+                ),
+            )
+            quartile_summary = np.nanpercentile(interfaceOffsetOriginals, [0, 25, 50, 75, 100])
+            self.log.info(
+                "Amp offset quartile summary (min, Q1, Q2, Q3, max): %.4f, %.4f, %.4f, %.4f, %.4f",
+                *quartile_summary,
+            )
+        log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.info
+        if any(minFracFails):
+            log_fn(
+                "The fraction of unmasked edge pixels for the following amp interfaces is below the "
+                "configured threshold (%s): %s",
+                self.config.ampEdgeMinFrac,
+                ", ".join(
+                    [
+                        f"{interfaceId} ({ampEdgeGoodFrac:0.2f})"
+                        for interfaceId, ampEdgeGoodFrac, minFracFail in zip(
+                            interfaceIds, ampEdgeGoodFracs, minFracFails
+                        )
+                        if minFracFail
+                    ]
+                ),
+            )
+        if any(maxOffsetFails):
+            log_fn(
+                "Absolute amp offsets exceed the configured maximum (%s) and have been set to zero for the "
+                "following amp interfaces: %s",
+                self.config.ampEdgeMaxOffset,
+                ", ".join(
+                    [
+                        f"{interfaceId}={np.abs(interfaceOffset):0.2f}"
+                        for interfaceId, interfaceOffset, maxOffsetFail in zip(
+                            interfaceIds, interfaceOffsetOriginals, maxOffsetFails
+                        )
+                        if maxOffsetFail
+                    ]
+                ),
+            )
         return ampsOffsets
 
     def getAmpEdges(self, im, amps, ampSides):
@@ -474,16 +540,16 @@ class AmpOffsetTask(Task):
                     ampEdges[ampId][ampSide] = np.nanmedian(strip, axis=ampSide % 2)  # 1D medianified strip
         return ampEdges
 
-    def getInterfaceOffset(self, ampIdA, ampIdB, edgeA, edgeB):
+    def getInterfaceOffset(self, ampNameA, ampNameB, edgeA, edgeB):
         """Calculate the amp offset for a given interface between two
         amplifiers.
 
         Parameters
         ----------
-        ampIdA : int
-            ID of the first amplifier.
-        ampIdB : int
-            ID of the second amplifier.
+        ampNameA : str
+            Name of the first amplifier.
+        ampNameB : str
+            Name of the second amplifier.
         edgeA : numpy.ndarray
             Amp edge for the first amplifier.
         edgeB : numpy.ndarray
@@ -494,8 +560,19 @@ class AmpOffsetTask(Task):
         interfaceOffset : float
             The calculated amp offset value for the given interface between
             amps A and B.
+        interfaceOffsetOriginal : float
+            The original calculated amp offset value for the given interface
+            between amps A and B.
+        ampEdgeGoodFrac : float
+            Fraction of viable pixel rows along the amp edge.
+        minFracFail : bool
+            True if the fraction of unmasked pixel rows is below the
+            ampEdgeMinFrac threshold.
+        maxOffsetFail : bool
+            True if the absolute offset value exceeds the ampEdgeMaxOffset
+            threshold.
         """
-        interfaceId = f"{ampIdA}{ampIdB}"
+        interfaceId = f"{ampNameA}:{ampNameB}"
         sctrl = StatisticsControl()
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
@@ -512,30 +589,26 @@ class AmpOffsetTask(Task):
         edgeDiffAvg[np.isnan(edgeDiff)] = np.nan
         # Take clipped mean of rolling average data as amp offset value.
         interfaceOffset = makeStatistics(edgeDiffAvg, MEANCLIP, sctrl).getValue()
+        interfaceOffsetOriginal = interfaceOffset
         ampEdgeGoodFrac = 1 - (np.sum(np.isnan(edgeDiffAvg)) / len(edgeDiffAvg))
+
         # Perform a couple of do-no-harm safety checks:
         # a) The fraction of unmasked pixel rows is > ampEdgeMinFrac,
         # b) The absolute offset ADU value is < ampEdgeMaxOffset.
         minFracFail = ampEdgeGoodFrac < self.config.ampEdgeMinFrac
         maxOffsetFail = np.abs(interfaceOffset) > self.config.ampEdgeMaxOffset
         if minFracFail or maxOffsetFail:
-            log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.debug
-            if minFracFail:
-                log_fn(
-                    f"The fraction of unmasked pixels for amp interface {interfaceId} is below the "
-                    f"threshold ({ampEdgeGoodFrac:.2f} < {self.config.ampEdgeMinFrac}). Resetting the "
-                    f"interface offset from {interfaceOffset} to 0."
-                )
-            if maxOffsetFail:
-                log_fn(
-                    "The absolute offset value exceeds the limit "
-                    f"({np.abs(interfaceOffset):.2f} > {self.config.ampEdgeMaxOffset} ADU). Resetting "
-                    f"the interface offset from {interfaceOffset} to 0."
-                )
             interfaceOffset = 0
         self.log.debug(
             f"amp interface {interfaceId} : "
-            f"viable edge difference frac = {ampEdgeGoodFrac}, "
-            f"interface offset = {interfaceOffset:.3f}"
+            f"viable edge difference frac = {ampEdgeGoodFrac:.2f}, "
+            f"amp offset = {interfaceOffsetOriginal:.3f}"
         )
-        return interfaceOffset
+        return (
+            interfaceId,
+            interfaceOffset,
+            interfaceOffsetOriginal,
+            ampEdgeGoodFrac,
+            minFracFail,
+            maxOffsetFail,
+        )
