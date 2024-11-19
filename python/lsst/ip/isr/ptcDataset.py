@@ -34,6 +34,8 @@ from scipy.signal import fftconvolve
 
 from lsst.ip.isr import IsrCalib
 
+from deprecated.sphinx import deprecated
+
 
 def symmetrize(inputArray):
     """ Copy array over 4 quadrants prior to convolution.
@@ -191,15 +193,16 @@ class PhotonTransferCurveDataset(IsrCalib):
         the model in Eq. 20 of Astier+19 (units: electron^2).
     covariancesModelNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing covariances model
-        (with 'b'=0 in Eq. 20 of Astier+19)
-        per mean flux (units: adu^2).
+        (with 'b'=0 in Eq. 20 of Astier+19) per mean flux (units:
+        adu^2). Will be removed after v29.
     aMatrixNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "a" parameters from the
-        model in Eq. 20 of Astier+19
-        (and 'b' = 0) (units: 1/electron).
+        model in Eq. 20 of Astier+19 (and 'b' = 0) (units: 1/electron).
+        Will be removed after v29.
     noiseMatrixNoB : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the "noise" parameters from
         the model in Eq. 20 of Astier+19, with 'b' = 0 (units: electron^2).
+        Will be removed after v29.
     finalVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the masked variance of the
         difference image of each flat
@@ -234,6 +237,8 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 1.9 standardizes PTC noise units to electron.
     Version 2.0 adds the `ampOffsets`, `gainUnadjusted`, and
         `gainList` attributes.
+    Version 2.1 deprecates the `covariancesModelNoB`, `aMatrixNoB`, and
+        `noiseMatrixNoB` attributes.
     """
 
     _OBSTYPE = 'PTC'
@@ -252,7 +257,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     #  * test_ptcDataset() in test_ptcDataset.py
     #  * test_ptcDatasetSort in test_ptcDataset.py
     #  * test_ptcDatasetAppend in test_ptcDataset.py
-    _VERSION = 2.0
+    _VERSION = 2.1
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -299,9 +304,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.aMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.bMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.noiseMatrix = {ampName: np.array([]) for ampName in ampNames}
-        self.covariancesModelNoB = {ampName: np.array([]) for ampName in ampNames}
-        self.aMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
-        self.noiseMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
+        # TODO: Remove deprecated attributes in DM-47610
+        self._covariancesModelNoB = {ampName: np.array([]) for ampName in ampNames}
+        self._aMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
+        self._noiseMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
 
         self.finalVars = {ampName: np.array([]) for ampName in ampNames}
         self.finalModelVars = {ampName: np.array([]) for ampName in ampNames}
@@ -315,9 +321,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'rawMeans', 'rawVars', 'rowMeanVariance', 'gain',
                                         'gainErr', 'noise', 'noiseErr', 'noiseList',
                                         'ptcFitPars', 'ptcFitParsError', 'ptcFitChiSq', 'ptcTurnoff',
-                                        'aMatrixNoB', 'covariances', 'covariancesModel',
-                                        'covariancesSqrtWeights', 'covariancesModelNoB',
-                                        'aMatrix', 'bMatrix', 'noiseMatrix', 'noiseMatrixNoB', 'finalVars',
+                                        'covariances', 'covariancesModel', 'covariancesSqrtWeights',
+                                        'aMatrix', 'bMatrix', 'noiseMatrix', 'finalVars',
                                         'finalModelVars', 'finalMeans', 'photoCharges', 'histVars',
                                         'histChi2Dofs', 'kspValues', 'auxValues', 'ptcTurnoffSamplingError',
                                         'ampOffsets', 'gainUnadjusted', 'gainList'])
@@ -413,17 +418,18 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         # From FULLCOVARIANCE model
         self.covariancesModel[ampName] = np.array([nanMatrixFit])
-        self.covariancesModelNoB[ampName] = np.array([nanMatrixFit])
         self.aMatrix[ampName] = nanMatrixFit
         self.bMatrix[ampName] = nanMatrixFit
-        self.aMatrixNoB[ampName] = nanMatrixFit
         self.noiseMatrix[ampName] = nanMatrixFit
-        self.noiseMatrixNoB[ampName] = nanMatrixFit
-
         # Filler values.
         self.finalVars[ampName] = np.array([np.nan])
         self.finalModelVars[ampName] = np.array([np.nan])
         self.finalMeans[ampName] = np.array([np.nan])
+
+        # TODO: Remove deprecated attributes in DM-47610
+        self._covariancesModelNoB[ampName] = np.array([nanMatrixFit])
+        self._aMatrixNoB[ampName] = nanMatrixFit
+        self._noiseMatrixNoB[ampName] = nanMatrixFit
 
     def setAuxValuesPartialDataset(self, auxDict):
         """
@@ -489,6 +495,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
         calib.ampNames = []
 
+        calibVersion = dictionary['metadata']['PTC_VERSION']
+
         # The cov matrices are square
         covMatrixSide = calib.covMatrixSide
         covMatrixSideFullCovFit = calib.covMatrixSideFullCovFit
@@ -540,18 +548,23 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.bMatrix[ampName] = np.array(dictionary['bMatrix'][ampName],
                                                   dtype=np.float64).reshape(
                     (covMatrixSideFullCovFit, covMatrixSideFullCovFit))
-                calib.covariancesModelNoB[ampName] = np.array(
-                    dictionary['covariancesModelNoB'][ampName], dtype=np.float64).reshape(
-                        (nSignalPoints, covMatrixSideFullCovFit, covMatrixSideFullCovFit))
-                calib.aMatrixNoB[ampName] = np.array(
-                    dictionary['aMatrixNoB'][ampName],
-                    dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
                 calib.noiseMatrix[ampName] = np.array(
                     dictionary['noiseMatrix'][ampName],
                     dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
-                calib.noiseMatrixNoB[ampName] = np.array(
-                    dictionary['noiseMatrixNoB'][ampName],
-                    dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+
+                # TODO: Remove deprecated attributes in DM-47610
+                # Deprecated to be removed after v29
+                if calibVersion < 2.1:
+                    calib._covariancesModelNoB[ampName] = np.array(
+                        dictionary['covariancesModelNoB'][ampName], dtype=np.float64).reshape(
+                            (nSignalPoints, covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+                    calib._aMatrixNoB[ampName] = np.array(
+                        dictionary['aMatrixNoB'][ampName],
+                        dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+                    calib._noiseMatrixNoB[ampName] = np.array(
+                        dictionary['noiseMatrixNoB'][ampName],
+                        dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
+
             else:
                 # Empty dataset
                 calib.covariances[ampName] = np.array([], dtype=np.float64)
@@ -559,10 +572,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.covariancesSqrtWeights[ampName] = np.array([], dtype=np.float64)
                 calib.aMatrix[ampName] = np.array([], dtype=np.float64)
                 calib.bMatrix[ampName] = np.array([], dtype=np.float64)
-                calib.covariancesModelNoB[ampName] = np.array([], dtype=np.float64)
-                calib.aMatrixNoB[ampName] = np.array([], dtype=np.float64)
                 calib.noiseMatrix[ampName] = np.array([], dtype=np.float64)
-                calib.noiseMatrixNoB[ampName] = np.array([], dtype=np.float64)
 
             calib.finalVars[ampName] = np.array(dictionary['finalVars'][ampName], dtype=np.float64)
             calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName], dtype=np.float64)
@@ -636,9 +646,6 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['aMatrix'] = _dictOfArraysToDictOfLists(self.aMatrix)
         outDict['bMatrix'] = _dictOfArraysToDictOfLists(self.bMatrix)
         outDict['noiseMatrix'] = _dictOfArraysToDictOfLists(self.noiseMatrix)
-        outDict['covariancesModelNoB'] = _dictOfArraysToDictOfLists(self.covariancesModelNoB)
-        outDict['aMatrixNoB'] = _dictOfArraysToDictOfLists(self.aMatrixNoB)
-        outDict['noiseMatrixNoB'] = _dictOfArraysToDictOfLists(self.noiseMatrixNoB)
         outDict['finalVars'] = _dictOfArraysToDictOfLists(self.finalVars)
         outDict['finalModelVars'] = _dictOfArraysToDictOfLists(self.finalModelVars)
         outDict['finalMeans'] = _dictOfArraysToDictOfLists(self.finalMeans)
@@ -701,15 +708,17 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['aMatrix'] = dict()
         inDict['bMatrix'] = dict()
         inDict['noiseMatrix'] = dict()
-        inDict['covariancesModelNoB'] = dict()
-        inDict['aMatrixNoB'] = dict()
-        inDict['noiseMatrixNoB'] = dict()
         inDict['finalVars'] = dict()
         inDict['finalModelVars'] = dict()
         inDict['finalMeans'] = dict()
         inDict['badAmps'] = []
         inDict['photoCharges'] = dict()
         inDict['ampOffsets'] = dict()
+
+        # TODO: DM-47610, remove after v29
+        inDict['noiseMatrixNoB'] = dict()
+        inDict['covariancesModelNoB'] = dict()
+        inDict['aMatrixNoB'] = dict()
 
         calibVersion = metadata['PTC_VERSION']
         if calibVersion == 1.0:
@@ -738,8 +747,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             inDict['covariancesSqrtWeights'][ampName] = record['COVARIANCES_SQRT_WEIGHTS']
             inDict['aMatrix'][ampName] = record['A_MATRIX']
             inDict['bMatrix'][ampName] = record['B_MATRIX']
-            inDict['covariancesModelNoB'][ampName] = record['COVARIANCES_MODEL_NO_B']
-            inDict['aMatrixNoB'][ampName] = record['A_MATRIX_NO_B']
             inDict['finalVars'][ampName] = record['FINAL_VARS']
             inDict['finalModelVars'][ampName] = record['FINAL_MODEL_VARS']
             inDict['finalMeans'][ampName] = record['FINAL_MEANS']
@@ -766,9 +773,13 @@ class PhotonTransferCurveDataset(IsrCalib):
                 nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
                 inDict['noiseMatrix'][ampName] = nanMatrix
                 inDict['noiseMatrixNoB'][ampName] = nanMatrix
-            else:
+            elif calibVersion >= 1.3 and calibVersion < 2.1:
                 inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
                 inDict['noiseMatrixNoB'][ampName] = record['NOISE_MATRIX_NO_B']
+            else:
+                inDict['noiseMatrix'][ampName] = record['NOISE_MATRIX']
+                nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
+                inDict['noiseMatrixNoB'][ampName] = nanMatrix
             if calibVersion < 1.5:
                 # Matched to `COV_MATRIX_SIDE`. Same for all amps.
                 inDict['covMatrixSideFullCovFit'] = inDict['covMatrixSide']
@@ -811,6 +822,14 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['ampOffsets'][ampName] = record['AMP_OFFSETS']
                 inDict['gainUnadjusted'][ampName] = record['GAIN_UNADJUSTED']
                 inDict['gainList'][ampName] = record['GAIN_LIST']
+            if calibVersion < 2.1:
+                inDict['covariancesModelNoB'][ampName] = record['COVARIANCES_MODEL_NO_B']
+                inDict['aMatrixNoB'][ampName] = record['A_MATRIX_NO_B']
+            else:
+                nanMatrixList = np.full_like(inDict['covariances'][ampName], np.nan)
+                inDict['covariancesModelNoB'][ampName] = nanMatrixList
+                nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
+                inDict['aMatrixNoB'][ampName] = nanMatrix
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -874,16 +893,13 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'PTC_TURNOFF_SAMPLING_ERROR': self.ptcTurnoffSamplingError[ampName],
                 'A_MATRIX': self.aMatrix[ampName].ravel(),
                 'B_MATRIX': self.bMatrix[ampName].ravel(),
-                'A_MATRIX_NO_B': self.aMatrixNoB[ampName].ravel(),
                 'NOISE_MATRIX': self.noiseMatrix[ampName].ravel(),
-                'NOISE_MATRIX_NO_B': self.noiseMatrixNoB[ampName].ravel(),
                 'BAD_AMPS': badAmps,
                 'PHOTO_CHARGE': self.photoCharges[ampName],
                 'AMP_OFFSETS': self.ampOffsets[ampName],
                 'COVARIANCES': self.covariances[ampName].ravel(),
                 'COVARIANCES_MODEL': self.covariancesModel[ampName].ravel(),
                 'COVARIANCES_SQRT_WEIGHTS': self.covariancesSqrtWeights[ampName].ravel(),
-                'COVARIANCES_MODEL_NO_B': self.covariancesModelNoB[ampName].ravel(),
                 'FINAL_VARS': self.finalVars[ampName],
                 'FINAL_MODEL_VARS': self.finalModelVars[ampName],
                 'FINAL_MEANS': self.finalMeans[ampName],
@@ -1013,16 +1029,6 @@ class PhotonTransferCurveDataset(IsrCalib):
                     self.covMatrixSide,
                 )
             )
-            self.covariancesModelNoB[ampName] = np.append(
-                self.covariancesModelNoB[ampName].ravel(),
-                partialPtc.covariancesModelNoB[ampName].ravel()
-            ).reshape(
-                (
-                    len(self.rawExpTimes[ampName]),
-                    self.covMatrixSide,
-                    self.covMatrixSide,
-                )
-            )
 
     def sort(self, sortIndex):
         """Sort the components of the PTC by a given sort index.
@@ -1072,7 +1078,6 @@ class PhotonTransferCurveDataset(IsrCalib):
             self.covariances[ampName] = self.covariances[ampName][index]
             self.covariancesSqrtWeights[ampName] = self.covariancesSqrtWeights[ampName][index]
             self.covariancesModel[ampName] = self.covariancesModel[ampName][index]
-            self.covariancesModelNoB[ampName] = self.covariancesModelNoB[ampName][index]
 
             self.finalVars[ampName] = self.finalVars[ampName][index]
             self.finalModelVars[ampName] = self.finalModelVars[ampName][index]
@@ -1174,16 +1179,13 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.noise[ampName] = noise
         self.ptcTurnoff[ampName] = ptcTurnoff
 
-    def evalPtcModel(self, mu, setBtoZero=False):
+    def evalPtcModel(self, mu):
         """Computes the covariance model at specific signal levels.
 
         Parameters
         ----------
         mu : `numpy.array`, (N,)
             List of mean signals in ADU.
-        setBtoZero: `bool`, optional
-            Set "b" parameter in full model (see Astier+19) to zero.
-            This parameter is ignored if ptcFitType != FULLCOVARIANCE.
 
         Raises
         ------
@@ -1212,11 +1214,6 @@ class PhotonTransferCurveDataset(IsrCalib):
         of shape (N,), representing an array of [C_{00}]
         if self.ptcFitType == EXPAPPROXIMATION or
         self.ptcFitType == POLYNOMAIL.
-
-        Note that the PhotoTransferCurveDataset does not store
-        the gain fit parameter for FULLCOVARIANCE with b=0, so
-        we can't recompute the covariance model with
-        setBtoZero=True exactly.
         """
 
         ampNames = self.ampNames
@@ -1239,21 +1236,13 @@ class PhotonTransferCurveDataset(IsrCalib):
                 c00 = f1 + f2
                 covModel[ampName] = c00
 
-        elif self.ptcFitType == "FULLCOVARIANCE":
+        elif self.ptcFitType in ["FULLCOVARIANCE", "FULLCOVARIANCE_NO_B"]:
             for ampName in ampNames:
                 noiseMatrix = self.noiseMatrix[ampName]
                 gain = self.gain[ampName]
                 aMatrix = self.aMatrix[ampName]
                 bMatrix = self.bMatrix[ampName]
                 cMatrix = aMatrix*bMatrix
-
-                if setBtoZero:
-                    # Note that the PhotoTransferCurveDataset does not store
-                    # the gain fit parameter for FULLCOVARIANCE with b=0, so
-                    # we can't recompute the covariance model with
-                    # setBtoZero=True.
-                    raise NotImplementedError("Cannot evaulate the PTC model"
-                                              "with b=0 for FULLCOVARIANCE.")
 
                 matrixSideFit = self.covMatrixSideFullCovFit
                 sa = (matrixSideFit, matrixSideFit)
@@ -1283,9 +1272,6 @@ class PhotonTransferCurveDataset(IsrCalib):
                 bigMu = mu[:, np.newaxis, np.newaxis]*gain
                 # c(=a*b in Astier+19) also has a contribution to the last
                 # term, that is absent for now.
-                if setBtoZero:
-                    c1 = np.zeros_like(c1)
-                    ac = np.zeros_like(ac)
 
                 covModel[ampName] = (bigMu/(gain*gain)*(a1*bigMu+2./3.*(bigMu*bigMu)*(a2 + c1)
                                      + (1./3.*a3 + 5./6.*ac)*(bigMu*bigMu*bigMu))
@@ -1306,3 +1292,33 @@ class PhotonTransferCurveDataset(IsrCalib):
                              f"({self.covMatrixSideFullCovFit} > {self.covMatrixSide})."
                              "Setting the former to the latter.")
             self.covMatrixSideFullCovFit = self.covMatrixSide
+
+    @property
+    @deprecated(
+        reason="The covariancesModelNoB attribute is deprecated. Will be "
+        "removed after v28.",
+        version="v28.0",
+        category=FutureWarning
+    )
+    def covariancesModelNoB(self):
+        return self._covariancesModelNoB
+
+    @property
+    @deprecated(
+        reason="The aMatrixNoB attribute is deprecated. Will be "
+        "removed after v28.",
+        version="v28.0",
+        category=FutureWarning
+    )
+    def aMatrixNoB(self):
+        return self._aMatrixNoB
+
+    @property
+    @deprecated(
+        reason="The noiseMatrixNoB attribute is deprecated. Will be "
+        "removed after v28.",
+        version="v28.0",
+        category=FutureWarning
+    )
+    def noiseMatrixNoB(self):
+        return self._noiseMatrixNoB
