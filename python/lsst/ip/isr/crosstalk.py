@@ -710,13 +710,16 @@ class CrosstalkCalib(IsrCalib):
         elif backgroundMethod == "DETECTOR":
             backgrounds = [self.calculateBackground(source, badPixels) for amp in sourceDetector]
 
-        # Set the crosstalkStr bit for the bright pixels (those which will have
-        # significant crosstalk correction)
         crosstalkPlane = mask.addMaskPlane(crosstalkStr)
-        footprints = lsst.afw.detection.FootprintSet(source,
-                                                     lsst.afw.detection.Threshold(minPixelToMask
-                                                                                  + thresholdBackground))
-        footprints.setMask(mask, crosstalkStr)
+        if not doSubtrahendMasking:
+            # Set the crosstalkStr bit for the bright pixels (those
+            # which will have significant crosstalk correction).  This
+            # mask will get copied to the other amplifiers as the
+            # crosstalk subtrahend is calculated.
+            threshold = lsst.afw.detection.Threshold(minPixelToMask + thresholdBackground)
+            footprints = lsst.afw.detection.FootprintSet(source, threshold)
+            footprints.setMask(mask, crosstalkStr)
+
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
         # Define a subtrahend image to contain all the scaled crosstalk signals
@@ -777,12 +780,18 @@ class CrosstalkCalib(IsrCalib):
                     tImageSqr -= backgrounds[tt]**2
                     sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
-        # Set crosstalkStr bit only for those pixels that have been
-        # significantly modified (i.e., those masked as such in 'subtrahend'),
-        # not necessarily those that are bright originally.
+        # Clear the mask in the output image.  The subtrahend image
+        # contains the crosstalk masks.
         mask.clearMaskPlane(crosstalkPlane)
 
         if doSubtrahendMasking:
+            # Set crosstalkStr bit only for those pixels that have
+            # been significantly modified (i.e., those masked as such
+            # in 'subtrahend'), not necessarily those that are bright
+            # originally.
+
+            # The existing mask in the subtrahend comes from the
+            # threshold set above.
             subtrahend.mask.clearMaskPlane(crosstalkPlane)
             # Run detection twice to avoid needing an absolute value image
             threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=True)
