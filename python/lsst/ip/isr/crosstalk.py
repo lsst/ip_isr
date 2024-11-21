@@ -570,11 +570,14 @@ class CrosstalkCalib(IsrCalib):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
-        We set the mask plane indicated by ``crosstalkStr`` in a target
-        amplifier for pixels in a source amplifier that exceed
-        ``minPixelToMask``. Note that the correction is applied to all pixels
-        in the amplifier, but only those that have a substantial crosstalk
-        are masked with ``crosstalkStr``.
+        We set the mask plane indicated by ``crosstalkStr`` in a
+        target amplifier for pixels in a source amplifier that exceed
+        ``minPixelToMask``, if ``doSubtrahendMasking`` is False.  With
+        that enabled, the mask is only set if the absolute value of
+        the correction applied exceeds ``minPixelToMask``. Note that
+        the correction is applied to all pixels in the amplifier, but
+        only those that have a substantial crosstalk are masked with
+        ``crosstalkStr``.
 
         The uncorrected image is used as a template for correction. This is
         good enough if the crosstalk is small (e.g., coefficients < ~ 1e-3),
@@ -596,9 +599,15 @@ class CrosstalkCalib(IsrCalib):
         badPixels : `list` of `str`, optional
             Mask planes to ignore.
         minPixelToMask : `float`, optional
-            Minimum pixel value (relative to the background level) in
-            source amplifier for which to set ``crosstalkStr`` mask plane
-            in target amplifier.
+            Minimum pixel value to set the ``crosstalkStr`` mask
+            plane.  If doSubtrahendMasking is True, this is calculated
+            from the absolute magnitude of the subtrahend image.
+            Otherwise, this sets the minimum source value to use to
+            set that mask.
+        doSubtrahendMasking : `bool`, optional
+            If true, the mask is calculated from the properties of the
+            subtrahend image, not from the brightness of the source
+            pixel.
         crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
