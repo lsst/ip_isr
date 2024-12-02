@@ -235,7 +235,7 @@ class AmpOffsetTask(Task):
 
             # Obtain association and offset matrices.
             A, sides = self.getAmpAssociations(amps)
-            B = self.getAmpOffsets(im, amps, A, sides)
+            B, interfaceOffsetDict = self.getAmpOffsets(im, amps, A, sides)
 
             # If least-squares minimization fails, convert NaNs to zeroes,
             # ensuring that no values are erroneously added/subtracted.
@@ -244,6 +244,10 @@ class AmpOffsetTask(Task):
         metadata = exposure.getMetadata()  # Exposure metadata.
         self.metadata["AMPOFFSET_PEDESTALS"] = {}  # Task metadata.
         ampNames = [amp.getName() for amp in amps]
+
+        # Add the amp interface offsets to the exposure metadata.
+        metadata.set_dict("LSST ISR AMPOFFSET INTERFACEOFFSET", interfaceOffsetDict)
+
         for ampName, amp, pedestal in zip(ampNames, amps, pedestals):
             # Add the amp pedestal to the exposure metadata.
             metadata.set(
@@ -407,6 +411,9 @@ class AmpOffsetTask(Task):
         ampsOffsets : `numpy.ndarray`
             1D float array containing the calculated amp offsets for all
             amplifiers.
+        interfaceOffsetDict : `dict` [`str`, `float`]
+            Dictionary mapping interface IDs to their corresponding raw
+            (uncapped) offset values.
         """
         ampsOffsets = np.zeros(len(amps))
         ampsEdges = self.getAmpEdges(im, amps, sides)
@@ -447,7 +454,7 @@ class AmpOffsetTask(Task):
                 ampsOffsets[ampId] += interfaceWeight * interfaceOffset
         if interfaceOffsetOriginals:
             self.log.debug(
-                "Amp offset values for all interfaces: %s",
+                "Raw (uncapped) amp offset values for all interfaces: %s",
                 ", ".join(
                     [
                         f"{interfaceId}={interfaceOffset:0.2f}"
@@ -457,7 +464,8 @@ class AmpOffsetTask(Task):
             )
             quartile_summary = np.nanpercentile(interfaceOffsetOriginals, [0, 25, 50, 75, 100])
             self.log.info(
-                "Amp offset quartile summary (min, Q1, Q2, Q3, max): %.4f, %.4f, %.4f, %.4f, %.4f",
+                "Raw amp offset quartile summary for all interfaces (min, Q1, Q2, Q3, max): "
+                "%.4f, %.4f, %.4f, %.4f, %.4f",
                 *quartile_summary,
             )
         log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.info
@@ -491,7 +499,11 @@ class AmpOffsetTask(Task):
                     ]
                 ),
             )
-        return ampsOffsets
+
+        # Pair each interface ID with its corresponding original offset.
+        interfaceOffsetDict = dict(zip(interfaceIds, interfaceOffsetOriginals))
+
+        return ampsOffsets, interfaceOffsetDict
 
     def getAmpEdges(self, im, amps, ampSides):
         """Calculate the amp edges for all amplifiers.
@@ -572,7 +584,7 @@ class AmpOffsetTask(Task):
             True if the absolute offset value exceeds the ampEdgeMaxOffset
             threshold.
         """
-        interfaceId = f"{ampNameA}:{ampNameB}"
+        interfaceId = f"{ampNameA};{ampNameB}"
         sctrl = StatisticsControl()
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
@@ -600,7 +612,7 @@ class AmpOffsetTask(Task):
         if minFracFail or maxOffsetFail:
             interfaceOffset = 0
         self.log.debug(
-            f"amp interface {interfaceId} : "
+            f"amp interface '{interfaceId}': "
             f"viable edge difference frac = {ampEdgeGoodFrac:.2f}, "
             f"amp offset = {interfaceOffsetOriginal:.3f}"
         )
