@@ -2,6 +2,7 @@ __all__ = ["IsrTaskLSST", "IsrTaskLSSTConfig"]
 
 import numpy
 import math
+import time
 
 from . import isrFunctions
 from . import isrQa
@@ -1531,7 +1532,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
             flat=None, camera=None, **kwargs
             ):
-
+        all_start = time.time()
         detector = ccdExposure.getDetector()
 
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
@@ -1645,14 +1646,18 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doDiffNonLinearCorrection:
             self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
+
+        start_time = time.time()
         # Dither the integer counts.
         # Input units: integerized adu
         # Output units: floating-point adu
         self.ditherCounts(ccdExposure, overscanDetectorConfig)
+        self.log.info("Dithering: %.3f", time.time() - start_time)
 
         # Serial overscan correction.
         # Input units: adu
         # Output units: adu
+        start_time = time.time()
         if overscanDetectorConfig.doAnySerialOverscan:
             serialOverscans = self.overscanCorrection(
                 "SERIAL",
@@ -1677,6 +1682,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         ptc.noise[amp.getName()] = serialOverscan.residualSigma * gains[amp.getName()]
         else:
             serialOverscans = [None]*len(detector)
+        self.log.info("Serial Overscan: %.3f", time.time() - start_time)
 
         # After serial overscan correction, we can mask SATURATED and
         # SUSPECT pixels. This updates badAmpDict if any amplifier
@@ -1684,6 +1690,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # The saturation is currently assumed to be recorded in
         # overscan-corrected adu.
+        start_time = time.time()
+
         badAmpDict = self.maskSaturatedPixels(
             badAmpDict,
             ccdExposure,
@@ -1691,6 +1699,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             overscanDetectorConfig,
             ptc=ptc,
         )
+        self.log.info("Mask Saturated: %.3f", time.time() - start_time)
 
         if self.config.doCorrectGains:
             # TODO: DM-36639
@@ -1701,6 +1710,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Do gain normalization.
         # Input units: adu
         # Output units: electron
+        start_time = time.time()
         if self.config.doApplyGains:
             self.log.info("Using gain values to convert from adu to electron units.")
             isrFunctions.applyGains(ccdExposure, normalizeGains=False, ptcGains=gains, isTrimmed=False)
@@ -1715,6 +1725,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     exposureMetadata[key] *= gains[ampName]
                 if (key := f"LSST ISR SUSPECT LEVEL {ampName}") in exposureMetadata:
                     exposureMetadata[key] *= gains[ampName]
+        self.log.info("Applying gains: %.3f", time.time() - start_time)
 
         # Record gain and read noise in header.
         metadata = ccdExposure.metadata
@@ -1729,6 +1740,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Do crosstalk correction in the full region.
         # Output units: electron (adu if doBootstrap=True)
+        start_time = time.time()
         if self.config.doCrosstalk:
             self.log.info("Applying crosstalk corrections to full amplifier region.")
             if self.config.doBootstrap and numpy.any(crosstalk.fitGains != 0):
@@ -1743,6 +1755,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 fullAmplifier=True,
                 badAmpDict=badAmpDict,
             )
+        self.log.info("Crosstalk: %.3f", time.time() - start_time)
 
         # Parallel overscan correction.
         # Output units: electron (adu if doBootstrap=True)
@@ -1758,6 +1771,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Linearity correction
         # Output units: electron (adu if doBootstrap=True)
+        start_time = time.time()
         if self.config.doLinearize:
             self.log.info("Applying linearizer.")
             # The linearizer is in units of adu.
@@ -1773,6 +1787,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 log=self.log,
                 gains=linearityGains,
             )
+        self.log.info("Linearizer: %.3f", time.time() - start_time)
 
         # Serial CTI (deferred charge) correction
         # This will be performed in electron units
@@ -1813,20 +1828,27 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Masking block (defects, NAN pixels and trails).
         # Saturated and suspect pixels have already been masked.
         # Output units: electron (adu if doBootstrap=True)
+        start_time = time.time()
         if self.config.doDefect:
             self.log.info("Applying defect masking.")
             self.maskDefects(ccdExposure, defects)
+        self.log.info("Defects: %.3f", time.time() - start_time)
 
+        start_time = time.time()
         if self.config.doNanMasking:
             self.log.info("Masking non-finite (NAN, inf) value pixels.")
             self.maskNan(ccdExposure)
+        self.log.info("Nan masking: %.3f", time.time() - start_time)
 
+        start_time = time.time()
         if self.config.doWidenSaturationTrails:
             self.log.info("Widening saturation trails.")
             isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
+        self.log.info("Widening: %.3f", time.time() - start_time)
 
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
+        start_time = time.time()
         if self.config.doBrighterFatter:
             self.log.info("Applying brighter-fatter correction.")
 
@@ -1852,11 +1874,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut,
                                                              brighterFatterApplyGain, bfGains)
+        self.log.info("Brighter Fatter: %.3f", time.time() - start_time)
 
         # Variance plane creation
         # Output units: electron (adu if doBootstrap=True)
+        start_time = time.time()
         if self.config.doVariance:
             self.addVariancePlane(ccdExposure, detector)
+        self.log.info("Variance: %.3f", time.time() - start_time)
 
         # Flat-fielding
         # This may move elsewhere.
@@ -1875,6 +1900,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info('Setting values in large contiguous bad regions.')
             self.setBadRegions(ccdExposure)
 
+        start_time = time.time()
         if self.config.doInterpolate:
             self.log.info("Interpolating masked pixels.")
             isrFunctions.interpolateFromMask(
@@ -1884,16 +1910,20 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskNameList=list(self.config.maskListToInterpolate),
                 useLegacyInterp=self.config.useLegacyInterp,
             )
+        self.log.info("Interpolation: %.3f", time.time() - start_time)
 
         # Calculate amp offset corrections within the CCD.
+        start_time = time.time()
         if self.config.doAmpOffset:
             if self.config.ampOffset.doApplyAmpOffset:
                 self.log.info("Measuring and applying amp offset corrections.")
             else:
                 self.log.info("Measuring amp offset corrections only, without applying them.")
             self.ampOffset.run(ccdExposure)
+        self.log.info("Amp Offsets: %.3f", time.time() - start_time)
 
         # Calculate standard image quality statistics
+        start_time = time.time()
         if self.config.doStandardStatistics:
             metadata = ccdExposure.metadata
             for amp in detector:
@@ -1920,15 +1950,19 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     metadata[f"LSST ISR LEVEL {ampName}"] = metadata[k1] - metadata[k2]
                 else:
                     metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
+        self.log.info("Standard stats: %.3f", time.time() - start_time)
 
         # calculate additional statistics.
         outputStatistics = None
+        start_time = time.time()
         if self.config.doCalculateStatistics:
             outputStatistics = self.isrStats.run(ccdExposure, overscanResults=serialOverscans,
                                                  bias=bias, dark=dark, flat=flat, ptc=ptc,
                                                  defects=defects).results
+        self.log.info("Additional Statistics: %.3f", time.time() - start_time)
 
         # do image binning.
+        start_time = time.time()
         outputBin1Exposure = None
         outputBin2Exposure = None
         if self.config.doBinnedExposures:
@@ -1941,6 +1975,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ccdExposure,
                 binFactor=self.config.binFactor2,
             ).binnedExposure
+        self.log.info("Binning: %.3f", time.time() - start_time)
+
+        self.log.info("Full time: %.3f", time.time() - all_start)
 
         return pipeBase.Struct(
             exposure=ccdExposure,
