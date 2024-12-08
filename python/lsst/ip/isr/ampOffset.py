@@ -21,6 +21,7 @@
 
 __all__ = ["AmpOffsetConfig", "AmpOffsetTask"]
 
+import json
 import warnings
 
 import numpy as np
@@ -246,7 +247,8 @@ class AmpOffsetTask(Task):
         ampNames = [amp.getName() for amp in amps]
 
         # Add the amp interface offsets to the exposure metadata.
-        metadata.set_dict("LSST ISR AMPOFFSET INTERFACEOFFSET", interfaceOffsetDict)
+        serializedDict = json.dumps(interfaceOffsetDict)
+        metadata.set("LSST ISR AMPOFFSET INTERFACEOFFSET", serializedDict, "Raw amp interface offsets")
 
         for ampName, amp, pedestal in zip(ampNames, amps, pedestals):
             # Add the amp pedestal to the exposure metadata.
@@ -584,7 +586,7 @@ class AmpOffsetTask(Task):
             True if the absolute offset value exceeds the ampEdgeMaxOffset
             threshold.
         """
-        interfaceId = f"{ampNameA};{ampNameB}"
+        interfaceId = f"{ampNameA}-{ampNameB}"
         sctrl = StatisticsControl()
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
