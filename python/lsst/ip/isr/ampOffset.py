@@ -21,6 +21,7 @@
 
 __all__ = ["AmpOffsetConfig", "AmpOffsetTask"]
 
+import json
 import warnings
 
 import numpy as np
@@ -246,12 +247,8 @@ class AmpOffsetTask(Task):
         ampNames = [amp.getName() for amp in amps]
 
         # Add the amp interface offsets to the exposure metadata.
-        for ampInterface, ampOffset in interfaceOffsetDict.items():
-            metadata.set(
-                f"LSST ISR AMPOFFSET INTERFACEOFFSET {ampInterface}",
-                float(ampOffset),
-                f"Interface offset calculated for {ampInterface}",
-            )
+        serializedDict = json.dumps(interfaceOffsetDict)
+        metadata.set("LSST ISR AMPOFFSET INTERFACEOFFSET", serializedDict, "Raw amp interface offsets")
 
         for ampName, amp, pedestal in zip(ampNames, amps, pedestals):
             # Add the amp pedestal to the exposure metadata.
