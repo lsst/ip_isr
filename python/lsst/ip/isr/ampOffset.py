@@ -246,7 +246,12 @@ class AmpOffsetTask(Task):
         ampNames = [amp.getName() for amp in amps]
 
         # Add the amp interface offsets to the exposure metadata.
-        metadata.set_dict("LSST ISR AMPOFFSET INTERFACEOFFSET", interfaceOffsetDict)
+        for interfaceId, interfaceOffset in interfaceOffsetDict.items():
+            metadata.set(
+                f"LSST ISR AMPOFFSET INTERFACEOFFSET {interfaceId}",
+                float(interfaceOffset),
+                f"Raw amp interface offset calculated for {interfaceId}",
+            )
 
         for ampName, amp, pedestal in zip(ampNames, amps, pedestals):
             # Add the amp pedestal to the exposure metadata.
@@ -584,7 +589,7 @@ class AmpOffsetTask(Task):
             True if the absolute offset value exceeds the ampEdgeMaxOffset
             threshold.
         """
-        interfaceId = f"{ampNameA};{ampNameB}"
+        interfaceId = f"{ampNameA}-{ampNameB}"
         sctrl = StatisticsControl()
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
