@@ -800,8 +800,26 @@ class CrosstalkCalib(IsrCalib):
             # originally.
 
             # The existing mask in the subtrahend comes from the
-            # threshold set above.
+            # threshold set above.  It should be cleared so we can
+            # recalculate it.
             subtrahend.mask.clearMaskPlane(crosstalkPlane)
+
+            # For masking purposes, we only really care when the
+            # correction is significantly different than the median
+            # value on that amplifier (which includes the contribution
+            # of every other amplifier background that crosstalks onto
+            # that amplifier).  Subtract and save this "background"
+            # level, so we can threshold to set the mask relative to
+            # that background, but still include that contribution in
+            # the correction we're applying.
+            subtrahendBackgrounds = {}
+            for amp in detector:
+                ampData = subtrahend[amp.getRawDataBBox()]
+                background = np.median(ampData.image.array)
+                subtrahendBackgrounds[amp.getName()] = background
+                ampData.image.array[:, :] -= background
+                self.log.debug(f"Subtrahend background level: {amp.getName()} {background}")
+
             # Run detection twice to avoid needing an absolute value image
             threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=True)
             footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
@@ -811,7 +829,16 @@ class CrosstalkCalib(IsrCalib):
             footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
             footprints.setMask(subtrahend.mask, crosstalkStr)
 
-        mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
+            # Put the backgrounds back.
+            for amp in detector:
+                ampData = subtrahend[amp.getRawDataBBox()]
+                background = subtrahendBackgrounds[amp.getName()]
+                ampData.image.array[:, :] += background
+
+        # Subtract subtrahend from input.  The mask plane is fully
+        # populated, so this operation also sets the ``crosstalkStr``
+        # bit where applicable.
+        mi -= subtrahend
 
 
 class CrosstalkConfig(Config):
