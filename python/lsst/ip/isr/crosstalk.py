@@ -570,11 +570,14 @@ class CrosstalkCalib(IsrCalib):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
-        We set the mask plane indicated by ``crosstalkStr`` in a target
-        amplifier for pixels in a source amplifier that exceed
-        ``minPixelToMask``. Note that the correction is applied to all pixels
-        in the amplifier, but only those that have a substantial crosstalk
-        are masked with ``crosstalkStr``.
+        We set the mask plane indicated by ``crosstalkStr`` in a
+        target amplifier for pixels in a source amplifier that exceed
+        ``minPixelToMask``, if ``doSubtrahendMasking`` is False.  With
+        that enabled, the mask is only set if the absolute value of
+        the correction applied exceeds ``minPixelToMask``. Note that
+        the correction is applied to all pixels in the amplifier, but
+        only those that have a substantial crosstalk are masked with
+        ``crosstalkStr``.
 
         The uncorrected image is used as a template for correction. This is
         good enough if the crosstalk is small (e.g., coefficients < ~ 1e-3),
@@ -596,9 +599,15 @@ class CrosstalkCalib(IsrCalib):
         badPixels : `list` of `str`, optional
             Mask planes to ignore.
         minPixelToMask : `float`, optional
-            Minimum pixel value (relative to the background level) in
-            source amplifier for which to set ``crosstalkStr`` mask plane
-            in target amplifier.
+            Minimum pixel value to set the ``crosstalkStr`` mask
+            plane.  If doSubtrahendMasking is True, this is calculated
+            from the absolute magnitude of the subtrahend image.
+            Otherwise, this sets the minimum source value to use to
+            set that mask.
+        doSubtrahendMasking : `bool`, optional
+            If true, the mask is calculated from the properties of the
+            subtrahend image, not from the brightness of the source
+            pixel.
         crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
@@ -710,13 +719,16 @@ class CrosstalkCalib(IsrCalib):
         elif backgroundMethod == "DETECTOR":
             backgrounds = [self.calculateBackground(source, badPixels) for amp in sourceDetector]
 
-        # Set the crosstalkStr bit for the bright pixels (those which will have
-        # significant crosstalk correction)
         crosstalkPlane = mask.addMaskPlane(crosstalkStr)
-        footprints = lsst.afw.detection.FootprintSet(source,
-                                                     lsst.afw.detection.Threshold(minPixelToMask
-                                                                                  + thresholdBackground))
-        footprints.setMask(mask, crosstalkStr)
+        if not doSubtrahendMasking:
+            # Set the crosstalkStr bit for the bright pixels (those
+            # which will have significant crosstalk correction).  This
+            # mask will get copied to the other amplifiers as the
+            # crosstalk subtrahend is calculated.
+            threshold = lsst.afw.detection.Threshold(minPixelToMask + thresholdBackground)
+            footprints = lsst.afw.detection.FootprintSet(source, threshold)
+            footprints.setMask(mask, crosstalkStr)
+
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
         # Define a subtrahend image to contain all the scaled crosstalk signals
@@ -777,13 +789,37 @@ class CrosstalkCalib(IsrCalib):
                     tImageSqr -= backgrounds[tt]**2
                     sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
-        # Set crosstalkStr bit only for those pixels that have been
-        # significantly modified (i.e., those masked as such in 'subtrahend'),
-        # not necessarily those that are bright originally.
+        # Clear the mask in the output image.  The subtrahend image
+        # contains the crosstalk masks.
         mask.clearMaskPlane(crosstalkPlane)
 
         if doSubtrahendMasking:
+            # Set crosstalkStr bit only for those pixels that have
+            # been significantly modified (i.e., those masked as such
+            # in 'subtrahend'), not necessarily those that are bright
+            # originally.
+
+            # The existing mask in the subtrahend comes from the
+            # threshold set above.  It should be cleared so we can
+            # recalculate it.
             subtrahend.mask.clearMaskPlane(crosstalkPlane)
+
+            # For masking purposes, we only really care when the
+            # correction is significantly different than the median
+            # value on that amplifier (which includes the contribution
+            # of every other amplifier background that crosstalks onto
+            # that amplifier).  Subtract and save this "background"
+            # level, so we can threshold to set the mask relative to
+            # that background, but still include that contribution in
+            # the correction we're applying.
+            subtrahendBackgrounds = {}
+            for amp in detector:
+                ampData = subtrahend[amp.getRawDataBBox()]
+                background = np.median(ampData.image.array)
+                subtrahendBackgrounds[amp.getName()] = background
+                ampData.image.array[:, :] -= background
+                self.log.debug(f"Subtrahend background level: {amp.getName()} {background}")
+
             # Run detection twice to avoid needing an absolute value image
             threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=True)
             footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
@@ -793,7 +829,16 @@ class CrosstalkCalib(IsrCalib):
             footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
             footprints.setMask(subtrahend.mask, crosstalkStr)
 
-        mi -= subtrahend  # also sets crosstalkStr bit for bright pixels
+            # Put the backgrounds back.
+            for amp in detector:
+                ampData = subtrahend[amp.getRawDataBBox()]
+                background = subtrahendBackgrounds[amp.getName()]
+                ampData.image.array[:, :] += background
+
+        # Subtract subtrahend from input.  The mask plane is fully
+        # populated, so this operation also sets the ``crosstalkStr``
+        # bit where applicable.
+        mi -= subtrahend
 
 
 class CrosstalkConfig(Config):
