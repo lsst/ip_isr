@@ -1,4 +1,4 @@
-// -*- LSST-C++ -*- 
+// -*- LSST-C++ -*-
 
 /*
  * LSST Data Management System
