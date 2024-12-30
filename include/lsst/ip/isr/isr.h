@@ -39,6 +39,7 @@
 #include "lsst/afw/math/Statistics.h"
 #include "lsst/afw/image.h"
 #include "lsst/pex/exceptions/Exception.h"
+#include "ndarray.h"
 
 namespace lsst {
 namespace ip {
@@ -106,6 +107,14 @@ namespace isr {
         bool isTransposed
         );
 
+    template<typename ImagePixelT>
+    lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
+        lsst::afw::image::Exposure<ImagePixelT> const& exp, ///< Input exposure
+        ndarray::Array<double, 2, 1> coeffs, ///< Crosstalk coefficients
+        ndarray::Array<double, 2, 1> coeffsSqr, ///< Nonlinear Crosstalk coefficients
+        bool isTrimmed=false, ///< Is the exposure trimmed?
+        bool applyMask=false ///< Transfer mask as well?
+        );
 
 }}} // namespace lsst::ip::isr
 

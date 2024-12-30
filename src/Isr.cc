@@ -156,6 +156,29 @@ std::string between(std::string &s, char ldelim, char rdelim) {
     return result;
 }
 
+template<typename ImagePixelT>
+lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
+    lsst::afw::image::Exposure<ImagePixelT> const& exp, ///< Input exposure
+    ndarray::Array<double, 2, 1> coeffs, ///< Crosstalk coefficients
+    ndarray::Array<double, 2, 1> coeffsSqr, ///< Nonlinear Crosstalk coefficients
+    bool isTrimmed, ///< Is the exposure trimmed?
+    bool applyMask ///< Transfer mask as well?
+) {
+    typedef afw::image::MaskedImage<ImagePixelT> MaskedImage;
+
+    MaskedImage subtrahend = MaskedImage(exp.getBBox());
+
+    // What we need to do...
+    // Will need backgrounds in the future (though not used now)
+    // Need to get the detector from the exposure.
+    // Need parallelOverscan?  Deprecate it, we don't use it.
+    // Need to know about xFlip and yFlip.
+    // Need to know about ampSource and ampTarget.
+
+    return subtrahend;
+}
+
+
 // Explicit instantiations
 
 template
@@ -189,5 +212,30 @@ template size_t maskNans<double>(afw::image::MaskedImage<double> const&, afw::im
                                  afw::image::MaskPixel);
 template size_t maskNans<int>(afw::image::MaskedImage<int> const&, afw::image::MaskPixel,
                               afw::image::MaskPixel);
+
+template
+afw::image::MaskedImage<float> computeCrosstalkSubtrahend<float>(
+    lsst::afw::image::Exposure<float> const&,
+    ndarray::Array<double, 2, 1> coeffs,
+    ndarray::Array<double, 2, 1> coeffsSqr,
+    bool isTrimmed,
+    bool applyMask=false);
+
+template
+afw::image::MaskedImage<double> computeCrosstalkSubtrahend<double>(
+    lsst::afw::image::Exposure<double> const&,
+    ndarray::Array<double, 2, 1> coeffs,
+    ndarray::Array<double, 2, 1> coeffsSqr,
+    bool isTrimmed,
+    bool applyMask=false);
+
+// This is to make pybind11 and the wrapper happy
+template
+afw::image::MaskedImage<int> computeCrosstalkSubtrahend<int>(
+    lsst::afw::image::Exposure<int> const&,
+    ndarray::Array<double, 2, 1> coeffs,
+    ndarray::Array<double, 2, 1> coeffsSqr,
+    bool isTrimmed,
+    bool applyMask=false);
 
 }}} // namespace lsst::ip::isr
