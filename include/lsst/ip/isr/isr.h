@@ -110,8 +110,8 @@ namespace isr {
     template<typename ImagePixelT>
     lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
         lsst::afw::image::Exposure<ImagePixelT> const& exp, ///< Input exposure
-        ndarray::Array<double, 2, 1> coeffs, ///< Crosstalk coefficients
-        ndarray::Array<double, 2, 1> coeffsSqr, ///< Nonlinear Crosstalk coefficients
+        ndarray::Array<double, 2, 2> coeffs, ///< Crosstalk coefficients
+        ndarray::Array<double, 2, 2> coeffsSqr, ///< Nonlinear Crosstalk coefficients
         bool isTrimmed=false, ///< Is the exposure trimmed?
         bool applyMask=false ///< Transfer mask as well?
         );

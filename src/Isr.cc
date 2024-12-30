@@ -25,6 +25,7 @@
 #include <cmath>
 
 #include "lsst/geom.h"
+#include "lsst/afw/cameraGeom.h"
 #include "lsst/afw/math.h"
 #include "lsst/afw/math/Statistics.h"
 #include "lsst/ip/isr/isr.h"
@@ -159,8 +160,8 @@ std::string between(std::string &s, char ldelim, char rdelim) {
 template<typename ImagePixelT>
 lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
     lsst::afw::image::Exposure<ImagePixelT> const& exp, ///< Input exposure
-    ndarray::Array<double, 2, 1> coeffs, ///< Crosstalk coefficients
-    ndarray::Array<double, 2, 1> coeffsSqr, ///< Nonlinear Crosstalk coefficients
+    ndarray::Array<double, 2, 2> coeffs, ///< Crosstalk coefficients
+    ndarray::Array<double, 2, 2> coeffsSqr, ///< Nonlinear Crosstalk coefficients
     bool isTrimmed, ///< Is the exposure trimmed?
     bool applyMask ///< Transfer mask as well?
 ) {
@@ -168,12 +169,56 @@ lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
 
     MaskedImage subtrahend = MaskedImage(exp.getBBox());
 
+    std::map<lsst::afw::cameraGeom::ReadoutCorner, bool> X_FLIP;
+    std::map<lsst::afw::cameraGeom::ReadoutCorner, bool> Y_FLIP;
+
+    X_FLIP[lsst::afw::cameraGeom::ReadoutCorner::LL] = false;
+    X_FLIP[lsst::afw::cameraGeom::ReadoutCorner::LR] = true;
+    X_FLIP[lsst::afw::cameraGeom::ReadoutCorner::UL] = false;
+    X_FLIP[lsst::afw::cameraGeom::ReadoutCorner::UR] = true;
+
+    Y_FLIP[lsst::afw::cameraGeom::ReadoutCorner::LL] = false;
+    Y_FLIP[lsst::afw::cameraGeom::ReadoutCorner::LR] = false;
+    Y_FLIP[lsst::afw::cameraGeom::ReadoutCorner::UL] = true;
+    Y_FLIP[lsst::afw::cameraGeom::ReadoutCorner::UR] = true;
+
     // What we need to do...
     // Will need backgrounds in the future (though not used now)
     // Need to get the detector from the exposure.
     // Need parallelOverscan?  Deprecate it, we don't use it.
     // Need to know about xFlip and yFlip.
     // Need to know about ampSource and ampTarget.
+
+    auto amplifiers = exp.getDetector()->getAmplifiers();
+    auto nAmp = amplifiers.size();
+
+    for (size_t sourceIndex = 0; sourceIndex < nAmp; ++sourceIndex) {
+        for (size_t targetIndex = 0; targetIndex < nAmp; ++targetIndex) {
+            auto coeff = coeffs[sourceIndex][targetIndex];
+
+            if (coeff == 0.0) {
+                continue;
+            }
+
+            auto sourceAmp = amplifiers[sourceIndex];
+            auto targetAmp = amplifiers[targetIndex];
+
+            if (isTrimmed) {
+                auto sourceMaskedImage = exp[sourceAmp->getBBox()].getMaskedImage();
+                auto targetMaskedImage = exp[targetAmp->getBBox()].getMaskedImage();
+            } else {
+                auto sourceMaskedImage = exp[sourceAmp->getRawBBox()].getMaskedImage();
+                auto targetMaskedImage = exp[targetAmp->getRawBBox()].getMaskedImage();
+            }
+
+            auto sourceAmpCorner = sourceAmp->getReadoutCorner();
+            auto targetAmpCorner = targetAmp->getReadoutCorner();
+
+            bool xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[sourceAmpCorner];
+            bool yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[sourceAmpCorner];
+
+        }
+    }
 
     return subtrahend;
 }
@@ -216,16 +261,16 @@ template size_t maskNans<int>(afw::image::MaskedImage<int> const&, afw::image::M
 template
 afw::image::MaskedImage<float> computeCrosstalkSubtrahend<float>(
     lsst::afw::image::Exposure<float> const&,
-    ndarray::Array<double, 2, 1> coeffs,
-    ndarray::Array<double, 2, 1> coeffsSqr,
+    ndarray::Array<double, 2, 2> coeffs,
+    ndarray::Array<double, 2, 2> coeffsSqr,
     bool isTrimmed,
     bool applyMask=false);
 
 template
 afw::image::MaskedImage<double> computeCrosstalkSubtrahend<double>(
     lsst::afw::image::Exposure<double> const&,
-    ndarray::Array<double, 2, 1> coeffs,
-    ndarray::Array<double, 2, 1> coeffsSqr,
+    ndarray::Array<double, 2, 2> coeffs,
+    ndarray::Array<double, 2, 2> coeffsSqr,
     bool isTrimmed,
     bool applyMask=false);
 
@@ -233,8 +278,8 @@ afw::image::MaskedImage<double> computeCrosstalkSubtrahend<double>(
 template
 afw::image::MaskedImage<int> computeCrosstalkSubtrahend<int>(
     lsst::afw::image::Exposure<int> const&,
-    ndarray::Array<double, 2, 1> coeffs,
-    ndarray::Array<double, 2, 1> coeffsSqr,
+    ndarray::Array<double, 2, 2> coeffs,
+    ndarray::Array<double, 2, 2> coeffsSqr,
     bool isTrimmed,
     bool applyMask=false);
 
