@@ -112,7 +112,6 @@ namespace isr {
         lsst::afw::image::Exposure<ImagePixelT> const& exp, ///< Input exposure
         ndarray::Array<double, 2> const& coeffs, ///< Crosstalk coefficients
         ndarray::Array<double, 2> const& coeffsSqr, ///< Nonlinear Crosstalk coefficients
-        bool isTrimmed=false, ///< Is the exposure trimmed?
         bool applyMask=false ///< Transfer mask as well?
         );
 

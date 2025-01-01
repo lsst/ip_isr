@@ -69,7 +69,7 @@ static void declareAll(py::module& mod, std::string const& suffix) {
     mod.def("fitOverscanImageMean", &fitOverscanImageMean<PixelT>,
             "maskedImage"_a, "badPixelMask"_a, "isTransposed"_a);
     mod.def("computeCrosstalkSubtrahend", &computeCrosstalkSubtrahend<PixelT>,
-            "exp"_a, "coeffs"_a, "coeffsSqr"_a, "isTrimmed"_a = false, "applyMask"_a = false);
+            "exp"_a, "coeffs"_a, "coeffsSqr"_a, "applyMask"_a = false);
 }
 
 }  // namespace lsst::ip::isr::<anonymous>

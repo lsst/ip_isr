@@ -162,7 +162,6 @@ lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
     lsst::afw::image::Exposure<ImagePixelT> const& exp, ///< Input exposure
     ndarray::Array<double, 2> const& coeffs, ///< Crosstalk coefficients
     ndarray::Array<double, 2> const& coeffsSqr, ///< Nonlinear Crosstalk coefficients
-    bool isTrimmed, ///< Is the exposure trimmed?
     bool applyMask ///< Transfer mask as well?  RENAME copyCrosstalkMask
 ) {
     typedef std::shared_ptr<afw::image::Image<ImagePixelT>> ImagePtr;
@@ -185,6 +184,8 @@ lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
     Y_FLIP[lsst::afw::cameraGeom::ReadoutCorner::LR] = false;
     Y_FLIP[lsst::afw::cameraGeom::ReadoutCorner::UL] = true;
     Y_FLIP[lsst::afw::cameraGeom::ReadoutCorner::UR] = true;
+
+    auto isTrimmed = (exp.getDetector()->getBBox() == exp.getBBox());
 
     auto amplifiers = exp.getDetector()->getAmplifiers();
     auto nAmp = amplifiers.size();
@@ -287,7 +288,6 @@ afw::image::MaskedImage<float> computeCrosstalkSubtrahend<float>(
     lsst::afw::image::Exposure<float> const&,
     ndarray::Array<double, 2> const&,
     ndarray::Array<double, 2> const&,
-    bool isTrimmed=false,
     bool applyMask=false);
 
 template
@@ -295,7 +295,6 @@ afw::image::MaskedImage<double> computeCrosstalkSubtrahend<double>(
     lsst::afw::image::Exposure<double> const&,
     ndarray::Array<double, 2> const&,
     ndarray::Array<double, 2> const&,
-    bool isTrimmed=false,
     bool applyMask=false);
 
 // This is to make pybind11 and the wrapper happy
@@ -304,7 +303,6 @@ afw::image::MaskedImage<int> computeCrosstalkSubtrahend<int>(
     lsst::afw::image::Exposure<int> const&,
     ndarray::Array<double, 2> const&,
     ndarray::Array<double, 2> const&,
-    bool isTrimmed=false,
     bool applyMask=false);
 
 }}} // namespace lsst::ip::isr

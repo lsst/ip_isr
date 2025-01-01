@@ -758,7 +758,6 @@ class CrosstalkCalib(IsrCalib):
                 exp=thisExposure,
                 coeffs=coeffsTemp,
                 coeffsSqr=coeffsSqrTemp,
-                isTrimmed=isTrimmed,
                 applyMask=False,
             )
         else:
