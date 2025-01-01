@@ -1476,6 +1476,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
 
         isr_config.doAssembleCcd = True
+        isr_config.crosstalk.doSubtrahendMasking = True
+        isr_config.crosstalk.minPixelToMask = 1.0
 
         return isr_config
 
@@ -1518,6 +1520,8 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.parallelOverscanConfig.maxDeviation = 300.0
 
         isr_config.doAssembleCcd = True
+        isr_config.crosstalk.doSubtrahendMasking = True
+        isr_config.crosstalk.minPixelToMask = 1.0
 
         return isr_config
 
