@@ -747,7 +747,6 @@ class CrosstalkCalib(IsrCalib):
                         coeffsTemp[:, index] = 0.0
 
             if doSqrCrosstalk:
-                # coeffsSqrTemp = coeffsSqr.copy().transpose()
                 coeffsSqrTemp = coeffsSqr.copy()
                 coeffsSqrTemp[coeffsTemp == 0.0] = 0.0
             else:
