@@ -23,7 +23,6 @@
  */
 
 #include <cmath>
-#include "stdio.h"
 
 #include "lsst/geom.h"
 #include "lsst/afw/cameraGeom.h"
@@ -196,7 +195,6 @@ lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
             auto coeffSqr = coeffsSqr[sourceIndex][targetIndex];
 
             // This should be 0.0 if it needs to be skipped (bad amp, etc).
-            // Unless that turns into a burden...
             if (coeff == 0.0) {
                 continue;
             }
@@ -239,13 +237,8 @@ lsst::afw::image::MaskedImage<ImagePixelT> computeCrosstalkSubtrahend(
             targetImage->scaledPlus(coeff, *sourceImage);
             if (coeffSqr != 0.0) {
                 // This is okay because we have already made a copy.
-                fprintf(stdout, "Multiply and scale, %.15f\n", coeffSqr);
                 sourceImage->scaledMultiplies(1.0, *sourceImage);
                 targetImage->scaledPlus(coeffSqr, *sourceImage);
-
-                //auto sourceImage2 = lsst::afw::image::Image<ImagePixelT>(*sourceImage, true);
-                //sourceImage2.scaledMultiplies(1.0, *sourceImage);
-                //targetImage->scaledPlus(coeffSqr, sourceImage2);
             }
 
         }
