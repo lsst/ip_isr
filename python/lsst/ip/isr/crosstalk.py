@@ -732,16 +732,19 @@ class CrosstalkCalib(IsrCalib):
 
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
-        # TODO: bad amp masking
         # TODO: figure out why it doesn't work with crosstalk tests (!).
+        # TODO: do not do if interchip crosstalk!
         if doSubtrahendMasking and (backgroundMethod == "None" or backgroundMethod is None):
             # The coefficients do not need to be transposed with the C++ code.
             coeffsTemp = coeffs.copy()
             coeffsTemp[~valid] = 0.0
             coeffsTemp[~np.isfinite(coeffs)] = 0.0
 
-            # Need badAmpDict check here ... or pass in badAmpDict?
-            # Depends on speed.
+            if badAmpDict:
+                for index, amp in enumerate(detector):
+                    if badAmpDict[amp.getName()]:
+                        coeffsTemp[index, :] = 0.0
+                        coeffsTemp[:, index] = 0.0
 
             if doSqrCrosstalk:
                 # coeffsSqrTemp = coeffsSqr.copy().transpose()
