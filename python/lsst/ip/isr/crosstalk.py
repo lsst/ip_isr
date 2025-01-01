@@ -36,7 +36,7 @@ from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
 from .calibType import IsrCalib
-from .isrFunctions import gainContext
+from .isrFunctions import gainContext, isTrimmedImage
 from .isr import computeCrosstalkSubtrahend
 
 
@@ -500,7 +500,6 @@ class CrosstalkCalib(IsrCalib):
             to match.
         isTrimmed : `bool`, optional
             The image is already trimmed.
-            TODO : DM-15409 will resolve this.
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         parallelOverscan : `bool`, optional
@@ -565,7 +564,7 @@ class CrosstalkCalib(IsrCalib):
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
                           crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
                           badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
-                          crosstalkStr="CROSSTALK", isTrimmed=False,
+                          crosstalkStr="CROSSTALK", isTrimmed=None,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
                           parallelOverscan=False, detectorConfig=None, badAmpDict=None):
         """Subtract the crosstalk from thisExposure, optionally using a
@@ -614,6 +613,7 @@ class CrosstalkCalib(IsrCalib):
             (above minPixelToMask).
         isTrimmed : `bool`, optional
             The image is already trimmed.
+            FIXME DEPRECATE
             This should no longer be needed once DM-15409 is resolved.
         backgroundMethod : `str`, optional
             Method used to subtract the background.  "AMP" uses
@@ -665,6 +665,9 @@ class CrosstalkCalib(IsrCalib):
         detector = thisExposure.getDetector()
         if self.hasCrosstalk is False:
             self.fromDetector(detector, coeffVector=crosstalkCoeffs)
+
+        # CHECK IF isTrimmed is set and do deprecation warning.
+        isTrimmed = isTrimmedImage(mi, detector)
 
         numAmps = len(detector)
         if numAmps != self.nAmp:
@@ -732,7 +735,6 @@ class CrosstalkCalib(IsrCalib):
 
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
-        # TODO: figure out why it doesn't work with crosstalk tests (!).
         # TODO: do not do if interchip crosstalk!
         if doSubtrahendMasking and (backgroundMethod == "None" or backgroundMethod is None):
             # The coefficients do not need to be transposed with the C++ code.
