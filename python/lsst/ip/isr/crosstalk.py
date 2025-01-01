@@ -37,6 +37,7 @@ from lsst.pipe.base import Task
 
 from .calibType import IsrCalib
 from .isrFunctions import gainContext
+from .isr import computeCrosstalkSubtrahend
 
 
 class CrosstalkCalib(IsrCalib):
@@ -731,67 +732,94 @@ class CrosstalkCalib(IsrCalib):
 
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
-        # Define a subtrahend image to contain all the scaled crosstalk signals
-        subtrahend = source.Factory(source.getBBox())
-        subtrahend.set((0, 0, 0))
+        # TODO: bad amp masking
+        # TODO: figure out why it doesn't work with crosstalk tests (!).
+        if doSubtrahendMasking and (backgroundMethod == "None" or backgroundMethod is None):
+            # The coefficients do not need to be transposed with the C++ code.
+            coeffsTemp = coeffs.copy()
+            coeffsTemp[~valid] = 0.0
+            coeffsTemp[~np.isfinite(coeffs)] = 0.0
 
-        coeffs = coeffs.transpose()
-        valid = valid.transpose()
-        # Apply NL coefficients
-        if doSqrCrosstalk:
-            coeffsSqr = coeffsSqr.transpose()
-            mi2 = mi.clone()
-            mi2.scaledMultiplies(1.0, mi)
+            # Need badAmpDict check here ... or pass in badAmpDict?
+            # Depends on speed.
 
-        for ss, sAmp in enumerate(sourceDetector):
-            if fullAmplifier:
-                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawBBox()]
-            elif parallelOverscan:
-                if detectorConfig is not None:
-                    ampConfig = detectorConfig.getOverscanAmpConfig(sAmp)
-                    if not ampConfig.doParallelOverscanCrosstalk:
-                        # Skip crosstalk correction for this amplifier.
-                        continue
-
-                sImage = subtrahend[sAmp.getRawParallelOverscanBBox()]
+            if doSqrCrosstalk:
+                # coeffsSqrTemp = coeffsSqr.copy().transpose()
+                coeffsSqrTemp = coeffsSqr.copy()
+                coeffsSqrTemp[coeffsTemp == 0.0] = 0.0
             else:
-                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
-            for tt, tAmp in enumerate(detector):
-                # Skip 0.0 and invalid coefficients.
-                if coeffs[ss, tt] == 0.0 or not valid[ss, tt]:
-                    continue
-                if badAmpDict is not None:
-                    if badAmpDict[sAmp.getName()] or badAmpDict[tAmp.getName()]:
+                coeffsSqrTemp = np.zeros_like(coeffsTemp)
+
+            subtrahend = computeCrosstalkSubtrahend(
+                exp=thisExposure,
+                coeffs=coeffsTemp,
+                coeffsSqr=coeffsSqrTemp,
+                isTrimmed=isTrimmed,
+                applyMask=False,
+            )
+        else:
+            # Define a subtrahend image to contain all the scaled crosstalk
+            # signals
+            subtrahend = source.Factory(source.getBBox())
+            subtrahend.set((0, 0, 0))
+
+            coeffs = coeffs.transpose()
+            valid = valid.transpose()
+            # Apply NL coefficients
+            if doSqrCrosstalk:
+                coeffsSqr = coeffsSqr.transpose()
+                mi2 = mi.clone()
+                mi2.scaledMultiplies(1.0, mi)
+
+            for ss, sAmp in enumerate(sourceDetector):
+                if fullAmplifier:
+                    sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawBBox()]
+                elif parallelOverscan:
+                    if detectorConfig is not None:
+                        ampConfig = detectorConfig.getOverscanAmpConfig(sAmp)
+                        if not ampConfig.doParallelOverscanCrosstalk:
+                            # Skip crosstalk correction for this amplifier.
+                            continue
+
+                    sImage = subtrahend[sAmp.getRawParallelOverscanBBox()]
+                else:
+                    sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
+                for tt, tAmp in enumerate(detector):
+                    # Skip 0.0 and invalid coefficients.
+                    if coeffs[ss, tt] == 0.0 or not valid[ss, tt]:
                         continue
-                tImage = self.extractAmp(
-                    mi,
-                    tAmp,
-                    sAmp,
-                    isTrimmed=isTrimmed,
-                    fullAmplifier=fullAmplifier,
-                    parallelOverscan=parallelOverscan,
-                )
-                tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
-                tImage -= backgrounds[tt]
-                sImage.scaledPlus(coeffs[ss, tt], tImage)
-                # Add the nonlinear term
-                if doSqrCrosstalk:
-                    # Note that mi2 is the square of the masked image.
-                    tImageSqr = self.extractAmp(
-                        mi2,
+                    if badAmpDict is not None:
+                        if badAmpDict[sAmp.getName()] or badAmpDict[tAmp.getName()]:
+                            continue
+                    tImage = self.extractAmp(
+                        mi,
                         tAmp,
                         sAmp,
                         isTrimmed=isTrimmed,
                         fullAmplifier=fullAmplifier,
                         parallelOverscan=parallelOverscan,
                     )
-                    tImageSqr.getMask().getArray()[:] &= crosstalk  # Remove all other masks
-                    tImageSqr -= backgrounds[tt]**2
-                    sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
+                    tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
+                    tImage -= backgrounds[tt]
+                    sImage.scaledPlus(coeffs[ss, tt], tImage)
+                    # Add the nonlinear term
+                    if doSqrCrosstalk:
+                        # Note that mi2 is the square of the masked image.
+                        tImageSqr = self.extractAmp(
+                            mi2,
+                            tAmp,
+                            sAmp,
+                            isTrimmed=isTrimmed,
+                            fullAmplifier=fullAmplifier,
+                            parallelOverscan=parallelOverscan,
+                        )
+                        tImageSqr.getMask().getArray()[:] &= crosstalk  # Remove all other masks
+                        tImageSqr -= backgrounds[tt]**2
+                        sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
-        # Clear the mask in the output image.  The subtrahend image
-        # contains the crosstalk masks.
-        mask.clearMaskPlane(crosstalkPlane)
+            # Clear the mask in the output image.  The subtrahend image
+            # contains the crosstalk masks.
+            mask.clearMaskPlane(crosstalkPlane)
 
         if doSubtrahendMasking:
             # Set crosstalkStr bit only for those pixels that have
