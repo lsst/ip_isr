@@ -736,7 +736,7 @@ class CrosstalkCalib(IsrCalib):
         # TODO: do not do if interchip crosstalk!
         if doSubtrahendMasking and (backgroundMethod == "None" or backgroundMethod is None):
             # The coefficients do not need to be transposed with the C++ code.
-            coeffsTemp = coeffs.copy().astyope(np.float64)
+            coeffsTemp = coeffs.copy().astype(np.float64)
             coeffsTemp[~valid] = 0.0
             coeffsTemp[~np.isfinite(coeffs)] = 0.0
 
