@@ -37,7 +37,7 @@ from lsst.pipe.base import Task
 
 from .calibType import IsrCalib
 from .isrFunctions import gainContext, isTrimmedImage
-from .isr import computeCrosstalkSubtrahend
+# from .isr import computeCrosstalkSubtrahend
 
 
 class CrosstalkCalib(IsrCalib):
@@ -754,12 +754,58 @@ class CrosstalkCalib(IsrCalib):
             else:
                 coeffsSqrTemp = np.zeros_like(coeffsTemp)
 
-            subtrahend = computeCrosstalkSubtrahend(
-                exp=thisExposure,
-                coeffs=coeffsTemp,
-                coeffsSqr=coeffsSqrTemp,
-                applyMask=False,
-            )
+            # subtrahend = computeCrosstalkSubtrahend(
+            #     exp=thisExposure,
+            #     coeffs=coeffsTemp,
+            #     coeffsSqr=coeffsSqrTemp,
+            #     applyMask=False,
+            # )
+
+            # Try pure python version of optimized c++ code...
+
+            subtrahend = source.Factory(source.getBBox())
+            subtrahend.set((0, 0, 0))
+
+            X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
+                      lsst.afw.cameraGeom.ReadoutCorner.LR: True,
+                      lsst.afw.cameraGeom.ReadoutCorner.UL: False,
+                      lsst.afw.cameraGeom.ReadoutCorner.UR: True}
+            Y_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
+                      lsst.afw.cameraGeom.ReadoutCorner.LR: False,
+                      lsst.afw.cameraGeom.ReadoutCorner.UL: True,
+                      lsst.afw.cameraGeom.ReadoutCorner.UR: True}
+
+            for sourceIndex, sourceAmp in enumerate(sourceDetector):
+                for targetIndex, targetAmp in enumerate(detector):
+                    coeff = coeffsTemp[sourceIndex, targetIndex]
+                    coeffSqr = coeffsSqrTemp[sourceIndex, targetIndex]
+
+                    if coeff == 0.0:
+                        continue
+
+                    if isTrimmed:
+                        sourceBBox = sourceAmp.getBBox()
+                        targetBBox = targetAmp.getBBox()
+                    else:
+                        sourceBBox = sourceAmp.getRawBBox()
+                        targetBBox = targetAmp.getRawBBox()
+
+                    sourceImageIn = source[sourceBBox].image
+                    targetImage = subtrahend[targetBBox].image
+
+                    sourceAmpCorner = sourceAmp.getReadoutCorner()
+                    targetAmpCorner = targetAmp.getReadoutCorner()
+
+                    xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[sourceAmpCorner]
+                    yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[sourceAmpCorner]
+
+                    sourceImage = lsst.afw.math.flipImage(sourceImageIn, xFlip, yFlip)
+
+                    targetImage.scaledPlus(coeff, sourceImage)
+                    if coeffSqr != 0.0:
+                        sourceImage.scaledMultiplies(1.0, sourceImage)
+                        targetImage.scaledPlus(coeffSqr, sourceImage)
+
         else:
             # Define a subtrahend image to contain all the scaled crosstalk
             # signals
