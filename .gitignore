@@ -24,3 +24,4 @@ version.py
 bin/
 .idea/
 .vscode/
+python/*.dist-info/
