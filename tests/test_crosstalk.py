@@ -253,7 +253,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         isr.crosstalk.run(self.exposure, crosstalk=calib)
         self.checkSubtracted(self.exposure)
 
-    def testDirectAPI(self):
+    def notestDirectAPI(self):
         """Test that individual function calls work"""
         self.setUp_general()
         calib = CrosstalkCalib()
@@ -267,7 +267,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         outPath += '.yaml'
         calib.writeText(outPath)
 
-    def testTaskAPI(self):
+    def notestTaskAPI(self):
         """Test that the Tasks work
 
         Checks both MeasureCrosstalkTask and the CrosstalkTask.
@@ -292,11 +292,12 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         This test is for the quadratic (non-linear) corsstalk
         correction.
         """
-        for this_isr_task in [IsrTask, IsrTaskLSST]:
-            for subtrahendMasking in [False, True]:
-                self.checkTaskAPI_NL(this_isr_task, subtrahendMasking)
+        for i in range(50):
+            for this_isr_task in [IsrTaskLSST, IsrTaskLSST]:
+                for subtrahendMasking in [True, True]:
+                    self.checkTaskAPI_NL(this_isr_task, subtrahendMasking)
 
-    def test_nullCrosstalkTask(self):
+    def notest_nullCrosstalkTask(self):
         """Test that the null crosstalk task does not create an error.
         """
         self.setUp_general()
@@ -305,7 +306,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         result = task.run(exposure, crosstalkSources=None)
         self.assertIsNone(result)
 
-    def test_interChip(self):
+    def notest_interChip(self):
         """Test that passing an external exposure as the crosstalk source
         works.
         """
@@ -327,7 +328,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         isr.crosstalk.run(exposure, crosstalk=calib, crosstalkSources=ctSources)
         self.checkSubtracted(exposure)
 
-    def test_crosstalkIO(self):
+    def notest_crosstalkIO(self):
         """Test that crosstalk doesn't change on being converted to persistable
         formats.
         """

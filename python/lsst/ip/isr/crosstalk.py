@@ -37,7 +37,7 @@ from lsst.pipe.base import Task
 
 from .calibType import IsrCalib
 from .isrFunctions import gainContext, isTrimmedImage
-# from .isr import computeCrosstalkSubtrahend
+from .isr import computeCrosstalkSubtrahend
 
 
 class CrosstalkCalib(IsrCalib):
@@ -736,7 +736,7 @@ class CrosstalkCalib(IsrCalib):
         crosstalk = mask.getPlaneBitMask(crosstalkStr)
 
         # TODO: do not do if interchip crosstalk!
-        if doSubtrahendMasking and (backgroundMethod == "None" or backgroundMethod is None):
+        if doSubtrahendMasking and (backgroundMethod == "None" or backgroundMethod is None) and False:
             # The coefficients do not need to be transposed with the C++ code.
             coeffsTemp = coeffs.copy().astype(np.float64)
             coeffsTemp[~valid] = 0.0
@@ -754,15 +754,15 @@ class CrosstalkCalib(IsrCalib):
             else:
                 coeffsSqrTemp = np.zeros_like(coeffsTemp)
 
-            # subtrahend = computeCrosstalkSubtrahend(
-            #     exp=thisExposure,
-            #     coeffs=coeffsTemp,
-            #     coeffsSqr=coeffsSqrTemp,
-            #     applyMask=False,
-            # )
+            subtrahend = computeCrosstalkSubtrahend(
+                exp=thisExposure,
+                coeffs=coeffsTemp,
+                coeffsSqr=coeffsSqrTemp,
+                applyMask=False,
+            )
 
             # Try pure python version of optimized c++ code...
-
+            """
             subtrahend = source.Factory(source.getBBox())
             subtrahend.set((0, 0, 0))
 
@@ -805,7 +805,7 @@ class CrosstalkCalib(IsrCalib):
                     if coeffSqr != 0.0:
                         sourceImage.scaledMultiplies(1.0, sourceImage)
                         targetImage.scaledPlus(coeffSqr, sourceImage)
-
+            """
         else:
             # Define a subtrahend image to contain all the scaled crosstalk
             # signals
