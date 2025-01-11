@@ -22,10 +22,12 @@ class OverscanAmpConfig(pexConfig.Config):
         dtype=SerialOverscanCorrectionTaskConfig,
         doc="Serial overscan configuration.",
     )
+    # TODO: Remove on DM-48394
     doParallelOverscanCrosstalk = pexConfig.Field(
         dtype=bool,
         doc="Apply crosstalk correction in parallel overscan region?",
         default=True,
+        deprecated="This field is no longer used, and will be removed after v29.",
     )
     doParallelOverscan = pexConfig.Field(
         dtype=bool,
@@ -82,7 +84,6 @@ class OverscanAmpConfig(pexConfig.Config):
         """
         stringForHash = (f"doSerial={self.doSerialOverscan} "
                          f"serialFitType={self.serialOverscanConfig.fitType} "
-                         f"doParallelCrosstalk={self.doParallelOverscanCrosstalk} "
                          f"doParallel={self.doParallelOverscan} "
                          f"parallelFitType={self.parallelOverscanConfig.fitType}")
         return stringForHash
@@ -144,23 +145,6 @@ class OverscanDetectorConfig(pexConfig.Config):
 
         for _, ampRule in self.ampRules.items():
             if ampRule.doParallelOverscan:
-                return True
-
-        return False
-
-    @property
-    def doAnyParallelOverscanCrosstalk(self):
-        """Check if any of the amp configs have doParallelOverscanCrosstalk.
-
-        Returns
-        -------
-        doAnyParallelOverscanCrosstalk : `bool`
-        """
-        if self.defaultAmpConfig.doParallelOverscanCrosstalk:
-            return True
-
-        for _, ampRule in self.ampRules.items():
-            if ampRule.doParallelOverscanCrosstalk:
                 return True
 
         return False
@@ -276,25 +260,6 @@ class OverscanCameraConfig(pexConfig.Config):
 
         for _, detectorRule in self.detectorRules.items():
             if detectorRule.doAnyParallelOverscan:
-                return True
-
-        return False
-
-    @property
-    def doAnyParallelOverscanCrosstalk(self):
-        """Check if any of the detector/amp configs have
-        doParallelOverscanCrosstalk.
-
-        Returns
-        -------
-        doAnyParallelOverscanCrosstalk : `bool`
-        """
-
-        if self.defaultDetectorConfig.doAnyParallelOverscanCrosstalk:
-            return True
-
-        for _, detectorRule in self.detectorRules.items():
-            if detectorRule.doAnyParallelOverscanCrosstalk:
                 return True
 
         return False

@@ -1468,7 +1468,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doSerialOverscan = True
         defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.doParallelOverscanCrosstalk = False
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0
@@ -1510,7 +1509,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         defaultAmpConfig.doSerialOverscan = True
         defaultAmpConfig.serialOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.serialOverscanConfig.trailingToSkip = 0
-        defaultAmpConfig.doParallelOverscanCrosstalk = True
         defaultAmpConfig.doParallelOverscan = True
         defaultAmpConfig.parallelOverscanConfig.leadingToSkip = 0
         defaultAmpConfig.parallelOverscanConfig.trailingToSkip = 0

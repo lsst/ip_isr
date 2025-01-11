@@ -486,7 +486,7 @@ class CrosstalkCalib(IsrCalib):
 
     # Implementation methods.
     @staticmethod
-    def extractAmp(image, amp, ampTarget, isTrimmed=False, fullAmplifier=False, parallelOverscan=False):
+    def extractAmp(image, amp, ampTarget, isTrimmed=False, fullAmplifier=False, parallelOverscan=None):
         """Extract the image data from an amp, flipped to match ampTarget.
 
         Parameters
@@ -503,14 +503,19 @@ class CrosstalkCalib(IsrCalib):
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         parallelOverscan : `bool`, optional
-            Extract parallel overscan region instead of imaging region.
-            Cannot be used if isTrimmed or fullAmplifier True.
+            This has been deprecated and is unused, and will be removed
+            after v29.
 
         Returns
         -------
         output : `lsst.afw.image.Image`
             Image of the amplifier in the desired configuration.
         """
+        if parallelOverscan is not None:
+            warnings.warn(
+                "The parallelOverscan option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
         X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
                   lsst.afw.cameraGeom.ReadoutCorner.LR: True,
                   lsst.afw.cameraGeom.ReadoutCorner.UL: False,
@@ -520,6 +525,7 @@ class CrosstalkCalib(IsrCalib):
                   lsst.afw.cameraGeom.ReadoutCorner.UL: True,
                   lsst.afw.cameraGeom.ReadoutCorner.UR: True}
 
+        # TODO: Remove on DM-48394
         if parallelOverscan:
             if isTrimmed or fullAmplifier:
                 raise RuntimeError("Cannot extract amp parallelOverscan if isTrimmed or fullAmplifier")
@@ -566,7 +572,7 @@ class CrosstalkCalib(IsrCalib):
                           badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
                           crosstalkStr="CROSSTALK", isTrimmed=None,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
-                          parallelOverscan=False, detectorConfig=None, badAmpDict=None):
+                          parallelOverscan=None, detectorConfig=None, badAmpDict=None):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -625,9 +631,10 @@ class CrosstalkCalib(IsrCalib):
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         parallelOverscan : `bool`, optional
-            Only correct the parallel overscan region.
+            This option is deprecated and will be removed after v29.
         detectorConfig : `lsst.ip.isr.overscanDetectorConfig`, optional
             Per-amplifier configs to use if parallelOverscan is True.
+            This option is deprecated and will be removed after v29.
         badAmpDict : `dict` [`str`, `bool`], optional
             Dictionary to identify bad amplifiers that should not be
             source or target for crosstalk correction.
@@ -672,6 +679,18 @@ class CrosstalkCalib(IsrCalib):
                 FutureWarning,
             )
         isTrimmed = isTrimmedImage(mi, detector)
+
+        # TODO: Remove on DM-48394
+        if parallelOverscan is not None:
+            warnings.warn(
+                "The parallelOverscan option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        if detectorConfig is not None:
+            warnings.warn(
+                "The detectorConfig option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
 
         numAmps = len(detector)
         if numAmps != self.nAmp:
@@ -754,14 +773,6 @@ class CrosstalkCalib(IsrCalib):
         for ss, sAmp in enumerate(sourceDetector):
             if fullAmplifier:
                 sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawBBox()]
-            elif parallelOverscan:
-                if detectorConfig is not None:
-                    ampConfig = detectorConfig.getOverscanAmpConfig(sAmp)
-                    if not ampConfig.doParallelOverscanCrosstalk:
-                        # Skip crosstalk correction for this amplifier.
-                        continue
-
-                sImage = subtrahend[sAmp.getRawParallelOverscanBBox()]
             else:
                 sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
             for tt, tAmp in enumerate(detector):
@@ -777,7 +788,6 @@ class CrosstalkCalib(IsrCalib):
                     sAmp,
                     isTrimmed=isTrimmed,
                     fullAmplifier=fullAmplifier,
-                    parallelOverscan=parallelOverscan,
                 )
                 tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                 tImage -= backgrounds[tt]
@@ -791,7 +801,6 @@ class CrosstalkCalib(IsrCalib):
                         sAmp,
                         isTrimmed=isTrimmed,
                         fullAmplifier=fullAmplifier,
-                        parallelOverscan=parallelOverscan,
                     )
                     tImageSqr.getMask().getArray()[:] &= crosstalk  # Remove all other masks
                     tImageSqr -= backgrounds[tt]**2
@@ -968,7 +977,7 @@ class CrosstalkTask(Task):
         crosstalkSources=None,
         isTrimmed=None,
         camera=None,
-        parallelOverscanRegion=False,
+        parallelOverscanRegion=None,
         detectorConfig=None,
         fullAmplifier=False,
         gains=None,
@@ -997,9 +1006,9 @@ class CrosstalkTask(Task):
             Camera associated with this exposure.  Only used for
             inter-chip matching.
         parallelOverscanRegion : `bool`, optional
-            Do subtraction in parallel overscan region (only)?
+            This option has been deprecated and will be removed after v29.
         detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`, optional
-            Per-amplifier configs used when parallelOverscanRegion=True.
+            This option has been deprecated and will be removed after v29.
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         gains : `dict` [`str`, `float`], optional
@@ -1024,6 +1033,18 @@ class CrosstalkTask(Task):
             )
         isTrimmed = isTrimmedImage(exposure.maskedImage, exposure.getDetector())
 
+        # TODO: Remove on DM-48394
+        if parallelOverscanRegion is not None:
+            warnings.warn(
+                "The parallelOverscanRegion option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        if detectorConfig is not None:
+            warnings.warn(
+                "The detectorConfig option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+
         if not crosstalk:
             crosstalk = CrosstalkCalib(log=self.log)
             crosstalk = crosstalk.fromDetector(exposure.getDetector(),
@@ -1043,9 +1064,6 @@ class CrosstalkTask(Task):
 
         if not crosstalk.hasCrosstalk:
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients.")
-
-        if parallelOverscanRegion and crosstalk.interChip:
-            raise RuntimeError("Cannot do parallel overscan correction with interChip crosstalk.")
 
         # Get the exposure units; defaults to adu.
         exposureUnits = exposure.metadata.get("LSST ISR UNITS", "adu")
@@ -1098,10 +1116,7 @@ class CrosstalkTask(Task):
                               "because crosstalk is in adu units and exposure is in "
                               "electron units.")
 
-        if parallelOverscanRegion:
-            self.log.info("Applying crosstalk correction to parallel overscan region.")
-        else:
-            self.log.info("Applying crosstalk correction.")
+        self.log.info("Applying crosstalk correction.")
 
         with gainContext(
                 exposure,
@@ -1122,7 +1137,6 @@ class CrosstalkTask(Task):
                 backgroundMethod=self.config.crosstalkBackgroundMethod,
                 doSqrCrosstalk=doSqrCrosstalk,
                 fullAmplifier=fullAmplifier,
-                parallelOverscan=parallelOverscanRegion,
                 badAmpDict=badAmpDict,
             )
 
