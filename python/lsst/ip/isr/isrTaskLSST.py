@@ -1738,7 +1738,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.crosstalk.run(
                 ccdExposure,
                 crosstalk=crosstalk,
-                isTrimmed=False,
                 gains=crosstalkGains,
                 fullAmplifier=True,
                 badAmpDict=badAmpDict,

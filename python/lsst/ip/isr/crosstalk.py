@@ -27,6 +27,7 @@ __all__ = ["CrosstalkCalib", "CrosstalkConfig", "CrosstalkTask",
            "NullCrosstalkTask"]
 
 import numpy as np
+import warnings
 from astropy.table import Table
 
 import lsst.afw.math
@@ -36,7 +37,7 @@ from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
 from .calibType import IsrCalib
-from .isrFunctions import gainContext
+from .isrFunctions import gainContext, isTrimmedImage
 
 
 class CrosstalkCalib(IsrCalib):
@@ -499,7 +500,6 @@ class CrosstalkCalib(IsrCalib):
             to match.
         isTrimmed : `bool`, optional
             The image is already trimmed.
-            TODO : DM-15409 will resolve this.
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         parallelOverscan : `bool`, optional
@@ -564,7 +564,7 @@ class CrosstalkCalib(IsrCalib):
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
                           crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
                           badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
-                          crosstalkStr="CROSSTALK", isTrimmed=False,
+                          crosstalkStr="CROSSTALK", isTrimmed=None,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
                           parallelOverscan=False, detectorConfig=None, badAmpDict=None):
         """Subtract the crosstalk from thisExposure, optionally using a
@@ -612,8 +612,8 @@ class CrosstalkCalib(IsrCalib):
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
         isTrimmed : `bool`, optional
-            The image is already trimmed.
-            This should no longer be needed once DM-15409 is resolved.
+            This option has been deprecated and does not do anything.
+            It will be removed after v29.
         backgroundMethod : `str`, optional
             Method used to subtract the background.  "AMP" uses
             amplifier-by-amplifier background levels, "DETECTOR" uses full
@@ -664,6 +664,14 @@ class CrosstalkCalib(IsrCalib):
         detector = thisExposure.getDetector()
         if self.hasCrosstalk is False:
             self.fromDetector(detector, coeffVector=crosstalkCoeffs)
+
+        # TODO: Remove on DM-48394
+        if isTrimmed is not None:
+            warnings.warn(
+                "The isTrimmed option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        isTrimmed = isTrimmedImage(mi, detector)
 
         numAmps = len(detector)
         if numAmps != self.nAmp:
@@ -958,7 +966,7 @@ class CrosstalkTask(Task):
         exposure,
         crosstalk=None,
         crosstalkSources=None,
-        isTrimmed=False,
+        isTrimmed=None,
         camera=None,
         parallelOverscanRegion=False,
         detectorConfig=None,
@@ -983,8 +991,8 @@ class CrosstalkTask(Task):
             as ``exposure``.
             The default for intra-detector crosstalk here is None.
         isTrimmed : `bool`, optional
-            The image is already trimmed.
-            This should no longer be needed once DM-15409 is resolved.
+            This option has been deprecated and does not do anything.
+            It will be removed after v29.
         camera : `lsst.afw.cameraGeom.Camera`, optional
             Camera associated with this exposure.  Only used for
             inter-chip matching.
@@ -1008,6 +1016,14 @@ class CrosstalkTask(Task):
             crosstalk correction.  Also raised if the crosstalkSource
             is not an expected type.
         """
+        # TODO: Remove on DM-48394
+        if isTrimmed is not None:
+            warnings.warn(
+                "The isTrimmed option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        isTrimmed = isTrimmedImage(exposure.maskedImage, exposure.getDetector())
+
         if not crosstalk:
             crosstalk = CrosstalkCalib(log=self.log)
             crosstalk = crosstalk.fromDetector(exposure.getDetector(),
@@ -1103,7 +1119,6 @@ class CrosstalkTask(Task):
                 minPixelToMask=self.config.minPixelToMask,
                 doSubtrahendMasking=self.config.doSubtrahendMasking,
                 crosstalkStr=self.config.crosstalkMaskPlane,
-                isTrimmed=isTrimmed,
                 backgroundMethod=self.config.crosstalkBackgroundMethod,
                 doSqrCrosstalk=doSqrCrosstalk,
                 fullAmplifier=fullAmplifier,
@@ -1155,7 +1170,6 @@ class CrosstalkTask(Task):
                                                 crosstalkCoeffs=interChipCoeffs,
                                                 minPixelToMask=self.config.minPixelToMask,
                                                 crosstalkStr=self.config.crosstalkMaskPlane,
-                                                isTrimmed=isTrimmed,
                                                 backgroundMethod=self.config.crosstalkBackgroundMethod)
             else:
                 self.log.warning("Crosstalk contains interChip coefficients, but no sources found!")
