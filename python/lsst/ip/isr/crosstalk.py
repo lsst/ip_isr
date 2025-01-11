@@ -572,7 +572,8 @@ class CrosstalkCalib(IsrCalib):
                           badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
                           crosstalkStr="CROSSTALK", isTrimmed=None,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
-                          parallelOverscan=None, detectorConfig=None, badAmpDict=None):
+                          parallelOverscan=None, detectorConfig=None, badAmpDict=None,
+                          ignoreVariance=False):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -638,6 +639,8 @@ class CrosstalkCalib(IsrCalib):
         badAmpDict : `dict` [`str`, `bool`], optional
             Dictionary to identify bad amplifiers that should not be
             source or target for crosstalk correction.
+        ignoreVariance : `bool`, optional
+            Ignore the variance plane when doing crosstalk correction?
 
         Notes
         -----
@@ -982,6 +985,7 @@ class CrosstalkTask(Task):
         fullAmplifier=False,
         gains=None,
         badAmpDict=None,
+        ignoreVariance=False,
     ):
         """Apply intra-detector crosstalk correction
 
@@ -1017,6 +1021,8 @@ class CrosstalkTask(Task):
         badAmpDict : `dict` [`str`, `bool`], optional
             Dictionary to identify bad amplifiers that should not be
             source or target for crosstalk correction.
+        ignoreVariance : `bool`, optional
+            Ignore variance plane when applying crosstalk?
 
         Raises
         ------
@@ -1138,6 +1144,7 @@ class CrosstalkTask(Task):
                 doSqrCrosstalk=doSqrCrosstalk,
                 fullAmplifier=fullAmplifier,
                 badAmpDict=badAmpDict,
+                ignoreVariance=ignoreVariance,
             )
 
         if crosstalk.interChip:
@@ -1180,11 +1187,15 @@ class CrosstalkTask(Task):
                     self.log.info("Correcting detector %s with ctSource %s",
                                   exposure.getDetector().getName(),
                                   sourceExposure.getDetector().getName())
-                    crosstalk.subtractCrosstalk(exposure, sourceExposure=sourceExposure,
-                                                crosstalkCoeffs=interChipCoeffs,
-                                                minPixelToMask=self.config.minPixelToMask,
-                                                crosstalkStr=self.config.crosstalkMaskPlane,
-                                                backgroundMethod=self.config.crosstalkBackgroundMethod)
+                    crosstalk.subtractCrosstalk(
+                        exposure,
+                        sourceExposure=sourceExposure,
+                        crosstalkCoeffs=interChipCoeffs,
+                        minPixelToMask=self.config.minPixelToMask,
+                        crosstalkStr=self.config.crosstalkMaskPlane,
+                        backgroundMethod=self.config.crosstalkBackgroundMethod,
+                        ignoreVariance=ignoreVariance,
+                    )
             else:
                 self.log.warning("Crosstalk contains interChip coefficients, but no sources found!")
 

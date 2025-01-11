@@ -1741,6 +1741,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 gains=crosstalkGains,
                 fullAmplifier=True,
                 badAmpDict=badAmpDict,
+                ignoreVariance=True,
             )
 
         # Parallel overscan correction.
