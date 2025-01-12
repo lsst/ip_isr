@@ -484,64 +484,24 @@ class CrosstalkCalib(IsrCalib):
             tableList.append(interChipTable)
         return tableList
 
-    # Implementation methods.
-    @staticmethod
-    def extractAmp(image, amp, ampTarget, isTrimmed=False, fullAmplifier=False, parallelOverscan=None):
-        """Extract the image data from an amp, flipped to match ampTarget.
+    def _getAppropriateBBox(self, amp, isTrimmed, fullAmplifier):
+        """Get the appropriate bounding box from an amplifier.
 
         Parameters
         ----------
-        image : `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage`
-            Image containing the amplifier of interest.
         amp : `lsst.afw.cameraGeom.Amplifier`
-            Amplifier on image to extract.
-        ampTarget : `lsst.afw.cameraGeom.Amplifier`
-            Target amplifier that the extracted image will be flipped
-            to match.
-        isTrimmed : `bool`, optional
-            The image is already trimmed.
-        fullAmplifier : `bool`, optional
-            Use full amplifier and not just imaging region.
-        parallelOverscan : `bool`, optional
-            This has been deprecated and is unused, and will be removed
-            after v29.
-
-        Returns
-        -------
-        output : `lsst.afw.image.Image`
-            Image of the amplifier in the desired configuration.
+            Amplifier to get bounding box.
+        isTrimmed : `bool`
+            Is this a trimmed image?
+        fullAmplifier : `bool`
+            Extract full amplifier for an untrimmed image?
         """
-        if parallelOverscan is not None:
-            warnings.warn(
-                "The parallelOverscan option has been deprecated and will be removed after v29.",
-                FutureWarning,
-            )
-        X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.LR: True,
-                  lsst.afw.cameraGeom.ReadoutCorner.UL: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
-        Y_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.LR: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.UL: True,
-                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
-
-        # TODO: Remove on DM-48394
-        if parallelOverscan:
-            if isTrimmed or fullAmplifier:
-                raise RuntimeError("Cannot extract amp parallelOverscan if isTrimmed or fullAmplifier")
-            output = image[amp.getRawParallelOverscanBBox()]
-        elif fullAmplifier:
-            output = image[amp.getBBox() if isTrimmed else amp.getRawBBox()]
+        if isTrimmed:
+            return amp.getBBox()
+        elif fullAmplifier and not isTrimmed:
+            return amp.getRawBBox()
         else:
-            output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
-        thisAmpCorner = amp.getReadoutCorner()
-        targetAmpCorner = ampTarget.getReadoutCorner()
-
-        # Flipping is necessary only if the desired configuration doesn't match
-        # what we currently have.
-        xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[thisAmpCorner]
-        yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[thisAmpCorner]
-        return lsst.afw.math.flipImage(output, xFlip, yFlip)
+            return amp.getRawDataBBox()
 
     @staticmethod
     def calculateBackground(mi, badPixels=["BAD"]):
@@ -798,15 +758,8 @@ class CrosstalkCalib(IsrCalib):
                 if coeff == 0.0:
                     continue
 
-                if isTrimmed:
-                    sourceBBox = sourceAmp.getBBox()
-                    targetBBox = targetAmp.getBBox()
-                elif fullAmplifier and not isTrimmed:
-                    sourceBBox = sourceAmp.getRawBBox()
-                    targetBBox = targetAmp.getRawBBox()
-                else:
-                    sourceBBox = sourceAmp.getRawDataBBox()
-                    targetBBox = targetAmp.getRawDataBBox()
+                sourceBBox = self._getAppropriateBBox(sourceAmp, isTrimmed, fullAmplifier)
+                targetBBox = self._getAppropriateBBox(targetAmp, isTrimmed, fullAmplifier)
 
                 if imageOnly:
                     sourceImageIn = sourceMaskedImage[sourceBBox].image
@@ -867,7 +820,8 @@ class CrosstalkCalib(IsrCalib):
             # the correction we're applying.
             subtrahendBackgrounds = {}
             for amp in targetDetector:
-                ampData = subtrahend[amp.getRawDataBBox()]
+                bbox = self._getAppropriateBBox(amp, isTrimmed, fullAmplifier)
+                ampData = subtrahend[bbox]
                 background = np.median(ampData.image.array)
                 subtrahendBackgrounds[amp.getName()] = background
                 ampData.image.array[:, :] -= background
@@ -884,7 +838,8 @@ class CrosstalkCalib(IsrCalib):
 
             # Put the backgrounds back.
             for amp in targetDetector:
-                ampData = subtrahend[amp.getRawDataBBox()]
+                bbox = self._getAppropriateBBox(amp, isTrimmed, fullAmplifier)
+                ampData = subtrahend[bbox]
                 background = subtrahendBackgrounds[amp.getName()]
                 ampData.image.array[:, :] += background
 

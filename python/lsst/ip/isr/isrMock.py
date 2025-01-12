@@ -505,13 +505,19 @@ class IsrMock(pipeBase.Task):
 
         if self.config.doAddCrosstalk is True:
             ctCalib = CrosstalkCalib()
-            for idxS, ampS in enumerate(exposure.getDetector()):
-                for idxT, ampT in enumerate(exposure.getDetector()):
-                    ampDataT = exposure.image[ampT.getBBox()
-                                              if self.config.isTrimmed else ampT.getRawDataBBox()]
-                    outAmp = ctCalib.extractAmp(exposure.getImage(), ampS, ampT,
-                                                isTrimmed=self.config.isTrimmed)
-                    self.amplifierAddCT(outAmp, ampDataT, self.crosstalkCoeffs[idxS][idxT])
+            # We use the regular subtractCrosstalk code but with a negative
+            # sign on the crosstalk coefficients so it adds instead of
+            # subtracts. We only apply the signal plane (ignoreVariance,
+            # subtrahendMasking) with a very large pixel to mask to ensure
+            # no crosstalk mask bits are set.
+            ctCalib.subtractCrosstalk(
+                exposure,
+                crosstalkCoeffs=-1*self.crosstalkCoeffs,
+                doSubtrahendMasking=True,
+                minPixelToMask=1e100,
+                ignoreVariance=True,
+                fullAmplifier=False,
+            )
 
         for amp in exposure.getDetector():
             bbox = None
@@ -817,27 +823,6 @@ class IsrMock(pipeBase.Task):
             for y in range(0, ampData.getDimensions().getY()):
                 ampData.array[y][x] = (ampData.array[y][x]
                                        + scale * np.exp(-0.5 * ((x - x0)**2 + (y - y0)**2) / 3.0**2))
-
-    def amplifierAddCT(self, ampDataSource, ampDataTarget, scale):
-        """Add a scaled copy of an amplifier to another, simulating crosstalk.
-
-         This method operates in the amplifier coordinate frame.
-
-        Parameters
-        ----------
-        ampDataSource : `lsst.afw.image.ImageF`
-            Amplifier image to add scaled copy from.
-        ampDataTarget : `lsst.afw.image.ImageF`
-            Amplifier image to add scaled copy to.
-        scale : `float`
-            Flux scale of the copy to add to the target.
-
-        Notes
-        -----
-        This simulates simple crosstalk between amplifiers.
-        """
-        ampDataTarget.array[:] = (ampDataTarget.array[:]
-                                  + scale * ampDataSource.array[:])
 
     # Functional form data values.
     def amplifierAddFringe(self, amp, ampData, scale, x0=100, y0=0):

@@ -709,15 +709,19 @@ class IsrMockLSST(IsrMock):
         #     (imaging + overscan).
         if self.config.doAddCrosstalk:
             ctCalib = CrosstalkCalib()
-            exposureClean = exposure.clone()
-            for idxS, ampS in enumerate(exposure.getDetector()):
-                for idxT, ampT in enumerate(exposure.getDetector()):
-                    ampDataTarget = exposure.image[ampT.getBBox() if self.config.isTrimmed
-                                                   else ampT.getRawBBox()]
-                    ampDataSource = ctCalib.extractAmp(exposureClean.image, ampS, ampT,
-                                                       isTrimmed=self.config.isTrimmed,
-                                                       fullAmplifier=True)
-                    self.amplifierAddCT(ampDataSource, ampDataTarget, self.crosstalkCoeffs[idxS][idxT])
+            # We use the regular subtractCrosstalk code but with a negative
+            # sign on the crosstalk coefficients so it adds instead of
+            # subtracts. We only apply the signal plane (ignoreVariance,
+            # subtrahendMasking) with a very large pixel to mask to ensure
+            # no crosstalk mask bits are set.
+            ctCalib.subtractCrosstalk(
+                exposure,
+                crosstalkCoeffs=-1*self.crosstalkCoeffs,
+                doSubtrahendMasking=True,
+                minPixelToMask=1e100,
+                ignoreVariance=True,
+                fullAmplifier=True,
+            )
 
         for amp in exposure.getDetector():
             # Get image bbox and data (again).
