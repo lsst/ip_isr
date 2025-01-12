@@ -669,11 +669,10 @@ class CrosstalkCalib(IsrCalib):
         component. For LSSTCam, it has been observed that the linear_term_v >>
         nonlinear_term_v.
         """
-        mi = thisExposure.getMaskedImage()
-        mask = mi.getMask()
-        detector = thisExposure.getDetector()
+        targetMaskedImage = thisExposure.maskedImage
+        targetDetector = thisExposure.getDetector()
         if self.hasCrosstalk is False:
-            self.fromDetector(detector, coeffVector=crosstalkCoeffs)
+            self.fromDetector(targetDetector, coeffVector=crosstalkCoeffs)
 
         # TODO: Remove on DM-48394
         if isTrimmed is not None:
@@ -681,7 +680,7 @@ class CrosstalkCalib(IsrCalib):
                 "The isTrimmed option has been deprecated and will be removed after v29.",
                 FutureWarning,
             )
-        isTrimmed = isTrimmedImage(mi, detector)
+        isTrimmed = isTrimmedImage(targetMaskedImage, targetDetector)
 
         # TODO: Remove on DM-48394
         if parallelOverscan is not None:
@@ -695,123 +694,157 @@ class CrosstalkCalib(IsrCalib):
                 FutureWarning,
             )
 
-        numAmps = len(detector)
+        numAmps = len(targetDetector)
         if numAmps != self.nAmp:
             raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
-                               f"{numAmps} in {detector.getName()}")
+                               f"{numAmps} in {targetDetector.getName()}")
 
         if doSqrCrosstalk and crosstalkCoeffsSqr is None:
             raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
                                "crosstalk coefficients.")
 
-        if (fullAmplifier or parallelOverscan) and backgroundMethod != "None":
-            raise RuntimeError("Cannot do full amplifier or parallel overscan crosstalk "
-                               "with background subtraction.")
+        if fullAmplifier and (backgroundMethod != "None"):
+            raise RuntimeError("Cannot do full amplifier with background subtraction.")
 
         if sourceExposure:
-            source = sourceExposure.getMaskedImage()
+            sourceMaskedImage = sourceExposure.maskedImage
             sourceDetector = sourceExposure.getDetector()
         else:
-            source = mi
-            sourceDetector = detector
+            sourceMaskedImage = targetMaskedImage
+            sourceDetector = targetDetector
 
         if crosstalkCoeffs is not None:
-            coeffs = crosstalkCoeffs
+            coeffs = np.asarray(crosstalkCoeffs).copy()
         else:
-            coeffs = self.coeffs
+            coeffs = np.asarray(self.coeffs).copy()
         self.log.debug("CT COEFF: %s", coeffs)
 
         if doSqrCrosstalk:
-            if crosstalkCoeffsSqr is not None:
-                coeffsSqr = crosstalkCoeffsSqr
-            else:
-                coeffsSqr = self.coeffsSqr
+            coeffsSqr = np.asarray(crosstalkCoeffsSqr).copy()
             self.log.debug("CT COEFF SQR: %s", coeffsSqr)
-
-        if crosstalkCoeffsValid is not None:
-            # Add an additional check for finite coeffs.
-            valid = crosstalkCoeffsValid & np.isfinite(coeffs)
         else:
-            valid = np.isfinite(coeffs)
+            coeffsSqr = np.zeros_like(coeffs)
 
-        # Set background level based on the requested method.  The
-        # thresholdBackground holds the offset needed so that we only mask
-        # pixels high relative to the background, not in an absolute
-        # sense.
-        thresholdBackground = self.calculateBackground(source, badPixels)
+        # Check for valid values; set to 0 otherwise.
+        badCoeffs = ~np.isfinite(coeffs) | (coeffs == 0.0)
+        coeffs[badCoeffs] = 0.0
+        coeffsSqr[badCoeffs] = 0.0
+        if crosstalkCoeffsValid is not None:
+            coeffs[~crosstalkCoeffsValid] = 0.0
+            coeffsSqr[~crosstalkCoeffsValid] = 0.0
 
-        backgrounds = [0.0 for amp in sourceDetector]
-        if backgroundMethod is None:
-            pass
-        elif backgroundMethod == "AMP":
-            backgrounds = [self.calculateBackground(source[amp.getBBox()], badPixels)
-                           for amp in sourceDetector]
+        if badAmpDict:
+            for index, amp in enumerate(sourceDetector):
+                if badAmpDict[amp.getName()]:
+                    coeffs[index, :] = 0.0
+                    coeffs[:, index] = 0.0
+
+        # Compute backgrounds if requested.
+        # FIXME
+        backgrounds = [0.0]*len(sourceDetector)
+        if backgroundMethod == "AMP":
+            if isTrimmed:
+                backgrounds = [self.calculateBackground(sourceMaskedImage[amp.getBBox()], badPixels)
+                               for amp in sourceDetector]
+            else:
+                backgrounds = [self.calculateBackground(sourceMaskedImage[amp.getRawDataBBox()], badPixels)
+                               for amp in sourceDetector]
         elif backgroundMethod == "DETECTOR":
-            backgrounds = [self.calculateBackground(source, badPixels) for amp in sourceDetector]
+            backgrounds = [self.calculateBackground(sourceMaskedImage, badPixels)]*len(sourceDetector)
 
-        crosstalkPlane = mask.addMaskPlane(crosstalkStr)
+        # Add the crosstalk mask plane to the target mask.
+        sourceCrosstalkPlane = sourceMaskedImage.mask.addMaskPlane(crosstalkStr)
+        if sourceExposure is not None:
+            targetCrosstalkPlane = targetMaskedImage.mask.addMaskPlane(crosstalkStr)
+        else:
+            targetCrosstalkPlane = sourceCrosstalkPlane
+
+        # If we are not doing subtrahend masking, the CROSSTALK mask bit
+        # is set according to the counts in the source pixel (above
+        # background), regardless of the crosstalk coefficient value.
         if not doSubtrahendMasking:
-            # Set the crosstalkStr bit for the bright pixels (those
-            # which will have significant crosstalk correction).  This
-            # mask will get copied to the other amplifiers as the
-            # crosstalk subtrahend is calculated.
+            # When we are not using subtrahend masking, we set the mask.
+            thresholdBackground = self.calculateBackground(sourceMaskedImage, badPixels)
             threshold = lsst.afw.detection.Threshold(minPixelToMask + thresholdBackground)
-            footprints = lsst.afw.detection.FootprintSet(source, threshold)
-            footprints.setMask(mask, crosstalkStr)
+            footprints = lsst.afw.detection.FootprintSet(sourceMaskedImage, threshold)
+            footprints.setMask(sourceMaskedImage.mask, crosstalkStr)
 
-        crosstalk = mask.getPlaneBitMask(crosstalkStr)
+        crosstalk = sourceMaskedImage.mask.getPlaneBitMask(crosstalkStr)
 
-        # Define a subtrahend image to contain all the scaled crosstalk signals
-        subtrahend = source.Factory(source.getBBox())
+        # Define a subtrahend image to contain all the scaled crosstalk
+        # signals. These will be applied to the target image.
+        subtrahend = targetMaskedImage.Factory(targetMaskedImage.getBBox())
         subtrahend.set((0, 0, 0))
 
-        coeffs = coeffs.transpose()
-        valid = valid.transpose()
-        # Apply NL coefficients
-        if doSqrCrosstalk:
-            coeffsSqr = coeffsSqr.transpose()
-            mi2 = mi.clone()
-            mi2.scaledMultiplies(1.0, mi)
+        # Define FLIP dictionaries.
+        X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.LR: True,
+                  lsst.afw.cameraGeom.ReadoutCorner.UL: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
+        Y_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.LR: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.UL: True,
+                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
 
-        for ss, sAmp in enumerate(sourceDetector):
-            if fullAmplifier:
-                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawBBox()]
-            else:
-                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
-            for tt, tAmp in enumerate(detector):
-                # Skip 0.0 and invalid coefficients.
-                if coeffs[ss, tt] == 0.0 or not valid[ss, tt]:
+        # If we are ignoring variance and doing subtrahend masking, then
+        # we can work on only the image plane (3x speed increase).
+        imageOnly = ignoreVariance and doSubtrahendMasking
+
+        for sourceIndex, sourceAmp in enumerate(sourceDetector):
+            for targetIndex, targetAmp in enumerate(targetDetector):
+                coeff = coeffs[sourceIndex, targetIndex]
+                coeffSqr = coeffsSqr[sourceIndex, targetIndex]
+
+                if coeff == 0.0:
                     continue
-                if badAmpDict is not None:
-                    if badAmpDict[sAmp.getName()] or badAmpDict[tAmp.getName()]:
-                        continue
-                tImage = self.extractAmp(
-                    mi,
-                    tAmp,
-                    sAmp,
-                    isTrimmed=isTrimmed,
-                    fullAmplifier=fullAmplifier,
-                )
-                tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
-                tImage -= backgrounds[tt]
-                sImage.scaledPlus(coeffs[ss, tt], tImage)
-                # Add the nonlinear term
-                if doSqrCrosstalk:
-                    # Note that mi2 is the square of the masked image.
-                    tImageSqr = self.extractAmp(
-                        mi2,
-                        tAmp,
-                        sAmp,
-                        isTrimmed=isTrimmed,
-                        fullAmplifier=fullAmplifier,
-                    )
-                    tImageSqr.getMask().getArray()[:] &= crosstalk  # Remove all other masks
-                    tImageSqr -= backgrounds[tt]**2
-                    sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
 
-        # Clear the mask in the output image.  The subtrahend image
-        # contains the crosstalk masks.
-        mask.clearMaskPlane(crosstalkPlane)
+                if isTrimmed:
+                    sourceBBox = sourceAmp.getBBox()
+                    targetBBox = targetAmp.getBBox()
+                elif fullAmplifier and not isTrimmed:
+                    sourceBBox = sourceAmp.getRawBBox()
+                    targetBBox = targetAmp.getRawBBox()
+                else:
+                    sourceBBox = sourceAmp.getRawDataBBox()
+                    targetBBox = targetAmp.getRawDataBBox()
+
+                if imageOnly:
+                    sourceImageIn = sourceMaskedImage[sourceBBox].image
+                    targetImage = subtrahend[targetBBox].image
+                else:
+                    sourceImageIn = sourceMaskedImage[sourceBBox]
+                    targetImage = subtrahend[targetBBox]
+
+                sourceAmpCorner = sourceAmp.getReadoutCorner()
+                targetAmpCorner = targetAmp.getReadoutCorner()
+
+                xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[sourceAmpCorner]
+                yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[sourceAmpCorner]
+
+                # This makes a copy of the image, so we can modify it below.
+                sourceImage = lsst.afw.math.flipImage(sourceImageIn, xFlip, yFlip)
+
+                if not imageOnly:
+                    # Remove all other masks from copied sourceImage.
+                    sourceImage.mask.array[:] &= crosstalk
+
+                if backgrounds[sourceIndex] != 0.0:
+                    sourceImage -= backgrounds[sourceIndex]
+
+                # This operation will also transfer the CROSSTALK mask bit from
+                # above to the target (subtrahend) image if we are using a
+                # masked image.
+                targetImage.scaledPlus(coeff, sourceImage)
+                if coeffSqr != 0.0:
+                    sourceImage.scaledMultiplies(1.0, sourceImage)
+                    targetImage.scaledPlus(coeffSqr, sourceImage)
+
+        # if not doSubtrahendMasking:
+        # Clear the mask in the target image, because the subtrahend image
+        # contains the crosstalk mask.
+        sourceMaskedImage.mask.clearMaskPlane(sourceCrosstalkPlane)
+        if sourceExposure is not None:
+            targetMaskedImage.mask.clearMaskPlane(targetCrosstalkPlane)
 
         if doSubtrahendMasking:
             # Set crosstalkStr bit only for those pixels that have
@@ -822,7 +855,7 @@ class CrosstalkCalib(IsrCalib):
             # The existing mask in the subtrahend comes from the
             # threshold set above.  It should be cleared so we can
             # recalculate it.
-            subtrahend.mask.clearMaskPlane(crosstalkPlane)
+            subtrahend.mask.clearMaskPlane(targetCrosstalkPlane)
 
             # For masking purposes, we only really care when the
             # correction is significantly different than the median
@@ -833,7 +866,7 @@ class CrosstalkCalib(IsrCalib):
             # that background, but still include that contribution in
             # the correction we're applying.
             subtrahendBackgrounds = {}
-            for amp in detector:
+            for amp in targetDetector:
                 ampData = subtrahend[amp.getRawDataBBox()]
                 background = np.median(ampData.image.array)
                 subtrahendBackgrounds[amp.getName()] = background
@@ -850,7 +883,7 @@ class CrosstalkCalib(IsrCalib):
             footprints.setMask(subtrahend.mask, crosstalkStr)
 
             # Put the backgrounds back.
-            for amp in detector:
+            for amp in targetDetector:
                 ampData = subtrahend[amp.getRawDataBBox()]
                 background = subtrahendBackgrounds[amp.getName()]
                 ampData.image.array[:, :] += background
@@ -858,7 +891,7 @@ class CrosstalkCalib(IsrCalib):
         # Subtract subtrahend from input.  The mask plane is fully
         # populated, so this operation also sets the ``crosstalkStr``
         # bit where applicable.
-        mi -= subtrahend
+        targetMaskedImage -= subtrahend
 
 
 class CrosstalkConfig(Config):
