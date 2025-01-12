@@ -484,7 +484,64 @@ class CrosstalkCalib(IsrCalib):
             tableList.append(interChipTable)
         return tableList
 
-    def _getAppropriateBBox(self, amp, isTrimmed, fullAmplifier):
+    # Implementation methods.
+    @staticmethod
+    def extractAmp(image, ampToFlip, ampTarget, isTrimmed=False, fullAmplifier=False, parallelOverscan=None):
+        """Extract the image data from an amp, flipped to match ampTarget.
+
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage`
+            Image containing the amplifier of interest.
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            Amplifier on image to extract.
+        ampTarget : `lsst.afw.cameraGeom.Amplifier`
+            Target amplifier that the extracted image will be flipped
+            to match.
+        isTrimmed : `bool`, optional
+            The image is already trimmed.
+        fullAmplifier : `bool`, optional
+            Use full amplifier and not just imaging region.
+        parallelOverscan : `bool`, optional
+            This has been deprecated and is unused, and will be removed
+            after v29.
+
+        Returns
+        -------
+        output : `lsst.afw.image.Image`
+            Amplifier from image, flipped to desired configuration.
+            This will always return a copy of the original data.
+        """
+        if parallelOverscan is not None:
+            warnings.warn(
+                "The parallelOverscan option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+
+        X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.LR: True,
+                  lsst.afw.cameraGeom.ReadoutCorner.UL: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
+        Y_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.LR: False,
+                  lsst.afw.cameraGeom.ReadoutCorner.UL: True,
+                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
+
+        bbox = CrosstalkCalib._getAppropriateBBox(ampToFlip, isTrimmed, fullAmplifier)
+        output = image[bbox]
+
+        sourceAmpCorner = ampToFlip.getReadoutCorner()
+        targetAmpCorner = ampTarget.getReadoutCorner()
+
+        # Flipping is necessary only if the desired configuration doesn't match
+        # what we currently have.
+        xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[sourceAmpCorner]
+        yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[sourceAmpCorner]
+        # This always makes a copy of the image.
+        return lsst.afw.math.flipImage(output, xFlip, yFlip)
+
+    @staticmethod
+    def _getAppropriateBBox(amp, isTrimmed, fullAmplifier):
         """Get the appropriate bounding box from an amplifier.
 
         Parameters
@@ -736,16 +793,6 @@ class CrosstalkCalib(IsrCalib):
         subtrahend = targetMaskedImage.Factory(targetMaskedImage.getBBox())
         subtrahend.set((0, 0, 0))
 
-        # Define FLIP dictionaries.
-        X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.LR: True,
-                  lsst.afw.cameraGeom.ReadoutCorner.UL: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
-        Y_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.LR: False,
-                  lsst.afw.cameraGeom.ReadoutCorner.UL: True,
-                  lsst.afw.cameraGeom.ReadoutCorner.UR: True}
-
         # If we are ignoring variance and doing subtrahend masking, then
         # we can work on only the image plane (3x speed increase).
         imageOnly = ignoreVariance and doSubtrahendMasking
@@ -758,24 +805,28 @@ class CrosstalkCalib(IsrCalib):
                 if coeff == 0.0:
                     continue
 
-                sourceBBox = self._getAppropriateBBox(sourceAmp, isTrimmed, fullAmplifier)
                 targetBBox = self._getAppropriateBBox(targetAmp, isTrimmed, fullAmplifier)
 
+                # The extractAmp() method will always make a copy of the source
+                # amplifier data.
                 if imageOnly:
-                    sourceImageIn = sourceMaskedImage[sourceBBox].image
+                    sourceImage = self.extractAmp(
+                        sourceMaskedImage.image,
+                        sourceAmp,
+                        targetAmp,
+                        isTrimmed=isTrimmed,
+                        fullAmplifier=fullAmplifier,
+                    )
                     targetImage = subtrahend[targetBBox].image
                 else:
-                    sourceImageIn = sourceMaskedImage[sourceBBox]
+                    sourceImage = self.extractAmp(
+                        sourceMaskedImage,
+                        sourceAmp,
+                        targetAmp,
+                        isTrimmed=isTrimmed,
+                        fullAmplifier=fullAmplifier,
+                    )
                     targetImage = subtrahend[targetBBox]
-
-                sourceAmpCorner = sourceAmp.getReadoutCorner()
-                targetAmpCorner = targetAmp.getReadoutCorner()
-
-                xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[sourceAmpCorner]
-                yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[sourceAmpCorner]
-
-                # This makes a copy of the image, so we can modify it below.
-                sourceImage = lsst.afw.math.flipImage(sourceImageIn, xFlip, yFlip)
 
                 if not imageOnly:
                     # Remove all other masks from copied sourceImage.
@@ -792,7 +843,6 @@ class CrosstalkCalib(IsrCalib):
                     sourceImage.scaledMultiplies(1.0, sourceImage)
                     targetImage.scaledPlus(coeffSqr, sourceImage)
 
-        # if not doSubtrahendMasking:
         # Clear the mask in the target image, because the subtrahend image
         # contains the crosstalk mask.
         sourceMaskedImage.mask.clearMaskPlane(sourceCrosstalkPlane)
