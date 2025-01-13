@@ -757,17 +757,20 @@ class CrosstalkCalib(IsrCalib):
                     coeffs[:, index] = 0.0
 
         # Compute backgrounds if requested.
-        # FIXME
-        backgrounds = [0.0]*len(sourceDetector)
+        backgrounds = {amp.getName(): 0.0 for amp in sourceDetector}
         if backgroundMethod == "AMP":
-            if isTrimmed:
-                backgrounds = [self.calculateBackground(sourceMaskedImage[amp.getBBox()], badPixels)
-                               for amp in sourceDetector]
-            else:
-                backgrounds = [self.calculateBackground(sourceMaskedImage[amp.getRawDataBBox()], badPixels)
-                               for amp in sourceDetector]
+            backgrounds = {
+                amp.getName(): self.calculateBackground(
+                    sourceMaskedImage[self._getAppropriateBBox(
+                        amp,
+                        isTrimmed,
+                        False,
+                    )], badPixels)
+                for amp in sourceDetector
+            }
         elif backgroundMethod == "DETECTOR":
-            backgrounds = [self.calculateBackground(sourceMaskedImage, badPixels)]*len(sourceDetector)
+            background = self.calculateBackground(sourceMaskedImage, badPixels)
+            backgrounds = {amp.getName(): background for amp in sourceDetector}
 
         # Add the crosstalk mask plane to the target mask.
         sourceCrosstalkPlane = sourceMaskedImage.mask.addMaskPlane(crosstalkStr)
@@ -832,8 +835,8 @@ class CrosstalkCalib(IsrCalib):
                     # Remove all other masks from copied sourceImage.
                     sourceImage.mask.array[:] &= crosstalk
 
-                if backgrounds[sourceIndex] != 0.0:
-                    sourceImage -= backgrounds[sourceIndex]
+                if backgrounds[sourceAmp.getName()] != 0.0:
+                    sourceImage -= backgrounds[sourceAmp.getName()]
 
                 # This operation will also transfer the CROSSTALK mask bit from
                 # above to the target (subtrahend) image if we are using a
