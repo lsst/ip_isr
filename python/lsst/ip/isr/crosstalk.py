@@ -870,7 +870,9 @@ class CrosstalkCalib(IsrCalib):
             # the correction we're applying.
             subtrahendBackgrounds = {}
             for amp in targetDetector:
-                bbox = self._getAppropriateBBox(amp, isTrimmed, fullAmplifier)
+                # Note that we never want the full amplifier for background
+                # calculations.
+                bbox = self._getAppropriateBBox(amp, isTrimmed, False)
                 ampData = subtrahend[bbox]
                 background = np.median(ampData.image.array)
                 subtrahendBackgrounds[amp.getName()] = background
@@ -888,7 +890,7 @@ class CrosstalkCalib(IsrCalib):
 
             # Put the backgrounds back.
             for amp in targetDetector:
-                bbox = self._getAppropriateBBox(amp, isTrimmed, fullAmplifier)
+                bbox = self._getAppropriateBBox(amp, isTrimmed, False)
                 ampData = subtrahend[bbox]
                 background = subtrahendBackgrounds[amp.getName()]
                 ampData.image.array[:, :] += background
