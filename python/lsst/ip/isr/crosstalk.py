@@ -27,6 +27,7 @@ __all__ = ["CrosstalkCalib", "CrosstalkConfig", "CrosstalkTask",
            "NullCrosstalkTask"]
 
 import numpy as np
+import warnings
 from astropy.table import Table
 
 import lsst.afw.math
@@ -36,7 +37,7 @@ from lsst.pex.config import Config, Field, ChoiceField, ListField
 from lsst.pipe.base import Task
 
 from .calibType import IsrCalib
-from .isrFunctions import gainContext
+from .isrFunctions import gainContext, isTrimmedImage
 
 
 class CrosstalkCalib(IsrCalib):
@@ -485,7 +486,7 @@ class CrosstalkCalib(IsrCalib):
 
     # Implementation methods.
     @staticmethod
-    def extractAmp(image, amp, ampTarget, isTrimmed=False, fullAmplifier=False, parallelOverscan=False):
+    def extractAmp(image, ampToFlip, ampTarget, isTrimmed=False, fullAmplifier=False, parallelOverscan=None):
         """Extract the image data from an amp, flipped to match ampTarget.
 
         Parameters
@@ -499,18 +500,24 @@ class CrosstalkCalib(IsrCalib):
             to match.
         isTrimmed : `bool`, optional
             The image is already trimmed.
-            TODO : DM-15409 will resolve this.
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         parallelOverscan : `bool`, optional
-            Extract parallel overscan region instead of imaging region.
-            Cannot be used if isTrimmed or fullAmplifier True.
+            This has been deprecated and is unused, and will be removed
+            after v29.
 
         Returns
         -------
         output : `lsst.afw.image.Image`
-            Image of the amplifier in the desired configuration.
+            Amplifier from image, flipped to desired configuration.
+            This will always return a copy of the original data.
         """
+        if parallelOverscan is not None:
+            warnings.warn(
+                "The parallelOverscan option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+
         X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
                   lsst.afw.cameraGeom.ReadoutCorner.LR: True,
                   lsst.afw.cameraGeom.ReadoutCorner.UL: False,
@@ -520,22 +527,38 @@ class CrosstalkCalib(IsrCalib):
                   lsst.afw.cameraGeom.ReadoutCorner.UL: True,
                   lsst.afw.cameraGeom.ReadoutCorner.UR: True}
 
-        if parallelOverscan:
-            if isTrimmed or fullAmplifier:
-                raise RuntimeError("Cannot extract amp parallelOverscan if isTrimmed or fullAmplifier")
-            output = image[amp.getRawParallelOverscanBBox()]
-        elif fullAmplifier:
-            output = image[amp.getBBox() if isTrimmed else amp.getRawBBox()]
-        else:
-            output = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
-        thisAmpCorner = amp.getReadoutCorner()
+        bbox = CrosstalkCalib._getAppropriateBBox(ampToFlip, isTrimmed, fullAmplifier)
+        output = image[bbox]
+
+        sourceAmpCorner = ampToFlip.getReadoutCorner()
         targetAmpCorner = ampTarget.getReadoutCorner()
 
         # Flipping is necessary only if the desired configuration doesn't match
         # what we currently have.
-        xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[thisAmpCorner]
-        yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[thisAmpCorner]
+        xFlip = X_FLIP[targetAmpCorner] ^ X_FLIP[sourceAmpCorner]
+        yFlip = Y_FLIP[targetAmpCorner] ^ Y_FLIP[sourceAmpCorner]
+        # This always makes a copy of the image.
         return lsst.afw.math.flipImage(output, xFlip, yFlip)
+
+    @staticmethod
+    def _getAppropriateBBox(amp, isTrimmed, fullAmplifier):
+        """Get the appropriate bounding box from an amplifier.
+
+        Parameters
+        ----------
+        amp : `lsst.afw.cameraGeom.Amplifier`
+            Amplifier to get bounding box.
+        isTrimmed : `bool`
+            Is this a trimmed image?
+        fullAmplifier : `bool`
+            Extract full amplifier for an untrimmed image?
+        """
+        if isTrimmed:
+            return amp.getBBox()
+        elif fullAmplifier and not isTrimmed:
+            return amp.getRawBBox()
+        else:
+            return amp.getRawDataBBox()
 
     @staticmethod
     def calculateBackground(mi, badPixels=["BAD"]):
@@ -564,9 +587,10 @@ class CrosstalkCalib(IsrCalib):
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
                           crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
                           badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
-                          crosstalkStr="CROSSTALK", isTrimmed=False,
+                          crosstalkStr="CROSSTALK", isTrimmed=None,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
-                          parallelOverscan=False, detectorConfig=None, badAmpDict=None):
+                          parallelOverscan=None, detectorConfig=None, badAmpDict=None,
+                          ignoreVariance=False):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -612,8 +636,8 @@ class CrosstalkCalib(IsrCalib):
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
         isTrimmed : `bool`, optional
-            The image is already trimmed.
-            This should no longer be needed once DM-15409 is resolved.
+            This option has been deprecated and does not do anything.
+            It will be removed after v29.
         backgroundMethod : `str`, optional
             Method used to subtract the background.  "AMP" uses
             amplifier-by-amplifier background levels, "DETECTOR" uses full
@@ -625,12 +649,15 @@ class CrosstalkCalib(IsrCalib):
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         parallelOverscan : `bool`, optional
-            Only correct the parallel overscan region.
+            This option is deprecated and will be removed after v29.
         detectorConfig : `lsst.ip.isr.overscanDetectorConfig`, optional
             Per-amplifier configs to use if parallelOverscan is True.
+            This option is deprecated and will be removed after v29.
         badAmpDict : `dict` [`str`, `bool`], optional
             Dictionary to identify bad amplifiers that should not be
             source or target for crosstalk correction.
+        ignoreVariance : `bool`, optional
+            Ignore the variance plane when doing crosstalk correction?
 
         Notes
         -----
@@ -659,139 +686,170 @@ class CrosstalkCalib(IsrCalib):
         component. For LSSTCam, it has been observed that the linear_term_v >>
         nonlinear_term_v.
         """
-        mi = thisExposure.getMaskedImage()
-        mask = mi.getMask()
-        detector = thisExposure.getDetector()
+        targetMaskedImage = thisExposure.maskedImage
+        targetDetector = thisExposure.getDetector()
         if self.hasCrosstalk is False:
-            self.fromDetector(detector, coeffVector=crosstalkCoeffs)
+            self.fromDetector(targetDetector, coeffVector=crosstalkCoeffs)
 
-        numAmps = len(detector)
+        # TODO: Remove on DM-48394
+        if isTrimmed is not None:
+            warnings.warn(
+                "The isTrimmed option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        isTrimmed = isTrimmedImage(targetMaskedImage, targetDetector)
+
+        # TODO: Remove on DM-48394
+        if parallelOverscan is not None:
+            warnings.warn(
+                "The parallelOverscan option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        if detectorConfig is not None:
+            warnings.warn(
+                "The detectorConfig option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+
+        numAmps = len(targetDetector)
         if numAmps != self.nAmp:
             raise RuntimeError(f"Crosstalk built for {self.nAmp} in {self._detectorName}, received "
-                               f"{numAmps} in {detector.getName()}")
+                               f"{numAmps} in {targetDetector.getName()}")
 
         if doSqrCrosstalk and crosstalkCoeffsSqr is None:
             raise RuntimeError("Attempted to perform NL crosstalk correction without NL "
                                "crosstalk coefficients.")
 
-        if (fullAmplifier or parallelOverscan) and backgroundMethod != "None":
-            raise RuntimeError("Cannot do full amplifier or parallel overscan crosstalk "
-                               "with background subtraction.")
+        if fullAmplifier and (backgroundMethod != "None"):
+            raise RuntimeError("Cannot do full amplifier with background subtraction.")
 
         if sourceExposure:
-            source = sourceExposure.getMaskedImage()
+            sourceMaskedImage = sourceExposure.maskedImage
             sourceDetector = sourceExposure.getDetector()
         else:
-            source = mi
-            sourceDetector = detector
+            sourceMaskedImage = targetMaskedImage
+            sourceDetector = targetDetector
 
         if crosstalkCoeffs is not None:
-            coeffs = crosstalkCoeffs
+            coeffs = np.asarray(crosstalkCoeffs).copy()
         else:
-            coeffs = self.coeffs
+            coeffs = np.asarray(self.coeffs).copy()
         self.log.debug("CT COEFF: %s", coeffs)
 
         if doSqrCrosstalk:
-            if crosstalkCoeffsSqr is not None:
-                coeffsSqr = crosstalkCoeffsSqr
-            else:
-                coeffsSqr = self.coeffsSqr
+            coeffsSqr = np.asarray(crosstalkCoeffsSqr).copy()
             self.log.debug("CT COEFF SQR: %s", coeffsSqr)
-
-        if crosstalkCoeffsValid is not None:
-            # Add an additional check for finite coeffs.
-            valid = crosstalkCoeffsValid & np.isfinite(coeffs)
         else:
-            valid = np.isfinite(coeffs)
+            coeffsSqr = np.zeros_like(coeffs)
 
-        # Set background level based on the requested method.  The
-        # thresholdBackground holds the offset needed so that we only mask
-        # pixels high relative to the background, not in an absolute
-        # sense.
-        thresholdBackground = self.calculateBackground(source, badPixels)
+        # Check for valid values; set to 0 otherwise.
+        badCoeffs = ~np.isfinite(coeffs) | (coeffs == 0.0)
+        coeffs[badCoeffs] = 0.0
+        coeffsSqr[badCoeffs] = 0.0
+        if crosstalkCoeffsValid is not None:
+            coeffs[~crosstalkCoeffsValid] = 0.0
+            coeffsSqr[~crosstalkCoeffsValid] = 0.0
 
-        backgrounds = [0.0 for amp in sourceDetector]
-        if backgroundMethod is None:
-            pass
-        elif backgroundMethod == "AMP":
-            backgrounds = [self.calculateBackground(source[amp.getBBox()], badPixels)
-                           for amp in sourceDetector]
+        if badAmpDict:
+            for index, amp in enumerate(sourceDetector):
+                if badAmpDict[amp.getName()]:
+                    coeffs[index, :] = 0.0
+                    coeffs[:, index] = 0.0
+
+        # Compute backgrounds if requested.
+        backgrounds = {amp.getName(): 0.0 for amp in sourceDetector}
+        if backgroundMethod == "AMP":
+            backgrounds = {
+                amp.getName(): self.calculateBackground(
+                    sourceMaskedImage[self._getAppropriateBBox(
+                        amp,
+                        isTrimmed,
+                        False,
+                    )], badPixels)
+                for amp in sourceDetector
+            }
         elif backgroundMethod == "DETECTOR":
-            backgrounds = [self.calculateBackground(source, badPixels) for amp in sourceDetector]
+            background = self.calculateBackground(sourceMaskedImage, badPixels)
+            backgrounds = {amp.getName(): background for amp in sourceDetector}
 
-        crosstalkPlane = mask.addMaskPlane(crosstalkStr)
+        # Add the crosstalk mask plane to the target mask.
+        sourceCrosstalkPlane = sourceMaskedImage.mask.addMaskPlane(crosstalkStr)
+        if sourceExposure is not None:
+            targetCrosstalkPlane = targetMaskedImage.mask.addMaskPlane(crosstalkStr)
+        else:
+            targetCrosstalkPlane = sourceCrosstalkPlane
+
+        # If we are not doing subtrahend masking, the CROSSTALK mask bit
+        # is set according to the counts in the source pixel (above
+        # background), regardless of the crosstalk coefficient value.
         if not doSubtrahendMasking:
-            # Set the crosstalkStr bit for the bright pixels (those
-            # which will have significant crosstalk correction).  This
-            # mask will get copied to the other amplifiers as the
-            # crosstalk subtrahend is calculated.
+            # When we are not using subtrahend masking, we set the mask.
+            thresholdBackground = self.calculateBackground(sourceMaskedImage, badPixels)
             threshold = lsst.afw.detection.Threshold(minPixelToMask + thresholdBackground)
-            footprints = lsst.afw.detection.FootprintSet(source, threshold)
-            footprints.setMask(mask, crosstalkStr)
+            footprints = lsst.afw.detection.FootprintSet(sourceMaskedImage, threshold)
+            footprints.setMask(sourceMaskedImage.mask, crosstalkStr)
 
-        crosstalk = mask.getPlaneBitMask(crosstalkStr)
+        crosstalk = sourceMaskedImage.mask.getPlaneBitMask(crosstalkStr)
 
-        # Define a subtrahend image to contain all the scaled crosstalk signals
-        subtrahend = source.Factory(source.getBBox())
+        # Define a subtrahend image to contain all the scaled crosstalk
+        # signals. These will be applied to the target image.
+        subtrahend = targetMaskedImage.Factory(targetMaskedImage.getBBox())
         subtrahend.set((0, 0, 0))
 
-        coeffs = coeffs.transpose()
-        valid = valid.transpose()
-        # Apply NL coefficients
-        if doSqrCrosstalk:
-            coeffsSqr = coeffsSqr.transpose()
-            mi2 = mi.clone()
-            mi2.scaledMultiplies(1.0, mi)
+        # If we are ignoring variance and doing subtrahend masking, then
+        # we can work on only the image plane (3x speed increase).
+        imageOnly = ignoreVariance and doSubtrahendMasking
 
-        for ss, sAmp in enumerate(sourceDetector):
-            if fullAmplifier:
-                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawBBox()]
-            elif parallelOverscan:
-                if detectorConfig is not None:
-                    ampConfig = detectorConfig.getOverscanAmpConfig(sAmp)
-                    if not ampConfig.doParallelOverscanCrosstalk:
-                        # Skip crosstalk correction for this amplifier.
-                        continue
+        for sourceIndex, sourceAmp in enumerate(sourceDetector):
+            for targetIndex, targetAmp in enumerate(targetDetector):
+                coeff = coeffs[sourceIndex, targetIndex]
+                coeffSqr = coeffsSqr[sourceIndex, targetIndex]
 
-                sImage = subtrahend[sAmp.getRawParallelOverscanBBox()]
-            else:
-                sImage = subtrahend[sAmp.getBBox() if isTrimmed else sAmp.getRawDataBBox()]
-            for tt, tAmp in enumerate(detector):
-                # Skip 0.0 and invalid coefficients.
-                if coeffs[ss, tt] == 0.0 or not valid[ss, tt]:
+                if coeff == 0.0:
                     continue
-                if badAmpDict is not None:
-                    if badAmpDict[sAmp.getName()] or badAmpDict[tAmp.getName()]:
-                        continue
-                tImage = self.extractAmp(
-                    mi,
-                    tAmp,
-                    sAmp,
-                    isTrimmed=isTrimmed,
-                    fullAmplifier=fullAmplifier,
-                    parallelOverscan=parallelOverscan,
-                )
-                tImage.getMask().getArray()[:] &= crosstalk  # Remove all other masks
-                tImage -= backgrounds[tt]
-                sImage.scaledPlus(coeffs[ss, tt], tImage)
-                # Add the nonlinear term
-                if doSqrCrosstalk:
-                    # Note that mi2 is the square of the masked image.
-                    tImageSqr = self.extractAmp(
-                        mi2,
-                        tAmp,
-                        sAmp,
+
+                targetBBox = self._getAppropriateBBox(targetAmp, isTrimmed, fullAmplifier)
+
+                # The extractAmp() method will always make a copy of the source
+                # amplifier data.
+                if imageOnly:
+                    sourceImage = self.extractAmp(
+                        sourceMaskedImage.image,
+                        sourceAmp,
+                        targetAmp,
                         isTrimmed=isTrimmed,
                         fullAmplifier=fullAmplifier,
-                        parallelOverscan=parallelOverscan,
                     )
-                    tImageSqr.getMask().getArray()[:] &= crosstalk  # Remove all other masks
-                    tImageSqr -= backgrounds[tt]**2
-                    sImage.scaledPlus(coeffsSqr[ss, tt], tImageSqr)
+                    targetImage = subtrahend[targetBBox].image
+                else:
+                    sourceImage = self.extractAmp(
+                        sourceMaskedImage,
+                        sourceAmp,
+                        targetAmp,
+                        isTrimmed=isTrimmed,
+                        fullAmplifier=fullAmplifier,
+                    )
+                    targetImage = subtrahend[targetBBox]
 
-        # Clear the mask in the output image.  The subtrahend image
-        # contains the crosstalk masks.
-        mask.clearMaskPlane(crosstalkPlane)
+                    # Remove all other masks from copied sourceImage.
+                    sourceImage.mask.array[:] &= crosstalk
+
+                if backgrounds[sourceAmp.getName()] != 0.0:
+                    sourceImage -= backgrounds[sourceAmp.getName()]
+
+                # This operation will also transfer the CROSSTALK mask bit from
+                # above to the target (subtrahend) image if we are using a
+                # masked image.
+                targetImage.scaledPlus(coeff, sourceImage)
+                if coeffSqr != 0.0:
+                    sourceImage.scaledMultiplies(1.0, sourceImage)
+                    targetImage.scaledPlus(coeffSqr, sourceImage)
+
+        # Clear the mask in the target image, because the subtrahend image
+        # contains the crosstalk mask.
+        sourceMaskedImage.mask.clearMaskPlane(sourceCrosstalkPlane)
+        if sourceExposure is not None:
+            targetMaskedImage.mask.clearMaskPlane(targetCrosstalkPlane)
 
         if doSubtrahendMasking:
             # Set crosstalkStr bit only for those pixels that have
@@ -802,7 +860,7 @@ class CrosstalkCalib(IsrCalib):
             # The existing mask in the subtrahend comes from the
             # threshold set above.  It should be cleared so we can
             # recalculate it.
-            subtrahend.mask.clearMaskPlane(crosstalkPlane)
+            subtrahend.mask.clearMaskPlane(targetCrosstalkPlane)
 
             # For masking purposes, we only really care when the
             # correction is significantly different than the median
@@ -813,8 +871,11 @@ class CrosstalkCalib(IsrCalib):
             # that background, but still include that contribution in
             # the correction we're applying.
             subtrahendBackgrounds = {}
-            for amp in detector:
-                ampData = subtrahend[amp.getRawDataBBox()]
+            for amp in targetDetector:
+                # Note that we never want the full amplifier for background
+                # calculations.
+                bbox = self._getAppropriateBBox(amp, isTrimmed, False)
+                ampData = subtrahend[bbox]
                 background = np.median(ampData.image.array)
                 subtrahendBackgrounds[amp.getName()] = background
                 ampData.image.array[:, :] -= background
@@ -830,15 +891,16 @@ class CrosstalkCalib(IsrCalib):
             footprints.setMask(subtrahend.mask, crosstalkStr)
 
             # Put the backgrounds back.
-            for amp in detector:
-                ampData = subtrahend[amp.getRawDataBBox()]
+            for amp in targetDetector:
+                bbox = self._getAppropriateBBox(amp, isTrimmed, False)
+                ampData = subtrahend[bbox]
                 background = subtrahendBackgrounds[amp.getName()]
                 ampData.image.array[:, :] += background
 
         # Subtract subtrahend from input.  The mask plane is fully
         # populated, so this operation also sets the ``crosstalkStr``
         # bit where applicable.
-        mi -= subtrahend
+        targetMaskedImage -= subtrahend
 
 
 class CrosstalkConfig(Config):
@@ -958,13 +1020,14 @@ class CrosstalkTask(Task):
         exposure,
         crosstalk=None,
         crosstalkSources=None,
-        isTrimmed=False,
+        isTrimmed=None,
         camera=None,
-        parallelOverscanRegion=False,
+        parallelOverscanRegion=None,
         detectorConfig=None,
         fullAmplifier=False,
         gains=None,
         badAmpDict=None,
+        ignoreVariance=False,
     ):
         """Apply intra-detector crosstalk correction
 
@@ -983,15 +1046,15 @@ class CrosstalkTask(Task):
             as ``exposure``.
             The default for intra-detector crosstalk here is None.
         isTrimmed : `bool`, optional
-            The image is already trimmed.
-            This should no longer be needed once DM-15409 is resolved.
+            This option has been deprecated and does not do anything.
+            It will be removed after v29.
         camera : `lsst.afw.cameraGeom.Camera`, optional
             Camera associated with this exposure.  Only used for
             inter-chip matching.
         parallelOverscanRegion : `bool`, optional
-            Do subtraction in parallel overscan region (only)?
+            This option has been deprecated and will be removed after v29.
         detectorConfig : `lsst.ip.isr.OverscanDetectorConfig`, optional
-            Per-amplifier configs used when parallelOverscanRegion=True.
+            This option has been deprecated and will be removed after v29.
         fullAmplifier : `bool`, optional
             Use full amplifier and not just imaging region.
         gains : `dict` [`str`, `float`], optional
@@ -1000,6 +1063,8 @@ class CrosstalkTask(Task):
         badAmpDict : `dict` [`str`, `bool`], optional
             Dictionary to identify bad amplifiers that should not be
             source or target for crosstalk correction.
+        ignoreVariance : `bool`, optional
+            Ignore variance plane when applying crosstalk?
 
         Raises
         ------
@@ -1008,6 +1073,26 @@ class CrosstalkTask(Task):
             crosstalk correction.  Also raised if the crosstalkSource
             is not an expected type.
         """
+        # TODO: Remove on DM-48394
+        if isTrimmed is not None:
+            warnings.warn(
+                "The isTrimmed option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        isTrimmed = isTrimmedImage(exposure.maskedImage, exposure.getDetector())
+
+        # TODO: Remove on DM-48394
+        if parallelOverscanRegion is not None:
+            warnings.warn(
+                "The parallelOverscanRegion option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+        if detectorConfig is not None:
+            warnings.warn(
+                "The detectorConfig option has been deprecated and will be removed after v29.",
+                FutureWarning,
+            )
+
         if not crosstalk:
             crosstalk = CrosstalkCalib(log=self.log)
             crosstalk = crosstalk.fromDetector(exposure.getDetector(),
@@ -1027,9 +1112,6 @@ class CrosstalkTask(Task):
 
         if not crosstalk.hasCrosstalk:
             raise RuntimeError("Attempted to correct crosstalk without crosstalk coefficients.")
-
-        if parallelOverscanRegion and crosstalk.interChip:
-            raise RuntimeError("Cannot do parallel overscan correction with interChip crosstalk.")
 
         # Get the exposure units; defaults to adu.
         exposureUnits = exposure.metadata.get("LSST ISR UNITS", "adu")
@@ -1082,10 +1164,7 @@ class CrosstalkTask(Task):
                               "because crosstalk is in adu units and exposure is in "
                               "electron units.")
 
-        if parallelOverscanRegion:
-            self.log.info("Applying crosstalk correction to parallel overscan region.")
-        else:
-            self.log.info("Applying crosstalk correction.")
+        self.log.info("Applying crosstalk correction.")
 
         with gainContext(
                 exposure,
@@ -1103,12 +1182,11 @@ class CrosstalkTask(Task):
                 minPixelToMask=self.config.minPixelToMask,
                 doSubtrahendMasking=self.config.doSubtrahendMasking,
                 crosstalkStr=self.config.crosstalkMaskPlane,
-                isTrimmed=isTrimmed,
                 backgroundMethod=self.config.crosstalkBackgroundMethod,
                 doSqrCrosstalk=doSqrCrosstalk,
                 fullAmplifier=fullAmplifier,
-                parallelOverscan=parallelOverscanRegion,
                 badAmpDict=badAmpDict,
+                ignoreVariance=ignoreVariance,
             )
 
         if crosstalk.interChip:
@@ -1151,12 +1229,15 @@ class CrosstalkTask(Task):
                     self.log.info("Correcting detector %s with ctSource %s",
                                   exposure.getDetector().getName(),
                                   sourceExposure.getDetector().getName())
-                    crosstalk.subtractCrosstalk(exposure, sourceExposure=sourceExposure,
-                                                crosstalkCoeffs=interChipCoeffs,
-                                                minPixelToMask=self.config.minPixelToMask,
-                                                crosstalkStr=self.config.crosstalkMaskPlane,
-                                                isTrimmed=isTrimmed,
-                                                backgroundMethod=self.config.crosstalkBackgroundMethod)
+                    crosstalk.subtractCrosstalk(
+                        exposure,
+                        sourceExposure=sourceExposure,
+                        crosstalkCoeffs=interChipCoeffs,
+                        minPixelToMask=self.config.minPixelToMask,
+                        crosstalkStr=self.config.crosstalkMaskPlane,
+                        backgroundMethod=self.config.crosstalkBackgroundMethod,
+                        ignoreVariance=ignoreVariance,
+                    )
             else:
                 self.log.warning("Crosstalk contains interChip coefficients, but no sources found!")
 

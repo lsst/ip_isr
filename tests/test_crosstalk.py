@@ -224,7 +224,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         self.assertGreater((mask.getArray() & mask.getPlaneBitMask(self.crosstalkStr) > 0).sum(), 0)
         self.assertEqual((mask.getArray() & mask.getPlaneBitMask("SAT") > 0).sum(), 25)
 
-    def checkTaskAPI_NL(self, this_isr_task, doSubtrahendMasking=False):
+    def checkTaskAPI_NL(self, this_isr_task, doSubtrahendMasking=False, ignoreVariance=False):
         """Check the the crosstalk task under different ISR tasks.
         (e.g., IsrTask and IsrTaskLSST)
 
@@ -232,8 +232,10 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         ----------
         this_isr_task : `lsst.pipe.base.PipelineTask`
             The ISR Task instance to use.
-        doSubtrahendMasking : `bool`
+        doSubtrahendMasking : `bool`, optional
             Enable subtrahend masking code.
+        ignoreVariance : `bool`, optional
+            Use optimized code to ignore variance.
         """
         self.setUp_general(doSqrCrosstalk=True)
         coeff = np.array(self.crosstalk).transpose()
@@ -250,7 +252,7 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         calib = CrosstalkCalib().fromDetector(self.exposure.getDetector(),
                                               coeffVector=coeff,
                                               coeffSqrVector=coeffSqr)
-        isr.crosstalk.run(self.exposure, crosstalk=calib)
+        isr.crosstalk.run(self.exposure, crosstalk=calib, ignoreVariance=ignoreVariance)
         self.checkSubtracted(self.exposure)
 
     def testDirectAPI(self):
@@ -294,7 +296,8 @@ class CrosstalkTestCase(lsst.utils.tests.TestCase):
         """
         for this_isr_task in [IsrTask, IsrTaskLSST]:
             for subtrahendMasking in [False, True]:
-                self.checkTaskAPI_NL(this_isr_task, subtrahendMasking)
+                for ignoreVariance in [False, True]:
+                    self.checkTaskAPI_NL(this_isr_task, subtrahendMasking, ignoreVariance)
 
     def test_nullCrosstalkTask(self):
         """Test that the null crosstalk task does not create an error.

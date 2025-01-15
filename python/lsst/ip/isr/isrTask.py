@@ -1539,7 +1539,7 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doCrosstalk and not self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
-                               crosstalkSources=crosstalkSources, isTrimmed=True)
+                               crosstalkSources=crosstalkSources)
             self.debugView(ccdExposure, "doCrosstalk")
 
         # Masking block. Optionally mask known defects,NaN/inf pixels,
