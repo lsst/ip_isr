@@ -831,7 +831,6 @@ class CrosstalkCalib(IsrCalib):
                     )
                     targetImage = subtrahend[targetBBox]
 
-                if not imageOnly:
                     # Remove all other masks from copied sourceImage.
                     sourceImage.mask.array[:] &= crosstalk
 
