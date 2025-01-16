@@ -305,8 +305,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             # Read noise is always in electron units, but since this is a
             # bootstrap, the gain is 1.0.
             expected_variance[amp.getBBox()].array += (read_noise/gain)**2.
-        # And apply the flat-field squared.
-        expected_variance.array /= self.flat_adu.image.array**2.
+
+        # And apply the full formula for dividing by the flat with variance.
+        # See https://github.com/lsst/afw/blob/efa07fa68475fbe12f8f16df245a99ba3042166d/src/image/MaskedImage.cc#L353-L358  # noqa: E501, W505
+        unflat_image_array = result.exposure.image.array * self.flat_adu.image.array
+        expected_variance.array = ((unflat_image_array**2. * self.flat_adu.variance.array
+                                   + self.flat_adu.image.array**2. * expected_variance.array)
+                                   / self.flat_adu.image.array**4.)
 
         self.assertFloatsAlmostEqual(
             result.exposure.variance.array[good_pixels],
@@ -795,8 +800,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             # The image, read noise, and variance plane should all have
             # units of electrons, electrons, and electrons^2.
             expected_variance[amp.getBBox()].array += read_noise**2.
-        # And apply the flat-field squared.
-        expected_variance.array /= self.flat.image.array**2.
+
+        # And apply the full formula for dividing by the flat with variance.
+        # See https://github.com/lsst/afw/blob/efa07fa68475fbe12f8f16df245a99ba3042166d/src/image/MaskedImage.cc#L353-L358  # noqa: E501, W505
+        unflat_image_array = result.exposure.image.array * self.flat.image.array
+        expected_variance.array = ((unflat_image_array**2. * self.flat.variance.array
+                                   + self.flat.image.array**2. * expected_variance.array)
+                                   / self.flat.image.array**4.)
 
         self.assertFloatsAlmostEqual(
             result.exposure.variance.array[good_pixels],
