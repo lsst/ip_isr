@@ -294,6 +294,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         expected_variance = result.exposure.image.clone()
         # We have to remove the flat-fielding from the image pixels.
         expected_variance.array *= self.flat_adu.image.array
+        # And add in the bias variance.
+        expected_variance.array += self.bias_adu.variance.array
+        # And add in the scaled dark variance.
+        scale = result.exposure.visitInfo.darkTime / self.dark_adu.visitInfo.darkTime
+        expected_variance.array += scale**2. * self.dark_adu.variance.array
         # And add the gain and read noise (in electron) per amp.
         for amp in self.detector:
             # We need to use the gain and read noise from the header
@@ -792,6 +797,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         expected_variance = result.exposure.image.clone()
         # We have to remove the flat-fielding from the image pixels.
         expected_variance.array *= self.flat.image.array
+        # And add in the bias variance.
+        expected_variance.array += self.bias.variance.array
+        # And add in the scaled dark variance.
+        scale = result.exposure.visitInfo.darkTime / self.dark.visitInfo.darkTime
+        expected_variance.array += scale**2. * self.dark.variance.array
         # And add the read noise (in electrons) per amp.
         for amp in self.detector:
             gain = self.ptc.gain[amp.getName()]
