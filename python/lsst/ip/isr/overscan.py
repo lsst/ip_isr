@@ -100,9 +100,7 @@ class OverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
     )
     parallelOverscanMaskGrowSize = pexConfig.Field(
         dtype=int,
-        doc="A full column that is created from a saturated bleed (as determined "
-            "from config.maxDeviation or from the saturated mask bit) will be grown "
-            "by this many pixels during construction of the parallel overscan mask. "
+        doc="Grow the SAT mask in the parallel overscan region by this many pixels. "
             "This value was determined from the ITL chip in the LATISS camera.",
         default=7,
     )
@@ -1243,9 +1241,8 @@ class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
     )
     parallelOverscanMaskGrowSize = pexConfig.Field(
         dtype=int,
-        doc="Masks created from saturated bleeds should be grown by this many "
-            "pixels during construction of the parallel overscan mask. "
-            "This value determined from the ITL chip in the LATISS camera",
+        doc="Grow the SAT mask in the parallel overscan region by this many pixels. "
+            "This value was determined from the ITL chip in the LATISS camera.",
         default=7,
     )
     parallelOverscanMaskedColumnGrowSize = pexConfig.Field(
