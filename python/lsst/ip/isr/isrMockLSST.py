@@ -695,7 +695,7 @@ class IsrMockLSST(IsrMock):
                 corner=geom.Point2I(50, parBBox.getMinY()),
                 dimensions=geom.Extent2I(1, parBBox.getHeight()),
             )
-            exposure[bboxBad].image.array[:, :] = self.config.badParallelOverscanColumnLevel
+            exposure[bboxBad].image.array[:, :] += self.config.badParallelOverscanColumnLevel
 
             if self.config.doAddBadParallelOverscanColumnNeighbors:
                 for neighbor in [49, 51]:
