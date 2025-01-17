@@ -237,6 +237,13 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         overscanImage = exposure[overscanBox].getMaskedImage()
         overscanArray = overscanImage.image.array
 
+        # Record the gain value if necessary to convert configs from
+        # electron to adu.
+        if exposure.metadata.get("LSST ISR UNITS", "adu") == "electron":
+            gain = exposure.metadata[f"LSST ISR GAIN {amp.getName()}"]
+        else:
+            gain = 1.0
+
         # Mask pixels.
         maskVal = overscanImage.mask.getPlaneBitMask(self.config.maskPlanes)
         overscanMask = ~((overscanImage.mask.array & maskVal) == 0)
@@ -277,7 +284,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 delta = overscanArray - median
             else:
                 delta = np.abs(overscanArray - median)
-            bad = np.where((delta > self.config.maxDeviation) & (~overscanMask))
+
+            bad = np.where((delta > gain * self.config.maxDeviation) & (~overscanMask))
             # Mark the bad pixels as BAD.
             overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("BAD")
 
