@@ -80,7 +80,9 @@ class OverscanCorrectionTaskConfigBase(pexConfig.Config):
     )
     maxDeviation = pexConfig.Field(
         dtype=float,
-        doc="Maximum deviation from median (in ADU) to mask in overscan correction.",
+        doc="Maximum deviation from median (in ADU) to mask in overscan correction; "
+            "for parallel overscan correction this is a one-sided (positive-only) "
+            "cut.",
         default=1000.0, check=lambda x: x > 0,
     )
 
@@ -98,9 +100,10 @@ class OverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
     )
     parallelOverscanMaskGrowSize = pexConfig.Field(
         dtype=int,
-        doc="Masks created from saturated bleeds should be grown by this many "
-            "pixels during construction of the parallel overscan mask. "
-            "This value determined from the ITL chip in the LATISS camera",
+        doc="A full column that is created from a saturated bleed (as determined "
+            "from config.maxDeviation or from the saturated mask bit) will be grown "
+            "by this many pixels during construction of the parallel overscan mask. "
+            "This value was determined from the ITL chip in the LATISS camera.",
         default=7,
     )
     leadingColumnsToSkip = pexConfig.Field(
@@ -157,7 +160,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
     def correctOverscan(self, exposure, amp, imageBBox, overscanBBox,
                         isTransposed=True, leadingToSkip=0, trailingToSkip=0,
                         overscanFraction=1.0, imageThreshold=np.inf,
-                        maskedRowColumnGrowSize=0):
+                        maskedRowColumnGrowSize=0, isParallel=False):
         """Trim the exposure, fit the overscan, subtract the fit, and
         calculate statistics.
 
@@ -193,6 +196,9 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             If a column (parallel overscan) or row (serial overscan) is
             completely masked, then grow the mask by this radius. If the
             value is <=0 then this will not be checked.
+        isParallel : `bool`, optional
+            Is this the parallel overscan correction? If True, different
+            cuts/filters are applied.
 
         Returns
         -------
@@ -266,7 +272,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             )
         else:
             median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
-            bad = np.where((np.abs(overscanArray - median) > self.config.maxDeviation) & (~overscanMask))
+            if isParallel:
+                # For parallel overscan, this is a one-sided cut.
+                delta = overscanArray - median
+            else:
+                delta = np.abs(overscanArray - median)
+            bad = np.where((delta > self.config.maxDeviation) & (~overscanMask))
             # Mark the bad pixels as BAD.
             overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("BAD")
 
@@ -1051,6 +1062,7 @@ class OverscanCorrectionTask(OverscanCorrectionTaskBase):
                 isTransposed=not isTransposed,
                 leadingToSkip=self.config.leadingRowsToSkip,
                 trailingToSkip=self.config.trailingRowsToSkip,
+                isParallel=True,
             )
             overscanMean = (overscanMean, parallelResults.overscanMean)
             overscanMedian = (overscanMedian, parallelResults.overscanMedian)
@@ -1353,6 +1365,7 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             overscanFraction=self.config.parallelOverscanFraction,
             imageThreshold=self.config.parallelOverscanImageThreshold,
             maskedRowColumnGrowSize=self.config.parallelOverscanMaskedColumnGrowSize,
+            isParallel=True,
         )
         overscanMean = results.overscanMean
         overscanMedian = results.overscanMedian
