@@ -155,10 +155,121 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
     def run(self, exposure, amp, isTransposed=False):
         raise NotImplementedError("run method is not defined for OverscanCorrectionTaskBase")
 
-    def correctOverscan(self, exposure, amp, imageBBox, overscanBBox,
-                        isTransposed=True, leadingToSkip=0, trailingToSkip=0,
-                        overscanFraction=1.0, imageThreshold=np.inf,
-                        maskedRowColumnGrowSize=0, isParallel=False):
+    @staticmethod
+    def _maskRowsOrColumns(
+        exposure,
+        overscanBBox,
+        overscanMaskedImage,
+        overscanMask,
+        maxDeviation,
+        maskedRowColumnGrowSize,
+        isTransposed,
+        isParallel,
+    ):
+        """Mask overscan rows (~serial) or columns (~parallel).
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposure`
+            Exposure containing the data.
+        overscanBBox: `lsst.geom.Box2I`
+            Bounding box for the overscan data.
+        overscanMaskedImage : `lsst.afw.image.MaskedImage`
+            Masked image containing the overscan data.
+        overscanMask : `np.ndarray`
+            Numpy array of the mask bits, anded with appropriate
+            mask planes.
+        maxDeviation : `float`
+            Maximum deviation from median (overscan units) to mask in overscan
+            correction. For parallel overscan this is a one-sided (positive
+            only) cut.
+        maskedRowColumnGrowSize : `int`
+            If a column (parallel overscan) or row (serial overscan) is
+            completely masked, then grow the mask by this radius. If the
+            value is <=0 then this will not be checked.
+        isTransposed: `bool`
+            If true, then the data will be transposed before fitting
+            the overscan.
+        isParallel : `bool`, optional
+            Is this the parallel overscan correction? If True, different
+            cuts/filters are applied.
+
+        Returns
+        -------
+        badRowsColumns : `np.ndarray`
+            Array of bad rows (serial) or columns (parallel) that were
+            found, prior to dilation by maskedRowColumnGrowSize.
+        """
+        overscanArray = overscanMaskedImage.image.array
+
+        badRowsColumns = np.zeros(0, dtype=np.int64)
+
+        median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
+        if isParallel:
+            # For parallel overscan, this is a one-sided cut.
+            delta = overscanArray - median
+        else:
+            delta = np.abs(overscanArray - median)
+
+        bad = np.where((delta > maxDeviation) & (~overscanMask))
+        # Mark the bad pixels as BAD
+        overscanMaskedImage.mask.array[bad] = overscanMaskedImage.mask.getPlaneBitMask("BAD")
+
+        # Check for completely masked row/column.
+        if len(bad) > 0:
+            if isTransposed:
+                axis = 0
+                nComp = overscanArray.shape[0]
+            else:
+                axis = 1
+                nComp = overscanArray.shape[1]
+
+            # We only need to look at the bad pixels set here for this
+            # mask growth.
+            overscanMaskTemp = np.zeros_like(overscanMask)
+            overscanMaskTemp[bad] = True
+
+            nMaskedArray = np.sum(overscanMaskTemp, axis=axis, dtype=np.int32)
+            badRowsColumns, = np.where(nMaskedArray == nComp)
+            if len(badRowsColumns) > 0:
+                dataView = afwImage.MaskedImageF(exposure.maskedImage,
+                                                 overscanBBox,
+                                                 afwImage.PARENT)
+                if isTransposed:
+                    pixelsCopy = dataView.image.array[:, badRowsColumns].copy()
+                    dataView.image.array[:, badRowsColumns] = 1e30
+                else:
+                    pixelsCopy = dataView.image.array[badRowsColumns, :].copy()
+                    dataView.image.array[badRowsColumns, :] = 1e30
+
+                makeThresholdMask(
+                    maskedImage=dataView,
+                    threshold=1e30,
+                    growFootprints=maskedRowColumnGrowSize,
+                    maskName="BAD",
+                )
+
+                if isTransposed:
+                    dataView.image.array[:, badRowsColumns] = pixelsCopy
+                else:
+                    dataView.image.array[badRowsColumns, :] = pixelsCopy
+
+        return badRowsColumns
+
+    def correctOverscan(
+        self,
+        exposure,
+        amp,
+        imageBBox,
+        overscanBBox,
+        isTransposed=True,
+        leadingToSkip=0,
+        trailingToSkip=0,
+        overscanFraction=1.0,
+        imageThreshold=np.inf,
+        maskedRowColumnGrowSize=0,
+        isParallel=False,
+    ):
         """Trim the exposure, fit the overscan, subtract the fit, and
         calculate statistics.
 
@@ -233,7 +344,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                                         trailingToSkip,
                                         transpose=isTransposed)
         overscanImage = exposure[overscanBox].getMaskedImage()
-        overscanArray = overscanImage.image.array
 
         # Record the gain value if necessary to convert configs from
         # electron to adu.
@@ -276,56 +386,16 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 overscanSigma=0.0,
             )
         else:
-            median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
-            if isParallel:
-                # For parallel overscan, this is a one-sided cut.
-                delta = overscanArray - median
-            else:
-                delta = np.abs(overscanArray - median)
-
-            bad = np.where((delta > gain * self.config.maxDeviation) & (~overscanMask))
-            # Mark the bad pixels as BAD.
-            overscanImage.mask.array[bad] = overscanImage.mask.getPlaneBitMask("BAD")
-
-            # Check for completely masked row/column.
-            if maskedRowColumnGrowSize > 0 and len(bad) > 0:
-                if isTransposed:
-                    axis = 0
-                    nComp = overscanArray.shape[0]
-                else:
-                    axis = 1
-                    nComp = overscanArray.shape[1]
-
-                # We only need to look at the bad pixels set here for this
-                # mask growth.
-                overscanMaskTemp = np.zeros_like(overscanMask)
-                overscanMaskTemp[bad] = True
-
-                nMaskedArray = np.sum(overscanMaskTemp, axis=axis, dtype=np.int32)
-                badRowsColumns, = np.where(nMaskedArray == nComp)
-                if len(badRowsColumns) > 0:
-                    dataView = afwImage.MaskedImageF(exposure.maskedImage,
-                                                     overscanBBox,
-                                                     afwImage.PARENT)
-                    if isTransposed:
-                        pixelsCopy = dataView.image.array[:, badRowsColumns].copy()
-                        dataView.image.array[:, badRowsColumns] = 1e30
-                    else:
-                        pixelsCopy = dataView.image.array[badRowsColumns, :].copy()
-                        dataView.image.array[badRowsColumns, :] = 1e30
-
-                    makeThresholdMask(
-                        maskedImage=dataView,
-                        threshold=1e30,
-                        growFootprints=maskedRowColumnGrowSize,
-                        maskName="BAD",
-                    )
-
-                    if isTransposed:
-                        dataView.image.array[:, badRowsColumns] = pixelsCopy
-                    else:
-                        dataView.image.array[badRowsColumns, :] = 1e30
-
+            self._maskRowsOrColumns(
+                exposure,
+                overscanBBox,
+                overscanImage,
+                overscanMask,
+                gain * self.config.maxDeviation,
+                maskedRowColumnGrowSize,
+                isTransposed,
+                isParallel,
+            )
             # Do overscan fit.
             # CZW: Handle transposed correctly.
             overscanResults = self.fitOverscan(overscanImage, isTransposed=isTransposed)
