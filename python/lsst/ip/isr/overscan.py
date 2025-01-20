@@ -25,6 +25,8 @@ __all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask",
            ]
 
 import numpy as np
+from scipy.signal import medfilt
+
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
 import lsst.geom as geom
@@ -163,6 +165,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         overscanMask,
         maxDeviation,
         maskedRowColumnGrowSize,
+        medianSmoothingKernel,
+        medianSmoothingOutlierThreshold,
         isTransposed,
         isParallel,
     ):
@@ -187,6 +191,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             If a column (parallel overscan) or row (serial overscan) is
             completely masked, then grow the mask by this radius. If the
             value is <=0 then this will not be checked.
+        medianSmoothingKernel : `int`
+            Kernel (pixels) to smooth rows/columns. If <=0, median smoothing
+            is skipped. Otherwise must be odd.
+        medianSmoothingOutlierThreshold : `float`
+            Outlier threshold after median smoothing (overscan units). This
+            is applied only to positive outliers.
         isTransposed: `bool`
             If true, then the data will be transposed before fitting
             the overscan.
@@ -215,15 +225,16 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         # Mark the bad pixels as BAD
         overscanMaskedImage.mask.array[bad] = overscanMaskedImage.mask.getPlaneBitMask("BAD")
 
-        # Check for completely masked row/column.
-        if len(bad) > 0:
-            if isTransposed:
-                axis = 0
-                nComp = overscanArray.shape[0]
-            else:
-                axis = 1
-                nComp = overscanArray.shape[1]
+        if isTransposed:
+            axis = 0
+            nComp = overscanArray.shape[0]
+        else:
+            axis = 1
+            nComp = overscanArray.shape[1]
 
+        # Check for completely masked row/column (from maxDeviation or
+        # previously applied SAT flag.)
+        if len(bad) > 0:
             # We only need to look at the bad pixels set here for this
             # mask growth.
             overscanMaskTemp = np.zeros_like(overscanMask)
@@ -231,28 +242,50 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
             nMaskedArray = np.sum(overscanMaskTemp, axis=axis, dtype=np.int32)
             badRowsColumns, = np.where(nMaskedArray == nComp)
-            if len(badRowsColumns) > 0:
-                dataView = afwImage.MaskedImageF(exposure.maskedImage,
-                                                 overscanBBox,
-                                                 afwImage.PARENT)
-                if isTransposed:
-                    pixelsCopy = dataView.image.array[:, badRowsColumns].copy()
-                    dataView.image.array[:, badRowsColumns] = 1e30
-                else:
-                    pixelsCopy = dataView.image.array[badRowsColumns, :].copy()
-                    dataView.image.array[badRowsColumns, :] = 1e30
 
-                makeThresholdMask(
-                    maskedImage=dataView,
-                    threshold=1e30,
-                    growFootprints=maskedRowColumnGrowSize,
-                    maskName="BAD",
-                )
+        # Perform median-smoothing outlier rejection if desired.
+        if medianSmoothingKernel > 0:
+            # We do a straight numpy median ignoring the mask.
+            # This will be fine because it avoids missing values,
+            # and very large deviations have already been flagged by
+            # maxDeviation or SAT.
+            rowsCols = np.median(overscanArray, axis=axis)
+            filtered = medfilt(rowsCols, kernel_size=medianSmoothingKernel)
+            delta = rowsCols - filtered
 
-                if isTransposed:
-                    dataView.image.array[:, badRowsColumns] = pixelsCopy
-                else:
-                    dataView.image.array[badRowsColumns, :] = pixelsCopy
+            # We cannot reliably look for outliers within a kernel length
+            # of the edges.
+            high, = np.where(delta[medianSmoothingKernel: -medianSmoothingKernel]
+                             >= medianSmoothingOutlierThreshold)
+            high += medianSmoothingKernel
+
+            if len(high) > 0:
+                badRowsColumns = np.append(badRowsColumns, high)
+
+        # If we have any bad rows/columns, we need to dilate them
+        # and apply the mask to the parent overscan image.
+        if len(badRowsColumns) > 0:
+            dataView = afwImage.MaskedImageF(exposure.maskedImage,
+                                             overscanBBox,
+                                             afwImage.PARENT)
+            if isTransposed:
+                pixelsCopy = dataView.image.array[:, badRowsColumns].copy()
+                dataView.image.array[:, badRowsColumns] = 1e30
+            else:
+                pixelsCopy = dataView.image.array[badRowsColumns, :].copy()
+                dataView.image.array[badRowsColumns, :] = 1e30
+
+            makeThresholdMask(
+                maskedImage=dataView,
+                threshold=1e30,
+                growFootprints=maskedRowColumnGrowSize,
+                maskName="BAD",
+            )
+
+            if isTransposed:
+                dataView.image.array[:, badRowsColumns] = pixelsCopy
+            else:
+                dataView.image.array[badRowsColumns, :] = pixelsCopy
 
         return badRowsColumns
 
@@ -269,6 +302,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         imageThreshold=np.inf,
         maskedRowColumnGrowSize=0,
         isParallel=False,
+        medianSmoothingKernel=0,
+        medianSmoothingOutlierThreshold=np.inf,
     ):
         """Trim the exposure, fit the overscan, subtract the fit, and
         calculate statistics.
@@ -308,6 +343,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         isParallel : `bool`, optional
             Is this the parallel overscan correction? If True, different
             cuts/filters are applied.
+        medianSmoothingKernel : `int`, optional
+            Kernel (pixels) to use to smooth rows/columns for row/column
+            outlier rejection. Must be odd if positive; if <=0 median
+            smoothing will not be used to find outliers.
+        medianSmoothingOutlierThreshold : `float`, optional
+            Threshold to look for outliers after median smoothing (adu).
 
         Returns
         -------
@@ -394,6 +435,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 overscanMask,
                 gain * self.config.maxDeviation,
                 maskedRowColumnGrowSize,
+                medianSmoothingKernel,
+                gain * medianSmoothingOutlierThreshold,
                 isTransposed,
                 isParallel,
             )
@@ -1352,6 +1395,25 @@ class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
             "due to the region being flooded with spillover from a super-saturated flat.",
         default=10000.0,
     )
+    doMedianSmoothingOutlierRejection = pexConfig.Field(
+        dtype=bool,
+        doc="Do column-by-column median smoothing outlier rejection? Columns that are rejected "
+            "in this way will be grown by parallelOverscanMaskedColumnGrowSize.",
+        default=True,
+    )
+    medianSmoothingKernel = pexConfig.Field(
+        dtype=int,
+        doc="Kernel (pixels) to use to smooth the parallel overscan columns. Must be odd.",
+        default=5,
+        check=lambda x: x // 2 != x / 2,
+    )
+    medianSmoothingOutlierThreshold = pexConfig.Field(
+        dtype=float,
+        doc="Outlier threshold after parallel median smoothing (adu). This is applied only "
+            "to positive outliers.",
+        default=5.0,
+        check=lambda x: x > 0.0,
+    )
 
 
 class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
@@ -1423,6 +1485,9 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
         parallelOverscanBBox = amp.getRawParallelOverscanBBox()
         imageBBox = amp.getRawDataBBox()
 
+        medianSmoothingKernel = self.config.medianSmoothingKernel if \
+            self.config.doMedianSmoothingOutlierRejection else 0
+
         # The serial overscan correction has removed some signal
         # from the parallel overscan region, but that is largely a
         # constant offset.  The collapseArray method now attempts
@@ -1445,6 +1510,8 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             imageThreshold=self.config.parallelOverscanImageThreshold,
             maskedRowColumnGrowSize=self.config.parallelOverscanMaskedColumnGrowSize,
             isParallel=True,
+            medianSmoothingKernel=medianSmoothingKernel,
+            medianSmoothingOutlierThreshold=self.config.medianSmoothingOutlierThreshold,
         )
         overscanMean = results.overscanMean
         overscanMedian = results.overscanMedian
