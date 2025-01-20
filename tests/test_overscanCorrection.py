@@ -798,6 +798,75 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
             self.assertFloatsAlmostEqual(meanPerRow, meanPerRowCompare)
 
+    def _checkMaskRowsOrColumns(self, inputBadRowsColumns, badValue, isSat=False):
+        """Check the _maskRowsOrColumns code.
+
+        Parameters
+        ----------
+        inputBadRowsColumns : `np.ndarray`
+            Input array of rows or columns to check.
+        badValue : `float`
+            Value to set before checking.
+        isSat : `bool`, optional
+            Is this saturated? If so, set mask before giving to code.
+        """
+        for isParallel in [False, True]:
+            exposure = self.makeExposure(isTransposed=False, addRamp=False)
+            detector = exposure.getDetector()
+            amp = detector[0]
+
+            if isParallel:
+                overscanBBox = amp.getRawParallelOverscanBBox()
+            else:
+                overscanBBox = amp.getRawSerialOverscanBBox()
+
+            overscanMaskedImage = exposure[overscanBBox].maskedImage
+            overscanMask = overscanMaskedImage.mask.array.copy()
+
+            sat = overscanMaskedImage.mask.getPlaneBitMask("SAT")
+
+            if isParallel:
+                overscanMaskedImage.image.array[:, inputBadRowsColumns] = badValue
+                if isSat:
+                    overscanMaskedImage.mask.array[:, inputBadRowsColumns] |= sat
+            else:
+                overscanMaskedImage.image.array[inputBadRowsColumns, :] = badValue
+                if isSat:
+                    overscanMaskedImage.mask.array[inputBadRowsColumns, :] |= sat
+
+            # For LSST-orientation detectors, isTransposed == isParallel.
+            badRowsColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
+                exposure,
+                overscanBBox,
+                overscanMaskedImage,
+                overscanMask,
+                100.0,
+                1,
+                3,
+                5.0,
+                isParallel,
+                isParallel,
+            )
+
+            np.testing.assert_array_equal(badRowsColumns, inputBadRowsColumns)
+
+    def test_maskRowsOrColumns_empty(self):
+        self._checkMaskRowsOrColumns(np.zeros(0, dtype=np.int64), 0)
+
+    def test_maskRowsOrColumns_sat(self):
+        self._checkMaskRowsOrColumns(np.array([4]), 100_000.0, isSat=True)
+
+    def test_maskRowsOrColumns_deviation(self):
+        self._checkMaskRowsOrColumns(np.array([4]), 200.0)
+
+    def test_maskRowsOrColumns_smoothingThreshold(self):
+        # This is 5.0 greater than the 2.0 default value.
+        self._checkMaskRowsOrColumns(np.array([4]), 7.0)
+
+    def test_maskRowsOrColumns_all(self):
+        # This should trigger all of the checks but no sat flag.
+        self._checkMaskRowsOrColumns(np.array([4]), 100_000.0, isSat=False)
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

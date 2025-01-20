@@ -260,7 +260,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             high += medianSmoothingKernel
 
             if len(high) > 0:
-                badRowsColumns = np.append(badRowsColumns, high)
+                badRowsColumns = np.unique(np.append(badRowsColumns, high))
 
         # If we have any bad rows/columns, we need to dilate them
         # and apply the mask to the parent overscan image.
