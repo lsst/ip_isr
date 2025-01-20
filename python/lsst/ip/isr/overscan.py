@@ -379,6 +379,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
         if badResults:
             # Do not do overscan subtraction at all.
+            badRowsColumns = np.zeros(0, dtype=np.int64)
             overscanResults = pipeBase.Struct(
                 overscanValue=0.0,
                 overscanMean=0.0,
@@ -386,7 +387,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 overscanSigma=0.0,
             )
         else:
-            self._maskRowsOrColumns(
+            badRowsColumns = self._maskRowsOrColumns(
                 exposure,
                 overscanBBox,
                 overscanImage,
@@ -423,18 +424,19 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         residualMedian = stats.getValue(afwMath.MEDIAN)
         residualSigma = stats.getValue(afwMath.STDEVCLIP)
 
-        return pipeBase.Struct(ampOverscanModel=ampOverscanModel,
-                               overscanOverscanModel=overscanOverscanModel,
-                               overscanImage=overscanImage,
-                               overscanValue=overscanResults.overscanValue,
-
-                               overscanMean=overscanResults.overscanMean,
-                               overscanMedian=overscanResults.overscanMedian,
-                               overscanSigma=overscanResults.overscanSigma,
-                               overscanMeanResidual=residualMean,
-                               overscanMedianResidual=residualMedian,
-                               overscanSigmaResidual=residualSigma
-                               )
+        return pipeBase.Struct(
+            ampOverscanModel=ampOverscanModel,
+            overscanOverscanModel=overscanOverscanModel,
+            overscanImage=overscanImage,
+            overscanValue=overscanResults.overscanValue,
+            overscanMean=overscanResults.overscanMean,
+            overscanMedian=overscanResults.overscanMedian,
+            overscanSigma=overscanResults.overscanSigma,
+            overscanMeanResidual=residualMean,
+            overscanMedianResidual=residualMedian,
+            overscanSigmaResidual=residualSigma,
+            overscanBadRowsColumns=badRowsColumns,
+        )
 
     def broadcastFitToImage(self, overscanValue, imageArray, transpose=False):
         """Broadcast 0 or 1 dimension fit to appropriate shape.
@@ -1274,6 +1276,7 @@ class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
         residualMean = results.overscanMeanResidual
         residualMedian = results.overscanMedianResidual
         residualSigma = results.overscanSigmaResidual
+        badRowsColumns = results.overscanBadRowsColumns
 
         return pipeBase.Struct(
             imageFit=results.ampOverscanModel,
@@ -1285,6 +1288,7 @@ class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
             residualMean=residualMean,
             residualMedian=residualMedian,
             residualSigma=residualSigma,
+            overscanBadRowsColumns=badRowsColumns,
         )
 
 
@@ -1448,6 +1452,7 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
         residualMean = results.overscanMeanResidual
         residualMedian = results.overscanMedianResidual
         residualSigma = results.overscanSigmaResidual
+        badRowsColumns = results.overscanBadRowsColumns
 
         return pipeBase.Struct(
             imageFit=results.ampOverscanModel,
@@ -1459,6 +1464,7 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             residualMean=residualMean,
             residualMedian=residualMedian,
             residualSigma=residualSigma,
+            badRowsColumns=badRowsColumns,
         )
 
     def maskParallelOverscanAmp(self, exposure, amp, saturationLevel=None):
