@@ -810,12 +810,12 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         isSat : `bool`, optional
             Is this saturated? If so, set mask before giving to code.
         """
-        for isParallel in [False, True]:
+        for parallel in [False, True]:
             exposure = self.makeExposure(isTransposed=False, addRamp=False)
             detector = exposure.getDetector()
             amp = detector[0]
 
-            if isParallel:
+            if parallel:
                 overscanBBox = amp.getRawParallelOverscanBBox()
             else:
                 overscanBBox = amp.getRawSerialOverscanBBox()
@@ -825,7 +825,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
             sat = overscanMaskedImage.mask.getPlaneBitMask("SAT")
 
-            if isParallel:
+            if parallel:
                 overscanMaskedImage.image.array[:, inputBadRowsColumns] = badValue
                 if isSat:
                     overscanMaskedImage.mask.array[:, inputBadRowsColumns] |= sat
@@ -844,8 +844,8 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 1,
                 3,
                 5.0,
-                isParallel,
-                isParallel,
+                not parallel,  # doAbsoluteMaxDeviation should be False for serial overscan.
+                parallel,  # isTransposed should be True for parallel overscan.
             )
 
             np.testing.assert_array_equal(badRowsColumns, inputBadRowsColumns)

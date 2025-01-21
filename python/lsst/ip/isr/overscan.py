@@ -83,9 +83,15 @@ class OverscanCorrectionTaskConfigBase(pexConfig.Config):
     maxDeviation = pexConfig.Field(
         dtype=float,
         doc="Maximum deviation from median (in ADU) to mask in overscan correction; "
-            "for parallel overscan correction this is a one-sided (positive-only) "
-            "cut.",
+            "Will be applied to the absolute devation if doAbsoluteMaxDeviation=True.",
         default=1000.0, check=lambda x: x > 0,
+    )
+    doAbsoluteMaxDeviation = pexConfig.Field(
+        dtype=bool,
+        doc="Apply the maxDeviation to the absolute value of the deviation? If "
+            "False, this will be a one-sided cut for positive-only deviations "
+            "(typically for parallel overscan subtraction.",
+        default=True,
     )
 
 
@@ -167,8 +173,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         maskedRowColumnGrowSize,
         medianSmoothingKernel,
         medianSmoothingOutlierThreshold,
+        doAbsoluteMaxDeviation,
         isTransposed,
-        isParallel,
     ):
         """Mask overscan rows (~serial) or columns (~parallel).
 
@@ -197,12 +203,12 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         medianSmoothingOutlierThreshold : `float`
             Outlier threshold after median smoothing (overscan units). This
             is applied only to positive outliers.
-        isTransposed: `bool`
+        doAbsoluteMaxDeviation : `bool`
+            If true, deviation comparisons will use the absolute value;
+            otherwise it will cut positive outliers only.
+        isTransposed : `bool`
             If true, then the data will be transposed before fitting
             the overscan.
-        isParallel : `bool`, optional
-            Is this the parallel overscan correction? If True, different
-            cuts/filters are applied.
 
         Returns
         -------
@@ -215,11 +221,10 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         badRowsColumns = np.zeros(0, dtype=np.int64)
 
         median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
-        if isParallel:
-            # For parallel overscan, this is a one-sided cut.
-            delta = overscanArray - median
-        else:
+        if doAbsoluteMaxDeviation:
             delta = np.abs(overscanArray - median)
+        else:
+            delta = overscanArray - median
 
         bad = np.where((delta > maxDeviation) & (~overscanMask))
         # Mark the bad pixels as BAD
@@ -301,7 +306,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         overscanFraction=1.0,
         imageThreshold=np.inf,
         maskedRowColumnGrowSize=0,
-        isParallel=False,
         medianSmoothingKernel=0,
         medianSmoothingOutlierThreshold=np.inf,
     ):
@@ -340,9 +344,6 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             If a column (parallel overscan) or row (serial overscan) is
             completely masked, then grow the mask by this radius. If the
             value is <=0 then this will not be checked.
-        isParallel : `bool`, optional
-            Is this the parallel overscan correction? If True, different
-            cuts/filters are applied.
         medianSmoothingKernel : `int`, optional
             Kernel (pixels) to use to smooth rows/columns for row/column
             outlier rejection. Must be odd if positive; if <=0 median
@@ -437,8 +438,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 maskedRowColumnGrowSize,
                 medianSmoothingKernel,
                 gain * medianSmoothingOutlierThreshold,
+                self.config.doAbsoluteMaxDeviation,
                 isTransposed,
-                isParallel,
             )
             # Do overscan fit.
             # CZW: Handle transposed correctly.
@@ -1183,7 +1184,6 @@ class OverscanCorrectionTask(OverscanCorrectionTaskBase):
                 isTransposed=not isTransposed,
                 leadingToSkip=self.config.leadingRowsToSkip,
                 trailingToSkip=self.config.trailingRowsToSkip,
-                isParallel=True,
             )
             overscanMean = (overscanMean, parallelResults.overscanMean)
             overscanMedian = (overscanMedian, parallelResults.overscanMedian)
@@ -1415,6 +1415,12 @@ class ParallelOverscanCorrectionTaskConfig(OverscanCorrectionTaskConfigBase):
         check=lambda x: x > 0.0,
     )
 
+    def setDefaults(self):
+        super().setDefaults()
+
+        # For parallel overscan, this should be a one-sided cut.
+        self.doAbsoluteMaxDeviation = False
+
 
 class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
     """Correction task for parallel overscan.
@@ -1509,7 +1515,6 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             overscanFraction=self.config.parallelOverscanFraction,
             imageThreshold=self.config.parallelOverscanImageThreshold,
             maskedRowColumnGrowSize=self.config.parallelOverscanMaskedColumnGrowSize,
-            isParallel=True,
             medianSmoothingKernel=medianSmoothingKernel,
             medianSmoothingOutlierThreshold=self.config.medianSmoothingOutlierThreshold,
         )
