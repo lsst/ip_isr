@@ -834,7 +834,6 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 if isSat:
                     overscanMaskedImage.mask.array[inputBadRowsColumns, :] |= sat
 
-            # For LSST-orientation detectors, isTransposed == isParallel.
             badRowsColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
                 exposure,
                 overscanBBox,
@@ -866,6 +865,39 @@ class IsrTestCases(lsst.utils.tests.TestCase):
     def test_maskRowsOrColumns_all(self):
         # This should trigger all of the checks but no sat flag.
         self._checkMaskRowsOrColumns(np.array([4]), 100_000.0, isSat=False)
+
+    def test_maskRowsOrColumns_negativeParallel(self):
+        inputBadRowsColumns = np.array([4])
+
+        for doAbsoluteMaxDeviation in [False, True]:
+            exposure = self.makeExposure(isTransposed=False, addRamp=False)
+            detector = exposure.getDetector()
+            amp = detector[0]
+
+            overscanBBox = amp.getRawSerialOverscanBBox()
+
+            overscanMaskedImage = exposure[overscanBBox].maskedImage
+            overscanMask = overscanMaskedImage.mask.array.copy()
+
+            overscanMaskedImage.image.array[inputBadRowsColumns, :] = -200.0
+
+            badRowsColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
+                exposure,
+                overscanBBox,
+                overscanMaskedImage,
+                overscanMask,
+                100.0,
+                1,
+                3,
+                5.0,
+                doAbsoluteMaxDeviation,
+                False,
+            )
+
+            if doAbsoluteMaxDeviation:
+                np.testing.assert_array_equal(badRowsColumns, inputBadRowsColumns)
+            else:
+                np.testing.assert_array_equal(badRowsColumns, np.zeros(0, dtype=np.int64))
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
