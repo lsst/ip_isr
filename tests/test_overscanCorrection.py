@@ -798,12 +798,12 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
             self.assertFloatsAlmostEqual(meanPerRow, meanPerRowCompare)
 
-    def _checkMaskRowsOrColumns(self, inputBadRowsColumns, badValue, isSat=False):
+    def _checkMaskRowsOrColumns(self, inputBadRowsOrColumns, badValue, isSat=False):
         """Check the _maskRowsOrColumns code.
 
         Parameters
         ----------
-        inputBadRowsColumns : `np.ndarray`
+        inputBadRowsOrColumns : `np.ndarray`
             Input array of rows or columns to check.
         badValue : `float`
             Value to set before checking.
@@ -826,15 +826,15 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             sat = overscanMaskedImage.mask.getPlaneBitMask("SAT")
 
             if parallel:
-                overscanMaskedImage.image.array[:, inputBadRowsColumns] = badValue
+                overscanMaskedImage.image.array[:, inputBadRowsOrColumns] = badValue
                 if isSat:
-                    overscanMaskedImage.mask.array[:, inputBadRowsColumns] |= sat
+                    overscanMaskedImage.mask.array[:, inputBadRowsOrColumns] |= sat
             else:
-                overscanMaskedImage.image.array[inputBadRowsColumns, :] = badValue
+                overscanMaskedImage.image.array[inputBadRowsOrColumns, :] = badValue
                 if isSat:
-                    overscanMaskedImage.mask.array[inputBadRowsColumns, :] |= sat
+                    overscanMaskedImage.mask.array[inputBadRowsOrColumns, :] |= sat
 
-            badRowsColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
+            badRowsOrColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
                 exposure,
                 overscanBBox,
                 overscanMaskedImage,
@@ -847,7 +847,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
                 parallel,  # isTransposed should be True for parallel overscan.
             )
 
-            np.testing.assert_array_equal(badRowsColumns, inputBadRowsColumns)
+            np.testing.assert_array_equal(badRowsOrColumns, inputBadRowsOrColumns)
 
     def test_maskRowsOrColumns_empty(self):
         self._checkMaskRowsOrColumns(np.zeros(0, dtype=np.int64), 0)
@@ -867,7 +867,7 @@ class IsrTestCases(lsst.utils.tests.TestCase):
         self._checkMaskRowsOrColumns(np.array([4]), 100_000.0, isSat=False)
 
     def test_maskRowsOrColumns_negativeParallel(self):
-        inputBadRowsColumns = np.array([4])
+        inputBadRowsOrColumns = np.array([4])
 
         for doAbsoluteMaxDeviation in [False, True]:
             exposure = self.makeExposure(isTransposed=False, addRamp=False)
@@ -879,9 +879,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             overscanMaskedImage = exposure[overscanBBox].maskedImage
             overscanMask = overscanMaskedImage.mask.array.copy()
 
-            overscanMaskedImage.image.array[inputBadRowsColumns, :] = -200.0
+            overscanMaskedImage.image.array[inputBadRowsOrColumns, :] = -200.0
 
-            badRowsColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
+            badRowsOrColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
                 exposure,
                 overscanBBox,
                 overscanMaskedImage,
@@ -895,9 +895,9 @@ class IsrTestCases(lsst.utils.tests.TestCase):
             )
 
             if doAbsoluteMaxDeviation:
-                np.testing.assert_array_equal(badRowsColumns, inputBadRowsColumns)
+                np.testing.assert_array_equal(badRowsOrColumns, inputBadRowsOrColumns)
             else:
-                np.testing.assert_array_equal(badRowsColumns, np.zeros(0, dtype=np.int64))
+                np.testing.assert_array_equal(badRowsOrColumns, np.zeros(0, dtype=np.int64))
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

@@ -83,7 +83,7 @@ class OverscanCorrectionTaskConfigBase(pexConfig.Config):
     maxDeviation = pexConfig.Field(
         dtype=float,
         doc="Maximum deviation from median (in ADU) to mask in overscan correction; "
-            "Will be applied to the absolute devation if doAbsoluteMaxDeviation=True.",
+            "Will be applied to the absolute deviation if doAbsoluteMaxDeviation=True.",
         default=1000.0, check=lambda x: x > 0,
     )
     doAbsoluteMaxDeviation = pexConfig.Field(
@@ -212,13 +212,13 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
         Returns
         -------
-        badRowsColumns : `np.ndarray`
+        badRowsOrColumns : `np.ndarray`
             Array of bad rows (serial) or columns (parallel) that were
             found, prior to dilation by maskedRowColumnGrowSize.
         """
         overscanArray = overscanMaskedImage.image.array
 
-        badRowsColumns = np.zeros(0, dtype=np.int64)
+        badRowsOrColumns = np.zeros(0, dtype=np.int64)
 
         median = np.ma.median(np.ma.masked_where(overscanMask, overscanArray))
         if doAbsoluteMaxDeviation:
@@ -228,7 +228,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
         bad = np.where((delta > maxDeviation) & (~overscanMask))
         # Mark the bad pixels as BAD
-        overscanMaskedImage.mask.array[bad] = overscanMaskedImage.mask.getPlaneBitMask("BAD")
+        overscanMaskedImage.mask.array[bad] |= overscanMaskedImage.mask.getPlaneBitMask("BAD")
 
         if isTransposed:
             axis = 0
@@ -246,7 +246,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             overscanMaskTemp[bad] = True
 
             nMaskedArray = np.sum(overscanMaskTemp, axis=axis, dtype=np.int32)
-            badRowsColumns, = np.where(nMaskedArray == nComp)
+            badRowsOrColumns, = np.where(nMaskedArray == nComp)
 
         # Perform median-smoothing outlier rejection if desired.
         if medianSmoothingKernel > 0:
@@ -265,20 +265,20 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             high += medianSmoothingKernel
 
             if len(high) > 0:
-                badRowsColumns = np.unique(np.append(badRowsColumns, high))
+                badRowsOrColumns = np.unique(np.append(badRowsOrColumns, high))
 
         # If we have any bad rows/columns, we need to dilate them
         # and apply the mask to the parent overscan image.
-        if len(badRowsColumns) > 0:
+        if len(badRowsOrColumns) > 0:
             dataView = afwImage.MaskedImageF(exposure.maskedImage,
                                              overscanBBox,
                                              afwImage.PARENT)
             if isTransposed:
-                pixelsCopy = dataView.image.array[:, badRowsColumns].copy()
-                dataView.image.array[:, badRowsColumns] = 1e30
+                pixelsCopy = dataView.image.array[:, badRowsOrColumns].copy()
+                dataView.image.array[:, badRowsOrColumns] = 1e30
             else:
-                pixelsCopy = dataView.image.array[badRowsColumns, :].copy()
-                dataView.image.array[badRowsColumns, :] = 1e30
+                pixelsCopy = dataView.image.array[badRowsOrColumns, :].copy()
+                dataView.image.array[badRowsOrColumns, :] = 1e30
 
             makeThresholdMask(
                 maskedImage=dataView,
@@ -288,11 +288,11 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             )
 
             if isTransposed:
-                dataView.image.array[:, badRowsColumns] = pixelsCopy
+                dataView.image.array[:, badRowsOrColumns] = pixelsCopy
             else:
-                dataView.image.array[badRowsColumns, :] = pixelsCopy
+                dataView.image.array[badRowsOrColumns, :] = pixelsCopy
 
-        return badRowsColumns
+        return badRowsOrColumns
 
     def correctOverscan(
         self,
@@ -421,7 +421,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
 
         if badResults:
             # Do not do overscan subtraction at all.
-            badRowsColumns = np.zeros(0, dtype=np.int64)
+            badRowsOrColumns = np.zeros(0, dtype=np.int64)
             overscanResults = pipeBase.Struct(
                 overscanValue=0.0,
                 overscanMean=0.0,
@@ -429,7 +429,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 overscanSigma=0.0,
             )
         else:
-            badRowsColumns = self._maskRowsOrColumns(
+            badRowsOrColumns = self._maskRowsOrColumns(
                 exposure,
                 overscanBBox,
                 overscanImage,
@@ -479,7 +479,7 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             overscanMeanResidual=residualMean,
             overscanMedianResidual=residualMedian,
             overscanSigmaResidual=residualSigma,
-            overscanBadRowsColumns=badRowsColumns,
+            overscanBadRowsOrColumns=badRowsOrColumns,
         )
 
     def broadcastFitToImage(self, overscanValue, imageArray, transpose=False):
@@ -1319,7 +1319,7 @@ class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
         residualMean = results.overscanMeanResidual
         residualMedian = results.overscanMedianResidual
         residualSigma = results.overscanSigmaResidual
-        badRowsColumns = results.overscanBadRowsColumns
+        badRowsOrColumns = results.overscanBadRowsOrColumns
 
         return pipeBase.Struct(
             imageFit=results.ampOverscanModel,
@@ -1331,7 +1331,7 @@ class SerialOverscanCorrectionTask(OverscanCorrectionTaskBase):
             residualMean=residualMean,
             residualMedian=residualMedian,
             residualSigma=residualSigma,
-            overscanBadRowsColumns=badRowsColumns,
+            overscanBadRowsOrColumns=badRowsOrColumns,
         )
 
 
@@ -1524,7 +1524,7 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
         residualMean = results.overscanMeanResidual
         residualMedian = results.overscanMedianResidual
         residualSigma = results.overscanSigmaResidual
-        badRowsColumns = results.overscanBadRowsColumns
+        badRowsOrColumns = results.overscanBadRowsOrColumns
 
         return pipeBase.Struct(
             imageFit=results.ampOverscanModel,
@@ -1536,7 +1536,7 @@ class ParallelOverscanCorrectionTask(OverscanCorrectionTaskBase):
             residualMean=residualMean,
             residualMedian=residualMedian,
             residualSigma=residualSigma,
-            badRowsColumns=badRowsColumns,
+            badRowsOrColumns=badRowsOrColumns,
         )
 
     def maskParallelOverscanAmp(self, exposure, amp, saturationLevel=None):
