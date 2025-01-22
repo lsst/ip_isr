@@ -1111,16 +1111,18 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         # The levels are set in electron units.
         # We test 3 levels:
-        #  * 1000.0, a lowish but outlier level.
+        #  * 10.0, a very low outlier, to test median smoothing detection
+        #    code. This value is given by gain*threshold + cushion.
+        #  * 575.0, a lowish but outlier level, given by gain*threshold +
+        #     100.0 (average of the parallel overscan offset) + 10.0
+        #     (an additional cushion).
         #  * 1.05*saturation.
         # Note that the default parallel overscan saturation level for
         # bootstrap (pre-saturation-measure) analysis is very low, in
         # order to capture all types of amps, even with low saturation.
         # Therefore, we only need to test above this saturation level.
         # (c.f. test_isrBadParallelOverscanColumns).
-        levels = mock_config.clockInjectedOffsetLevel + np.array(
-            [1000.0, 1.05*overscan_sat_level],
-        )
+        levels = np.array([10.0, 575.0, 1.05*overscan_sat_level])
 
         for level in levels:
             mock_config.badParallelOverscanColumnLevel = level
@@ -1166,13 +1168,15 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         expected_defect_level = mock_config.brightDefectLevel
 
         # The levels are set in electron units.
-        # We test 3 levels:
-        #  * 1000.0, a lowish but outlier level.
+        # We test 4 levels:
+        #  * 10.0, a very low outlier, to test median smoothing detection
+        #    code. This value is given by gain*threshold + cushion.
+        #  * 575.0, a lowish but outlier level, given by gain*threshold +
+        #     100.0 (average of the parallel overscan offset) + 10.0
+        #     (an additional cushion).
         #  * 0.9*saturation, following ITL-style parallel overscan bleeds.
         #  * 1.05*saturation, following E2V-style parallel overscan bleeds.
-        levels = mock_config.clockInjectedOffsetLevel + np.array(
-            [1000.0, 0.9*sat_level, 1.1*sat_level],
-        )
+        levels = np.array([10.0, 575.0, 0.9*sat_level, 1.1*sat_level])
 
         for level in levels:
             mock_config.badParallelOverscanColumnLevel = level

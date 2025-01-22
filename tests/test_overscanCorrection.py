@@ -798,6 +798,107 @@ class IsrTestCases(lsst.utils.tests.TestCase):
 
             self.assertFloatsAlmostEqual(meanPerRow, meanPerRowCompare)
 
+    def _checkMaskRowsOrColumns(self, inputBadRowsOrColumns, badValue, isSat=False):
+        """Check the _maskRowsOrColumns code.
+
+        Parameters
+        ----------
+        inputBadRowsOrColumns : `np.ndarray`
+            Input array of rows or columns to check.
+        badValue : `float`
+            Value to set before checking.
+        isSat : `bool`, optional
+            Is this saturated? If so, set mask before giving to code.
+        """
+        for parallel in [False, True]:
+            exposure = self.makeExposure(isTransposed=False, addRamp=False)
+            detector = exposure.getDetector()
+            amp = detector[0]
+
+            if parallel:
+                overscanBBox = amp.getRawParallelOverscanBBox()
+            else:
+                overscanBBox = amp.getRawSerialOverscanBBox()
+
+            overscanMaskedImage = exposure[overscanBBox].maskedImage
+            overscanMask = overscanMaskedImage.mask.array.copy()
+
+            sat = overscanMaskedImage.mask.getPlaneBitMask("SAT")
+
+            if parallel:
+                overscanMaskedImage.image.array[:, inputBadRowsOrColumns] = badValue
+                if isSat:
+                    overscanMaskedImage.mask.array[:, inputBadRowsOrColumns] |= sat
+            else:
+                overscanMaskedImage.image.array[inputBadRowsOrColumns, :] = badValue
+                if isSat:
+                    overscanMaskedImage.mask.array[inputBadRowsOrColumns, :] |= sat
+
+            badRowsOrColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
+                exposure,
+                overscanBBox,
+                overscanMaskedImage,
+                overscanMask,
+                100.0,
+                1,
+                3,
+                5.0,
+                not parallel,  # doAbsoluteMaxDeviation should be False for serial overscan.
+                parallel,  # isTransposed should be True for parallel overscan.
+            )
+
+            np.testing.assert_array_equal(badRowsOrColumns, inputBadRowsOrColumns)
+
+    def test_maskRowsOrColumns_empty(self):
+        self._checkMaskRowsOrColumns(np.zeros(0, dtype=np.int64), 0)
+
+    def test_maskRowsOrColumns_sat(self):
+        self._checkMaskRowsOrColumns(np.array([4]), 100_000.0, isSat=True)
+
+    def test_maskRowsOrColumns_deviation(self):
+        self._checkMaskRowsOrColumns(np.array([4]), 200.0)
+
+    def test_maskRowsOrColumns_smoothingThreshold(self):
+        # This is 5.0 greater than the 2.0 default value.
+        self._checkMaskRowsOrColumns(np.array([4]), 7.0)
+
+    def test_maskRowsOrColumns_all(self):
+        # This should trigger all of the checks but no sat flag.
+        self._checkMaskRowsOrColumns(np.array([4]), 100_000.0, isSat=False)
+
+    def test_maskRowsOrColumns_negativeParallel(self):
+        inputBadRowsOrColumns = np.array([4])
+
+        for doAbsoluteMaxDeviation in [False, True]:
+            exposure = self.makeExposure(isTransposed=False, addRamp=False)
+            detector = exposure.getDetector()
+            amp = detector[0]
+
+            overscanBBox = amp.getRawSerialOverscanBBox()
+
+            overscanMaskedImage = exposure[overscanBBox].maskedImage
+            overscanMask = overscanMaskedImage.mask.array.copy()
+
+            overscanMaskedImage.image.array[inputBadRowsOrColumns, :] = -200.0
+
+            badRowsOrColumns = ipIsr.overscan.SerialOverscanCorrectionTask._maskRowsOrColumns(
+                exposure,
+                overscanBBox,
+                overscanMaskedImage,
+                overscanMask,
+                100.0,
+                1,
+                3,
+                5.0,
+                doAbsoluteMaxDeviation,
+                False,
+            )
+
+            if doAbsoluteMaxDeviation:
+                np.testing.assert_array_equal(badRowsOrColumns, inputBadRowsOrColumns)
+            else:
+                np.testing.assert_array_equal(badRowsOrColumns, np.zeros(0, dtype=np.int64))
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
