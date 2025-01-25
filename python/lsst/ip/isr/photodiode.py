@@ -26,6 +26,7 @@ __all__ = ["PhotodiodeCalib"]
 
 import numpy as np
 from astropy.table import Table
+from astropy.stats import sigma_clipped_stats
 
 from lsst.ip.isr import IsrCalib
 
@@ -277,11 +278,13 @@ class PhotodiodeCalib(IsrCalib):
         --------
         lsst.eotask.gen3.eoPtc
         """
-        currentThreshold = ((max(self.currentSamples) - min(self.currentSamples))/5.0
-                            + min(self.currentSamples))
-        lowValueIndices = np.where(self.currentSamples < currentThreshold)
-        baseline = np.median(self.currentSamples[lowValueIndices])
-        return np.trapz(self.currentSamples - baseline, self.timeSamples)
+        # Apply the current scale to pick up any sign flip in the
+        # current sample values.
+        cs = self.currentScale * self.currentSamples
+        currentThreshold = (max(cs) - min(cs))/5.0 + min(cs)
+        lowValueIndices = np.where(cs < currentThreshold)
+        baseline = sigma_clipped_stats(cs[lowValueIndices])[0]
+        return np.trapz(cs - baseline, self.timeSamples)
 
     def integrateChargeSum(self):
         """For this method, the values in .currentSamples are actually the
