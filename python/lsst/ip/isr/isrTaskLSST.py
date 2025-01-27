@@ -1015,6 +1015,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     maskedImage=ampExposure.maskedImage,
                     gain=gain,
                     readNoise=readNoise,
+                    replace=False,
                 )
 
                 if self.config.qa is not None and self.config.qa.saveStats is True:

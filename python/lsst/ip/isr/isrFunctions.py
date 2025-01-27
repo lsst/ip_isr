@@ -418,7 +418,7 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
         maskedImage.scaledPlus(scale, darkMaskedImage)
 
 
-def updateVariance(maskedImage, gain, readNoise):
+def updateVariance(maskedImage, gain, readNoise, replace=True):
     """Set the variance plane based on the image plane.
 
     The maskedImage must have units of `adu` (if gain != 1.0) or
@@ -433,9 +433,15 @@ def updateVariance(maskedImage, gain, readNoise):
         The amplifier gain in electron/adu.
     readNoise : scalar
         The amplifier read noise in electron/pixel.
+    replace : `bool`, optional
+        Replace the current variance?  If False, the image
+        variance will be added to the current variance plane.
     """
-    var = maskedImage.getVariance()
-    var[:] = maskedImage.getImage()
+    var = maskedImage.variance
+    if replace:
+        var[:, :] = maskedImage.image
+    else:
+        var[:, :] += maskedImage.image
     var /= gain
     var += (readNoise/gain)**2
 

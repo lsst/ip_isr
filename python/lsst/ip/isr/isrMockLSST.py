@@ -759,6 +759,10 @@ class IsrMockLSST(IsrMock):
             else:
                 exposure.metadata["LSST ISR UNITS"] = "electron"
 
+            # Add a variance plane appropriate for a calibration frame.
+            # We take the absolute value for biases which have no signal.
+            exposure.variance.array[:, :] = np.abs(np.median(exposure.image.array)/10.)
+
         if self.config.doGenerateAmpDict:
             expDict = dict()
             for amp in exposure.getDetector():
