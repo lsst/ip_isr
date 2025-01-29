@@ -605,7 +605,7 @@ class SegmentSimulator:
         iy = int(self.ny + parallel_overscan_width)
         ix = int(self.nx + self.prescan_width + serial_overscan_width)
 
-        image = np.random.normal(
+        image = np.random.default_rng().normal(
             loc=self.output_amplifier.global_offset,
             scale=self.output_amplifier.noise,
             size=(iy, ix),
