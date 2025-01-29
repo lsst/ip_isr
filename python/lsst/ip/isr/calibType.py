@@ -133,7 +133,7 @@ class IsrCalib(abc.ABC):
                             return False
             elif isinstance(attrSelf, np.ndarray):
                 # Bare array.
-                if isinstance(attrSelf[0], (str, np.str_, np.string_)):
+                if isinstance(attrSelf[0], (str, np.str_, np.bytes_)):
                     if not np.all(attrSelf == attrOther):
                         self.log.debug("Array Failure: %s %s %s", attr, attrSelf, attrOther)
                         return False
