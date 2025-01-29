@@ -539,7 +539,9 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         # corresponding gain before adding it to the image. This leads to the
         # variance plane being in units of ADU^2.
         for bbox, gain in zip(self.amp_bbox_list, self.amp_gain_list):
-            exposure.variance[bbox].array = (exposure.image[bbox].array + self.background / gain) / gain
+            exposure.variance[bbox].array = (
+                (exposure.image[bbox].array + self.background / gain) / gain
+            ).astype(np.float32)
 
         return exposure
 
