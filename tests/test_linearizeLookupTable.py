@@ -72,6 +72,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         numCols = self.numAmps[0]*self.numAmps[1]
         self.assertLess(np.max(self.rowInds), numCols, "error in test conditions; invalid row index")
         self.detector = self.makeDetector()
+        self.rng = np.random.Generator(np.random.MT19937(1))
 
     def tearDown(self):
         # destroy LSST objects so memory test passes
@@ -269,7 +270,7 @@ class LinearizeLookupTableTestCase(lsst.utils.tests.TestCase):
         """
         numCols = numCols or self.numAmps[0]*self.numAmps[1]
         dtype = image.getArray().dtype
-        table = np.random.normal(scale=sigma, size=(numCols, numRows))
+        table = self.rng.normal(scale=sigma, size=(numCols, numRows))
         return np.array(table, dtype=dtype)
 
 

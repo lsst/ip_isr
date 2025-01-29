@@ -120,7 +120,8 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         self.lookupIndices = np.transpose(np.stack((self.rowInds, self.colIndOffsets), axis=0),
                                           axes=[1, 2, 0])
 
-        self.table = np.random.normal(scale=55, size=(self.numAmps, 2500))
+        rng = np.random.Generator(np.random.MT19937(1))
+        self.table = rng.normal(scale=55, size=(self.numAmps, 2500))
         self.assertLess(np.max(self.rowInds), self.numAmps, "error in test conditions; invalid row index")
 
         # Polynomial Parameters: small perturbation on Squared
