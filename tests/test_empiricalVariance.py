@@ -48,7 +48,8 @@ def makeAmplifier(name, bbox, rawImageBox, overscanBox, gain, readNoise, saturat
 class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
     def setUp(self):
         """Constructs a CCD with two amplifiers and prepares for ISR"""
-        np.random.seed(12345)
+        rng = np.random.Generator(np.random.MT19937(42))
+
         baseValue = 100.0
         gain = 1.0
         readNoise = 123456789.0
@@ -79,9 +80,9 @@ class EmpiricalVarianceTestCast(lsst.utils.tests.TestCase):
         rightImage.image.array[:] = baseValue - yy[:, np.newaxis]
 
         leftOverscan = ExposureF(exposure, overscan1)
-        leftOverscan.image.array += np.random.normal(0.0, self.sigma, leftOverscan.image.array.shape)
+        leftOverscan.image.array += rng.normal(0.0, self.sigma, leftOverscan.image.array.shape)
         rightOverscan = ExposureF(exposure, overscan2)
-        rightOverscan.image.array += np.random.normal(0.0, self.sigma, leftOverscan.image.array.shape)
+        rightOverscan.image.array += rng.normal(0.0, self.sigma, leftOverscan.image.array.shape)
         exposure.mask.array[:] = 0.0
         exposure.variance.array[:] = np.nan
 
