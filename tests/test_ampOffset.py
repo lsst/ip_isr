@@ -351,7 +351,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
             self.assertAlmostEqual(
                 np.std(pedestals - approximatePedestals),
                 measuredSigma[weightType][valueType],
-                12,
+                4 if rampBackground else 12,
             )
             if valueType == "artificial":
                 if not applyWeights:
