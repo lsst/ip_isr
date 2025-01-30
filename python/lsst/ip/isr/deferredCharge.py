@@ -724,6 +724,10 @@ class FloatingOutputAmplifier:
 class DeferredChargeCalib(IsrCalib):
     r"""Calibration containing deferred charge/CTI parameters.
 
+    This includes, parameters from Snyder+2021 and exstimates of
+    the serial and parallel CTI using the extended pixel edge
+    response (EPER) method (also defined in Snyder+2021).
+
     Parameters
     ----------
     **kwargs :
@@ -745,7 +749,7 @@ class DeferredChargeCalib(IsrCalib):
     serialTraps : `dict` [`str`, `lsst.ip.isr.SerialTrap`]
         A dictionary, keyed by amplifier name, containing a single
         serial trap for each amplifier.
-    signals : `dict` [`str`, `np.ndarray`, `float`]
+    signals : `dict` [`str`, `np.ndarray`]
         A dictionary, keyed by amplifier name, of the mean signal
         level for each input measurement.
     serialEper : `dict` [`str`, `np.ndarray`, `float`]
@@ -970,7 +974,7 @@ class DeferredChargeCalib(IsrCalib):
             # into a new calibration version.
             raise RuntimeError(f"Using old version of CTI calibration (ver. {calibVersion} < 1.1), "
                                "which is no longer supported.")
-        if calibVersion < 1.2:
+        elif calibVersion < 1.2:
             inDict['signals'] = {amp: np.array([np.nan]) for amp in amps}
             inDict['serialEper'] = {amp: np.array([np.nan]) for amp in amps}
             inDict['parallelEper'] = {amp: np.array([np.nan]) for amp in amps}

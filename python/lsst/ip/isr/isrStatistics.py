@@ -354,10 +354,6 @@ class IsrStatisticsTask(pipeBase.Task):
         """
         outputStats = {}
 
-        # Debug check
-        assert isTrimmedExposure(inputExp)
-        assert not isTrimmedExposure(untrimmedInputExp)
-
         detector = inputExp.getDetector()
         image = inputExp.image
         untrimmedImage = untrimmedInputExp.image
