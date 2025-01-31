@@ -334,11 +334,13 @@ class IsrStatisticsTask(pipeBase.Task):
                      },
         )
 
-    def measureCti(self, untrimmedInputExp, gains):
+    def measureCti(self, inputExp, untrimmedInputExp, gains):
         """Task to measure CTI statistics.
 
         Parameters
         ----------
+        inputExp : `lsst.afw.image.Exposure`
+            The exposure to measure.
         untrimmedInputExp : `lsst.afw.image.Exposure`
             Exposure to measure overscan from.
         gains : `dict` [`str` `float`]
@@ -353,127 +355,131 @@ class IsrStatisticsTask(pipeBase.Task):
         outputStats = {}
 
         detector = inputExp.getDetector()
+        image = inputExp.image
         untrimmedImage = untrimmedInputExp.image
 
         # It only makes sense to measure CTI in electron units.
         # Make it so.
+        imageUnits = inputExp.getMetadata().get("LSST ISR UNITS")
         untrimmedImageUnits = untrimmedInputExp.getMetadata().get("LSST ISR UNITS")
 
         # Ensure we always have the same units.
+        applyGainToImage = True if imageUnits == "adu" else False
         applyGainToUntrimmedImage = True if untrimmedImageUnits == "adu" else False
 
-        with gainContext(untrimmedInputExp, untrimmedImage, applyGainToUntrimmedImage,
-                         gains, isTrimmed=False):
-            for amp in detector.getAmplifiers():
-                ampStats = {}
-                readoutCorner = amp.getReadoutCorner()
+        with gainContext(inputExp, image, applyGainToImage, gains, isTrimmed=True):
+            with gainContext(untrimmedInputExp, untrimmedImage, applyGainToUntrimmedImage,
+                             gains, isTrimmed=False):
+                for amp in detector.getAmplifiers():
+                    ampStats = {}
+                    readoutCorner = amp.getReadoutCorner()
 
-                # Full data region.
-                dataRegion = untrimmedImage[amp.getRawDataBBox()]
-                serialOverscanImage = untrimmedImage[amp.getRawSerialOverscanBBox()]
-                parallelOverscanImage = untrimmedImage[amp.getRawSerialOverscanBBox()]
+                    # Full data region.
+                    dataRegion = image[amp.getBBox()]
+                    serialOverscanImage = untrimmedImage[amp.getRawSerialOverscanBBox()]
+                    parallelOverscanImage = untrimmedImage[amp.getRawSerialOverscanBBox()]
 
-                # Get the mean of the image
-                ampStats["IMAGE_MEAN"] = afwMath.makeStatistics(dataRegion, self.statType,
-                                                                self.statControl).getValue()
+                    # Get the mean of the image
+                    ampStats["IMAGE_MEAN"] = afwMath.makeStatistics(dataRegion, self.statType,
+                                                                    self.statControl).getValue()
 
-                # First and last image columns.
-                colA = afwMath.makeStatistics(
-                    dataRegion.array[:, 0],
-                    self.statType,
-                    self.statControl,
-                ).getValue()
-                colZ = afwMath.makeStatistics(
-                    dataRegion.array[:, -1],
-                    self.statType,
-                    self.statControl,
-                ).getValue()
-
-                # First and last image rows.
-                rowA = afwMath.makeStatistics(
-                    dataRegion.array[0, :],
-                    self.statType,
-                    self.statControl,
-                ).getValue()
-                rowZ = afwMath.makeStatistics(
-                    dataRegion.array[-1, :],
-                    self.statType,
-                    self.statControl,
-                ).getValue()
-
-                # We want these relative to the readout corner.  If that's
-                # on the right side, we need to swap them.
-                if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                    ampStats["FIRST_COLUMN_MEAN"] = colZ
-                    ampStats["LAST_COLUMN_MEAN"] = colA
-                else:
-                    ampStats["FIRST_COLUMN_MEAN"] = colA
-                    ampStats["LAST_COLUMN_MEAN"] = colZ
-
-                # We want these relative to the readout corner.  If that's
-                # on the top, we need to swap them.
-                if readoutCorner in (ReadoutCorner.UR, ReadoutCorner.UL):
-                    ampStats["FIRST_ROW_MEAN"] = rowZ
-                    ampStats["LAST_ROW_MEAN"] = rowA
-                else:
-                    ampStats["FIRST_ROW_MEAN"] = rowA
-                    ampStats["LAST_ROW_MEAN"] = rowZ
-
-                # Measure the columns of the serial overscan and the rows
-                # of the parallel overscan.
-                nSerialOverscanCols = amp.getRawSerialOverscanBBox().getWidth()
-                nParallelOverscanRows = amp.getRawParallelOverscanBBox().getHeight()
-
-                # Calculate serial overscan statistics
-                columns = []
-                columnValues = []
-                for idx in range(0, nSerialOverscanCols):
-                    # If overscan.doParallelOverscan=True, the
-                    # overscanImage will contain both the serial
-                    # and parallel overscan regions.
-                    serialOverscanColMean = afwMath.makeStatistics(
-                        serialOverscanImage.array[:, idx],
+                    # First and last image columns.
+                    colA = afwMath.makeStatistics(
+                        dataRegion.array[:, 0],
                         self.statType,
                         self.statControl,
                     ).getValue()
-                    columns.append(idx)
-                    # The overscan input is always in adu, but it only
-                    # makes sense to measure CTI in electron units.
-                    columnValues.append(serialOverscanColMean)
-
-                # We want these relative to the readout corner.  If that's
-                # on the right side, we need to swap them.
-                if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
-                    ampStats["SERIAL_OVERSCAN_COLUMNS"] = list(reversed(columns))
-                    ampStats["SERIAL_OVERSCAN_VALUES"] = list(reversed(columnValues))
-                else:
-                    ampStats["SERIAL_OVERSCAN_COLUMNS"] = columns
-                    ampStats["SERIAL_OVERSCAN_VALUES"] = columnValues
-
-                # Calculate parallel overscan statistics
-                rows = []
-                rowValues = []
-                for idx in range(0, nParallelOverscanRows):
-                    parallelOverscanRowMean = afwMath.makeStatistics(
-                        parallelOverscanImage.array[idx, :],
+                    colZ = afwMath.makeStatistics(
+                        dataRegion.array[:, -1],
                         self.statType,
                         self.statControl,
                     ).getValue()
-                    rows.append(idx)
-                    # The overscan input is always in adu, but it only
-                    # makes sense to measure CTI in electron units.
-                    rowValues.append(parallelOverscanRowMean)
 
-                # We want these relative to the readout corner.  If that's
-                # on the top, we need to swap them.
-                if readoutCorner in (ReadoutCorner.UR, ReadoutCorner.UL):
-                    ampStats["PARALLEL_OVERSCAN_ROWS"] = list(reversed(rows))
-                    ampStats["PARALLEL_OVERSCAN_VALUES"] = list(reversed(rowValues))
-                else:
-                    ampStats["PARALLEL_OVERSCAN_ROWS"] = rows
-                    ampStats["PARALLEL_OVERSCAN_VALUES"] = rowValues
+                    # First and last image rows.
+                    rowA = afwMath.makeStatistics(
+                        dataRegion.array[0, :],
+                        self.statType,
+                        self.statControl,
+                    ).getValue()
+                    rowZ = afwMath.makeStatistics(
+                        dataRegion.array[-1, :],
+                        self.statType,
+                        self.statControl,
+                    ).getValue()
 
-                outputStats[amp.getName()] = ampStats
+                    # We want these relative to the readout corner.  If that's
+                    # on the right side, we need to swap them.
+                    if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
+                        ampStats["FIRST_COLUMN_MEAN"] = colZ
+                        ampStats["LAST_COLUMN_MEAN"] = colA
+                    else:
+                        ampStats["FIRST_COLUMN_MEAN"] = colA
+                        ampStats["LAST_COLUMN_MEAN"] = colZ
+
+                    # We want these relative to the readout corner.  If that's
+                    # on the top, we need to swap them.
+                    if readoutCorner in (ReadoutCorner.UR, ReadoutCorner.UL):
+                        ampStats["FIRST_ROW_MEAN"] = rowZ
+                        ampStats["LAST_ROW_MEAN"] = rowA
+                    else:
+                        ampStats["FIRST_ROW_MEAN"] = rowA
+                        ampStats["LAST_ROW_MEAN"] = rowZ
+
+                    # Measure the columns of the serial overscan and the rows
+                    # of the parallel overscan.
+                    nSerialOverscanCols = amp.getRawSerialOverscanBBox().getWidth()
+                    nParallelOverscanRows = amp.getRawParallelOverscanBBox().getHeight()
+
+                    # Calculate serial overscan statistics
+                    columns = []
+                    columnValues = []
+                    for idx in range(0, nSerialOverscanCols):
+                        # If overscan.doParallelOverscan=True, the
+                        # overscanImage will contain both the serial
+                        # and parallel overscan regions.
+                        serialOverscanColMean = afwMath.makeStatistics(
+                            serialOverscanImage.array[:, idx],
+                            self.statType,
+                            self.statControl,
+                        ).getValue()
+                        columns.append(idx)
+                        # The overscan input is always in adu, but it only
+                        # makes sense to measure CTI in electron units.
+                        columnValues.append(serialOverscanColMean)
+
+                    # We want these relative to the readout corner.  If that's
+                    # on the right side, we need to swap them.
+                    if readoutCorner in (ReadoutCorner.LR, ReadoutCorner.UR):
+                        ampStats["SERIAL_OVERSCAN_COLUMNS"] = list(reversed(columns))
+                        ampStats["SERIAL_OVERSCAN_VALUES"] = list(reversed(columnValues))
+                    else:
+                        ampStats["SERIAL_OVERSCAN_COLUMNS"] = columns
+                        ampStats["SERIAL_OVERSCAN_VALUES"] = columnValues
+
+                    # Calculate parallel overscan statistics
+                    rows = []
+                    rowValues = []
+                    for idx in range(0, nParallelOverscanRows):
+                        parallelOverscanRowMean = afwMath.makeStatistics(
+                            parallelOverscanImage.array[idx, :],
+                            self.statType,
+                            self.statControl,
+                        ).getValue()
+                        rows.append(idx)
+                        # The overscan input is always in adu, but it only
+                        # makes sense to measure CTI in electron units.
+                        rowValues.append(parallelOverscanRowMean)
+
+                    # We want these relative to the readout corner.  If that's
+                    # on the top, we need to swap them.
+                    if readoutCorner in (ReadoutCorner.UR, ReadoutCorner.UL):
+                        ampStats["PARALLEL_OVERSCAN_ROWS"] = list(reversed(rows))
+                        ampStats["PARALLEL_OVERSCAN_VALUES"] = list(reversed(rowValues))
+                    else:
+                        ampStats["PARALLEL_OVERSCAN_ROWS"] = rows
+                        ampStats["PARALLEL_OVERSCAN_VALUES"] = rowValues
+
+                    outputStats[amp.getName()] = ampStats
 
         return outputStats
 
