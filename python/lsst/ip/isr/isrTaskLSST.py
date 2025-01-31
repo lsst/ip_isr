@@ -1780,7 +1780,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Save the untrimmed version for later statistics,
         # which still contains the overscan information
-        if self.config.doCalculateStatistics:
+        untrimmedCcdExposure = None
+        if self.config.isrStatistics.doCtiStatistics:
             untrimmedCcdExposure = ccdExposure.clone()
 
         # Assemble/trim
