@@ -115,7 +115,26 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
 
         self.calib.serialTraps['amp0'] = SerialTrap(self.trapSize, self.trapDecay,
                                                     self.trapPixel, 'linear', self.trapCoeffs)
-        self.calib.serialTraps['amp0'] = SerialTrap(self.trapSize, self.trapDecay,
+        self.calib.serialTraps['amp1'] = SerialTrap(self.trapSize, self.trapDecay,
+                                                    self.trapPixel, 'logistic', self.trapCoeffs)
+
+    def testPartiallyPopulated(self):
+        # Do IO tests.
+        # First, try not populating 'amp1'
+        del self.calib.serialTraps['amp1']
+
+        outPath = tempfile.mktemp() + '.yaml'
+        self.calib.writeText(outPath)
+        newCalib = DeferredChargeCalib().readText(outPath)
+        self.assertEqual(self.calib, newCalib)
+
+        outPath = tempfile.mktemp() + '.fits'
+        self.calib.writeFits(outPath)
+        newCalib = DeferredChargeCalib().readFits(outPath)
+        self.assertEqual(self.calib, newCalib)
+
+        # Repopulate it
+        self.calib.serialTraps['amp1'] = SerialTrap(self.trapSize, self.trapDecay,
                                                     self.trapPixel, 'logistic', self.trapCoeffs)
 
     def testFullyPopulated(self):
@@ -147,7 +166,7 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
                                             self.calib.globalCti['amp0'],
                                             num_previous_pixels=6)
         # As above + ~320 deposited in prescan
-        self.assertAlmostEqual(np.sum(corrected), 821733.2317048, 5)
+        self.assertAlmostEqual(np.sum(corrected), 821734.3965605417, 5)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
