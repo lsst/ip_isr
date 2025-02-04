@@ -589,6 +589,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     idValue = str(reference.id)
                     dateKey = f"LSST CALIB DATE {inputName.upper()}"
                     dateValue = self.extractCalibDate(inputs[inputName])
+                    if dateValue != "Unknown Unknown":
+                        butlerQC.add_additional_provenance(reference, {"calib date": dateValue})
 
                     exposureMetadata[runKey] = runValue
                     exposureMetadata[idKey] = idValue
