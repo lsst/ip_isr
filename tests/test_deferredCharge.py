@@ -98,10 +98,43 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
         self.calib.decayTime['amp1'] = 3.2
         self.calib.globalCti['amp0'] = 1.4e-7
         self.calib.globalCti['amp1'] = 1.5e-7
+        self.calib.signals['amp0'] = np.linspace(1.0e2, 1.0e5, 10)
+        self.calib.signals['amp1'] = np.linspace(1.0e2, 1.0e5, 10)
+        self.calib.serialEper['amp0'] = np.full_like(self.calib.signals['amp0'], 2.0e-6)
+        self.calib.serialEper['amp1'] = np.full_like(self.calib.signals['amp1'], 2.0e-6)
+        self.calib.parallelEper['amp0'] = np.full_like(self.calib.signals['amp0'], 1.0e-6)
+        self.calib.parallelEper['amp1'] = np.full_like(self.calib.signals['amp1'], 1.0e-6)
+        self.calib.serialCtiTurnoff['amp0'] = 1.0e5
+        self.calib.serialCtiTurnoff['amp1'] = 1.0e5
+        self.calib.parallelCtiTurnoff['amp0'] = 1.0e5
+        self.calib.parallelCtiTurnoff['amp1'] = 1.0e5
+        self.calib.serialCtiTurnoffSamplingErr['amp0'] = 1.0e3
+        self.calib.serialCtiTurnoffSamplingErr['amp1'] = 1.0e3
+        self.calib.parallelCtiTurnoffSamplingErr['amp0'] = 1.0e3
+        self.calib.parallelCtiTurnoffSamplingErr['amp1'] = 1.0e3
 
         self.calib.serialTraps['amp0'] = SerialTrap(self.trapSize, self.trapDecay,
                                                     self.trapPixel, 'linear', self.trapCoeffs)
-        self.calib.serialTraps['amp0'] = SerialTrap(self.trapSize, self.trapDecay,
+        self.calib.serialTraps['amp1'] = SerialTrap(self.trapSize, self.trapDecay,
+                                                    self.trapPixel, 'logistic', self.trapCoeffs)
+
+    def testPartiallyPopulated(self):
+        # Do IO tests.
+        # First, try not populating 'amp1'
+        del self.calib.serialTraps['amp1']
+
+        outPath = tempfile.mktemp() + '.yaml'
+        self.calib.writeText(outPath)
+        newCalib = DeferredChargeCalib().readText(outPath)
+        self.assertEqual(self.calib, newCalib)
+
+        outPath = tempfile.mktemp() + '.fits'
+        self.calib.writeFits(outPath)
+        newCalib = DeferredChargeCalib().readFits(outPath)
+        self.assertEqual(self.calib, newCalib)
+
+        # Repopulate it
+        self.calib.serialTraps['amp1'] = SerialTrap(self.trapSize, self.trapDecay,
                                                     self.trapPixel, 'logistic', self.trapCoeffs)
 
     def testFullyPopulated(self):
@@ -133,7 +166,7 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
                                             self.calib.globalCti['amp0'],
                                             num_previous_pixels=6)
         # As above + ~320 deposited in prescan
-        self.assertAlmostEqual(np.sum(corrected), 821733.2317048, 5)
+        self.assertAlmostEqual(np.sum(corrected), 821734.3965605417, 5)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

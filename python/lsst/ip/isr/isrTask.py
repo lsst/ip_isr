@@ -1783,9 +1783,11 @@ class IsrTask(pipeBase.PipelineTask):
         # calculate additional statistics.
         outputStatistics = None
         if self.config.doCalculateStatistics:
-            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=overscans,
+            outputStatistics = self.isrStats.run(ccdExposure, serialOverscanResults=overscans,
+                                                 parallelOverscanResults=[None for _ in overscans],
                                                  bias=bias, dark=dark, flat=flat, ptc=ptc,
-                                                 defects=defects).results
+                                                 defects=defects,
+                                                 doLegacyCtiStatistics=True).results
 
         # do any binning.
         outputBin1Exposure = None

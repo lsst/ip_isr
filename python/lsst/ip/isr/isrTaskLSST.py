@@ -554,13 +554,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
                 raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
 
-        # if self.doCalculateStatistics and self.isrStats.doCtiStatistics:
-        # DM-41912: Implement doApplyGains in LSST IsrTask
-        # if self.doApplyGains !=
-        #      self.isrStats.doApplyGainsForCtiStatistics:
-        #     raise ValueError("doApplyGains must match
-        # isrStats.applyGainForCtiStatistics.")
-
     def setDefaults(self):
         super().setDefaults()
 
@@ -1749,7 +1742,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Output units: electron (adu if doBootstrap=True)
         if overscanDetectorConfig.doAnyParallelOverscan:
             # At the moment we do not use the return values from this task.
-            _ = self.overscanCorrection(
+            parallelOverscans = self.overscanCorrection(
                 "PARALLEL",
                 overscanDetectorConfig,
                 detector,
@@ -1784,6 +1777,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 deferredChargeCalib,
                 gains=gains,
             )
+
+        # Save the untrimmed version for later statistics,
+        # which still contains the overscan information
+        untrimmedCcdExposure = None
+        if self.config.isrStats.doCtiStatistics:
+            untrimmedCcdExposure = ccdExposure.clone()
 
         # Assemble/trim
         # Output units: electron (adu if doBootstrap=True)
@@ -1925,9 +1924,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # calculate additional statistics.
         outputStatistics = None
         if self.config.doCalculateStatistics:
-            outputStatistics = self.isrStats.run(ccdExposure, overscanResults=serialOverscans,
-                                                 bias=bias, dark=dark, flat=flat, ptc=ptc,
-                                                 defects=defects).results
+            outputStatistics = self.isrStats.run(ccdExposure,
+                                                 untrimmedInputExposure=untrimmedCcdExposure,
+                                                 serialOverscanResults=serialOverscans,
+                                                 parallelOverscanResults=parallelOverscans,
+                                                 bias=bias, dark=dark, flat=flat,
+                                                 ptc=ptc, defects=defects).results
 
         # do image binning.
         outputBin1Exposure = None

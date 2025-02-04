@@ -724,6 +724,10 @@ class FloatingOutputAmplifier:
 class DeferredChargeCalib(IsrCalib):
     r"""Calibration containing deferred charge/CTI parameters.
 
+    This includes, parameters from Snyder+2021 and exstimates of
+    the serial and parallel CTI using the extended pixel edge
+    response (EPER) method (also defined in Snyder+2021).
+
     Parameters
     ----------
     **kwargs :
@@ -745,6 +749,29 @@ class DeferredChargeCalib(IsrCalib):
     serialTraps : `dict` [`str`, `lsst.ip.isr.SerialTrap`]
         A dictionary, keyed by amplifier name, containing a single
         serial trap for each amplifier.
+    signals : `dict` [`str`, `np.ndarray`]
+        A dictionary, keyed by amplifier name, of the mean signal
+        level for each input measurement.
+    serialEper : `dict` [`str`, `np.ndarray`, `float`]
+        A dictionary, keyed by amplifier name, of the serial EPER
+        estimator of serial CTI, given in a list for each input
+        measurement.
+    parallelEper : `dict` [`str`, `np.ndarray`, `float`]
+        A dictionary, keyed by amplifier name, of the parallel
+        EPER estimator of parallel CTI, given in a list for each
+        input measurement.
+    serialCtiTurnoff : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the serial CTI
+        turnoff (unit: electrons).
+    parallelCtiTurnoff : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the parallel CTI
+        turnoff (unit: electrons).
+    serialCtiTurnoffSamplingErr : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the serial CTI
+        turnoff sampling error (unit: electrons).
+    parallelCtiTurnoffSamplingErr : `dict` [`str`, `float`]
+        A dictionary, keyed by amplifier name, of the parallel CTI
+        turnoff sampling error (unit: electrons).
 
     Also, the values contained in this calibration are all derived
     from and image and overscan in units of electron as these are
@@ -754,16 +781,27 @@ class DeferredChargeCalib(IsrCalib):
 
     Version 1.1 deprecates the USEGAINS attribute and standardizes
         everything to electron units.
+    Version 1.2 adds the signal, serialEper, parallelEper,
+        serialCtiTurnoff, parallelCtiTurnoff,
+        serialCtiTurnoffSamplingErr, parallelCtiTurnoffSamplingErr
+        attributes.
     """
     _OBSTYPE = 'CTI'
     _SCHEMA = 'Deferred Charge'
-    _VERSION = 1.1
+    _VERSION = 1.2
 
     def __init__(self, **kwargs):
         self.driftScale = {}
         self.decayTime = {}
         self.globalCti = {}
         self.serialTraps = {}
+        self.signals = {}
+        self.serialEper = {}
+        self.parallelEper = {}
+        self.serialCtiTurnoff = {}
+        self.parallelCtiTurnoff = {}
+        self.serialCtiTurnoffSamplingErr = {}
+        self.parallelCtiTurnoffSamplingErr = {}
 
         # Check for deprecated kwargs
         if kwargs.pop("useGains", None) is not None:
@@ -775,7 +813,10 @@ class DeferredChargeCalib(IsrCalib):
         # Units are always in electron.
         self.updateMetadata(UNITS='electron')
 
-        self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps'])
+        self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps',
+                                        'signals', 'serialEper', 'parallelEper', 'serialCtiTurnoff',
+                                        'parallelCtiTurnoff', 'serialCtiTurnoffSamplingErr',
+                                        'parallelCtiTurnoffSamplingErr'])
 
     def fromDetector(self, detector):
         """Read metadata parameters from a detector.
@@ -824,12 +865,27 @@ class DeferredChargeCalib(IsrCalib):
         calib.driftScale = dictionary['driftScale']
         calib.decayTime = dictionary['decayTime']
         calib.globalCti = dictionary['globalCti']
+        calib.serialCtiTurnoff = dictionary['serialCtiTurnoff']
+        calib.parallelCtiTurnoff = dictionary['parallelCtiTurnoff']
+        calib.serialCtiTurnoffSamplingErr = dictionary['serialCtiTurnoffSamplingErr']
+        calib.parallelCtiTurnoffSamplingErr = dictionary['parallelCtiTurnoffSamplingErr']
 
+        allAmpNames = dictionary['driftScale'].keys()
+
+        # Some amps might not have a serial trap solution, so
+        # dictionary['serialTraps'].keys() might not be equal
+        # to dictionary['driftScale'].keys()
         for ampName in dictionary['serialTraps']:
             ampTraps = dictionary['serialTraps'][ampName]
             calib.serialTraps[ampName] = SerialTrap(ampTraps['size'], ampTraps['emissionTime'],
                                                     ampTraps['pixel'], ampTraps['trap_type'],
                                                     ampTraps['coeffs'])
+
+        for ampName in allAmpNames:
+            calib.signals[ampName] = np.array(dictionary['signals'][ampName], dtype=np.float64)
+            calib.serialEper[ampName] = np.array(dictionary['serialEper'][ampName], dtype=np.float64)
+            calib.parallelEper[ampName] = np.array(dictionary['parallelEper'][ampName], dtype=np.float64)
+
         calib.updateMetadata()
         return calib
 
@@ -850,6 +906,13 @@ class DeferredChargeCalib(IsrCalib):
         outDict['driftScale'] = self.driftScale
         outDict['decayTime'] = self.decayTime
         outDict['globalCti'] = self.globalCti
+        outDict['signals'] = self.signals
+        outDict['serialEper'] = self.serialEper
+        outDict['parallelEper'] = self.parallelEper
+        outDict['serialCtiTurnoff'] = self.serialCtiTurnoff
+        outDict['parallelCtiTurnoff'] = self.parallelCtiTurnoff
+        outDict['serialCtiTurnoffSamplingErr'] = self.serialCtiTurnoffSamplingErr
+        outDict['parallelCtiTurnoffSamplingErr'] = self.parallelCtiTurnoffSamplingErr
 
         outDict['serialTraps'] = {}
         for ampName in self.serialTraps:
@@ -904,6 +967,41 @@ class DeferredChargeCalib(IsrCalib):
         inDict['decayTime'] = {amp: value for amp, value in zip(amps, decayTime)}
         inDict['globalCti'] = {amp: value for amp, value in zip(amps, globalCti)}
 
+        # Version check
+        if calibVersion < 1.1:
+            # This version might be in the wrong units (not electron),
+            # and does not contain the gain information to convert
+            # into a new calibration version.
+            raise RuntimeError(f"Using old version of CTI calibration (ver. {calibVersion} < 1.1), "
+                               "which is no longer supported.")
+        elif calibVersion < 1.2:
+            inDict['signals'] = {amp: np.array([np.nan]) for amp in amps}
+            inDict['serialEper'] = {amp: np.array([np.nan]) for amp in amps}
+            inDict['parallelEper'] = {amp: np.array([np.nan]) for amp in amps}
+            inDict['serialCtiTurnoff'] = {amp: np.nan for amp in amps}
+            inDict['parallelCtiTurnoff'] = {amp: np.nan for amp in amps}
+            inDict['serialCtiTurnoffSamplingErr'] = {amp: np.nan for amp in amps}
+            inDict['parallelCtiTurnoffSamplingErr'] = {amp: np.nan for amp in amps}
+        else:
+            signals = ampTable['SIGNALS']
+            serialEper = ampTable['SERIAL_EPER']
+            parallelEper = ampTable['PARALLEL_EPER']
+            serialCtiTurnoff = ampTable['SERIAL_CTI_TURNOFF']
+            parallelCtiTurnoff = ampTable['PARALLEL_CTI_TURNOFF']
+            serialCtiTurnoffSamplingErr = ampTable['SERIAL_CTI_TURNOFF_SAMPLING_ERR']
+            parallelCtiTurnoffSamplingErr = ampTable['PARALLEL_CTI_TURNOFF_SAMPLING_ERR']
+            inDict['signals'] = {amp: value for amp, value in zip(amps, signals)}
+            inDict['serialEper'] = {amp: value for amp, value in zip(amps, serialEper)}
+            inDict['parallelEper'] = {amp: value for amp, value in zip(amps, parallelEper)}
+            inDict['serialCtiTurnoff'] = {amp: value for amp, value in zip(amps, serialCtiTurnoff)}
+            inDict['parallelCtiTurnoff'] = {amp: value for amp, value in zip(amps, parallelCtiTurnoff)}
+            inDict['serialCtiTurnoffSamplingErr'] = {
+                amp: value for amp, value in zip(amps, serialCtiTurnoffSamplingErr)
+            }
+            inDict['parallelCtiTurnoffSamplingErr'] = {
+                amp: value for amp, value in zip(amps, parallelCtiTurnoffSamplingErr)
+            }
+
         inDict['serialTraps'] = {}
         trapTable = tableList[1]
 
@@ -957,14 +1055,6 @@ class DeferredChargeCalib(IsrCalib):
 
             inDict['serialTraps'][amp] = ampTrap
 
-        # Version check
-        if calibVersion < 1.1:
-            # This version might be in the wrong units (not electron),
-            # and does not contain the gain information to convert
-            # into a new calibration version.
-            raise RuntimeError(f"Using old version of CTI calibration (ver. {calibVersion} < 1.1), "
-                               "which is no longer supported.")
-
         return cls.fromDict(inDict)
 
     def toTable(self):
@@ -989,18 +1079,44 @@ class DeferredChargeCalib(IsrCalib):
         driftScale = []
         decayTime = []
         globalCti = []
+        signals = []
+        serialEper = []
+        parallelEper = []
+        serialCtiTurnoff = []
+        parallelCtiTurnoff = []
+        serialCtiTurnoffSamplingErr = []
+        parallelCtiTurnoffSamplingErr = []
 
         for amp in self.driftScale.keys():
             ampList.append(amp)
             driftScale.append(self.driftScale[amp])
             decayTime.append(self.decayTime[amp])
             globalCti.append(self.globalCti[amp])
+            signals.append(self.signals[amp])
+            serialEper.append(self.serialEper[amp])
+            parallelEper.append(self.parallelEper[amp])
+            serialCtiTurnoff.append(self.serialCtiTurnoff[amp])
+            parallelCtiTurnoff.append(self.parallelCtiTurnoff[amp])
+            serialCtiTurnoffSamplingErr.append(
+                self.serialCtiTurnoffSamplingErr[amp]
+            )
+            parallelCtiTurnoffSamplingErr.append(
+                self.parallelCtiTurnoffSamplingErr[amp]
+            )
 
-        ampTable = Table({'AMPLIFIER': ampList,
-                          'DRIFT_SCALE': driftScale,
-                          'DECAY_TIME': decayTime,
-                          'GLOBAL_CTI': globalCti,
-                          })
+        ampTable = Table({
+            'AMPLIFIER': ampList,
+            'DRIFT_SCALE': driftScale,
+            'DECAY_TIME': decayTime,
+            'GLOBAL_CTI': globalCti,
+            'SIGNALS': signals,
+            'SERIAL_EPER': serialEper,
+            'PARALLEL_EPER': parallelEper,
+            'SERIAL_CTI_TURNOFF': serialCtiTurnoff,
+            'PARALLEL_CTI_TURNOFF': parallelCtiTurnoff,
+            'SERIAL_CTI_TURNOFF_SAMPLING_ERR': serialCtiTurnoffSamplingErr,
+            'PARALLEL_CTI_TURNOFF_SAMPLING_ERR': parallelCtiTurnoffSamplingErr,
+        })
 
         ampTable.meta = self.getMetadata().toDict()
         tableList.append(ampTable)
@@ -1125,9 +1241,8 @@ class DeferredChargeTask(Task):
         # If we need to convert the image to electrons, check that gains
         # were supplied. CTI should not be solved or corrected without
         # supplied gains.
-        if applyGains:
-            if gains is None:
-                raise RuntimeError("No gains supplied for deferred charge correction.")
+        if applyGains and gains is None:
+            raise RuntimeError("No gains supplied for deferred charge correction.")
 
         with gainContext(exposure, image, apply=applyGains, gains=gains, isTrimmed=False):
             # Both the image and the overscan are in electron units.
