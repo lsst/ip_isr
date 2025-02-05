@@ -1182,7 +1182,7 @@ class DeferredChargeConfig(Config):
     zeroUnusedPixels = Field(
         dtype=bool,
         doc="If true, set serial prescan and parallel overscan to zero before correction.",
-        default=False,
+        default=True,
     )
 
 
