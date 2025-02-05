@@ -37,7 +37,8 @@ class TransmissionCurveCases(lsst.utils.tests.TestCase):
     """Test intermediate transmission curve calibration type.
     """
     def setUp(self):
-        self.points = [lsst.geom.Point2D(np.random.rand(), np.random.rand()) for i in range(5)]
+        rng = np.random.Generator(np.random.MT19937(1))
+        self.points = [lsst.geom.Point2D(rng.random(), rng.random()) for i in range(5)]
 
         self.curve1 = IntermediateTransmissionCurve.readText(
             os.path.join(TESTDIR, "data", "test_curve1.ecsv"))

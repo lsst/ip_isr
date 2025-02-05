@@ -63,7 +63,7 @@ def referenceApply(image, table, indOffset):
 class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
 
     def setUp(self):
-        np.random.seed(42)
+        self.rng = np.random.Generator(np.random.MT19937(42))
 
     def testBasics(self):
         """!Test basic functionality of applyLookupTable
@@ -76,7 +76,7 @@ class ApplyLookupTableTestCase(lsst.utils.tests.TestCase):
         for indOffset in (0, -50, 234):
             for imageClass in (afwImage.ImageF, afwImage.ImageD):
                 inImage = makeRampImage(bbox=bbox, start=imMin, stop=imMax, imageClass=imageClass)
-                table = np.random.normal(scale=tableSigma, size=tableLen)
+                table = self.rng.normal(scale=tableSigma, size=tableLen)
                 table = np.array(table, dtype=inImage.getArray().dtype)
 
                 refImage = imageClass(inImage, True)

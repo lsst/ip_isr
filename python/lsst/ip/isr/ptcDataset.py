@@ -443,7 +443,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         for key, value in auxDict.items():
             if isinstance(value, numbers.Integral):
                 self.auxValues[key] = np.atleast_1d(np.asarray(value).astype(np.int64))
-            elif isinstance(value, (str, np.str_, np.string_)):
+            elif isinstance(value, (str, np.str_, np.bytes_)):
                 self.auxValues[key] = np.atleast_1d(np.asarray(value))
             else:
                 self.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))
@@ -583,7 +583,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         for key, value in dictionary['auxValues'].items():
             if isinstance(value[0], numbers.Integral):
                 calib.auxValues[key] = np.atleast_1d(np.asarray(value).astype(np.int64))
-            elif isinstance(value[0], (str, np.str_, np.string_)):
+            elif isinstance(value[0], (str, np.str_, np.bytes_)):
                 calib.auxValues[key] = np.atleast_1d(np.asarray(value))
             else:
                 calib.auxValues[key] = np.atleast_1d(np.array(value, dtype=np.float64))

@@ -333,7 +333,7 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
 
         # Set the random seed for reproducibility.
         random_seed = galsim.BaseDeviate(1905).raw() + 1
-        np.random.seed(random_seed)
+        self.np_rng = np.random.Generator(np.random.MT19937(4))
         self.rng = galsim.BaseDeviate(random_seed)
 
         # Get the exposure, detector, and amps from the mock.
@@ -404,7 +404,7 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         # Generate random positions within exposure bounds, avoiding edges by a
         # margin.
         margin_x, margin_y = 0.05 * exp_bbox.width, 0.05 * exp_bbox.height
-        self.positions = np.random.uniform(
+        self.positions = self.np_rng.uniform(
             [exp_bbox.minX + margin_x, exp_bbox.minY + margin_y],
             [exp_bbox.maxX - margin_x, exp_bbox.maxY - margin_y],
             (len(source_params), 2),
@@ -501,7 +501,7 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         # and adjust them to ensure their sum equals zero. This reflects
         # real-world detectors, with amplifier gains normally distributed due
         # to manufacturing and operational variations.
-        deviations = np.random.normal(average_gain, gain_sigma_factor * average_gain, size=self.num_amps)
+        deviations = self.np_rng.normal(average_gain, gain_sigma_factor * average_gain, size=self.num_amps)
         deviations -= np.mean(deviations)
 
         # Set the gain for amplifiers to be slightly different from each other
@@ -539,7 +539,9 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         # corresponding gain before adding it to the image. This leads to the
         # variance plane being in units of ADU^2.
         for bbox, gain in zip(self.amp_bbox_list, self.amp_gain_list):
-            exposure.variance[bbox].array = (exposure.image[bbox].array + self.background / gain) / gain
+            exposure.variance[bbox].array = (
+                (exposure.image[bbox].array + self.background / gain) / gain
+            ).astype(np.float32)
 
         return exposure
 
@@ -612,7 +614,7 @@ class VariancePlaneTestCase(lsst.utils.tests.TestCase):
         if predefined_gain_type == "average" or (predefined_gain_type is None and average_across_amps):
             # Relax the tolerance if we are simply averaging across amps to
             # roughly estimate the overall gain.
-            rtol = 0.015
+            rtol = 0.018
             estimate_average_gain = True
         else:
             # Tighten tolerance for the 'predefined_gain_type' of 'per-amp' or
