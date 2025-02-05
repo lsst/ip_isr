@@ -875,7 +875,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
             padArray = numpy.pad(tempImage.getArray(), ((0, kLy), (0, kLx)))
 
             if iteration > 0:
-                diff = numpy.sum(numpy.abs(prevImage - tmpArray))
+                diff = numpy.sum(numpy.abs(prevImage - tmpArray), dtype=numpy.float64)
 
                 if diff < threshold:
                     break
