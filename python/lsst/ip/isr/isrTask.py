@@ -2763,7 +2763,10 @@ class IsrTask(pipeBase.PipelineTask):
             fluxMag0 = self.config.defaultFluxMag0T1
 
         expTime = exposure.getInfo().getVisitInfo().getExposureTime()
-        if not expTime > 0:  # handle NaN as well as <= 0
+        if expTime == 0.0:
+            self.log.debug("Received exposure with 0.0 expTime; skipping rough zero point.")
+            return
+        elif not expTime > 0:  # handle NaN as well as <= 0
             self.log.warning("Non-positive exposure time; skipping rough zero point.")
             return
 
