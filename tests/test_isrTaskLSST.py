@@ -400,6 +400,77 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
+    def test_isrBiasNoParallelOscanCorrection(self):
+        """Test processing of a bias frame with parallel
+        overscan correction turned off."""
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddParallelOverscanRamp = False
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+
+        # Turn off the parallel overscan correction
+        amp_oscan_config = isr_config.overscanCamera.getOverscanDetectorConfig(self.detector).defaultAmpConfig
+        amp_oscan_config.doParallelOverscan = False
+        isr_config.doBias = True
+
+        # We do not do defect correction when processing biases.
+        isr_config.doDefect = False
+        isr_config.maskNegativeVariance = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
+            )
+
+        # Rerun without doing the bias correction.
+        isr_config.doBias = False
+        isr_task2 = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
+            )
+
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
+        self.assertLess(
+            np.mean(result.exposure.image.array[good_pixels]),
+            np.mean(result2.exposure.image.array[good_pixels]),
+        )
+
+        self.assertLess(
+            np.std(result.exposure.image.array[good_pixels]),
+            np.std(result2.exposure.image.array[good_pixels]),
+        )
+
+        # Confirm that it is flat with an arbitrary cutoff that depends
+        # on the read noise.
+        self.assertLess(np.std(result.exposure.image.array[good_pixels]), 2.0*mock_config.readNoise)
+
+        delta = result2.exposure.image.array - result.exposure.image.array
+
+        # Note that the bias is made with bias noise + read noise, and
+        # the image contains read noise.
+        self.assertFloatsAlmostEqual(
+            delta[good_pixels],
+            self.bias.image.array[good_pixels],
+            atol=1e-5,
+        )
+
+        self._check_bad_column_crosstalk_correction(result.exposure)
+
     def test_isrDark(self):
         """Test processing of a dark frame."""
         mock_config = self.get_mock_config_no_signal()
