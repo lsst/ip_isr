@@ -1742,6 +1742,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Parallel overscan correction.
         # Output units: electron (adu if doBootstrap=True)
+        parallelOverscans = None
         if overscanDetectorConfig.doAnyParallelOverscan:
             # At the moment we do not use the return values from this task.
             parallelOverscans = self.overscanCorrection(
