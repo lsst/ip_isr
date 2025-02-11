@@ -471,6 +471,47 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
+    def test_isrBiasCti(self):
+        """Test over-correction of bias amp edges from prescan."""
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddBrightDefects = False
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        # We do not do defect correction when processing biases.
+        isr_config.doDefect = False
+        isr_config.maskNegativeVariance = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
+            )
+
+        # Rerun without doing the CTI correction
+        isr_config.doDeferredCharge = False
+
+        isr_task2 = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+            )
+
+        # This confirms that things are *close* to equal. Unfortunately,
+        # the unusual camera geometry in the test camera doesn't completely
+        # zero out the prescan pixels, so we need a higher threshold.
+        std_delta = np.std(result2.exposure.image.array - result.exposure.image.array)
+        self.assertLess(std_delta, 0.15)
+
     def test_isrDark(self):
         """Test processing of a dark frame."""
         mock_config = self.get_mock_config_no_signal()
