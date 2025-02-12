@@ -62,7 +62,7 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         isCalibration=True,
     )
     deferredChargeCalib = cT.PrerequisiteInput(
-        name="cpCtiCalib",
+        name="cti",
         doc="Deferred charge/CTI correction dataset.",
         storageClass="IsrCalib",
         dimensions=["instrument", "detector"],
