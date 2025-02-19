@@ -381,9 +381,9 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=True,
     )
     itlEdgeBleedSatMinArea = pexConfig.Field(
-        dtype=float,
+        dtype=int,
         doc="Threshold of saturated cores footprint area.",
-        default=10000.,
+        default=10000,
     )
     itlEdgeBleedSatFracLevel = pexConfig.Field(
         dtype=float,

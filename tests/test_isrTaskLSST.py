@@ -1124,6 +1124,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doFlat = False
         # Tun off saturation masking to simulate a PTC flat.
         isr_config.doSaturation = False
+        isr_config.doITLEdgeBleedMask = False
 
         amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
         parallel_overscan_saturation = amp_config.parallelOverscanConfig.parallelOverscanSaturationLevel
@@ -1206,6 +1207,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doFlat = False
         # Tun off saturation masking to simulate a PTC flat.
         isr_config.doSaturation = False
+        isr_config.doITLEdgeBleedMask = False
 
         amp_config = isr_config.overscanCamera.defaultDetectorConfig.defaultAmpConfig
         parallel_overscan_saturation = amp_config.parallelOverscanConfig.parallelOverscanSaturationLevel
@@ -1285,6 +1287,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mock_config = self.get_mock_config_no_signal()
         isr_config = self.get_isr_config_minimal_corrections()
         isr_config.doSaturation = False
+        isr_config.doITLEdgeBleedMask = False
         isr_config.doBootstrap = True
         isr_config.doApplyGains = False
 
@@ -1652,6 +1655,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doBrighterFatter = False
         isr_config.doFlat = False
         isr_config.doSaturation = False
+        isr_config.doITLEdgeBleedMask = False
         isr_config.doSuspect = False
         # We override the leading/trailing to skip here because of the limited
         # size of the test camera overscan regions.
