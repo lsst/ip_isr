@@ -15,7 +15,6 @@ import lsst.pipe.base as pipeBase
 import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
 from lsst.meas.algorithms.detection import SourceDetectionTask
-import lsst.afw.detection as afwDetection
 
 from .ampOffset import AmpOffsetTask
 from .binExposureTask import BinExposureTask
@@ -381,6 +380,21 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Mask edge bleeds from saturated columns in ITL amplifiers.",
         default=True,
     )
+    itlEdgeBleedSatMinArea = pexConfig.Field(
+        dtype=float,
+        doc="Threshold of saturated cores footprint area.",
+        default=10000.,
+    )
+    itlEdgeBleedSatFracLevel = pexConfig.Field(
+        dtype=float,
+        doc="Threshold of saturated cores footprint area.",
+        default=0.8,
+    )
+    itlEdgeBleedModelConstant = pexConfig.Field(
+        dtype=float,
+        doc="Threshold of saturated cores footprint area.",
+        default=0.03,
+    )
 
     # Interpolation options.
     doInterpolate = pexConfig.Field(
@@ -559,6 +573,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
             if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
                 raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+        if self.doITLEdgeBleedMask and not self.doSaturation:
+            raise ValueError("Cannot do edge bleed masking when doSaturation=False.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -791,82 +807,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 self.log.warning("Amplifier %s is bad (completely SATURATED or SUSPECT)", ampName)
                 badAmpDict[ampName] = True
                 maskView |= maskView.getPlaneBitMask("BAD")
-
-        # Edge bleed masking
-        if self.config.doITLEdgeBleedMask and detector.getPhysicalType() == 'ITL':
-
-            # Get footprint of saturated pixels
-            thresh = afwDetection.Threshold(limits[self.config.saturatedMaskName])
-            fpList = afwDetection.FootprintSet(maskedImage, thresh).getFootprints()
-
-            # Go through footprints to select saturated cores
-            for i in range(len(fpList)):
-                if fpList[i].getArea() > 10000.:
-
-                    # Get centroid of saturated core
-                    xCore, yCore = fpList[i].getCentroid()
-                    # Get the number of saturated columns around the centroid
-                    widthSat = numpy.sum(fpList[i].getSpans().asArray(), axis=1)[int(yCore)]
-                    for amp in ccdExposure.getDetector():
-                        # Select 2 amplifiers around the saturated
-                        # core with a potential edge bleed
-                        if amp.getBBox().contains(xCore, yCore) \
-                                or amp.getBBox().contains(xCore, numpy.abs(4000.-yCore)):
-
-                            # Get the saturation level in that amp
-                            ampName = amp.getName()
-                            satLevel = metadata[f"LSST ISR SATURATION LEVEL {ampName}"]
-
-                            if ampName[:2] == 'C1':
-                                # Check there is an edge bleed
-                                if numpy.mean(maskedImage.image.array[:50, int(xCore)-5:int(xCore)+5]) \
-                                        > 0.8*satLevel:
-                                    # Approximately check it is
-                                    # not a saturated edge bleed
-                                    if numpy.any(maskedImage.mask.array[:50, int(xCore)-5:int(xCore)+5]
-                                                 != maskVal):
-
-                                        # Select a sub-image of the amp
-                                        # along the edge
-                                        xmax = amp.getBBox().getX()
-                                        subImage = maskedImage.image.array[:150, xmax.min:xmax.max]
-                                        # Get an estimate of the width
-                                        # of the edge bleed
-                                        maxWidthEdgeBleed = numpy.max(numpy.sum(subImage > 0.5*satLevel,
-                                                                                axis=1))
-
-                                        # Mask edge bleed with a
-                                        # decaying exponential model
-                                        for y in range(200):
-                                            edgeBleedHalfWidth = \
-                                                int(((maxWidthEdgeBleed)*numpy.exp(-0.05*y) + widthSat)/2.)
-                                            maskedImage.mask.array[y, int(xCore)-edgeBleedHalfWidth:
-                                                                   int(xCore)+edgeBleedHalfWidth] = \
-                                                maskedImage.mask.getPlaneBitMask("BAD")
-
-                            elif ampName[:2] == 'C0':
-                                # Now we do the same with the
-                                # corresponding top amplifier
-                                if numpy.mean(maskedImage.image.array[-50:, int(xCore)-5:int(xCore)+5]) \
-                                        > 0.8*satLevel:
-
-                                    if numpy.any(maskedImage.mask.array[-50:, int(xCore)-5:int(xCore)+5]
-                                                 != maskVal):
-
-                                        xmax = amp.getBBox().getX()
-                                        subImage = maskedImage.image.array[-150:, xmax.min:xmax.max]
-                                        maxWidthEdgeBleed = numpy.max(numpy.sum(subImage > 0.5*satLevel,
-                                                                                axis=1))
-
-                                        for y in range(200):
-                                            edgeBleedHalfWidth = \
-                                                int(((maxWidthEdgeBleed)*numpy.exp(-0.05*y) + widthSat)/2.)
-                                            maskedImage.mask.array[-y, int(xCore)-edgeBleedHalfWidth:
-                                                                   int(xCore)+edgeBleedHalfWidth] = \
-                                                maskedImage.mask.getPlaneBitMask("BAD")
-
-                else:
-                    continue
 
         return badAmpDict
 
@@ -1864,6 +1804,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warning("No WCS found in input exposure.")
+
+        # Edge bleed masking
+        if self.config.doITLEdgeBleedMask and detector.getPhysicalType() == 'ITL' \
+                and self.config.doSaturation:
+            isrFunctions.maskITLEdgeBleed(ccdExposure=ccdExposure,
+                                          itlEdgeBleedSatMinArea=self.config.itlEdgeBleedSatMinArea,
+                                          itlEdgeBleedSatFracLevel=self.config.itlEdgeBleedSatFracLevel,
+                                          itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelConstant,
+                                          saturatedMaskName=self.config.saturatedMaskName,
+                                          badAmpDict=badAmpDict)
 
         # Bias subtraction
         # Output units: electron (adu if doBootstrap=True)
