@@ -1401,6 +1401,13 @@ class IsrTask(pipeBase.PipelineTask):
         # updateVariance, applyGains
         # Check if needed during/after BFE correction, CTI correction.
         exposureMetadata["LSST ISR UNITS"] = "adu"
+        exposureMetadata["LSST ISR CROSSTALK APPLIED"] = False
+        exposureMetadata["LSST ISR LINEARIZER APPLIED"] = False
+        exposureMetadata["LSST ISR CTI APPLIED"] = False
+        exposureMetadata["LSST ISR BIAS APPLIED"] = False
+        exposureMetadata["LSST ISR DARK APPLIED"] = False
+        exposureMetadata["LSST ISR BF APPLIED"] = False
+        exposureMetadata["LSST ISR FLAT APPLIED"] = False
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1412,6 +1419,7 @@ class IsrTask(pipeBase.PipelineTask):
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
             self.debugView(ccdExposure, "doBias")
+            ccdExposure.metadata["LSST ISR BIAS APPLIED"] = True
 
         # Amplifier level processing.
         overscans = []
@@ -1486,12 +1494,14 @@ class IsrTask(pipeBase.PipelineTask):
                 gains=ptc.gain,
             )
             self.debugView(ccdExposure, "doDeferredCharge")
+            ccdExposure.metadata["LSST ISR CTI APPLIED"] = True
 
         if self.config.doCrosstalk and self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
                                crosstalkSources=crosstalkSources, camera=camera)
             self.debugView(ccdExposure, "doCrosstalk")
+            ccdExposure.metadata["LSST ISR CROSSTALK APPLIED"] = True
 
         if self.config.doAssembleCcd:
             self.log.info("Assembling CCD from amplifiers.")
@@ -1510,6 +1520,7 @@ class IsrTask(pipeBase.PipelineTask):
             isrFunctions.biasCorrection(ccdExposure.getMaskedImage(), bias.getMaskedImage(),
                                         trimToFit=self.config.doTrimToMatchCalib)
             self.debugView(ccdExposure, "doBias")
+            ccdExposure.metadata["LSST ISR BIAS APPLIED"] = True
 
         if self.config.doVariance:
             for amp in ccd:
@@ -1535,12 +1546,14 @@ class IsrTask(pipeBase.PipelineTask):
             self.log.info("Applying linearizer.")
             linearizer.applyLinearity(image=ccdExposure.getMaskedImage().getImage(),
                                       detector=ccd, log=self.log)
+            ccdExposure.metadata["LSST ISR LINEARIZER APPLIED"] = True
 
         if self.config.doCrosstalk and not self.config.doCrosstalkBeforeAssemble:
             self.log.info("Applying crosstalk correction.")
             self.crosstalk.run(ccdExposure, crosstalk=crosstalk,
                                crosstalkSources=crosstalkSources)
             self.debugView(ccdExposure, "doCrosstalk")
+            ccdExposure.metadata["LSST ISR CROSSTALK APPLIED"] = True
 
         # Masking block. Optionally mask known defects,NaN/inf pixels,
         # widen trails, and do anything else the camera needs. Saturated and
@@ -1639,11 +1652,13 @@ class IsrTask(pipeBase.PipelineTask):
                                            maskValue=maskPlane)
 
             self.debugView(ccdExposure, "doBrighterFatter")
+            ccdExposure.metadata["LSST ISR BF APPLIED"] = True
 
         if self.config.doDark:
             self.log.info("Applying dark correction.")
             self.darkCorrection(ccdExposure, dark)
             self.debugView(ccdExposure, "doDark")
+            ccdExposure.metadata["LSST ISR DARK APPLIED"] = True
 
         if self.config.doFringe and not self.config.fringeAfterFlat:
             self.log.info("Applying fringe correction before flat.")
@@ -1659,6 +1674,7 @@ class IsrTask(pipeBase.PipelineTask):
             self.log.info("Applying flat correction.")
             self.flatCorrection(ccdExposure, flat)
             self.debugView(ccdExposure, "doFlat")
+            ccdExposure.metadata["LSST ISR FLAT APPLIED"] = True
 
         if self.config.doApplyGains:
             self.log.info("Applying gain correction instead of flat.")
