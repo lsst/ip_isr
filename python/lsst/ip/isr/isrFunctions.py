@@ -601,7 +601,7 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
         nanIndex = numpy.isnan(tempImage.getArray())
         tempImage.getArray()[nanIndex] = 0.
 
-        outImage = afwImage.ImageF(image.getDimensions())
+        outImage = afwImage.ImageD(image.getDimensions())
         corr = numpy.zeros_like(image.getArray())
         prev_image = numpy.zeros_like(image.getArray())
         convCntrl = afwMath.ConvolutionControl(False, True, 1)
@@ -823,7 +823,7 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         nanIndex = numpy.isnan(tempImage.getArray())
         tempImage.getArray()[nanIndex] = 0.
 
-        outImage = afwImage.ImageF(image.getDimensions())
+        outImage = afwImage.ImageD(image.getDimensions())
         corr = numpy.zeros_like(image.getArray())
         prevImage = numpy.zeros_like(image.getArray())
         convCntrl = afwMath.ConvolutionControl(False, False, 1)
@@ -845,9 +845,9 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         tempImage -= imean
         tempImage.array[nanIndex] = 0.
         padArray = numpy.pad(tempImage.getArray(), ((0, kLy), (0, kLx)))
-        outImage = afwImage.ImageF(numpy.pad(outImage.getArray(), ((0, kLy), (0, kLx))))
+        outImage = afwImage.ImageD(numpy.pad(outImage.getArray(), ((0, kLy), (0, kLx))))
         # Convert array to afw image so afwMath.convolve works
-        padImage = afwImage.ImageF(padArray.shape[1], padArray.shape[0])
+        padImage = afwImage.ImageD(padArray.shape[1], padArray.shape[0])
         padImage.array[:] = padArray
 
         for iteration in range(maxIter):
