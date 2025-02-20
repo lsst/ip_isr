@@ -91,6 +91,43 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             values[centers < mock_config.highSignalNonlinearityThreshold] = 0.0
             self.linearizer.linearityCoeffs[amp_name] = np.concatenate((centers, values))
 
+    def _check_applied_keys(self, metadata, isr_config):
+        """Check if the APPLIED keys have been set properly.
+
+        Parameters
+        ----------
+        metadata : `lsst.daf.base.PropertyList`
+        isr_config : `lsst.ip.isr.IsrTaskLSSTConfig`
+
+        """
+        key = "LSST ISR CROSSTALK APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doCrosstalk)
+
+        key = "LSST ISR LINEARIZER APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doLinearize)
+
+        key = "LSST ISR CTI APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doDeferredCharge)
+
+        key = "LSST ISR BIAS APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doBias)
+
+        key = "LSST ISR DARK APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doDark)
+
+        key = "LSST ISR BF APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doBrighterFatter)
+
+        key = "LSST ISR FLAT APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doFlat)
+
     def test_isrBootstrapBias(self):
         """Test processing of a ``bootstrap`` bias frame.
 
@@ -121,6 +158,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
             )
         self.assertIn("Ignoring provided PTC", cm.output[0])
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
@@ -193,6 +231,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
             )
         self.assertIn("Ignoring provided PTC", cm.output[0])
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
@@ -261,6 +300,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
             )
         self.assertIn("Ignoring provided PTC", cm.output[0])
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the flat correction.
         isr_config.doFlat = False
@@ -359,6 +399,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
@@ -430,6 +471,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the bias correction.
         isr_config.doBias = False
@@ -493,6 +535,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the CTI correction
         isr_config.doDeferredCharge = False
@@ -541,6 +584,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the dark correction.
         isr_config.doDark = False
@@ -618,6 +662,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Rerun without doing the bias correction.
         isr_config.doFlat = False
@@ -689,6 +734,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 deferredChargeCalib=self.cti,
                 linearizer=self.linearizer,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         metadata = result.exposure.metadata
 
@@ -750,6 +796,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 bfKernel=self.bf_kernel,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         mock_config = self.get_mock_config_no_signal()
         mock_config.isTrimmed = False
@@ -851,6 +898,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Confirm that the output has the defect line as bad.
         sat_val = 2**result.exposure.mask.getMaskPlane("BAD")
@@ -995,6 +1043,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
             )
         self.assertIn("Overriding gain", cm.output[0])
+        self._check_applied_keys(result.exposure.metadata, isr_config)
 
         # Confirm that the output has the defect line as saturated.
         sat_val = 2**result.exposure.mask.getMaskPlane("SAT")
