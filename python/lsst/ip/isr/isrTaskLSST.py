@@ -1464,30 +1464,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         exposure.image.array[:, :] += rng.uniform(low=low, high=high, size=exposure.image.array.shape)
 
-    def flatCorrection(self, exposure, flatExposure, invert=False):
-        """Apply flat correction in place.
-
-        Parameters
-        ----------
-        exposure : `lsst.afw.image.Exposure`
-            Exposure to process.
-        flatExposure : `lsst.afw.image.Exposure`
-            Flat exposure of the same size as ``exposure``.
-        invert : `Bool`, optional
-            If True, unflatten an already flattened image.
-
-        See Also
-        --------
-        lsst.ip.isr.isrFunctions.flatCorrection
-        """
-        isrFunctions.flatCorrection(
-            maskedImage=exposure.getMaskedImage(),
-            flatMaskedImage=flatExposure.getMaskedImage(),
-            scalingType=self.config.flatScalingType,
-            userScale=self.config.flatUserScale,
-            invert=invert,
-        )
-
     @deprecated(
         reason=(
             "makeBinnedImages is no longer used. "
@@ -1602,6 +1578,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
+        exposureMetadata["LSST ISR CROSSTALK APPLIED"] = False
+        exposureMetadata["LSST ISR LINEARIZER APPLIED"] = False
+        exposureMetadata["LSST ISR CTI APPLIED"] = False
+        exposureMetadata["LSST ISR BIAS APPLIED"] = False
+        exposureMetadata["LSST ISR DARK APPLIED"] = False
+        exposureMetadata["LSST ISR BFK APPLIED"] = False
+        exposureMetadata["LSST ISR FLAT APPLIED"] = False
 
         if self.config.doBootstrap:
             self.log.info("Configured using doBootstrap=True; using gain of 1.0 (adu units)")
@@ -1739,6 +1722,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 badAmpDict=badAmpDict,
                 ignoreVariance=True,
             )
+            ccdExposure.metadata["LSST ISR CROSSTALK APPLIED"] = True
 
         # Parallel overscan correction.
         # Output units: electron (adu if doBootstrap=True)
@@ -1770,6 +1754,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 log=self.log,
                 gains=linearityGains,
             )
+            ccdExposure.metadata["LSST ISR LINEARIZER APPLIED"] = True
 
         # Serial CTI (deferred charge) correction
         # This will be performed in electron units
@@ -1780,6 +1765,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 deferredChargeCalib,
                 gains=gains,
             )
+            ccdExposure.metadata["LSST ISR CTI APPLIED"] = True
 
         # Save the untrimmed version for later statistics,
         # which still contains the overscan information
@@ -1803,6 +1789,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Bias frame and ISR unit consistency is checked at the top of
             # the run method.
             isrFunctions.biasCorrection(ccdExposure.maskedImage, bias.maskedImage)
+            ccdExposure.metadata["LSST ISR BIAS APPLIED"] = True
 
         # Dark subtraction
         # Output units: electron (adu if doBootstrap=True)
@@ -1811,6 +1798,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Dark frame and ISR unit consistency is checked at the top of
             # the run method.
             self.darkCorrection(ccdExposure, dark)
+            ccdExposure.metadata["LSST ISR DARK APPLIED"] = True
 
         # Defect masking
         # Masking block (defects, NAN pixels and trails).
@@ -1855,6 +1843,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut,
                                                              brighterFatterApplyGain, bfGains)
+            ccdExposure.metadata["LSST ISR BFK APPLIED"] = True
 
         # Variance plane creation
         # Output units: electron (adu if doBootstrap=True)
@@ -1862,12 +1851,18 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.addVariancePlane(ccdExposure, detector)
 
         # Flat-fielding
-        # This may move elsewhere.
-        # Placeholder while the LSST flat procedure is done.
+        # This may move elsewhere, but this is the most convenient
+        # location for simple flat-fielding for attractive backgrounds.
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doFlat:
             self.log.info("Applying flat correction.")
-            self.flatCorrection(ccdExposure, flat)
+            isrFunctions.flatCorrection(
+                maskedImage=ccdExposure.maskedImage,
+                flatMaskedImage=flat.maskedImage,
+                scalingType=self.config.flatScalingType,
+                userScale=self.config.flatUserScale,
+            )
+            ccdExposure.metadata["LSST ISR FLAT APPLIED"] = True
 
         # Pixel values for masked regions are set here
         preInterpExp = None
