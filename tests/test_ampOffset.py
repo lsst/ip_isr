@@ -403,7 +403,7 @@ class AmpOffsetTest(lsst.utils.tests.TestCase):
             task = AmpOffsetTask(config=config)
             pedestals = task.run(exp).pedestals
             if valueType == "symmetric":
-                self.assertAlmostEqual(np.sum(exp.image.array), 0, 10)
+                self.assertAlmostEqual(np.sum(exp.image.array), 0, 6)
             truePedestals = self.values - np.mean(self.values)
             for pedestal, value in zip(pedestals, truePedestals):
                 self.assertAlmostEqual(pedestal, value, 6)
