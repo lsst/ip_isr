@@ -1608,7 +1608,7 @@ class IsrTask(pipeBase.PipelineTask):
                     bfGains
                 )
             bfCorrIters = bfResults[1]
-            self.metadata["LSST ISR BF CORR ITERS"] = bfCorrIters
+            self.metadata["LSST ISR BF ITERS"] = bfCorrIters
             if bfCorrIters == self.config.brighterFatterMaxIter - 1:
                 self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
                                  bfResults[0])

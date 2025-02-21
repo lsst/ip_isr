@@ -1855,10 +1855,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                  "in the PTC. Using the kernel gains.")
 
             ccdExposure, bfCorrIters = self.applyBrighterFatterCorrection(ccdExposure, flat, dark,
-                                                                      bfKernelOut,
-                                                                      brighterFatterApplyGain,
-                                                                      bfGains)
-            metadata["LSST ISR BF CORR ITERS"] = bfCorrIters
+                                                                          bfKernelOut,
+                                                                          brighterFatterApplyGain,
+                                                                          bfGains)
+            metadata["LSST ISR BF ITERS"] = bfCorrIters
 
         # Variance plane creation
         # Output units: electron (adu if doBootstrap=True)
