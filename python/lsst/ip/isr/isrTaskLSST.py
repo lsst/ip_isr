@@ -1225,7 +1225,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                                           self.config.brighterFatterThreshold,
                                                           brighterFatterApplyGain,
                                                           bfGains)
-        if bfResults[1] == self.config.brighterFatterMaxIter:
+        bfCorrIters = bfResults[1]
+        if bfCorrIters == self.config.brighterFatterMaxIter:
             self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
                              bfResults[0])
         else:
@@ -1255,7 +1256,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                        maskNameList=maskPlane,
                                        maskValue=maskPlane)
 
-        return ccdExposure
+        return ccdExposure, bfCorrIters
 
     def darkCorrection(self, exposure, darkExposure, invert=False):
         """Apply dark correction in place.
@@ -1853,8 +1854,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                  "gains in the kernel are not the same as the gains stored"
                                  "in the PTC. Using the kernel gains.")
 
-            ccdExposure = self.applyBrighterFatterCorrection(ccdExposure, flat, dark, bfKernelOut,
-                                                             brighterFatterApplyGain, bfGains)
+            ccdExposure, bfCorrIters = self.applyBrighterFatterCorrection(ccdExposure, flat, dark,
+                                                                      bfKernelOut,
+                                                                      brighterFatterApplyGain,
+                                                                      bfGains)
+            metadata["LSST ISR BF CORR ITERS"] = bfCorrIters
 
         # Variance plane creation
         # Output units: electron (adu if doBootstrap=True)
