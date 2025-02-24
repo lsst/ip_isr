@@ -597,13 +597,14 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
         kernelImage = afwImage.ImageD(kLx, kLy)
         kernelImage.getArray()[:, :] = kernel
         tempImage = image.clone()
+        tempImage = afwImage.ImageD(image.clone(), deep=True)
 
         nanIndex = numpy.isnan(tempImage.getArray())
         tempImage.getArray()[nanIndex] = 0.
 
         outImage = afwImage.ImageD(image.getDimensions())
-        corr = numpy.zeros_like(image.getArray())
-        prev_image = numpy.zeros_like(image.getArray())
+        corr = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
+        prev_image = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
         convCntrl = afwMath.ConvolutionControl(False, True, 1)
         fixedKernel = afwMath.FixedKernel(kernelImage)
 
@@ -642,6 +643,7 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
             if iteration > 0:
                 diff = numpy.sum(numpy.abs(prev_image - tmpArray), dtype=numpy.float64)
+                print(f"{iteration}: {diff}")
 
                 if diff < threshold:
                     break
@@ -686,7 +688,7 @@ def transferFlux(cFunc, fStep, correctionMode=True):
         factor = 0.5
 
     # initialise the BFE correction image to zero
-    corr = numpy.zeros_like(cFunc)
+    corr = numpy.zeros(cFunc.shape, dtype=numpy.float64)
 
     # Generate a 2D mesh of x,y coordinates
     yDim, xDim = cFunc.shape
@@ -701,7 +703,7 @@ def transferFlux(cFunc, fStep, correctionMode=True):
         diff = numpy.diff(cFunc, axis=ax)
 
         # expand array back to full size with zero gradient at the end
-        gx = numpy.zeros_like(cFunc)
+        gx = numpy.zeros(cFunc.shape, dtype=numpy.float64)
         yDiff, xDiff = diff.shape
         gx[:yDiff, :xDiff] += diff
 
@@ -818,14 +820,14 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         kLy, kLx = kernel.shape
         kernelImage = afwImage.ImageD(kLx, kLy)
         kernelImage.getArray()[:, :] = kernel
-        tempImage = image.clone()
+        tempImage = afwImage.ImageD(image.clone(), deep=True)
 
         nanIndex = numpy.isnan(tempImage.getArray())
         tempImage.getArray()[nanIndex] = 0.
 
         outImage = afwImage.ImageD(image.getDimensions())
-        corr = numpy.zeros_like(image.getArray())
-        prevImage = numpy.zeros_like(image.getArray())
+        corr = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
+        prevImage = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
         convCntrl = afwMath.ConvolutionControl(False, False, 1)
         fixedKernel = afwMath.FixedKernel(kernelImage)
 
@@ -840,10 +842,10 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         # (although still not handling the image edges with a physical model)
         # This wouldn't be great if there were a strong image gradient.
         imYdimension, imXdimension = tempImage.array.shape
-        imean = numpy.mean(tempImage.getArray()[~nanIndex])
+        imean = numpy.mean(tempImage.getArray()[~nanIndex], dtype=numpy.float64)
         # subtract mean from image
         tempImage -= imean
-        tempImage.array[nanIndex] = 0.
+        tempImage.array[nanIndex] = 0.0
         padArray = numpy.pad(tempImage.getArray(), ((0, kLy), (0, kLx)))
         outImage = afwImage.ImageD(numpy.pad(outImage.getArray(), ((0, kLy), (0, kLx))))
         # Convert array to afw image so afwMath.convolve works
