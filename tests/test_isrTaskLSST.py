@@ -814,6 +814,12 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         stdev_truth = np.nanstd(result_truth.exposure[test_amp_bbox].image.array[good_pixels])
         self.assertFloatsAlmostEqual(stdev, stdev_truth, atol=3*stdev_truth/np.sqrt(n_pixels))
 
+        # Check that BF has converged in the expected number of iterations.
+        metadata = result.exposure.metadata
+        key = "LSST ISR BF ITERS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], 2)
+
     def test_isrSkyImage(self):
         """Test processing of a sky image."""
         mock_config = self.get_mock_config_no_signal()

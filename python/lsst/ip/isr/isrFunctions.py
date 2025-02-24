@@ -597,15 +597,14 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
         kLy = numpy.shape(kernel)[1]
         kernelImage = afwImage.ImageD(kLx, kLy)
         kernelImage.getArray()[:, :] = kernel
-        tempImage = image.clone()
         tempImage = afwImage.ImageD(image.clone(), deep=True)
 
         nanIndex = numpy.isnan(tempImage.getArray())
         tempImage.getArray()[nanIndex] = 0.
 
         outImage = afwImage.ImageD(image.getDimensions())
-        corr = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
-        prev_image = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
+        corr = numpy.zeros(image.array.shape, dtype=numpy.float64)
+        prev_image = numpy.zeros(image.array.shape, dtype=numpy.float64)
         convCntrl = afwMath.ConvolutionControl(False, True, 1)
         fixedKernel = afwMath.FixedKernel(kernelImage)
 
@@ -621,12 +620,12 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
         for iteration in range(maxIter):
 
-            # afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
-            # tmpArray = tempImage.getArray()
-            # outArray = outImage.getArray()
-
+            afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
             tmpArray = tempImage.getArray()
-            outArray = convolve(tempArray, kernalImage.array, mode="full", method="fft")
+            outArray = outImage.getArray()
+
+            # tmpArray = tempImage.getArray()
+            # outArray = convolve(tmpArray, kernelImage.array, mode="same", method="fft")
 
             with numpy.errstate(invalid="ignore", over="ignore"):
                 # First derivative term
@@ -647,7 +646,6 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
             if iteration > 0:
                 diff = numpy.sum(numpy.abs(prev_image - tmpArray), dtype=numpy.float64)
-                print(f"{iteration}: {diff}")
 
                 if diff < threshold:
                     break
@@ -824,14 +822,14 @@ def fluxConservingBrighterFatterCorrection(exposure, kernel, maxIter, threshold,
         kLy, kLx = kernel.shape
         kernelImage = afwImage.ImageD(kLx, kLy)
         kernelImage.getArray()[:, :] = kernel
-        tempImage = afwImage.ImageD(image.clone(), deep=True)
+        tempImage = afwImage.ImageD(image, deep=True)
 
         nanIndex = numpy.isnan(tempImage.getArray())
         tempImage.getArray()[nanIndex] = 0.
 
         outImage = afwImage.ImageD(image.getDimensions())
-        corr = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
-        prevImage = numpy.zeros_like(image.getArray(), dtype=numpy.float64)
+        corr = numpy.zeros(image.array.shape, dtype=numpy.float64)
+        prevImage = numpy.zeros(image.array.shape, dtype=numpy.float64)
         convCntrl = afwMath.ConvolutionControl(False, False, 1)
         fixedKernel = afwMath.FixedKernel(kernelImage)
 
