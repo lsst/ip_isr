@@ -62,6 +62,7 @@ import lsst.afw.cameraGeom as camGeom
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
 from contextlib import contextmanager
+from scipy.signal import convolve
 
 from .defects import Defects
 
@@ -620,9 +621,12 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
         for iteration in range(maxIter):
 
-            afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
+            # afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
+            # tmpArray = tempImage.getArray()
+            # outArray = outImage.getArray()
+
             tmpArray = tempImage.getArray()
-            outArray = outImage.getArray()
+            outArray = convolve(tempArray, kernalImage.array, mode="full", method="fft")
 
             with numpy.errstate(invalid="ignore", over="ignore"):
                 # First derivative term

@@ -1220,16 +1220,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             useLegacyInterp=self.config.useLegacyInterp,
         )
         bfExp = interpExp.clone()
-        bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(bfExp, bfKernel,
-                                                          self.config.brighterFatterMaxIter,
-                                                          self.config.brighterFatterThreshold,
-                                                          brighterFatterApplyGain,
-                                                          bfGains)
-        # bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
+        # bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(bfExp, bfKernel,
         #                                                   self.config.brighterFatterMaxIter,
         #                                                   self.config.brighterFatterThreshold,
         #                                                   brighterFatterApplyGain,
         #                                                   bfGains)
+        bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
+                                                          self.config.brighterFatterMaxIter,
+                                                          self.config.brighterFatterThreshold,
+                                                          brighterFatterApplyGain,
+                                                          bfGains)
         if bfResults[1] == self.config.brighterFatterMaxIter:
             self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
                              bfResults[0])
