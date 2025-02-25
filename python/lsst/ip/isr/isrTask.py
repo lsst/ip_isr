@@ -1675,6 +1675,8 @@ class IsrTask(pipeBase.PipelineTask):
             self.flatCorrection(ccdExposure, flat)
             self.debugView(ccdExposure, "doFlat")
             ccdExposure.metadata["LSST ISR FLAT APPLIED"] = True
+            # TODO: DM-49159
+            # Add metadata re: type of flat.
 
         if self.config.doApplyGains:
             self.log.info("Applying gain correction instead of flat.")

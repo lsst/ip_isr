@@ -1872,6 +1872,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 userScale=self.config.flatUserScale,
             )
             ccdExposure.metadata["LSST ISR FLAT APPLIED"] = True
+            # TODO: DM-49159
+            # Add metadata re: type of flat.
 
         # Pixel values for masked regions are set here
         preInterpExp = None
