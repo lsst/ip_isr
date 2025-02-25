@@ -262,7 +262,7 @@ class PhotodiodeCalib(IsrCalib):
         sum : `float`
             Total charge measured.
         """
-        return np.trapz(self.currentSamples, x=self.timeSamples)
+        return np.trapezoid(self.currentSamples, x=self.timeSamples)
 
     def integrateTrimmedSum(self):
         """Integrate points with a baseline level subtracted.
@@ -284,7 +284,7 @@ class PhotodiodeCalib(IsrCalib):
         currentThreshold = (max(cs) - min(cs))/5.0 + min(cs)
         lowValueIndices = np.where(cs < currentThreshold)
         baseline = sigma_clipped_stats(cs[lowValueIndices])[0]
-        return np.trapz(cs - baseline, self.timeSamples)
+        return np.trapezoid(cs - baseline, self.timeSamples)
 
     def integrateChargeSum(self):
         """For this method, the values in .currentSamples are actually the
