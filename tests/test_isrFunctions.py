@@ -72,10 +72,17 @@ def _setExposureSatCore(exposure, x, y, halfWidthX, halfWidthY,
     satMaskBit : `int`
         Saturated mask bit the saturated core mask is set to.
     """
+    xmax = exposure.image.array.shape[1]
+    lowerRange = x-halfWidthX
+    upperRange = x+halfWidthX
+    if lowerRange < 0:
+        lowerRange = 0
+    if upperRange > xmax:
+        upperRange = xmax
     exposure.image.array[y-halfWidthY:y+halfWidthY,
-                         x-halfWidthX:x+halfWidthX] = satVal
+                         lowerRange:upperRange] = satVal
     exposure.mask.array[y-halfWidthY:y+halfWidthY,
-                        x-halfWidthX:x+halfWidthX] = satMaskBit
+                        lowerRange:upperRange] = satMaskBit
 
 
 def _setExposureSatColumns(exposure, x, y, halfWidthX, limY,
@@ -151,18 +158,25 @@ def _makeEdgeBleed(exposure, x, extentY, edgeBleedWidth,
     isTop : `bool`
         True if the edge bleed is a the top edge of the detector.
     """
+    xmax = exposure.image.array.shape[1]
     for y in range(extentY):
         edgeBleedWidthY = edgeBleedWidth*np.exp(-edgeBleedConstant*y) \
             + edgeBleedWidthLimit
         if isTop:
             # For edge bleed in top amplifier
             y = exposure.image.array.shape[0]-1-y
-        exposure.image.array[y, x-int(edgeBleedWidthY/2.)] = satVal
-        exposure.mask.array[y, x-int(edgeBleedWidthY/2.)] = satMaskBit
-        exposure.image.array[y, x+int(edgeBleedWidthY/2.)] = satVal
-        exposure.mask.array[y, x+int(edgeBleedWidthY/2.)] = satMaskBit
+        lowerRange = x-int(edgeBleedWidthY/2.)
+        upperRange = x+int(edgeBleedWidthY/2.)
+        if lowerRange < 0:
+            lowerRange = 0
+        if upperRange >= xmax:
+            upperRange = xmax-1
+        exposure.image.array[y, lowerRange] = satVal
+        exposure.mask.array[y, lowerRange] = satMaskBit
+        exposure.image.array[y, upperRange] = satVal
+        exposure.mask.array[y, upperRange] = satMaskBit
         exposure.image.array[y,
-                             x-int(edgeBleedWidthY/2.)+1:x+int(edgeBleedWidthY/2.)
+                             lowerRange+1:upperRange
                              ] = saturationFrac*saturationLevel
 
 
@@ -319,6 +333,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                        satVal=satVal, satMaskBit=satMaskBit, isTop=False)
         numPixSatBottomEdgeBeforeCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
+                               itlEdgeBleedSatMaxArea=100000.,
                                itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         numPixSatBottomEdgeAfterCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
@@ -353,6 +368,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                        satVal=satVal, satMaskBit=satMaskBit, isTop=True)
         numPixSatTopEdgeBeforeCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
+                               itlEdgeBleedSatMaxArea=100000.,
                                itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         numPixSatTopEdgeAfterCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
@@ -406,6 +422,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         numPixSatTopEdgeBefore = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
         # Apply edge bleed masking
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
+                               itlEdgeBleedSatMaxArea=100000.,
                                itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         # Number of saturated pixels at the bottom edge
@@ -418,6 +435,90 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         # Check there are more pixels along the bottom edge after masking
         self.assertGreater(numPixSatBottomEdgeAfter, numPixSatBottomEdgeBefore)
         # Same with top edge
+        self.assertGreater(numPixSatTopEdgeAfter, numPixSatTopEdgeBefore)
+
+        # Case 4:
+        # A saturated core near the left edge of the detector
+        x = 10
+        y = 900
+        halfWidthX = 14
+        halfWidthY = 500
+        halfWidthColX = 3
+        _setExposureSatCore(exposure, x=x, y=y, halfWidthX=halfWidthX,
+                            halfWidthY=halfWidthY, satVal=satVal,
+                            satMaskBit=satMaskBit)
+        # Bottom saturated columns to connect core and edge bleed
+        limY = 100
+        _setExposureSatColumns(exposure, x=x, y=y, halfWidthX=halfWidthColX,
+                               limY=limY, satVal=satVal, satMaskBit=satMaskBit,
+                               isTop=False)
+        edgeBleedWidth = 50  # this would go beyond the edge of the detector
+        edgeBleedWidthLimit = 2*halfWidthColX
+        _makeEdgeBleed(exposure, x=x, extentY=extentY,
+                       edgeBleedWidth=edgeBleedWidth,
+                       edgeBleedConstant=edgeBleedConstant,
+                       edgeBleedWidthLimit=edgeBleedWidthLimit,
+                       saturationLevel=saturationLevel,
+                       saturationFrac=saturationFrac,
+                       satVal=satVal, satMaskBit=satMaskBit, isTop=False)
+
+        # Number of saturated pixels at the bottom edge
+        # before applying masking
+        numPixSatBottomEdgeBefore = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
+        # Apply edge bleed masking
+        ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
+                               itlEdgeBleedSatMaxArea=100000.,
+                               itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
+                               saturatedMaskName='SAT', badAmpDict=badAmpDict)
+        # Number of saturated pixels at the bottom edge
+        # after applying edge bleed masking
+        numPixSatBottomEdgeAfter = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
+
+        # Check the number of saturated pixels
+        self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 208348)
+        # Check there are more pixels along the bottom edge after masking
+        self.assertGreater(numPixSatBottomEdgeAfter, numPixSatBottomEdgeBefore)
+
+        # Case 4b:
+        # A saturated core near the right edge of the detector
+        x = 4060
+        y = 3000
+        halfWidthX = 30
+        halfWidthY = 500
+        halfWidthColX = 3
+        _setExposureSatCore(exposure, x=x, y=y, halfWidthX=halfWidthX,
+                            halfWidthY=halfWidthY, satVal=satVal,
+                            satMaskBit=satMaskBit)
+        # Top saturated columns to connect core and edge bleed
+        limY = exposure.image.array.shape[0]-100
+        _setExposureSatColumns(exposure, x=x, y=y, halfWidthX=halfWidthColX,
+                               limY=limY, satVal=satVal, satMaskBit=satMaskBit,
+                               isTop=True)
+        edgeBleedWidth = 100  # this would go beyond the edge of the detector
+        edgeBleedWidthLimit = 2*halfWidthColX
+        _makeEdgeBleed(exposure, x=x, extentY=extentY,
+                       edgeBleedWidth=edgeBleedWidth,
+                       edgeBleedConstant=edgeBleedConstant,
+                       edgeBleedWidthLimit=edgeBleedWidthLimit,
+                       saturationLevel=saturationLevel,
+                       saturationFrac=saturationFrac,
+                       satVal=satVal, satMaskBit=satMaskBit, isTop=True)
+
+        # Number of saturated pixels at the bottom edge
+        # before applying masking
+        numPixSatTopEdgeBefore = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
+        # Apply edge bleed masking
+        ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
+                               itlEdgeBleedSatMaxArea=100000.,
+                               itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
+                               saturatedMaskName='SAT', badAmpDict=badAmpDict)
+        # Number of saturated pixels at the bottom edge
+        # after applying edge bleed masking
+        numPixSatTopEdgeAfter = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
+
+        # Check the number of saturated pixels
+        self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 270533)
+        # Check there are more pixels along the bottom edge after masking
         self.assertGreater(numPixSatTopEdgeAfter, numPixSatTopEdgeBefore)
 
     def test_interpolateFromMask(self):

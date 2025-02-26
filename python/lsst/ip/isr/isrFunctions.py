@@ -218,6 +218,7 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
 
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
+                     itlEdgeBleedSatMaxArea=100000,
                      itlEdgeBleedSatFracLevel=0.8,
                      itlEdgeBleedModelConstant=0.03,
                      saturatedMaskName="SAT"):
@@ -253,7 +254,8 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
     fpList = afwDetection.FootprintSet(maskedImage, thresh).getFootprints()
 
     satAreas = numpy.asarray([fp.getArea() for fp in fpList])
-    largeAreas, = numpy.where(satAreas >= itlEdgeBleedSatMinArea)
+    largeAreas, = numpy.where((satAreas >= itlEdgeBleedSatMinArea)
+                              & (satAreas < itlEdgeBleedSatMaxArea))
 
     satMaskBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 

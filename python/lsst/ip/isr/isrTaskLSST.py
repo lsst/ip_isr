@@ -385,6 +385,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Threshold of saturated cores footprint area.",
         default=10000,
     )
+    itlEdgeBleedSatMaxArea = pexConfig.Field(
+        dtype=int,
+        doc="Threshold of saturated cores footprint area.",
+        default=100000,
+    )
     itlEdgeBleedSatFracLevel = pexConfig.Field(
         dtype=float,
         doc="Threshold of saturated cores footprint area.",
@@ -1810,6 +1815,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 and self.config.doSaturation:
             isrFunctions.maskITLEdgeBleed(ccdExposure=ccdExposure,
                                           itlEdgeBleedSatMinArea=self.config.itlEdgeBleedSatMinArea,
+                                          itlEdgeBleedSatMaxArea=self.config.itlEdgeBleedSatMaxArea,
                                           itlEdgeBleedSatFracLevel=self.config.itlEdgeBleedSatFracLevel,
                                           itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelConstant,
                                           saturatedMaskName=self.config.saturatedMaskName,
