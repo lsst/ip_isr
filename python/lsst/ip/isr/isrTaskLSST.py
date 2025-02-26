@@ -375,6 +375,31 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         target=MaskingTask,
         doc="Masking task."
     )
+    doITLEdgeBleedMask = pexConfig.Field(
+        dtype=bool,
+        doc="Mask edge bleeds from saturated columns in ITL amplifiers.",
+        default=True,
+    )
+    itlEdgeBleedSatMinArea = pexConfig.Field(
+        dtype=int,
+        doc="Threshold of saturated cores footprint area.",
+        default=10000,
+    )
+    itlEdgeBleedSatMaxArea = pexConfig.Field(
+        dtype=int,
+        doc="Threshold of saturated cores footprint area.",
+        default=100000,
+    )
+    itlEdgeBleedSatFracLevel = pexConfig.Field(
+        dtype=float,
+        doc="Threshold of saturated cores footprint area.",
+        default=0.8,
+    )
+    itlEdgeBleedModelConstant = pexConfig.Field(
+        dtype=float,
+        doc="Threshold of saturated cores footprint area.",
+        default=0.03,
+    )
 
     # Interpolation options.
     doInterpolate = pexConfig.Field(
@@ -553,6 +578,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
             if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
                 raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+        if self.doITLEdgeBleedMask and not self.doSaturation:
+            raise ValueError("Cannot do edge bleed masking when doSaturation=False.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -1782,6 +1809,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warning("No WCS found in input exposure.")
+
+        # Edge bleed masking
+        if self.config.doITLEdgeBleedMask and detector.getPhysicalType() == 'ITL' \
+                and self.config.doSaturation:
+            isrFunctions.maskITLEdgeBleed(ccdExposure=ccdExposure,
+                                          itlEdgeBleedSatMinArea=self.config.itlEdgeBleedSatMinArea,
+                                          itlEdgeBleedSatMaxArea=self.config.itlEdgeBleedSatMaxArea,
+                                          itlEdgeBleedSatFracLevel=self.config.itlEdgeBleedSatFracLevel,
+                                          itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelConstant,
+                                          saturatedMaskName=self.config.saturatedMaskName,
+                                          badAmpDict=badAmpDict)
 
         # Bias subtraction
         # Output units: electron (adu if doBootstrap=True)
