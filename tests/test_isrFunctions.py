@@ -180,7 +180,7 @@ def _makeEdgeBleed(exposure, x, extentY, edgeBleedWidth,
                              ] = saturationFrac*saturationLevel
 
 
-class TestITLAmp:
+class MockITLAmp:
     def __init__(self, name, bbox):
         self._name = name
         self._bbox = bbox
@@ -192,20 +192,20 @@ class TestITLAmp:
         return self._bbox
 
     def __repr__(self):
-        return f"TestITLAmp({self._name})"
+        return f"MockITLAmp({self._name})"
 
 
-class TestITLDetector(list):
+class MockITLDetector(list):
     def __init__(self):
         amps = []
         for i in range(8):
             name = f"C1{i}"
             bbox = geom.Box2I(corner=geom.Point2I(i*509, 2000), dimensions=geom.Extent2I(509, 2000))
-            amps.append(TestITLAmp(name, bbox))
+            amps.append(MockITLAmp(name, bbox))
         for i in reversed(range(8)):
             name = f"C0{i}"
             bbox = geom.Box2I(corner=geom.Point2I(i*509, 0), dimensions=geom.Extent2I(509, 2000))
-            amps.append(TestITLAmp(name, bbox))
+            amps.append(MockITLAmp(name, bbox))
 
         super().__init__(amps)
 
@@ -213,7 +213,7 @@ class TestITLDetector(list):
         return geom.Box2I(corner=geom.Point2I(0, 0), dimensions=geom.Extent2I(4072, 4000))
 
 
-class TestITLExposure(afwImage.ExposureF):
+class MockITLExposure(afwImage.ExposureF):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -287,8 +287,8 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
     def test_ITLEdgeBleedMask(self):
         """Expect number of masked pixels according to edge bleed masking.
         """
-        detector = TestITLDetector()
-        exposure = TestITLExposure(detector.getBBox())
+        detector = MockITLDetector()
+        exposure = MockITLExposure(detector.getBBox())
         exposure.setDetector(detector)
         exposure.mask.array[:, :] = 0
         satMaskBit = exposure.mask.getPlaneBitMask('SAT')
