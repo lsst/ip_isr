@@ -219,7 +219,7 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                      itlEdgeBleedSatMaxArea=100000,
-                     itlEdgeBleedSatFracLevel=0.8,
+                     itlEdgeBleedThreshold=50.,
                      itlEdgeBleedModelConstant=0.03,
                      saturatedMaskName="SAT"):
     """Mask edge bleeds in ITL detectors.
@@ -234,9 +234,8 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
     itlEdgeBleedSatMinArea : `int`, optional
         Minimal saturated footprint area where the presence of edge bleeds
         will be checked.
-    itlEdgeBleedSatFracLevel : `float`, optional
-       Fraction of the saturation level at the detector edge
-       above which there is an edge bleed.
+    itlEdgeBleedThreshold : `float`, optional
+       Sky background threshold for edge bleed detection.
     itlEdgeBleedModelConstant : `float`, optional
         Constant in the decaying exponential in the edge bleed masking.
     saturatedMaskName : `str`, optional
@@ -299,14 +298,12 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                     sliceImage = numpy.flipud(maskedImage.image.array[-200:, :])
                     sliceMask = numpy.flipud(maskedImage.mask.array[-200:, :])
 
-                # The middle columns of edge bleeds are often quite close
-                # to the saturation level so
-                # we check there is an edge bleed by looking
-                # at a small image up to 50 pixels from the edge
+                # The middle columns of edge bleeds often have
+                # high counts, so  we check there is an edge bleed
+                # by looking at a small image up to 50 pixels from the edge
                 # and around the saturated columns
-                # of the saturated core, and checking its mean is
-                # above 80 percent (which is set as default) of the
-                # saturation level.
+                # of the saturated core, and checking its median is
+                # above 50 times (the default) the sky background
 
                 # If the centroid is too close to the edge of the detector
                 # (within 5 pixels), we set the limit to the mean check
@@ -317,9 +314,11 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                     lowerRangeSmall = 0
                 if upperRangeSmall > xmax:
                     upperRangeSmall = xmax
-                if numpy.mean(sliceImage[:50,
-                                         lowerRangeSmall:upperRangeSmall]) \
-                        > itlEdgeBleedSatFracLevel*satLevel:
+
+                ampImageBG = numpy.median(maskedImage[amp.getBBox()].image.array)
+                if numpy.median(sliceImage[:50,
+                                           lowerRangeSmall:upperRangeSmall]) \
+                        > itlEdgeBleedThreshold*ampImageBG:
 
                     # We need an estimate of the maximum width
                     # of the edge bleed for our masking model

@@ -382,22 +382,23 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
     itlEdgeBleedSatMinArea = pexConfig.Field(
         dtype=int,
-        doc="Threshold of saturated cores footprint area.",
+        doc="Minimum limit for saturated cores footprint area.",
         default=10000,
     )
     itlEdgeBleedSatMaxArea = pexConfig.Field(
         dtype=int,
-        doc="Threshold of saturated cores footprint area.",
+        doc="Maximum limit for saturated cores footprint area.",
         default=100000,
     )
-    itlEdgeBleedSatFracLevel = pexConfig.Field(
+    itlEdgeBleedThreshold = pexConfig.Field(
         dtype=float,
-        doc="Threshold of saturated cores footprint area.",
-        default=0.8,
+        doc="Sky background threshold for "
+        "edge bleed detection.",
+        default=50.,
     )
     itlEdgeBleedModelConstant = pexConfig.Field(
         dtype=float,
-        doc="Threshold of saturated cores footprint area.",
+        doc="Constant in the edge bleed exponential decay model.",
         default=0.03,
     )
 
@@ -1816,7 +1817,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             isrFunctions.maskITLEdgeBleed(ccdExposure=ccdExposure,
                                           itlEdgeBleedSatMinArea=self.config.itlEdgeBleedSatMinArea,
                                           itlEdgeBleedSatMaxArea=self.config.itlEdgeBleedSatMaxArea,
-                                          itlEdgeBleedSatFracLevel=self.config.itlEdgeBleedSatFracLevel,
+                                          itlEdgeBleedThreshold=self.config.itlEdgeBleedThreshold,
                                           itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelConstant,
                                           saturatedMaskName=self.config.saturatedMaskName,
                                           badAmpDict=badAmpDict)
