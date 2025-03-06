@@ -235,7 +235,8 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
         Minimal saturated footprint area where the presence of edge bleeds
         will be checked.
     itlEdgeBleedThreshold : `float`, optional
-       Sky background threshold for edge bleed detection.
+        Threshold above median sky background for edge bleed detection
+        (electron units).
     itlEdgeBleedModelConstant : `float`, optional
         Constant in the decaying exponential in the edge bleed masking.
     saturatedMaskName : `str`, optional
@@ -303,7 +304,7 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                 # by looking at a small image up to 50 pixels from the edge
                 # and around the saturated columns
                 # of the saturated core, and checking its median is
-                # above the sky background by 5000 counts
+                # above the sky background by itlEdgeBleedThreshold
 
                 # If the centroid is too close to the edge of the detector
                 # (within 5 pixels), we set the limit to the mean check
@@ -315,9 +316,8 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                 if upperRangeSmall > xmax:
                     upperRangeSmall = xmax
                 ampImageBG = numpy.median(maskedImage[amp.getBBox()].image.array)
-                if numpy.median(sliceImage[:50,
-                                           lowerRangeSmall:upperRangeSmall]) \
-                        > itlEdgeBleedThreshold + ampImageBG:
+                edgeMedian = numpy.median(sliceImage[:50, lowerRangeSmall:upperRangeSmall])
+                if edgeMedian > (ampImageBG + itlEdgeBleedThreshold):
 
                     # We need an estimate of the maximum width
                     # of the edge bleed for our masking model

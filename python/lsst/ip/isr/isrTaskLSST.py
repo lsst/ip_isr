@@ -392,8 +392,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
     itlEdgeBleedThreshold = pexConfig.Field(
         dtype=float,
-        doc="Sky background threshold for "
-        "edge bleed detection.",
+        doc="Sky background threshold for edge bleed detection.",
         default=5000.,
     )
     itlEdgeBleedModelConstant = pexConfig.Field(
