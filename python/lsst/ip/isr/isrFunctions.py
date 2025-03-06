@@ -326,7 +326,7 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                     # close to the edge,
                     # in a cutout up to 100 pixels from the edge.
                     subImage = sliceImage[:100, :]
-                    maxWidthEdgeBleed = numpy.max(numpy.sum(subImage > 0.6*satLevel,
+                    maxWidthEdgeBleed = numpy.max(numpy.sum(subImage > 0.45*satLevel,
                                                             axis=1))
 
                     # Mask edge bleed with a
