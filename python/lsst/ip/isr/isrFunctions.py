@@ -219,7 +219,7 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                      itlEdgeBleedSatMaxArea=100000,
-                     itlEdgeBleedThreshold=50.,
+                     itlEdgeBleedThreshold=5000.,
                      itlEdgeBleedModelConstant=0.03,
                      saturatedMaskName="SAT"):
     """Mask edge bleeds in ITL detectors.
@@ -303,7 +303,7 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                 # by looking at a small image up to 50 pixels from the edge
                 # and around the saturated columns
                 # of the saturated core, and checking its median is
-                # above 50 times (the default) the sky background
+                # above the sky background by 5000 counts
 
                 # If the centroid is too close to the edge of the detector
                 # (within 5 pixels), we set the limit to the mean check
@@ -314,11 +314,10 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                     lowerRangeSmall = 0
                 if upperRangeSmall > xmax:
                     upperRangeSmall = xmax
-
                 ampImageBG = numpy.median(maskedImage[amp.getBBox()].image.array)
                 if numpy.median(sliceImage[:50,
                                            lowerRangeSmall:upperRangeSmall]) \
-                        > itlEdgeBleedThreshold*ampImageBG:
+                        > itlEdgeBleedThreshold + ampImageBG:
 
                     # We need an estimate of the maximum width
                     # of the edge bleed for our masking model
