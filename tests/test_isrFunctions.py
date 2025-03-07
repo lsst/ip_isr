@@ -334,7 +334,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         numPixSatBottomEdgeBeforeCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
                                itlEdgeBleedSatMaxArea=100000.,
-                               itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
+                               itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         numPixSatBottomEdgeAfterCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         # Check the number of saturated pixels
@@ -369,7 +369,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         numPixSatTopEdgeBeforeCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
                                itlEdgeBleedSatMaxArea=100000.,
-                               itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
+                               itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         numPixSatTopEdgeAfterCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
         # Check the number of saturated pixels
@@ -423,7 +423,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         # Apply edge bleed masking
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
                                itlEdgeBleedSatMaxArea=100000.,
-                               itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
+                               itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         # Number of saturated pixels at the bottom edge
         # after applying edge bleed masking
@@ -468,7 +468,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         # Apply edge bleed masking
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
                                itlEdgeBleedSatMaxArea=100000.,
-                               itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
+                               itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         # Number of saturated pixels at the bottom edge
         # after applying edge bleed masking
@@ -510,7 +510,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         # Apply edge bleed masking
         ipIsr.maskITLEdgeBleed(exposure, itlEdgeBleedSatMinArea=10000.,
                                itlEdgeBleedSatMaxArea=100000.,
-                               itlEdgeBleedSatFracLevel=0.8, itlEdgeBleedModelConstant=0.03,
+                               itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.03,
                                saturatedMaskName='SAT', badAmpDict=badAmpDict)
         # Number of saturated pixels at the bottom edge
         # after applying edge bleed masking
