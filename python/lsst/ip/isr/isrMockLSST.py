@@ -892,6 +892,7 @@ class IsrMockLSST(IsrMock):
         for amp in self.getExposure().getDetector():
             # Kernel must be in (y,x) orientation
             bfKernelObject.ampKernels[amp.getName()] = bfkArray.T
+            bfKernelObject.valid[amp.getName()] = True
 
         return bfKernelObject
 

@@ -563,7 +563,7 @@ class BrighterFatterKernel(IsrCalib):
             Amps that should not be included in the average.
         """
         inKernels = np.array([self.ampKernels[amp] for amp in
-                              self.ampKernels if amp not in ampsToExclude])
+                              self.ampKernels if (self.valid[amp] and amp not in ampsToExclude)])
         avgKernel = np.zeros_like(inKernels[0])
         sctrl = afwMath.StatisticsControl()
         sctrl.setNumSigmaClip(5.0)
