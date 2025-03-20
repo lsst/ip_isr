@@ -356,6 +356,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
 
     # Masking options.
+    doITLDipMask = pexConfig.Field(
+        dtype=bool,
+        doc="Apply ``ITL dip`` masking. The ITLDIP mask plane "
+            "will be added even if this configuration is False.",
+        default=True,
+    )
     doDefect = pexConfig.Field(
         dtype=bool,
         doc="Apply correction for CCD defects, e.g. hot pixels?",
@@ -1820,6 +1826,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                           itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelConstant,
                                           saturatedMaskName=self.config.saturatedMaskName,
                                           badAmpDict=badAmpDict)
+
+        # ITL Dip Masking
+        if self.config.doITLDipMask:
+            isrFunctions.maskITLDip(
+                exposure=ccdExposure,
+                detectorConfig=overscanDetectorConfig,
+            )
 
         # Bias subtraction
         # Output units: electron (adu if doBootstrap=True)

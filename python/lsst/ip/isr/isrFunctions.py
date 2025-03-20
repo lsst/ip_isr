@@ -35,6 +35,7 @@ __all__ = [
     "getPhysicalFilter",
     "growMasks",
     "maskITLEdgeBleed",
+    "maskITLDip",
     "illuminationCorrection",
     "interpolateDefectList",
     "interpolateFromMask",
@@ -345,6 +346,63 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                         if upperRange > xmax:
                             upperRange = xmax
                         sliceMask[y, lowerRange:upperRange] = satMaskBit
+
+
+def maskITLDip(exposure, detectorConfig, maskPlaneName="SUSPECT"):
+    """Add mask bits according to the ITL dip model.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to do ITL dip masking.
+    detectorConfig : `lsst.ip.isr.overscanAmpConfig.OverscanDetectorConfig`
+        Configuration for this detector.
+    maskPlaneName : `str`
+        Name of the ITL Dip mask plane.
+    """
+    if detectorConfig.itlDipBackgroundFraction == 0.0:
+        # Nothing to do.
+        return
+
+    thresh = afwDetection.Threshold(
+        exposure.mask.getPlaneBitMask("SAT"),
+        afwDetection.Threshold.BITMASK,
+    )
+    fpList = afwDetection.FootprintSet(exposure.mask, thresh).getFootprints()
+
+    heights = numpy.asarray([fp.getBBox().getHeight() for fp in fpList])
+
+    largeHeights, = numpy.where(heights >= detectorConfig.itlDipMinHeight)
+
+    if len(largeHeights) == 0:
+        return
+
+    # Get the approximate image background.
+    approxBackground = numpy.median(exposure.image.array)
+    maskValue = exposure.mask.getPlaneBitMask(maskPlaneName)
+
+    for index in largeHeights:
+        fp = fpList[index]
+        center = fp.getCentroid()
+
+        nSat = numpy.sum(fp.getSpans().asArray(), axis=0)
+        width = numpy.sum(nSat > detectorConfig.itlDipMinHeight)
+
+        if width < detectorConfig.itlDipMinWidth:
+            continue
+
+        dipMax = detectorConfig.itlDipBackgroundFraction * approxBackground * width
+
+        # Assume sky-noise dominated; we could add in read noise here.
+        if dipMax < detectorConfig.itlDipMinBackgroundNoiseFraction * numpy.sqrt(approxBackground):
+            continue
+
+        minCol = int(center.getX() - (detectorConfig.itlDipWidthScale * width) / 2.)
+        maxCol = int(center.getX() + (detectorConfig.itlDipWidthScale * width) / 2.)
+        minCol = numpy.clip(minCol, 0, None)
+        maxCol = numpy.clip(maxCol, None, exposure.mask.array.shape[1] - 1)
+
+        exposure.mask.array[:, minCol: maxCol + 1] |= maskValue
 
 
 def interpolateFromMask(maskedImage, fwhm, growSaturatedFootprints=1,
