@@ -21,6 +21,7 @@
 #
 
 import unittest
+import logging
 import numpy as np
 
 import lsst.geom as geom
@@ -562,7 +563,11 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
             3000: 3000 + detectorConfig.itlDipMinWidth + 1
         ] |= satMaskValue
 
-        ipIsr.isrFunctions.maskITLDip(exposure, detectorConfig)
+        with self.assertLogs(level=logging.INFO) as cm:
+            ipIsr.isrFunctions.maskITLDip(exposure, detectorConfig)
+        self.assertEqual(len(cm[1]), 2)
+        self.assertIn("Found ITL dip from column 994 to 1024", cm[1][0])
+        self.assertIn("Found ITL dip from column 1496 to 1513", cm[1][1])
 
         # This includes the scaled edges
         np.testing.assert_array_equal(exposure.mask.array[:, 994: 1024] & dipMaskValue, dipMaskValue)
@@ -581,7 +586,10 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         exposure.mask.array[:, :] &= ~dipMaskValue
         exposure.image.array[:, :] = 50.0
 
-        ipIsr.isrFunctions.maskITLDip(exposure, detectorConfig)
+        with self.assertLogs(level=logging.INFO) as cm:
+            ipIsr.isrFunctions.maskITLDip(exposure, detectorConfig)
+        self.assertEqual(len(cm[1]), 1)
+        self.assertIn("Found ITL dip from column 994 to 1024", cm[1][0])
 
         # This one should be masked.
         np.testing.assert_array_equal(exposure.mask.array[:, 994: 1024] & dipMaskValue, dipMaskValue)

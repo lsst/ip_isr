@@ -51,6 +51,7 @@ __all__ = [
     "getExposureReadNoises",
 ]
 
+import logging
 import math
 import numpy
 
@@ -348,7 +349,7 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
                         sliceMask[y, lowerRange:upperRange] = satMaskBit
 
 
-def maskITLDip(exposure, detectorConfig, maskPlaneName="SUSPECT"):
+def maskITLDip(exposure, detectorConfig, maskPlaneName="SUSPECT", log=None):
     """Add mask bits according to the ITL dip model.
 
     Parameters
@@ -357,12 +358,17 @@ def maskITLDip(exposure, detectorConfig, maskPlaneName="SUSPECT"):
         Exposure to do ITL dip masking.
     detectorConfig : `lsst.ip.isr.overscanAmpConfig.OverscanDetectorConfig`
         Configuration for this detector.
-    maskPlaneName : `str`
+    maskPlaneName : `str`, optional
         Name of the ITL Dip mask plane.
+    log : `logging.Logger`, optional
+        If not set, a default logger will be used.
     """
     if detectorConfig.itlDipBackgroundFraction == 0.0:
         # Nothing to do.
         return
+
+    if log is None:
+        log = logging.getLogger(__name__)
 
     thresh = afwDetection.Threshold(
         exposure.mask.getPlaneBitMask("SAT"),
@@ -401,6 +407,8 @@ def maskITLDip(exposure, detectorConfig, maskPlaneName="SUSPECT"):
         maxCol = int(center.getX() + (detectorConfig.itlDipWidthScale * width) / 2.)
         minCol = numpy.clip(minCol, 0, None)
         maxCol = numpy.clip(maxCol, None, exposure.mask.array.shape[1] - 1)
+
+        log.info("Found ITL dip from column %d to %d", minCol, maxCol)
 
         exposure.mask.array[:, minCol: maxCol + 1] |= maskValue
 

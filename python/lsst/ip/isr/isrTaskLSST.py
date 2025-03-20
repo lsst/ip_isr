@@ -1832,6 +1832,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             isrFunctions.maskITLDip(
                 exposure=ccdExposure,
                 detectorConfig=overscanDetectorConfig,
+                log=self.log,
             )
 
         # Bias subtraction
