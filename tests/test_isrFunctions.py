@@ -21,6 +21,7 @@
 #
 
 import unittest
+import logging
 import numpy as np
 
 import lsst.geom as geom
@@ -520,6 +521,104 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 270533)
         # Check there are more pixels along the bottom edge after masking
         self.assertGreater(numPixSatTopEdgeAfter, numPixSatTopEdgeBefore)
+
+    def test_itlDipMasking(self):
+        """Test the ITL dip masking."""
+        detector = MockITLDetector()
+        exposure = MockITLExposure(detector.getBBox())
+        exposure.setDetector(detector)
+        exposure.mask.array[:, :] = 0
+        exposure.mask.addMaskPlane("ITL_DIP")
+        dipMaskValue = exposure.mask.getPlaneBitMask("SUSPECT") \
+            | exposure.mask.getPlaneBitMask("ITL_DIP")
+
+        detectorConfig = ipIsr.overscanAmpConfig.OverscanDetectorConfig()
+        detectorConfig.itlDipBackgroundFraction = 0.0025
+
+        # Set the background to 1000 electrons.
+        exposure.image.array[:, :] = 1000.0
+
+        # Add some saturated masks, below and above the trigger.
+        satMaskValue = exposure.mask.getPlaneBitMask("SAT")
+
+        # Above the threshold in width/height.
+        exposure.mask.array[
+            500: 500 + detectorConfig.itlDipMinHeight * 2,
+            1000: 1000 + detectorConfig.itlDipMinWidth * 2
+        ] |= satMaskValue
+
+        # At the threshold in width/height.
+        exposure.mask.array[
+            1200: 1200 + detectorConfig.itlDipMinHeight + 1,
+            1500: 1500 + detectorConfig.itlDipMinWidth + 1
+        ] |= satMaskValue
+
+        # Below the threshold in width.
+        exposure.mask.array[
+            1600: 1600 + detectorConfig.itlDipMinHeight + 1,
+            2500: 2500 + detectorConfig.itlDipMinWidth // 2
+        ] |= satMaskValue
+
+        # Below the threshold in height.
+        exposure.mask.array[
+            2500: 2500 + detectorConfig.itlDipMinHeight // 2,
+            3000: 3000 + detectorConfig.itlDipMinWidth + 1
+        ] |= satMaskValue
+
+        with self.assertLogs(level=logging.INFO) as cm:
+            ipIsr.isrFunctions.maskITLDip(exposure, detectorConfig)
+        self.assertEqual(len(cm[1]), 2)
+        self.assertIn("Found ITL dip (width 30; bkg 1000.00); masking column 992 to 1037", cm[1][0])
+        self.assertIn("Found ITL dip (width 16; bkg 1000.00); masking column 1495 to 1519", cm[1][1])
+
+        # This includes the scaled edges
+        np.testing.assert_array_equal(exposure.mask.array[:, 992: 1038] & dipMaskValue, dipMaskValue)
+        np.testing.assert_array_equal(exposure.mask.array[:, 991] & dipMaskValue, 0)
+        np.testing.assert_array_equal(exposure.mask.array[:, 1038] & dipMaskValue, 0)
+
+        np.testing.assert_array_equal(exposure.mask.array[:, 1495: 1520] & dipMaskValue, dipMaskValue)
+        np.testing.assert_array_equal(exposure.mask.array[:, 1494] & dipMaskValue, 0)
+        np.testing.assert_array_equal(exposure.mask.array[:, 1520] & dipMaskValue, 0)
+
+        # The other two should not be masked.
+        np.testing.assert_array_equal(exposure.mask.array[:, 2500] & dipMaskValue, 0)
+        np.testing.assert_array_equal(exposure.mask.array[:, 3000] & dipMaskValue, 0)
+
+        # Change the background to a much lower value, only 1 should be masked.
+        exposure.mask.array[:, :] &= ~dipMaskValue
+        exposure.image.array[:, :] = 50.0
+
+        with self.assertLogs(level=logging.INFO) as cm:
+            ipIsr.isrFunctions.maskITLDip(exposure, detectorConfig)
+        self.assertEqual(len(cm[1]), 1)
+        self.assertIn("Found ITL dip (width 30; bkg 50.00); masking column 992 to 1037", cm[1][0])
+
+        # This one should be masked.
+        np.testing.assert_array_equal(exposure.mask.array[:, 992: 1038] & dipMaskValue, dipMaskValue)
+        np.testing.assert_array_equal(exposure.mask.array[:, 991] & dipMaskValue, 0)
+        np.testing.assert_array_equal(exposure.mask.array[:, 1038] & dipMaskValue, 0)
+
+        # The other three should not be masked.
+        np.testing.assert_array_equal(exposure.mask.array[:, 1500] & dipMaskValue, 0)
+        np.testing.assert_array_equal(exposure.mask.array[:, 2500] & dipMaskValue, 0)
+        np.testing.assert_array_equal(exposure.mask.array[:, 3000] & dipMaskValue, 0)
+
+        # And blow things up so that masking is not applied.
+        # This needs to be in several sections because of the max width.
+        # We additionally avoid the edge. Note that there are rounding
+        # offsets that occur due to the scaling such that this setting
+        # will mask 42 columns per block or a total of 504.
+        exposure.mask.array[:, :] = 0
+        detectorConfig.itlDipWidthScale = 1.0
+        for i in range(12):
+            exposure.mask.array[:, (i + 1)*100: (i + 1)*100 + 41] |= satMaskValue
+
+        maskBak = exposure.mask.array.copy()
+        with self.assertLogs(level=logging.WARNING) as cm:
+            ipIsr.isrFunctions.maskITLDip(exposure, detectorConfig)
+        self.assertEqual(len(cm[1]), 1)
+        self.assertIn("Too many (504) columns would be masked", cm[1][0])
+        np.testing.assert_array_equal(exposure.mask.array, maskBak)
 
     def test_interpolateFromMask(self):
         """Expect number of interpolated pixels to be non-zero.
