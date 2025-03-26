@@ -294,9 +294,9 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
         Mask name for saturation.
     """
 
-    # Get minimum of amplifier saturation level
-    satLevel = numpy.min([ccdExposure.metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"]
-                          for amp in ccdExposure.getDetector() if not badAmpDict[amp.getName()]])
+    # Get median of amplifier saturation level
+    satLevel = numpy.nanmedian([ccdExposure.metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"]
+                                for amp in ccdExposure.getDetector() if not badAmpDict[amp.getName()]])
 
     # TODO: generalize to N cores.
     if nbCore == 2:
@@ -415,8 +415,7 @@ def modelITLEdgeBleed(ccdExposure, xCore,
                 maxWidthEdgeBleed = numpy.max(numpy.sum(subImage > 0.45*satLevel,
                                                         axis=1))
 
-                # Mask edge bleed with a
-                # decaying exponential model
+                # Mask edge bleed with a decaying exponential model
                 for y in range(200):
                     edgeBleedHalfWidth = \
                         int(((maxWidthEdgeBleed)*numpy.exp(-itlEdgeBleedModelConstant*y)
@@ -453,6 +452,8 @@ def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT"):
     saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 
     cc = numpy.sum(fpCore.getSpans().asArray(), axis=0)
+    # Mask full columns that have 20 percent of the height of the footprint
+    # saturated
     columnsToMaskFP = numpy.where(cc > fpCore.getSpans().asArray().shape[0]/5.)
 
     columnsToMask = [x + int(fpCore.getBBox().getMinX()) for x in columnsToMaskFP]
