@@ -385,9 +385,7 @@ def maskITLDip(exposure, detectorConfig, maskPlaneNames=["SUSPECT", "ITL_DIP"], 
 
     # Get the approximate image background.
     approxBackground = numpy.median(exposure.image.array)
-    maskValue = 0
-    for maskPlaneName in maskPlaneNames:
-        maskValue |= exposure.mask.getPlaneBitMask(maskPlaneName)
+    maskValue = exposure.mask.getPlaneBitMask(maskPlaneNames)
 
     maskBak = exposure.mask.array.copy()
     nMaskedCols = 0
