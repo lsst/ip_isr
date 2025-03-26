@@ -114,6 +114,46 @@ class OverscanDetectorConfig(pexConfig.Config):
             "NONE": "No dithering is performed.",
         },
     )
+    itlDipMinHeight = pexConfig.Field(
+        dtype=int,
+        doc="Minimum height for a saturated footprint column to contribute to a dip.",
+        default=50,
+    )
+    itlDipMinWidth = pexConfig.Field(
+        dtype=int,
+        doc="Minimum number of columns in a saturated footprint with idlDipMinHeight "
+            "to contribute to a dip.",
+        default=15,
+    )
+    itlDipMaxWidth = pexConfig.Field(
+        dtype=int,
+        doc="Maximum number of columns to use for a dip mask.",
+        default=50,
+    )
+    itlDipWidthScale = pexConfig.Field(
+        dtype=float,
+        doc="Scaling factor to widen saturated core for dip masking.",
+        default=1.5,
+    )
+    itlDipBackgroundFraction = pexConfig.Field(
+        dtype=float,
+        doc="Fraction of background (scaled by width) that is in the center of the dip. "
+            "Only dips that are greater than itlDipMinSkyNoiseFraction will be masked. "
+            "If equal to 0.0, dip masking will be skipped.",
+        default=0.0,
+    )
+    itlDipMinBackgroundNoiseFraction = pexConfig.Field(
+        dtype=float,
+        doc="Only max model dip depth greater than this fraction of the approximate "
+            "background noise will be masked.",
+        default=0.5,
+    )
+    itlDipMaxColsPerImage = pexConfig.Field(
+        dtype=int,
+        doc="Maximum number of columns detected as ``dip`` columns before dip masking "
+            "is disabled on the image.",
+        default=500,
+    )
 
     @property
     def doAnySerialOverscan(self):
