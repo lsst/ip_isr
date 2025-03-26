@@ -356,6 +356,17 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
 
     # Masking options.
+    doITLDipMask = pexConfig.Field(
+        dtype=bool,
+        doc="Apply ``ITL dip`` masking. The ``itlDipMaskPlane`` mask plane "
+            "will be added even if this configuration is False.",
+        default=True,
+    )
+    itlDipMaskPlanes = pexConfig.ListField(
+        dtype=str,
+        doc="Mask plane to use for ITL dip pixels.",
+        default=["SUSPECT", "ITL_DIP"],
+    )
     doDefect = pexConfig.Field(
         dtype=bool,
         doc="Apply correction for CCD defects, e.g. hot pixels?",
@@ -1809,6 +1820,20 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warning("No WCS found in input exposure.")
+
+        # ITL Dip Masking
+        for maskPlane in self.config.itlDipMaskPlanes:
+            if maskPlane not in ccdExposure.mask.getMaskPlaneDict():
+                self.log.info("Adding %s mask plane to image.", maskPlane)
+                ccdExposure.mask.addMaskPlane(maskPlane)
+
+        if self.config.doITLDipMask:
+            isrFunctions.maskITLDip(
+                exposure=ccdExposure,
+                detectorConfig=overscanDetectorConfig,
+                log=self.log,
+                maskPlaneNames=self.config.itlDipMaskPlanes,
+            )
 
         # Edge bleed masking
         if self.config.doITLEdgeBleedMask and detector.getPhysicalType() == 'ITL' \
