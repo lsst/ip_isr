@@ -529,8 +529,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         exposure.setDetector(detector)
         exposure.mask.array[:, :] = 0
         exposure.mask.addMaskPlane("ITL_DIP")
-        dipMaskValue = exposure.mask.getPlaneBitMask("SUSPECT") \
-            | exposure.mask.getPlaneBitMask("ITL_DIP")
+        dipMaskValue = exposure.mask.getPlaneBitMask(["SUSPECT", "ITL_DIP"])
 
         detectorConfig = ipIsr.overscanAmpConfig.OverscanDetectorConfig()
         detectorConfig.itlDipBackgroundFraction = 0.0025
