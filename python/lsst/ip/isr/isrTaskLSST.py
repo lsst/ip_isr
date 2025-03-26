@@ -394,7 +394,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
     doITLSatSagMask = pexConfig.Field(
         dtype=bool,
-        doc="TBD",
+        doc="Mask columns presenting saturation sag.",
         default=True,
     )
     itlEdgeBleedSatMinArea = pexConfig.Field(
@@ -1841,8 +1841,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskPlaneNames=self.config.itlDipMaskPlanes,
             )
 
-        if  (self.config.doITLSatSagMask or self.config.doITLEdgeBleedMask) \
-            and detector.getPhysicalType() == 'ITL':
+        if (self.config.doITLSatSagMask or self.config.doITLEdgeBleedMask) \
+                and detector.getPhysicalType() == 'ITL':
 
             # The following steps will rely on the footprint of saturated
             # cores with large areas.
