@@ -1979,6 +1979,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     ampExposure.getMaskedImage(),
                     ["BAD"]
                 )
+                metadata[f"LSST ISR MASK SUSPECT {ampName}"] = isrFunctions.countMaskedPixels(
+                    ampExposure.getMaskedImage(),
+                    ["SUSPECT"],
+                )
                 qaStats = afwMath.makeStatistics(ampExposure.getImage(),
                                                  afwMath.MEAN | afwMath.MEDIAN | afwMath.STDEVCLIP)
 
