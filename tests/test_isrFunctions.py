@@ -374,12 +374,10 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         # We select the only footprint
         fpCore = fpList[largeAreas[0]]
 
-        nbCore, XMidPointBBox = ipIsrFunctions.getLargeSatMidPoint(fpCore=fpCore)
-
         numPixSatBottomEdgeBeforeCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                               fpCore, nbCore, XMidPointBBox,
-                               itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.02,
+                               fpCore, itlEdgeBleedThreshold=5000.,
+                               itlEdgeBleedModelConstant=0.02,
                                saturatedMaskName='SAT')
         numPixSatBottomEdgeAfterCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         # Check the number of saturated pixels
@@ -429,12 +427,11 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
             # We select the new edge bleed footprint
             if fpList[largeAreasIndex].getBBox().contains(x, y):
                 fpCore = fpList[largeAreasIndex]
-                nbCore, XMidPointBBox = ipIsrFunctions.getLargeSatMidPoint(fpCore=fpCore)
 
                 numPixSatTopEdgeBeforeCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                                       fpCore, nbCore, XMidPointBBox,
-                                       itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.02,
+                                       fpCore, itlEdgeBleedThreshold=5000.,
+                                       itlEdgeBleedModelConstant=0.02,
                                        saturatedMaskName='SAT')
                 numPixSatTopEdgeAfterCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 # Check the number of saturated pixels
@@ -498,8 +495,6 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
             if fpList[largeAreasIndex].getBBox().contains(x, y):
                 fpCore = fpList[largeAreasIndex]
 
-                nbCore, XMidPointBBox = ipIsrFunctions.getLargeSatMidPoint(fpCore=fpCore)
-
                 # Number of saturated pixels at the bottom edge
                 # before applying masking
                 numPixSatBottomEdgeBefore = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
@@ -508,8 +503,8 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 numPixSatTopEdgeBefore = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 # Apply edge bleed masking
                 ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                                       fpCore, nbCore, XMidPointBBox,
-                                       itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.02,
+                                       fpCore, itlEdgeBleedThreshold=5000.,
+                                       itlEdgeBleedModelConstant=0.02,
                                        saturatedMaskName='SAT')
                 # Number of saturated pixels at the bottom edge
                 # after applying edge bleed masking
@@ -561,15 +556,13 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
             if fpList[largeAreasIndex].getBBox().contains(x, y):
                 fpCore = fpList[largeAreasIndex]
 
-                nbCore, XMidPointBBox = ipIsrFunctions.getLargeSatMidPoint(fpCore=fpCore)
-
                 # Number of saturated pixels at the bottom edge
                 # before applying masking
                 numPixSatTopEdgeBefore = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 # Apply edge bleed masking
                 ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                                       fpCore, nbCore, XMidPointBBox,
-                                       itlEdgeBleedThreshold=5000., itlEdgeBleedModelConstant=0.02,
+                                       fpCore, itlEdgeBleedThreshold=5000.,
+                                       itlEdgeBleedModelConstant=0.02,
                                        saturatedMaskName='SAT')
                 # Number of saturated pixels at the bottom edge
                 # after applying edge bleed masking

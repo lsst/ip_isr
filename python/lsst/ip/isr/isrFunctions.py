@@ -35,6 +35,7 @@ __all__ = [
     "getPhysicalFilter",
     "growMasks",
     "maskITLEdgeBleed",
+    "maskITLSatSag",
     "maskITLDip",
     "illuminationCorrection",
     "interpolateDefectList",
@@ -219,59 +220,10 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
         fpSet.setMask(mask, maskValue)
 
 
-def getLargeSatMidPoint(fpCore):
-    """Get the number of cores and edges of saturated cores areas
-    in a saturated footprint.
-
-    Parameters
-    ----------
-    fpCore : `lsst.afw.detection._detection.Footprint`
-        Footprint of saturated core.
-
-    Returns
-    -------
-    trueSegments : int
-        Number of saturated cores in the footprint.
-    XMidPointBBox: `list` [`int`]
-        Edges of the sub footprints for each saturated core
-        if there are more than one.
-    """
-    # Get centroid of saturated core
-    xCore, yCore = fpCore.getCentroid()
-    # Turn the Y detector coordinate into Y footprint coordinate
-    yCoreFP = int(yCore) - fpCore.getBBox().getMinY()
-    # Now test if there is one or more cores
-    # by checking if the slice at the center is full of saturated pixels
-    checkCoreNbRow = fpCore.getSpans().asArray()[yCoreFP, :]
-    trueSegments = 0
-    inTrueSegment = False
-    indexSwitchTrue = []
-    indexSwitchFalse = []
-    for i, value in enumerate(checkCoreNbRow):
-        if value:
-            if not inTrueSegment:
-                indexSwitchTrue.append(i)
-                trueSegments += 1
-                inTrueSegment = True
-        elif inTrueSegment:
-            indexSwitchFalse.append(i)
-            inTrueSegment = False
-    # if there are more than one true segment in the central slice
-    # then there are several saturated core and trails in the footprint.
-    XMidPointBBox = [0]
-    # TODO: generalize to N cores.
-    if trueSegments == 2:
-        XMidPointBBox.append(int((indexSwitchTrue[1] - indexSwitchFalse[0])/2))
-        XMidPointBBox.append(fpCore.getSpans().asArray().shape[1])
-
-    return trueSegments, XMidPointBBox
-
-
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
-                     fpCore, nbCore, XMidPointBBox,
-                     itlEdgeBleedThreshold=5000.,
-                     itlEdgeBleedModelConstant=0.03,
-                     saturatedMaskName="SAT"):
+                     fpCore, itlEdgeBleedThreshold=5000.,
+                     itlEdgeBleedModelConstant=0.02,
+                     saturatedMaskName="SAT", log=None):
     """Mask edge bleeds in ITL detectors.
 
     Parameters
@@ -283,8 +235,6 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
         amplifier is fully masked.
     fpCore : `lsst.afw.detection._detection.Footprint`
         Footprint of saturated core.
-    nbCore: `int`
-        Number of cores in the footprint.
     itlEdgeBleedThreshold : `float`, optional
         Threshold above median sky background for edge bleed detection
         (electron units).
@@ -292,30 +242,69 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
         Constant in the decaying exponential in the edge bleed masking.
     saturatedMaskName : `str`, optional
         Mask name for saturation.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
     """
+
+    log = log if log else logging.getLogger(__name__)
 
     # Get median of amplifier saturation level
     satLevel = numpy.nanmedian([ccdExposure.metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"]
                                 for amp in ccdExposure.getDetector() if not badAmpDict[amp.getName()]])
 
-    # TODO: generalize to N cores.
+    # 1. we check if there are several cores in the footprint:
+    # Get centroid of saturated core
+    xCore, yCore = fpCore.getCentroid()
+    # Turn the Y detector coordinate into Y footprint coordinate
+    yCoreFP = int(yCore) - fpCore.getBBox().getMinY()
+    # Now test if there is one or more cores by checking if the slice at the
+    # center is full of saturated pixels or has several segments of saturated
+    # columns (i.e. several cores with trails)
+    checkCoreNbRow = fpCore.getSpans().asArray()[yCoreFP, :]
+    nbCore = 0
+    inSatSegment = False
+    indexSwitchTrue = []
+    indexSwitchFalse = []
+    for i, value in enumerate(checkCoreNbRow):
+        if value:
+            if not inSatSegment:
+                indexSwitchTrue.append(i)
+                # nbCore is the number of detected cores.
+                nbCore += 1
+                inSatSegment = True
+        elif inSatSegment:
+            indexSwitchFalse.append(i)
+            inSatSegment = False
+
+    # 1. we look for edge bleed in saturated cores in the footprint
     if nbCore == 2:
+        # we now estimate the x coordinates of the edges of the subfootprint
+        # for each core
+        xEdgesCores = [0]
+        xEdgesCores.append(int((indexSwitchTrue[1] - indexSwitchFalse[0])/2))
+        xEdgesCores.append(fpCore.getSpans().asArray().shape[1])
+
         # Get the X and Y footprint coordinates of the cores
         for i in range(nbCore):
-            subfp = fpCore.getSpans().asArray()[200:-200, XMidPointBBox[i]:XMidPointBBox[i+1]]
-            xCoreFP = int(XMidPointBBox[i] + numpy.argmax(numpy.sum(subfp, axis=0)))
+            subfp = fpCore.getSpans().asArray()[200:-200, xEdgesCores[i]:xEdgesCores[i+1]]
+            xCoreFP = int(xEdgesCores[i] + numpy.argmax(numpy.sum(subfp, axis=0)))
             # turn into X coordinate in detector space
             xCore = xCoreFP + fpCore.getBBox().getMinX()
             yCoreFP = int(200 + numpy.argmax(numpy.sum(subfp, axis=1)))
 
             widthSat = numpy.sum(subfp[int(yCoreFP), :])
 
-            modelITLEdgeBleed(ccdExposure, xCore,
-                              satLevel, widthSat,
-                              itlEdgeBleedThreshold,
-                              itlEdgeBleedModelConstant,
-                              saturatedMaskName)
-
+            _applyMaskITLEdgeBleed(ccdExposure, xCore,
+                                   satLevel, widthSat,
+                                   itlEdgeBleedThreshold,
+                                   itlEdgeBleedModelConstant,
+                                   saturatedMaskName, log)
+    elif nbCore > 2:
+        # TODO DM-49736: support N cores in saturated footprint
+        log.warning(
+            "Too many (%d) cores in saturated footprint to mask edge bleeds.",
+            nbCore,
+        )
     else:
         # Get centroid of saturated core
         xCore, yCore = fpCore.getCentroid()
@@ -323,16 +312,16 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
         yCoreFP = yCore - fpCore.getBBox().getMinY()
         # Get the number of saturated columns around the centroid
         widthSat = numpy.sum(fpCore.getSpans().asArray()[int(yCoreFP), :])
-        modelITLEdgeBleed(ccdExposure, xCore,
-                          satLevel, widthSat, itlEdgeBleedThreshold,
-                          itlEdgeBleedModelConstant, saturatedMaskName)
+        _applyMaskITLEdgeBleed(ccdExposure, xCore,
+                               satLevel, widthSat, itlEdgeBleedThreshold,
+                               itlEdgeBleedModelConstant, saturatedMaskName, log)
 
 
-def modelITLEdgeBleed(ccdExposure, xCore,
-                      satLevel, widthSat,
-                      itlEdgeBleedThreshold=5000.,
-                      itlEdgeBleedModelConstant=0.03,
-                      saturatedMaskName="SAT"):
+def _applyMaskITLEdgeBleed(ccdExposure, xCore,
+                           satLevel, widthSat,
+                           itlEdgeBleedThreshold=5000.,
+                           itlEdgeBleedModelConstant=0.03,
+                           saturatedMaskName="SAT", log=None):
     """Apply ITL edge bleed masking model.
 
     Parameters
@@ -352,7 +341,10 @@ def modelITLEdgeBleed(ccdExposure, xCore,
         Constant in the decaying exponential in the edge bleed masking.
     saturatedMaskName : `str`, optional
         Mask name for saturation.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
     """
+    log = log if log else logging.getLogger(__name__)
 
     maskedImage = ccdExposure.maskedImage
     xmax = maskedImage.image.array.shape[1]
@@ -405,6 +397,8 @@ def modelITLEdgeBleed(ccdExposure, xCore,
             edgeMedian = numpy.median(sliceImage[:50, lowerRangeSmall:upperRangeSmall])
             if edgeMedian > (ampImageBG + itlEdgeBleedThreshold):
 
+                log.info("Found edge bleed around column %d", xCore)
+
                 # We need an estimate of the maximum width
                 # of the edge bleed for our masking model
                 # so we now estimate it by measuring the width of
@@ -446,7 +440,7 @@ def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT"):
         Mask name for saturation.
     """
 
-    # TODO: refine the masking selection, e.g. adding a flux level check.
+    # TODO DM-49736: add a flux level check to apply masking
 
     maskedImage = ccdExposure.maskedImage
     saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
