@@ -412,7 +412,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Sky background threshold for edge bleed detection.",
         default=5000.,
     )
-    itlEdgeBleedModelConstant = pexConfig.Field(
+    itlEdgeBleedModelCst = pexConfig.Field(
         dtype=float,
         doc="Constant in the edge bleed exponential decay model.",
         default=0.02,
@@ -1841,18 +1841,19 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 maskPlaneNames=self.config.itlDipMaskPlanes,
             )
 
-        if self.config.doITLSatSagMask or self.config.doITLEdgeBleedMask:
+        if  (self.config.doITLSatSagMask or self.config.doITLEdgeBleedMask) \
+            and detector.getPhysicalType() == 'ITL':
 
             # The following steps will rely on the footprint of saturated
             # cores with large areas.
             thresh = afwDetection.Threshold(ccdExposure.mask.getPlaneBitMask("SAT"),
-                                    afwDetection.Threshold.BITMASK
-                                    )
+                                            afwDetection.Threshold.BITMASK
+                                            )
             fpList = afwDetection.FootprintSet(ccdExposure.mask, thresh).getFootprints()
 
             satAreas = numpy.asarray([fp.getArea() for fp in fpList])
             largeAreas, = numpy.where((satAreas >= self.config.itlEdgeBleedSatMinArea)
-                                    & (satAreas < self.config.itlEdgeBleedSatMaxArea))
+                                      & (satAreas < self.config.itlEdgeBleedSatMaxArea))
 
             for largeAreasIndex in largeAreas:
 
@@ -1862,17 +1863,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 nbCore, XMidPointBBox = isrFunctions.getLargeSatMidPoint(fpCore=fpCore)
 
                 # Edge bleed masking
-                if self.config.doITLEdgeBleedMask and detector.getPhysicalType() == 'ITL':
+                if self.config.doITLEdgeBleedMask:
                     isrFunctions.maskITLEdgeBleed(ccdExposure=ccdExposure,
                                                   badAmpDict=badAmpDict,
                                                   fpCore=fpCore, nbCore=nbCore, XMidPointBBox=XMidPointBBox,
                                                   itlEdgeBleedThreshold=self.config.itlEdgeBleedThreshold,
-                                                  itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelConstant,
+                                                  itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelCst,
                                                   saturatedMaskName=self.config.saturatedMaskName
                                                   )
-                if self.config.doITLSatSagMask and detector.getPhysicalType() == 'ITL':
-                    isrFunctions.maskSatSag(ccdExposure, fpCore, saturatedMaskName="SAT")
-
+                if self.config.doITLSatSagMask:
+                    isrFunctions.maskITLSatSag(ccdExposure, fpCore,
+                                               saturatedMaskName=self.config.saturatedMaskName)
 
         # Bias subtraction
         # Output units: electron (adu if doBootstrap=True)
