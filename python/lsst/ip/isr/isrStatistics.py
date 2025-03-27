@@ -859,7 +859,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Notes
         -----
-        Based on eop_pipe implementation:
+        Based on eo_pipe implementation:
         https://github.com/lsst-camera-dh/eo_pipe/blob/main/python/lsst/eo/pipe/biasShiftsTask.py  # noqa: E501 W505
         """
         outputStats = {}
@@ -867,6 +867,16 @@ class IsrStatisticsTask(pipeBase.Task):
         detector = inputExp.getDetector()
         for amp, overscans in zip(detector, serialOverscanResults):
             ampStats = {}
+
+            # Check if the overscan results are None
+            # This can happen if the amp is in the
+            # input PTC's badAmp list, for instance.
+            if overscans is None:
+                ampStats["LOCAL_NOISE"] = 0.0
+                ampStats["BIAS_SHIFTS"] = []
+                outputStats[amp.getName()] = ampStats
+                continue
+
             # Add fit back to data
             rawOverscan = overscans.overscanImage.image.array + overscans.overscanFit
 
