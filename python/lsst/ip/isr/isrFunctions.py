@@ -35,6 +35,7 @@ __all__ = [
     "getPhysicalFilter",
     "growMasks",
     "maskITLEdgeBleed",
+    "maskITLSatSag",
     "maskITLDip",
     "illuminationCorrection",
     "interpolateDefectList",
@@ -219,11 +220,10 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
         fpSet.setMask(mask, maskValue)
 
 
-def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
-                     itlEdgeBleedSatMaxArea=100000,
-                     itlEdgeBleedThreshold=5000.,
-                     itlEdgeBleedModelConstant=0.03,
-                     saturatedMaskName="SAT"):
+def maskITLEdgeBleed(ccdExposure, badAmpDict,
+                     fpCore, itlEdgeBleedThreshold=5000.,
+                     itlEdgeBleedModelConstant=0.02,
+                     saturatedMaskName="SAT", log=None):
     """Mask edge bleeds in ITL detectors.
 
     Parameters
@@ -233,9 +233,8 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
     badAmpDict : `dict` [`str`, `bool`]
         Dictionary of amplifiers, keyed by name, value is True if
         amplifier is fully masked.
-    itlEdgeBleedSatMinArea : `int`, optional
-        Minimal saturated footprint area where the presence of edge bleeds
-        will be checked.
+    fpCore : `lsst.afw.detection._detection.Footprint`
+        Footprint of saturated core.
     itlEdgeBleedThreshold : `float`, optional
         Threshold above median sky background for edge bleed detection
         (electron units).
@@ -243,110 +242,216 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict, itlEdgeBleedSatMinArea=10000,
         Constant in the decaying exponential in the edge bleed masking.
     saturatedMaskName : `str`, optional
         Mask name for saturation.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
     """
+
+    log = log if log else logging.getLogger(__name__)
+
+    # Get median of amplifier saturation level
+    satLevel = numpy.nanmedian([ccdExposure.metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"]
+                                for amp in ccdExposure.getDetector() if not badAmpDict[amp.getName()]])
+
+    # 1. we check if there are several cores in the footprint:
+    # Get centroid of saturated core
+    xCore, yCore = fpCore.getCentroid()
+    # Turn the Y detector coordinate into Y footprint coordinate
+    yCoreFP = int(yCore) - fpCore.getBBox().getMinY()
+    # Now test if there is one or more cores by checking if the slice at the
+    # center is full of saturated pixels or has several segments of saturated
+    # columns (i.e. several cores with trails)
+    checkCoreNbRow = fpCore.getSpans().asArray()[yCoreFP, :]
+    nbCore = 0
+    inSatSegment = False
+    indexSwitchTrue = []
+    indexSwitchFalse = []
+    for i, value in enumerate(checkCoreNbRow):
+        if value:
+            if not inSatSegment:
+                indexSwitchTrue.append(i)
+                # nbCore is the number of detected cores.
+                nbCore += 1
+                inSatSegment = True
+        elif inSatSegment:
+            indexSwitchFalse.append(i)
+            inSatSegment = False
+
+    # 1. we look for edge bleed in saturated cores in the footprint
+    if nbCore == 2:
+        # we now estimate the x coordinates of the edges of the subfootprint
+        # for each core
+        xEdgesCores = [0]
+        xEdgesCores.append(int((indexSwitchTrue[1] - indexSwitchFalse[0])/2))
+        xEdgesCores.append(fpCore.getSpans().asArray().shape[1])
+
+        # Get the X and Y footprint coordinates of the cores
+        for i in range(nbCore):
+            subfp = fpCore.getSpans().asArray()[200:-200, xEdgesCores[i]:xEdgesCores[i+1]]
+            xCoreFP = int(xEdgesCores[i] + numpy.argmax(numpy.sum(subfp, axis=0)))
+            # turn into X coordinate in detector space
+            xCore = xCoreFP + fpCore.getBBox().getMinX()
+            yCoreFP = int(200 + numpy.argmax(numpy.sum(subfp, axis=1)))
+
+            widthSat = numpy.sum(subfp[int(yCoreFP), :])
+
+            _applyMaskITLEdgeBleed(ccdExposure, xCore,
+                                   satLevel, widthSat,
+                                   itlEdgeBleedThreshold,
+                                   itlEdgeBleedModelConstant,
+                                   saturatedMaskName, log)
+    elif nbCore > 2:
+        # TODO DM-49736: support N cores in saturated footprint
+        log.warning(
+            "Too many (%d) cores in saturated footprint to mask edge bleeds.",
+            nbCore,
+        )
+    else:
+        # Get centroid of saturated core
+        xCore, yCore = fpCore.getCentroid()
+        # Turn the Y detector coordinate into Y footprint coordinate
+        yCoreFP = yCore - fpCore.getBBox().getMinY()
+        # Get the number of saturated columns around the centroid
+        widthSat = numpy.sum(fpCore.getSpans().asArray()[int(yCoreFP), :])
+        _applyMaskITLEdgeBleed(ccdExposure, xCore,
+                               satLevel, widthSat, itlEdgeBleedThreshold,
+                               itlEdgeBleedModelConstant, saturatedMaskName, log)
+
+
+def _applyMaskITLEdgeBleed(ccdExposure, xCore,
+                           satLevel, widthSat,
+                           itlEdgeBleedThreshold=5000.,
+                           itlEdgeBleedModelConstant=0.03,
+                           saturatedMaskName="SAT", log=None):
+    """Apply ITL edge bleed masking model.
+
+    Parameters
+    ----------
+    ccdExposure : `lsst.afw.image.Exposure`
+        Exposure to apply masking to.
+    xCore: `int`
+        X coordinate of the saturated core.
+    satLevel: `float`
+        Minimum saturation level of the detector.
+    widthSat: `float`
+        Width of the saturated core.
+    itlEdgeBleedThreshold : `float`, optional
+        Threshold above median sky background for edge bleed detection
+        (electron units).
+    itlEdgeBleedModelConstant : `float`, optional
+        Constant in the decaying exponential in the edge bleed masking.
+    saturatedMaskName : `str`, optional
+        Mask name for saturation.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
+    """
+    log = log if log else logging.getLogger(__name__)
+
     maskedImage = ccdExposure.maskedImage
     xmax = maskedImage.image.array.shape[1]
+    saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 
-    # Get minimum of amplifier saturation level
-    satLevel = numpy.min([ccdExposure.metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"]
-                          for amp in ccdExposure.getDetector() if not badAmpDict[amp.getName()]])
+    for amp in ccdExposure.getDetector():
+        # Select the 2 top and bottom amplifiers around the saturated
+        # core with a potential edge bleed by selecting the amplifiers
+        # that have the same X coordinate as the saturated core.
+        # As we don't care about the Y coordinate, we set it to the
+        # center of the BBox.
+        yBox = amp.getBBox().getCenter()[1]
+        if amp.getBBox().contains(xCore, yBox):
 
-    # Get footprint list of saturated pixels
-    thresh = afwDetection.Threshold(satLevel)
-    fpList = afwDetection.FootprintSet(maskedImage, thresh).getFootprints()
+            # Get the amp name
+            ampName = amp.getName()
 
-    satAreas = numpy.asarray([fp.getArea() for fp in fpList])
-    largeAreas, = numpy.where((satAreas >= itlEdgeBleedSatMinArea)
-                              & (satAreas < itlEdgeBleedSatMaxArea))
+            # Because in ITLs the edge bleed happens on both edges
+            # of the detector, we make a cutout around
+            # both the top and bottom
+            # edge bleed candidates around the saturated core.
+            # We flip the cutout of the top amplifier
+            # to then work with the same coordinates for both.
+            # The way of selecting top vs bottom amp
+            # is very specific to ITL.
+            if ampName[:2] == 'C1':
+                sliceImage = maskedImage.image.array[:200, :]
+                sliceMask = maskedImage.mask.array[:200, :]
+            elif ampName[:2] == 'C0':
+                sliceImage = numpy.flipud(maskedImage.image.array[-200:, :])
+                sliceMask = numpy.flipud(maskedImage.mask.array[-200:, :])
 
-    satMaskBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
+            # The middle columns of edge bleeds often have
+            # high counts, so  we check there is an edge bleed
+            # by looking at a small image up to 50 pixels from the edge
+            # and around the saturated columns
+            # of the saturated core, and checking its median is
+            # above the sky background by itlEdgeBleedThreshold
 
-    if len(largeAreas) == 0:
-        return
+            # If the centroid is too close to the edge of the detector
+            # (within 5 pixels), we set the limit to the mean check
+            # to the edge of the detector
+            lowerRangeSmall = int(xCore)-5
+            upperRangeSmall = int(xCore)+5
+            if lowerRangeSmall < 0:
+                lowerRangeSmall = 0
+            if upperRangeSmall > xmax:
+                upperRangeSmall = xmax
+            ampImageBG = numpy.median(maskedImage[amp.getBBox()].image.array)
+            edgeMedian = numpy.median(sliceImage[:50, lowerRangeSmall:upperRangeSmall])
+            if edgeMedian > (ampImageBG + itlEdgeBleedThreshold):
 
-    for largeAreasIndex in largeAreas:
+                log.info("Found edge bleed around column %d", xCore)
 
-        # Get centroid of saturated core
-        xCore, yCore = fpList[largeAreasIndex].getCentroid()
-        # Turn the Y detector coordinate
-        # into Y footprint coordinate
-        yCoreFP = yCore - fpList[largeAreasIndex].getBBox().getMinY()
-        # Get the number of saturated columns around the centroid
-        widthSat = numpy.sum(fpList[largeAreasIndex].getSpans().asArray()[int(yCoreFP), :])
+                # We need an estimate of the maximum width
+                # of the edge bleed for our masking model
+                # so we now estimate it by measuring the width of
+                # areas above 60 percent of the saturation level
+                # close to the edge,
+                # in a cutout up to 100 pixels from the edge.
+                subImage = sliceImage[:100, :]
+                maxWidthEdgeBleed = numpy.max(numpy.sum(subImage > 0.45*satLevel,
+                                                        axis=1))
 
-        for amp in ccdExposure.getDetector():
-            # Select the 2 top and bottom amplifiers around the saturated
-            # core with a potential edge bleed by selecting the amplifiers
-            # that have the same X coordinate as the saturated core.
-            # As we don't care about the Y coordinate, we set it to the
-            # center of the BBox.
-            yBox = amp.getBBox().getCenter()[1]
-            if amp.getBBox().contains(xCore, yBox):
+                # Mask edge bleed with a decaying exponential model
+                for y in range(200):
+                    edgeBleedHalfWidth = \
+                        int(((maxWidthEdgeBleed)*numpy.exp(-itlEdgeBleedModelConstant*y)
+                             + widthSat)/2.)
+                    lowerRange = int(xCore)-edgeBleedHalfWidth
+                    upperRange = int(xCore)+edgeBleedHalfWidth
+                    # If the edge bleed model goes outside the detector
+                    # we set the limit for the masking
+                    # to the edge of the detector
+                    if lowerRange < 0:
+                        lowerRange = 0
+                    if upperRange > xmax:
+                        upperRange = xmax
+                    sliceMask[y, lowerRange:upperRange] |= saturatedBit
 
-                # Get the amp name
-                ampName = amp.getName()
 
-                # Because in ITLs the edge bleed happens on both edges
-                # of the detector, we make a cutout around
-                # both the top and bottom
-                # edge bleed candidates around the saturated core.
-                # We flip the cutout of the top amplifier
-                # to then work with the same coordinates for both.
-                # The way of selecting top vs bottom amp
-                # is very specific to ITL.
-                if ampName[:2] == 'C1':
-                    sliceImage = maskedImage.image.array[:200, :]
-                    sliceMask = maskedImage.mask.array[:200, :]
-                elif ampName[:2] == 'C0':
-                    sliceImage = numpy.flipud(maskedImage.image.array[-200:, :])
-                    sliceMask = numpy.flipud(maskedImage.mask.array[-200:, :])
+def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT"):
+    """Mask columns presenting saturation sag in saturated footprints in
+    ITL detectors.
 
-                # The middle columns of edge bleeds often have
-                # high counts, so  we check there is an edge bleed
-                # by looking at a small image up to 50 pixels from the edge
-                # and around the saturated columns
-                # of the saturated core, and checking its median is
-                # above the sky background by itlEdgeBleedThreshold
+    Parameters
+    ----------
+    ccdExposure : `lsst.afw.image.Exposure`
+        Exposure to apply masking to.
+    fpCore : `lsst.afw.detection._detection.Footprint`
+        Footprint of saturated core.
+    saturatedMaskName : `str`, optional
+        Mask name for saturation.
+    """
 
-                # If the centroid is too close to the edge of the detector
-                # (within 5 pixels), we set the limit to the mean check
-                # to the edge of the detector
-                lowerRangeSmall = int(xCore)-5
-                upperRangeSmall = int(xCore)+5
-                if lowerRangeSmall < 0:
-                    lowerRangeSmall = 0
-                if upperRangeSmall > xmax:
-                    upperRangeSmall = xmax
-                ampImageBG = numpy.median(maskedImage[amp.getBBox()].image.array)
-                edgeMedian = numpy.median(sliceImage[:50, lowerRangeSmall:upperRangeSmall])
-                if edgeMedian > (ampImageBG + itlEdgeBleedThreshold):
+    # TODO DM-49736: add a flux level check to apply masking
 
-                    # We need an estimate of the maximum width
-                    # of the edge bleed for our masking model
-                    # so we now estimate it by measuring the width of
-                    # areas above 60 percent of the saturation level
-                    # close to the edge,
-                    # in a cutout up to 100 pixels from the edge.
-                    subImage = sliceImage[:100, :]
-                    maxWidthEdgeBleed = numpy.max(numpy.sum(subImage > 0.45*satLevel,
-                                                            axis=1))
+    maskedImage = ccdExposure.maskedImage
+    saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 
-                    # Mask edge bleed with a
-                    # decaying exponential model
-                    for y in range(200):
-                        edgeBleedHalfWidth = \
-                            int(((maxWidthEdgeBleed)*numpy.exp(-itlEdgeBleedModelConstant*y)
-                                 + widthSat)/2.)
-                        lowerRange = int(xCore)-edgeBleedHalfWidth
-                        upperRange = int(xCore)+edgeBleedHalfWidth
-                        # If the edge bleed model goes outside the detector
-                        # we set the limit for the masking
-                        # to the edge of the detector
-                        if lowerRange < 0:
-                            lowerRange = 0
-                        if upperRange > xmax:
-                            upperRange = xmax
-                        sliceMask[y, lowerRange:upperRange] = satMaskBit
+    cc = numpy.sum(fpCore.getSpans().asArray(), axis=0)
+    # Mask full columns that have 20 percent of the height of the footprint
+    # saturated
+    columnsToMaskFP = numpy.where(cc > fpCore.getSpans().asArray().shape[0]/5.)
+
+    columnsToMask = [x + int(fpCore.getBBox().getMinX()) for x in columnsToMaskFP]
+    maskedImage.mask.array[:, columnsToMask] |= saturatedBit
 
 
 def maskITLDip(exposure, detectorConfig, maskPlaneNames=["SUSPECT", "ITL_DIP"], log=None):
