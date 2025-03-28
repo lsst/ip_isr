@@ -221,7 +221,8 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
 
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
-                     fpCore, itlEdgeBleedSatMinArea, itlEdgeBleedSatMaxArea,
+                     fpCore, itlEdgeBleedSatMinArea=10000,
+                     itlEdgeBleedSatMaxArea=100000,
                      itlEdgeBleedThreshold=5000.,
                      itlEdgeBleedModelConstant=0.02,
                      saturatedMaskName="SAT", log=None):
@@ -263,12 +264,17 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
     # columns (i.e. several cores with trails)
     checkCoreNbRow = fpCore.getSpans().asArray()[yCoreFP, :]
     nbCore = 0
-    if checkCoreNbRow[0]:
-        inSatSegment = True
-    else:
-        inSatSegment = False
     indexSwitchTrue = []
     indexSwitchFalse = []
+    if checkCoreNbRow[0]:
+        # If the slice starts with saturated pixels
+        inSatSegment = True
+        nbCore = 1
+        indexSwitchTrue.append(0)
+    else:
+        # If the slice starts with non saturated pixels
+        inSatSegment = False
+
     for i, value in enumerate(checkCoreNbRow):
         if value:
             if not inSatSegment:
@@ -287,7 +293,6 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
         xEdgesCores = [0]
         xEdgesCores.append(int((indexSwitchTrue[1] + indexSwitchFalse[0])/2))
         xEdgesCores.append(fpCore.getSpans().asArray().shape[1])
-
         # Get the X and Y footprint coordinates of the cores
         for i in range(nbCore):
             subfp = fpCore.getSpans().asArray()[:, xEdgesCores[i]:xEdgesCores[i+1]]
@@ -295,11 +300,12 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
             # turn into X coordinate in detector space
             xCore = xCoreFP + fpCore.getBBox().getMinX()
             # get Y footprint coordinate of the core
+            # by trimming the edges where edge bleeds are potentially dominant
             if subfp.shape[0] < 200:
                 yCoreFP = int(numpy.argmax(numpy.sum(subfp, axis=1)))
             else:
                 yCoreFP = int(numpy.argmax(numpy.sum(subfp[100:-100, :],
-                                                 axis=1)))
+                                                     axis=1)))
                 yCoreFP = 100+yCoreFP
 
             # Estimate the width of the saturated core
@@ -308,10 +314,10 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
             subfpArea = numpy.sum(subfp)
             if subfpArea > itlEdgeBleedSatMinArea and subfpArea < itlEdgeBleedSatMaxArea:
                 _applyMaskITLEdgeBleed(ccdExposure, xCore,
-                                    satLevel, widthSat,
-                                    itlEdgeBleedThreshold,
-                                    itlEdgeBleedModelConstant,
-                                    saturatedMaskName, log)
+                                       satLevel, widthSat,
+                                       itlEdgeBleedThreshold,
+                                       itlEdgeBleedModelConstant,
+                                       saturatedMaskName, log)
     elif nbCore > 2:
         # TODO DM-49736: support N cores in saturated footprint
         log.warning(
