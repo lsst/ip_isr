@@ -376,12 +376,15 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
 
         numPixSatBottomEdgeBeforeCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                               fpCore, itlEdgeBleedThreshold=5000.,
+                               fpCore,
+                               itlEdgeBleedSatMinArea=10000,
+                               itlEdgeBleedSatMaxArea=100000,
+                               itlEdgeBleedThreshold=5000.,
                                itlEdgeBleedModelConstant=0.02,
                                saturatedMaskName='SAT')
         numPixSatBottomEdgeAfterCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         # Check the number of saturated pixels
-        self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 56871)
+        self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 64837)
         # Check there are more pixels along the bottom edge after masking
         self.assertGreater(numPixSatBottomEdgeAfterCase1, numPixSatBottomEdgeBeforeCase1)
 
@@ -430,12 +433,14 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
 
                 numPixSatTopEdgeBeforeCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                                       fpCore, itlEdgeBleedThreshold=5000.,
+                                       fpCore, itlEdgeBleedSatMinArea=10000,
+                                       itlEdgeBleedSatMaxArea=100000,
+                                       itlEdgeBleedThreshold=5000.,
                                        itlEdgeBleedModelConstant=0.02,
                                        saturatedMaskName='SAT')
                 numPixSatTopEdgeAfterCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 # Check the number of saturated pixels
-                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 84649)
+                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 92615)
                 # Check there are more pixels along the bottom edge
                 # after masking
                 self.assertGreater(numPixSatTopEdgeAfterCase2, numPixSatTopEdgeBeforeCase2)
@@ -503,7 +508,10 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 numPixSatTopEdgeBefore = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 # Apply edge bleed masking
                 ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                                       fpCore, itlEdgeBleedThreshold=5000.,
+                                       fpCore,
+                                       itlEdgeBleedSatMinArea=10000,
+                                       itlEdgeBleedSatMaxArea=100000,
+                                       itlEdgeBleedThreshold=5000.,
                                        itlEdgeBleedModelConstant=0.02,
                                        saturatedMaskName='SAT')
                 # Number of saturated pixels at the bottom edge
@@ -512,7 +520,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 numPixSatTopEdgeAfter = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
 
                 # Check the number of saturated pixels
-                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 228629)
+                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 226539)
                 # Check there are more pixels along the bottom edge
                 # after masking
                 self.assertGreater(numPixSatBottomEdgeAfter, numPixSatBottomEdgeBefore)
@@ -561,7 +569,10 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 numPixSatTopEdgeBefore = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 # Apply edge bleed masking
                 ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
-                                       fpCore, itlEdgeBleedThreshold=5000.,
+                                       fpCore,
+                                       itlEdgeBleedSatMinArea=10000,
+                                       itlEdgeBleedSatMaxArea=100000,
+                                       itlEdgeBleedThreshold=5000.,
                                        itlEdgeBleedModelConstant=0.02,
                                        saturatedMaskName='SAT')
                 # Number of saturated pixels at the bottom edge
@@ -569,7 +580,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 numPixSatTopEdgeAfter = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
 
                 # Check the number of saturated pixels
-                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 289136)
+                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 280249)
                 # Check there are more pixels along the bottom edge
                 # after masking
                 self.assertGreater(numPixSatTopEdgeAfter, numPixSatTopEdgeBefore)
