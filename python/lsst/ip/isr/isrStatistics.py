@@ -1004,34 +1004,59 @@ class IsrStatisticsTask(pipeBase.Task):
         rows = []
 
         for ampId, overscan in enumerate(serialOverscanResults):
-            rawOverscan = overscan.overscanImage.image.array + overscan.overscanFit
-            rawOverscan = rawOverscan.ravel()
+            # Check if the overscan results are None
+            # This can happen if the amp is in the
+            # input PTC's badAmp list, for instance.
+            if overscan is None:
+                for ampId2, overscan2 in enumerate(serialOverscanResults):
+                    if ampId2 != ampId:
+                        osC = 0.0
+                        imC = 0.0
+                        row = {
+                            'detector': detector.getId(),
+                            'detectorComp': detector.getId(),
+                            'ampName': detector[ampId].getName(),
+                            'ampComp': detector[ampId2].getName(),
+                            'imageCorr': float(imC),
+                            'overscanCorr': float(osC),
+                        }
+                        rows.append(row)
+            else:
+                rawOverscan = overscan.overscanImage.image.array + overscan.overscanFit
+                rawOverscan = rawOverscan.ravel()
 
-            ampImage = inputExp[detector[ampId].getBBox()]
-            ampImage = ampImage.image.array.ravel()
+                ampImage = inputExp[detector[ampId].getBBox()]
+                ampImage = ampImage.image.array.ravel()
 
-            for ampId2, overscan2 in enumerate(serialOverscanResults):
-                osC = 1.0
-                imC = 1.0
-                if ampId2 != ampId:
-                    rawOverscan2 = overscan2.overscanImage.image.array + overscan2.overscanFit
-                    rawOverscan2 = rawOverscan2.ravel()
+                for ampId2, overscan2 in enumerate(serialOverscanResults):
+                    osC = 1.0
+                    imC = 1.0
+                    if ampId2 != ampId:
+                        # Check if the overscan results are None
+                        # This can happen if the amp is in the
+                        # input PTC's badAmp list, for instance.
+                        if overscan2 is None:
+                            osC = 0.0
+                            imC = 0.0
+                        else:
+                            rawOverscan2 = overscan2.overscanImage.image.array + overscan2.overscanFit
+                            rawOverscan2 = rawOverscan2.ravel()
 
-                    osC = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
+                            osC = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
 
-                    ampImage2 = inputExp[detector[ampId2].getBBox()]
-                    ampImage2 = ampImage2.image.array.ravel()
+                            ampImage2 = inputExp[detector[ampId2].getBBox()]
+                            ampImage2 = ampImage2.image.array.ravel()
 
-                    imC = np.corrcoef(ampImage, ampImage2)[0, 1]
-                rows.append(
-                    {'detector': detector.getId(),
-                     'detectorComp': detector.getId(),
-                     'ampName': detector[ampId].getName(),
-                     'ampComp': detector[ampId2].getName(),
-                     'imageCorr': float(imC),
-                     'overscanCorr': float(osC),
-                     }
-                )
+                            imC = np.corrcoef(ampImage, ampImage2)[0, 1]
+                    row = {
+                        'detector': detector.getId(),
+                        'detectorComp': detector.getId(),
+                        'ampName': detector[ampId].getName(),
+                        'ampComp': detector[ampId2].getName(),
+                        'imageCorr': float(imC),
+                        'overscanCorr': float(osC),
+                    }
+                    rows.append(row)
         return rows
 
     def measureDivisaderoStatistics(self, inputExp, **kwargs):
