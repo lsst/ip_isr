@@ -26,6 +26,7 @@ __all__ = [
     "biasCorrection",
     "brighterFatterCorrection",
     "checkFilter",
+    "compareCameraKeywords",
     "countMaskedPixels",
     "createPsf",
     "darkCorrection",
@@ -1678,3 +1679,75 @@ def isTrimmedImage(image, detector):
         True if the image is trimmed, else False.
     """
     return detector.getBBox() == image.getBBox()
+
+
+def compareCameraKeywords(
+    doRaiseOnCalibMismatch,
+    cameraKeywordsToCompare,
+    exposureMetadata,
+    calib,
+    calibName,
+    log=None,
+):
+    """Compare header keywords to confirm camera states match.
+
+    Parameters
+    ----------
+    doRaiseOnCalibMismatch : `bool`
+        Raise on calibration mismatch?  Otherwise, log a warning.
+    cameraKeywordsToCompare : `list` [`str`]
+        List of camera keywords to compare.
+    exposureMetadata : `lsst.daf.base.PropertyList`
+        Header for the exposure being processed.
+    calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
+        Calibration to be applied.
+    calibName : `str`
+        Calib type for log message.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
+    """
+    try:
+        calibMetadata = calib.metadata
+    except AttributeError:
+        return
+
+    log = log if log else logging.getLogger(__name__)
+
+    missingKeywords = []
+    for keyword in cameraKeywordsToCompare:
+        exposureValue = exposureMetadata.get(keyword, None)
+        if exposureValue is None:
+            log.debug("Sequencer keyword %s not found in exposure metadata.", keyword)
+            continue
+
+        calibValue = calibMetadata.get(keyword, None)
+
+        # We don't log here if there is a missing keyword.
+        if calibValue is None:
+            missingKeywords.append(keyword)
+            continue
+
+        if exposureValue != calibValue:
+            if doRaiseOnCalibMismatch:
+                raise RuntimeError(
+                    "Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                    calibName,
+                    keyword,
+                    exposureValue,
+                    calibValue,
+                )
+            else:
+                log.warning(
+                    "Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
+                    calibName,
+                    keyword,
+                    exposureValue,
+                    calibValue,
+                )
+
+    if missingKeywords:
+        log.info(
+            "Calibration %s missing keywords %s, which were not checked.",
+            calibName,
+            ",".join(missingKeywords),
+        )
