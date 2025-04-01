@@ -312,8 +312,8 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         # A saturated core in the bottom amplifier
         # that has a bottom edge bleed
         satVal = 15000.
-        x = 60
-        y = 1800
+        x = 70
+        y = 120
         halfWidthX = 40
         halfWidthY = 70
         halfWidthColX = 3
@@ -340,9 +340,9 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         # A saturated core near the left edge of the detector, close to the
         # previous edge bleed
         x = 10
-        y = 900
+        y = 90
         halfWidthX = 14
-        halfWidthY = 500
+        halfWidthY = 50
         halfWidthColX = 3
         _setExposureSatCore(exposure, x=x, y=y, halfWidthX=halfWidthX,
                             halfWidthY=halfWidthY, satVal=satVal,
@@ -368,7 +368,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         fpList = afwDetection.FootprintSet(exposure.mask, thresh).getFootprints()
 
         satAreas = np.asarray([fp.getArea() for fp in fpList])
-        largeAreas, = np.where((satAreas >= 10000)
+        largeAreas, = np.where((satAreas >= 1000)
                                & (satAreas < 100000))
 
         # We select the only footprint
@@ -377,14 +377,14 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         numPixSatBottomEdgeBeforeCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         ipIsr.maskITLEdgeBleed(exposure, badAmpDict,
                                fpCore,
-                               itlEdgeBleedSatMinArea=10000,
+                               itlEdgeBleedSatMinArea=2400,
                                itlEdgeBleedSatMaxArea=100000,
                                itlEdgeBleedThreshold=5000.,
                                itlEdgeBleedModelConstant=0.02,
                                saturatedMaskName='SAT')
         numPixSatBottomEdgeAfterCase1 = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
         # Check the number of saturated pixels
-        self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 64837)
+        self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 22967)
         # Check there are more pixels along the bottom edge after masking
         self.assertGreater(numPixSatBottomEdgeAfterCase1, numPixSatBottomEdgeBeforeCase1)
 
@@ -440,7 +440,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                                        saturatedMaskName='SAT')
                 numPixSatTopEdgeAfterCase2 = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
                 # Check the number of saturated pixels
-                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 92615)
+                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 50745)
                 # Check there are more pixels along the bottom edge
                 # after masking
                 self.assertGreater(numPixSatTopEdgeAfterCase2, numPixSatTopEdgeBeforeCase2)
@@ -520,7 +520,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 numPixSatTopEdgeAfter = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
 
                 # Check the number of saturated pixels
-                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 226539)
+                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 184669)
                 # Check there are more pixels along the bottom edge
                 # after masking
                 self.assertGreater(numPixSatBottomEdgeAfter, numPixSatBottomEdgeBefore)
@@ -580,7 +580,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                 numPixSatTopEdgeAfter = len(np.where(exposure.mask.array[-1, :] == satMaskBit)[0])
 
                 # Check the number of saturated pixels
-                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 280249)
+                self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 238379)
                 # Check there are more pixels along the bottom edge
                 # after masking
                 self.assertGreater(numPixSatTopEdgeAfter, numPixSatTopEdgeBefore)
