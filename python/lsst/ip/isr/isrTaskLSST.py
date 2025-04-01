@@ -28,7 +28,7 @@ from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
-from .isrFunctions import isTrimmedExposure
+from .isrFunctions import isTrimmedExposure, compareCameraKeywords
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -1402,36 +1402,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         else:
             return "Unknown Unknown"
 
-    def compareCameraKeywords(self, exposureMetadata, calib, calibName):
-        """Compare header keywords to confirm camera states match.
-
-        Parameters
-        ----------
-        exposureMetadata : `lsst.daf.base.PropertyList`
-            Header for the exposure being processed.
-        calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
-            Calibration to be applied.
-        calibName : `str`
-            Calib type for log message.
-        """
-        try:
-            calibMetadata = calib.metadata
-        except AttributeError:
-            return
-        for keyword in self.config.cameraKeywordsToCompare:
-            if keyword in exposureMetadata and keyword in calibMetadata:
-                if exposureMetadata[keyword] != calibMetadata[keyword]:
-                    if self.config.doRaiseOnCalibMismatch:
-                        raise RuntimeError("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
-                                           calibName, keyword,
-                                           exposureMetadata[keyword], calibMetadata[keyword])
-                    else:
-                        self.log.warning("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
-                                         calibName, keyword,
-                                         exposureMetadata[keyword], calibMetadata[keyword])
-            else:
-                self.log.debug("Sequencer keyword %s not found.", keyword)
-
     def compareUnits(self, calibMetadata, calibName):
         """Compare units from calibration to ISR units.
 
@@ -1592,49 +1562,58 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Validation step: check inputs match exposure configuration.
         exposureMetadata = ccdExposure.metadata
+        doRaise = self.config.doRaiseOnCalibMismatch
+        keywords = self.config.cameraKeywordsToCompare
         if not self.config.doBootstrap:
-            self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, ptc, "PTC", log=self.log)
         else:
             if self.config.doCorrectGains:
                 raise RuntimeError("doCorrectGains is True but no ptc provided.")
         if self.config.doDiffNonLinearCorrection:
             if dnlLUT is None:
                 raise RuntimeError("doDiffNonLinearCorrection is True but no dnlLUT provided.")
-            self.compareCameraKeywords(exposureMetadata, dnlLUT, "dnlLUT")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, dnlLUT, "dnlLUT", log=self.log)
         if self.config.doLinearize:
             if linearizer is None:
                 raise RuntimeError("doLinearize is True but no linearizer provided.")
-            self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, linearizer, "linearizer", log=self.log)
         if self.config.doBias:
             if bias is None:
                 raise RuntimeError("doBias is True but no bias provided.")
-            self.compareCameraKeywords(exposureMetadata, bias, "bias")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, bias, "bias", log=self.log)
             self.compareUnits(bias.metadata, "bias")
         if self.config.doCrosstalk:
             if crosstalk is None:
                 raise RuntimeError("doCrosstalk is True but no crosstalk provided.")
-            self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, crosstalk, "crosstalk", log=self.log)
         if self.config.doDeferredCharge:
             if deferredChargeCalib is None:
                 raise RuntimeError("doDeferredCharge is True but no deferredChargeCalib provided.")
-            self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
+            compareCameraKeywords(
+                doRaise,
+                keywords,
+                exposureMetadata,
+                deferredChargeCalib,
+                "CTI",
+                log=self.log,
+            )
         if self.config.doDefect:
             if defects is None:
                 raise RuntimeError("doDefect is True but no defects provided.")
-            self.compareCameraKeywords(exposureMetadata, defects, "defects")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, defects, "defects", log=self.log)
         if self.config.doDark:
             if dark is None:
                 raise RuntimeError("doDark is True but no dark frame provided.")
-            self.compareCameraKeywords(exposureMetadata, dark, "dark")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, dark, "dark", log=self.log)
             self.compareUnits(bias.metadata, "dark")
         if self.config.doBrighterFatter:
             if bfKernel is None:
                 raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
-            self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bfk", log=self.log)
         if self.config.doFlat:
             if flat is None:
                 raise RuntimeError("doFlat is True but no flat provided.")
-            self.compareCameraKeywords(exposureMetadata, flat, "flat")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, flat, "flat", log=self.log)
 
         if self.config.doSaturation:
             if self.config.defaultSaturationSource in ["PTCTURNOFF",]:
