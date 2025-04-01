@@ -24,6 +24,7 @@ import unittest
 import logging
 import numpy as np
 
+from lsst.daf.base import PropertyList
 import lsst.geom as geom
 import lsst.afw.image as afwImage
 import lsst.afw.detection as afwDetection
@@ -963,6 +964,53 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
             metadata[f"LSST ISR READNOISE {amp.getName()}"] = 3.0
         values = ipIsr.getExposureReadNoises(exposure).values()
         self.assertEqual(list(values), len(amps)*[3.0])
+
+    def test_compareCameraKeywords(self):
+        keywords = ["SEQFILE", "SEQNAME", "VOLTAGE"]
+
+        # Test success, with with warnings and doRaise.
+        exposureMetadata = PropertyList()
+        exposureMetadata["SEQFILE"] = "filename"
+        exposureMetadata["SEQNAME"] = "v30"
+        exposureMetadata["VOLTAGE"] = 100.0
+
+        calib = ipIsr.IsrCalib()
+        calib._metadata["SEQFILE"] = "filename"
+        calib._metadata["SEQNAME"] = "v30"
+        calib._metadata["VOLTAGE"] = 100.0
+
+        with self.assertNoLogs(level=logging.WARNING):
+            ipIsrFunctions.compareCameraKeywords(False, keywords, exposureMetadata, calib, "test")
+
+        ipIsrFunctions.compareCameraKeywords(True, keywords, exposureMetadata, calib, "test")
+
+        # Test warning on missing exposure keyword.
+        exposureMetadata["VOLTAGE"] = None
+        with self.assertLogs(level=logging.DEBUG) as cm:
+            ipIsrFunctions.compareCameraKeywords(False, keywords, exposureMetadata, calib, "test")
+        self.assertEqual(len(cm[1]), 1)
+        self.assertIn("Sequencer keyword VOLTAGE not found", cm[1][0])
+
+        # Test no warning + info on missing calib keywords.
+        exposureMetadata["VOLTAGE"] = 100.0
+        calib._metadata["SEQFILE"] = None
+        calib._metadata["SEQNAME"] = None
+        with self.assertNoLogs(level=logging.WARNING):
+            ipIsrFunctions.compareCameraKeywords(False, keywords, exposureMetadata, calib, "test")
+        with self.assertLogs(level=logging.INFO) as cm:
+            ipIsrFunctions.compareCameraKeywords(False, keywords, exposureMetadata, calib, "test")
+        self.assertEqual(len(cm[1]), 1)
+        self.assertIn("Calibration test missing keywords SEQFILE,SEQNAME", cm[1][0])
+
+        # Test mismatch, with warnings and doRaise.
+        calib._metadata["VOLTAGE"] = 101.0
+        with self.assertLogs(level=logging.WARNING) as cm:
+            ipIsrFunctions.compareCameraKeywords(False, keywords, exposureMetadata, calib, "test")
+        self.assertEqual(len(cm[1]), 1)
+        self.assertIn("Sequencer mismatch", cm[1][0])
+
+        with self.assertRaises(RuntimeError):
+            ipIsrFunctions.compareCameraKeywords(True, keywords, exposureMetadata, calib, "test")
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
