@@ -854,6 +854,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 isrFunctions.maskITLEdgeBleed(ccdExposure=exposure,
                                               badAmpDict=badAmpDict,
                                               fpCore=fpCore,
+                                              itlEdgeBleedSatMinArea=self.config.itlEdgeBleedSatMinArea,
+                                              itlEdgeBleedSatMaxArea=self.config.itlEdgeBleedSatMaxArea,
                                               itlEdgeBleedThreshold=self.config.itlEdgeBleedThreshold,
                                               itlEdgeBleedModelConstant=self.config.itlEdgeBleedModelConstant,
                                               saturatedMaskName=self.config.saturatedMaskName,
