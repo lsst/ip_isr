@@ -22,6 +22,7 @@
 __all__ = ["IntermediateTransmissionCurve",
            "IntermediateOpticsTransmissionCurve",
            "IntermediateFilterTransmissionCurve",
+           "IntermediateFilterDetectorTransmissionCurve",
            "IntermediateSensorTransmissionCurve",
            "IntermediateAtmosphereTransmissionCurve",
            "IntermediateSystemTransmissionCurve", ]
@@ -200,6 +201,10 @@ class IntermediateSensorTransmissionCurve(IntermediateTransmissionCurve):
 
 class IntermediateFilterTransmissionCurve(IntermediateTransmissionCurve):
     _OBSTYPE = 'transmission_filter'
+
+
+class IntermediateFilterDetectorTransmissionCurve(IntermediateTransmissionCurve):
+    _OBSTYPE = 'transmission_filter_detector'
 
 
 class IntermediateOpticsTransmissionCurve(IntermediateTransmissionCurve):
