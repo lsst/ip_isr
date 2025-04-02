@@ -59,6 +59,7 @@ from .ampOffset import AmpOffsetTask
 from .deferredCharge import DeferredChargeTask
 from .isrStatistics import IsrStatisticsTask
 from .ptcDataset import PhotonTransferCurveDataset
+from .isrFunctions import compareCameraKeywords
 
 
 def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
@@ -1369,33 +1370,63 @@ class IsrTask(pipeBase.PipelineTask):
 
         # Validate that the inputs match the exposure configuration.
         exposureMetadata = ccdExposure.getMetadata()
+        doRaise = self.config.doRaiseOnCalibMismatch
+        keywords = self.config.cameraKeywordsToCompare
         if self.config.doBias:
-            self.compareCameraKeywords(exposureMetadata, bias, "bias")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, bias, "bias", log=self.log)
             self.compareUnits(bias.metadata, "bias")
         if self.config.doBrighterFatter:
-            self.compareCameraKeywords(exposureMetadata, bfKernel, "brighter-fatter")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bfk", log=self.log)
         if self.config.doCrosstalk:
-            self.compareCameraKeywords(exposureMetadata, crosstalk, "crosstalk")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, crosstalk, "crosstalk", log=self.log)
         if self.config.doDark:
-            self.compareCameraKeywords(exposureMetadata, dark, "dark")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, dark, "dark", log=self.log)
             self.compareUnits(dark.metadata, "dark")
         if self.config.doDefect:
-            self.compareCameraKeywords(exposureMetadata, defects, "defects")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, defects, "defects", log=self.log)
         if self.config.doDeferredCharge:
-            self.compareCameraKeywords(exposureMetadata, deferredChargeCalib, "CTI")
+            compareCameraKeywords(
+                doRaise,
+                keywords,
+                exposureMetadata,
+                deferredChargeCalib,
+                "CTI",
+                log=self.log,
+            )
         if self.config.doFlat:
-            self.compareCameraKeywords(exposureMetadata, flat, "flat")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, flat, "flat", log=self.log)
             self.compareUnits(flat.metadata, "flat")
         if (self.config.doFringe and physicalFilter in self.fringe.config.filters):
-            self.compareCameraKeywords(exposureMetadata, fringes.fringes, "fringe")
+            compareCameraKeywords(
+                doRaise,
+                keywords,
+                exposureMetadata,
+                fringes.fringes,
+                "fringe",
+                log=self.log,
+            )
         if (self.config.doIlluminationCorrection and physicalFilter in self.config.illumFilters):
-            self.compareCameraKeywords(exposureMetadata, illumMaskedImage, "illumination")
+            compareCameraKeywords(
+                doRaise,
+                keywords,
+                exposureMetadata,
+                illumMaskedImage,
+                "illumination",
+                log=self.log,
+            )
         if self.doLinearize(ccd):
-            self.compareCameraKeywords(exposureMetadata, linearizer, "linearizer")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, linearizer, "linearizer", log=self.log)
         if self.config.usePtcGains or self.config.usePtcReadNoise:
-            self.compareCameraKeywords(exposureMetadata, ptc, "PTC")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, ptc, "PTC", log=self.log)
         if self.config.doStrayLight:
-            self.compareCameraKeywords(exposureMetadata, strayLightData, "straylight")
+            compareCameraKeywords(
+                doRaise,
+                keywords,
+                exposureMetadata,
+                strayLightData,
+                "straylight",
+                log=self.log,
+            )
 
         # Start in adu. Update units to electrons when gain is applied:
         # updateVariance, applyGains
@@ -2063,36 +2094,6 @@ class IsrTask(pipeBase.PipelineTask):
                                  calib.getMetadata().get("CALIB_CREATE_TIME", "Unknown")))
         else:
             return "Unknown Unknown"
-
-    def compareCameraKeywords(self, exposureMetadata, calib, calibName):
-        """Compare header keywords to confirm camera states match.
-
-        Parameters
-        ----------
-        exposureMetadata : `lsst.daf.base.PropertySet`
-            Header for the exposure being processed.
-        calib : `lsst.afw.image.Exposure` or `lsst.ip.isr.IsrCalib`
-            Calibration to be applied.
-        calibName : `str`
-            Calib type for log message.
-        """
-        try:
-            calibMetadata = calib.getMetadata()
-        except AttributeError:
-            return
-        for keyword in self.config.cameraKeywordsToCompare:
-            if keyword in exposureMetadata and keyword in calibMetadata:
-                if exposureMetadata[keyword] != calibMetadata[keyword]:
-                    if self.config.doRaiseOnCalibMismatch:
-                        raise RuntimeError("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
-                                           calibName, keyword,
-                                           exposureMetadata[keyword], calibMetadata[keyword])
-                    else:
-                        self.log.warning("Sequencer mismatch for %s [%s]: exposure: %s calib: %s",
-                                         calibName, keyword,
-                                         exposureMetadata[keyword], calibMetadata[keyword])
-            else:
-                self.log.debug("Sequencer keyword %s not found.", keyword)
 
     def compareUnits(self, calibMetadata, calibName):
         """Compare units from calibration to ISR units.
