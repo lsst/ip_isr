@@ -859,7 +859,7 @@ class IsrStatisticsTask(pipeBase.Task):
 
         Notes
         -----
-        Based on eop_pipe implementation:
+        Based on eo_pipe implementation:
         https://github.com/lsst-camera-dh/eo_pipe/blob/main/python/lsst/eo/pipe/biasShiftsTask.py  # noqa: E501 W505
         """
         outputStats = {}
@@ -867,6 +867,16 @@ class IsrStatisticsTask(pipeBase.Task):
         detector = inputExp.getDetector()
         for amp, overscans in zip(detector, serialOverscanResults):
             ampStats = {}
+
+            # Check if the overscan results are None
+            # This can happen if the amp is in the
+            # input PTC's badAmp list, for instance.
+            if overscans is None:
+                ampStats["LOCAL_NOISE"] = 0.0
+                ampStats["BIAS_SHIFTS"] = []
+                outputStats[amp.getName()] = ampStats
+                continue
+
             # Add fit back to data
             rawOverscan = overscans.overscanImage.image.array + overscans.overscanFit
 
@@ -994,34 +1004,59 @@ class IsrStatisticsTask(pipeBase.Task):
         rows = []
 
         for ampId, overscan in enumerate(serialOverscanResults):
-            rawOverscan = overscan.overscanImage.image.array + overscan.overscanFit
-            rawOverscan = rawOverscan.ravel()
+            # Check if the overscan results are None
+            # This can happen if the amp is in the
+            # input PTC's badAmp list, for instance.
+            if overscan is None:
+                for ampId2, overscan2 in enumerate(serialOverscanResults):
+                    if ampId2 != ampId:
+                        osC = 0.0
+                        imC = 0.0
+                        row = {
+                            'detector': detector.getId(),
+                            'detectorComp': detector.getId(),
+                            'ampName': detector[ampId].getName(),
+                            'ampComp': detector[ampId2].getName(),
+                            'imageCorr': float(imC),
+                            'overscanCorr': float(osC),
+                        }
+                        rows.append(row)
+            else:
+                rawOverscan = overscan.overscanImage.image.array + overscan.overscanFit
+                rawOverscan = rawOverscan.ravel()
 
-            ampImage = inputExp[detector[ampId].getBBox()]
-            ampImage = ampImage.image.array.ravel()
+                ampImage = inputExp[detector[ampId].getBBox()]
+                ampImage = ampImage.image.array.ravel()
 
-            for ampId2, overscan2 in enumerate(serialOverscanResults):
-                osC = 1.0
-                imC = 1.0
-                if ampId2 != ampId:
-                    rawOverscan2 = overscan2.overscanImage.image.array + overscan2.overscanFit
-                    rawOverscan2 = rawOverscan2.ravel()
+                for ampId2, overscan2 in enumerate(serialOverscanResults):
+                    osC = 1.0
+                    imC = 1.0
+                    if ampId2 != ampId:
+                        # Check if the overscan results are None
+                        # This can happen if the amp is in the
+                        # input PTC's badAmp list, for instance.
+                        if overscan2 is None:
+                            osC = 0.0
+                            imC = 0.0
+                        else:
+                            rawOverscan2 = overscan2.overscanImage.image.array + overscan2.overscanFit
+                            rawOverscan2 = rawOverscan2.ravel()
 
-                    osC = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
+                            osC = np.corrcoef(rawOverscan, rawOverscan2)[0, 1]
 
-                    ampImage2 = inputExp[detector[ampId2].getBBox()]
-                    ampImage2 = ampImage2.image.array.ravel()
+                            ampImage2 = inputExp[detector[ampId2].getBBox()]
+                            ampImage2 = ampImage2.image.array.ravel()
 
-                    imC = np.corrcoef(ampImage, ampImage2)[0, 1]
-                rows.append(
-                    {'detector': detector.getId(),
-                     'detectorComp': detector.getId(),
-                     'ampName': detector[ampId].getName(),
-                     'ampComp': detector[ampId2].getName(),
-                     'imageCorr': float(imC),
-                     'overscanCorr': float(osC),
-                     }
-                )
+                            imC = np.corrcoef(ampImage, ampImage2)[0, 1]
+                    row = {
+                        'detector': detector.getId(),
+                        'detectorComp': detector.getId(),
+                        'ampName': detector[ampId].getName(),
+                        'ampComp': detector[ampId2].getName(),
+                        'imageCorr': float(imC),
+                        'overscanCorr': float(osC),
+                    }
+                    rows.append(row)
         return rows
 
     def measureDivisaderoStatistics(self, inputExp, **kwargs):
