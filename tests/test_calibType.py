@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import unittest
 import tempfile
+import logging
 
 import lsst.utils.tests
 
@@ -70,13 +71,22 @@ class IsrCalibCases(lsst.utils.tests.TestCase):
         fromFits = IsrProvenance.readFits(usedFilename)
         self.assertEqual(self.calib, fromFits)
 
-        fromFits.updateMetadataFromExposures([self.exposure1, self.exposure2, None])
+        with self.assertLogs(level=logging.WARNING) as cm:
+            fromFits.updateMetadataFromExposures([self.exposure1, self.exposure2, None])
+        self.assertIn("Metadata mismatch!", cm.output[0])
         fromFits.updateMetadata(setDate=True)
         self.assertNotEqual(self.calib, fromFits)
 
         # Test generic interface:
         fromGeneric = IsrCalib.readFits(usedFilename)
         self.assertEqual(self.calib, fromGeneric)
+
+        self.assertEqual(fromFits.metadata["SEQNAME"], "sequencer A")
+        self.assertEqual(fromFits.metadata["SEQFILE"], "my.seq")
+        self.assertEqual(fromFits.metadata["SEQCKSUM"], "abcdef")
+        self.assertEqual(fromFits.metadata["DET_NAME"], "testCalibType Det00")
+        self.assertEqual(fromFits.metadata["DETECTOR"], 0)
+        self.assertEqual(fromFits.metadata["INSTRUME"], "TestInst")
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
