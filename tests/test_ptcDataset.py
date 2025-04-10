@@ -177,6 +177,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             partialDataset.setAmpValuesPartialDataset(
                 ampName,
                 inputExpIdPair=(10, 11),
+                inputExpPairMjdStart=60775.38958333,
                 rawExpTime=10.0,
                 rawMean=10.0,
                 rawVar=10.0,
@@ -230,6 +231,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 for ampName in localDataset.ampNames:
 
                     localDataset.inputExpIdPairs[ampName] = [(1, 2)]*nSignalPoints
+                    localDataset.inputExpPairMjdStartList[ampName] = np.full(nSignalPoints, 60775.39)
+                    localDataset.overscanMedianLevelList[ampName] = np.full(nSignalPoints, 25000.0)
                     localDataset.expIdMask[ampName] = np.ones(nSignalPoints, dtype=bool)
                     localDataset.expIdMask[ampName][1] = False
                     localDataset.rawExpTimes[ampName] = np.arange(nSignalPoints, dtype=np.float64)
@@ -359,6 +362,10 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         for ampName in self.ampNames:
             localDataset.inputExpIdPairs[ampName] = [(12, 34), (56, 78), (90, 10)]
+            localDataset.inputExpPairMjdStartList[ampName] = np.array(
+                [60775.39027778, 60775.39201389, 60775.39270833],
+            )
+            localDataset.overscanMedianLevelList[ampName] = np.full(3, 25000.0)
             localDataset.expIdMask[ampName] = np.ones(3, dtype=np.bool_)
             localDataset.expIdMask[ampName][1] = False
             localDataset.rawExpTimes[ampName] = testArr.copy()
@@ -406,6 +413,10 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 np.asarray(localDataset.inputExpIdPairs[ampName]),
                 np.asarray([(90, 10), (56, 78), (12, 34)]),
             )
+            np.testing.assert_array_equal(
+                np.asarray(localDataset.inputExpPairMjdStartList[ampName]),
+                np.asarray([60775.39270833, 60775.39201389, 60775.39027778]),
+            )
             np.testing.assert_array_equal(localDataset.expIdMask[ampName], np.array([True, False, True]))
             np.testing.assert_array_equal(localDataset.rawExpTimes[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.rawMeans[ampName], testArrSorted)
@@ -439,6 +450,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         testPairs = [(12, 34), (56, 78), (90, 10)]
 
+        testMjds = [60775.39027778, 60775.39201389, 60775.39270833]
+
         testStrValues = ["zero", "one", "two"]
 
         partials = []
@@ -449,6 +462,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 partial.setAmpValuesPartialDataset(
                     ampName,
                     inputExpIdPair=testPairs[i],
+                    inputExpPairMjdStart=testMjds[i],
                     rawExpTime=testArr[i],
                     rawMean=testArr[i],
                     rawVar=testArr[i],
@@ -480,6 +494,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
 
         for ampName in self.ampNames:
             np.testing.assert_array_equal(ptc.inputExpIdPairs[ampName], testPairs)
+            np.testing.assert_array_equal(ptc.inputExpPairMjdStartList[ampName], testMjds)
             np.testing.assert_array_equal(ptc.expIdMask[ampName], np.array([True, True, True]))
             np.testing.assert_array_equal(ptc.rawExpTimes[ampName], testArr)
             np.testing.assert_array_equal(ptc.rawMeans[ampName], testArr)

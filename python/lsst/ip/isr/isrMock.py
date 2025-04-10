@@ -28,6 +28,9 @@ __all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock
 import copy
 import numpy as np
 import tempfile
+import astropy.time
+
+from datetime import datetime, timezone
 
 import lsst.geom
 import lsst.afw.geom as afwGeom
@@ -631,6 +634,11 @@ class IsrMock(pipeBase.Task):
         metadata.add("SHEEP", 7.3, "number of sheep on farm")
         metadata.add("MONKEYS", 155, "monkeys per tree")
         metadata.add("VAMPIRES", 4, "How scary are vampires.")
+
+        # Add the current time
+        now = datetime.now(timezone.utc)
+        currentMjd = astropy.time.Time(now, format='datetime', scale='utc').mjd
+        metadata.add("MJD", currentMjd, "Modified Julian Date that the file was written")
 
         ccd = exposure.getDetector()
         newCcd = ccd.rebuild()
