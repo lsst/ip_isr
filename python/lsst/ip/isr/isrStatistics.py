@@ -397,6 +397,8 @@ class IsrStatisticsTask(pipeBase.Task):
                     ampStats = {}
                     readoutCorner = amp.getReadoutCorner()
 
+                    ampStats["INPUT_GAIN"] = gains[amp.getName()]
+
                     # Full data region.
                     dataRegion = image[amp.getBBox()]
                     serialOverscanImage = untrimmedImage[amp.getRawSerialOverscanBBox()]
@@ -561,6 +563,8 @@ class IsrStatisticsTask(pipeBase.Task):
             for ampIter, amp in enumerate(detector.getAmplifiers()):
                 ampStats = {}
                 readoutCorner = amp.getReadoutCorner()
+
+                ampStats["INPUT_GAIN"] = gains[amp.getName()]
 
                 # Full data region.
                 dataRegion = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]
