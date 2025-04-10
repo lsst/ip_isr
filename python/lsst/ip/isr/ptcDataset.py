@@ -105,9 +105,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         List with bad amplifiers names.
     inputExpIdPairs : `dict`, [`str`, `list`]
         Dictionary keyed by amp names containing the input exposures IDs.
-    inputExpMjdPairs : `dict`, [`str`, `np.ndarray`]
-        Dictionary keyed by amp names containing the mjd from
-        each flat pair.
+    inputExpPairMjdStartList : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the start mjd from
+        the first exposure in each flat pair.
     expIdMask : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the mask produced after
         outlier rejection. The mask produced by the "FULLCOVARIANCE"
@@ -245,8 +245,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         `gainList` attributes.
     Version 2.1 deprecates the `covariancesModelNoB`, `aMatrixNoB`, and
         `noiseMatrixNoB` attributes.
-    Version 2.2 adds the `overscanMedianLevelList` and `inputExpMjdPairs`
-         attributes.
+    Version 2.2 adds the `overscanMedianLevelList` and
+         `inputExpPairMjdStartList` attributes.
     """
 
     _OBSTYPE = 'PTC'
@@ -280,7 +280,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.badAmps = []
 
         self.inputExpIdPairs = {ampName: [] for ampName in ampNames}
-        self.inputExpMjdPairs = {ampName: np.array([]) for ampName in ampNames}
+        self.inputExpPairMjdStartList = {ampName: np.array([]) for ampName in ampNames}
         self.expIdMask = {ampName: np.array([], dtype=bool) for ampName in ampNames}
         self.rawExpTimes = {ampName: np.array([]) for ampName in ampNames}
         self.rawMeans = {ampName: np.array([]) for ampName in ampNames}
@@ -327,7 +327,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.auxValues = {}
 
         super().__init__(**kwargs)
-        self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'inputExpMjdPairs',
+        self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'inputExpPairMjdStartList',
                                         'expIdMask', 'rawExpTimes', 'rawMeans', 'rawVars',
                                         'rowMeanVariance', 'gain', 'gainErr', 'gainList', 'noise',
                                         'noiseErr', 'noiseList', 'overscanMedianLevelList', 'ptcFitPars',
@@ -345,7 +345,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             self,
             ampName,
             inputExpIdPair=(-1, -1),
-            inputExpMjdPair=(-1, -1),
+            inputExpPairMjdStart=np.nan,
             rawExpTime=np.nan,
             rawMean=np.nan,
             rawVar=np.nan,
@@ -371,36 +371,42 @@ class PhotonTransferCurveDataset(IsrCalib):
             Name of the amp to set the values.
         inputExpIdPair : `tuple` [`int`]
             Exposure IDs of input pair.
-        inputExpMjdPair : `tuple` [`int`]
-            The MJDs of the input pair.
+        inputExpPairMjdStart : `float`, optional
+            The start MJD of first exposure in the flat pair.
         rawExpTime : `float`, optional
-            Exposure time for this exposure pair.
+            Exposure time for this exposure pair (units: sec).
         rawMean : `float`, optional
-            Average of the means of the exposures in this pair.
+            Average of the means of the exposures in this pair
+            (units: adu).
         rawVar : `float`, optional
-            Variance of the difference of the exposures in this pair.
+            Variance of the difference of the exposures in this pair
+            (units: adu^2).
         rowMeanVariance : `float`, optional
             Variance of the means of the rows in the difference image
-            of the exposures in this pair.
+            of the exposures in this pair (units: adu^2).
         photoCharge : `float`, optional
-            Integrated photocharge for flat pair for linearity calibration.
+            Integrated photocharge for flat pair for linearity calibration
+            (units: electron).
         ampOffset : `float`, optional
             Amp offset for this amplifier.
         expIdMask : `bool`, optional
             Flag setting if this exposure pair should be used (True)
             or not used (False).
         covariance : `np.ndarray` or None, optional
-            Measured covariance for this exposure pair.
+            Measured covariance for this exposure pair (units: adu^2).
         covSqrtWeights : `np.ndarray` or None, optional
-            Measured sqrt of covariance weights in this exposure pair.
+            Measured sqrt of covariance weights in this exposure pair
+            (units: 1/adu).
         gain : `float`, optional
-            Estimated gain for this exposure pair.
+            Estimated gain for this exposure pair (units: electron/adu).
         noise : `float`, optional
-            Estimated read noise for this exposure pair.
+            Estimated read noise for this exposure pair (units: electron).
         overscanMedianLevel : `float`, optional
             Average of the median overscan levels for this exposure pair.
+            (units: adu)
         histVar : `float`, optional
-            Variance estimated from fitting a histogram with a Gaussian model.
+            Variance estimated from fitting a histogram with a Gaussian model
+            (units: adu).
         histChi2Dof : `float`, optional
             Chi-squared per degree of freedom from Gaussian histogram fit.
         kspValue : `float`, optional
@@ -415,7 +421,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             covSqrtWeights = nanMatrix
 
         self.inputExpIdPairs[ampName] = [inputExpIdPair]
-        self.inputExpMjdPairs[ampName] = np.array([inputExpMjdPair])
+        self.inputExpPairMjdStartList[ampName] = np.array([inputExpPairMjdStart])
         self.rawExpTimes[ampName] = np.array([rawExpTime])
         self.rawMeans[ampName] = np.array([rawMean])
         self.rawVars[ampName] = np.array([rawVar])
@@ -526,7 +532,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         for ampName in dictionary['ampNames']:
             calib.ampNames.append(ampName)
             calib.inputExpIdPairs[ampName] = dictionary['inputExpIdPairs'][ampName]
-            calib.inputExpMjdPairs[ampName] = dictionary['inputExpMjdPairs'][ampName]
+            calib.inputExpPairMjdStartList[ampName] = np.array(
+                dictionary['inputExpPairMjdStartList'][ampName],
+            )
             calib.expIdMask[ampName] = np.array(dictionary['expIdMask'][ampName])
             calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName], dtype=np.float64)
             calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName], dtype=np.float64)
@@ -538,7 +546,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.gainUnadjusted[ampName] = float(dictionary['gainUnadjusted'][ampName])
             calib.gainList[ampName] = np.array(dictionary['gainList'][ampName], dtype=np.float64)
             calib.noiseList[ampName] = np.array(dictionary['noiseList'][ampName], dtype=np.float64)
-            calib.overscanMedianLevelList[ampName] = np.array(dictionary['overscanMedianLevelList'][ampName], dtype=np.float64)
+            calib.overscanMedianLevelList[ampName] = np.array(
+                dictionary['overscanMedianLevelList'][ampName],
+                dtype=np.float64,
+            )
             calib.noise[ampName] = float(dictionary['noise'][ampName])
             calib.noiseErr[ampName] = float(dictionary['noiseErr'][ampName])
             calib.histVars[ampName] = np.array(dictionary['histVars'][ampName], dtype=np.float64)
@@ -641,7 +652,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['ampNames'] = self.ampNames
         outDict['badAmps'] = self.badAmps
         outDict['inputExpIdPairs'] = self.inputExpIdPairs
-        outDict['inputExpMjdPairs'] = self.inputExpMjdPairs
+        outDict['inputExpPairMjdStartList'] = _dictOfArraysToDictOfLists(self.inputExpPairMjdStartList)
         outDict['expIdMask'] = _dictOfArraysToDictOfLists(self.expIdMask)
         outDict['rawExpTimes'] = _dictOfArraysToDictOfLists(self.rawExpTimes)
         outDict['rawMeans'] = _dictOfArraysToDictOfLists(self.rawMeans)
@@ -705,7 +716,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['covMatrixSide'] = []
         inDict['covMatrixSideFullCovFit'] = []
         inDict['inputExpIdPairs'] = dict()
-        inDict['inputExpMjdPairs'] = dict()
+        inDict['inputExpPairMjdStartList'] = dict()
         inDict['expIdMask'] = dict()
         inDict['rawExpTimes'] = dict()
         inDict['rawMeans'] = dict()
@@ -856,12 +867,17 @@ class PhotonTransferCurveDataset(IsrCalib):
                 nanMatrix = np.full_like(inDict['aMatrix'][ampName], np.nan)
                 inDict['aMatrixNoB'][ampName] = nanMatrix
             if calibVersion < 2.2:
-                inDict['inputExpMjdPairs'][ampName] = np.array([(np.nan, np.nan)])
-                inDict['overscanMedianLevelList'][ampName] = np.full_like(inDict['rawMeans'][ampName], np.nan)
+                inDict['inputExpPairMjdStartList'][ampName] = np.full_like(
+                    inDict['rawMeans'][ampName],
+                    np.nan,
+                )
+                inDict['overscanMedianLevelList'][ampName] = np.full_like(
+                    inDict['rawMeans'][ampName],
+                    np.nan,
+                )
             else:
-                inDict['inputExpMjdPairs'][ampName] = np.array(record['INPUT_EXP_MJD_PAIRS'].tolist())
+                inDict['inputExpPairMjdStartList'][ampName] = record['INPUT_EXP_PAIR_MJD_START']
                 inDict['overscanMedianLevelList'][ampName] = record['OVERSCAN_MEDIAN_LIST']
-
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -903,7 +919,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'COV_MATRIX_SIDE': self.covMatrixSide,
                 'COV_MATRIX_SIDE_FULL_COV_FIT': self.covMatrixSideFullCovFit,
                 'INPUT_EXP_ID_PAIRS': self.inputExpIdPairs[ampName],
-                'INPUT_EXP_MJD_PAIRS': self.inputExpMjdPairs[ampName],
+                'INPUT_EXP_PAIR_MJD_START': self.inputExpPairMjdStartList[ampName],
                 'EXP_ID_MASK': self.expIdMask[ampName],
                 'RAW_EXP_TIMES': self.rawExpTimes[ampName],
                 'RAW_MEANS': self.rawMeans[ampName],
@@ -1002,8 +1018,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             # input exposure MJDs, this is a list of tuples. In all cases
             # we only want the first (and only) element of the list.
             self.inputExpIdPairs[ampName].append(partialPtc.inputExpIdPairs[ampName][0])
-            self.inputExpMjdPairs[ampName] = np.append(self.inputExpMjdPairs[ampName],
-                                                       partialPtc.inputExpMjdPairs[ampName][0])
+            self.inputExpPairMjdStartList[ampName] = np.append(
+                self.inputExpPairMjdStartList[ampName],
+                partialPtc.inputExpPairMjdStartList[ampName][0],
+            )
             self.expIdMask[ampName] = np.append(self.expIdMask[ampName],
                                                 partialPtc.expIdMask[ampName][0])
             self.rawExpTimes[ampName] = np.append(self.rawExpTimes[ampName],
@@ -1026,8 +1044,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                                                 partialPtc.kspValues[ampName][0])
             self.gainList[ampName] = np.append(self.gainList[ampName],
                                                partialPtc.gain[ampName])
-            self.overscanMedianLevelList[ampName] = np.append(self.overscanMedianLevelList[ampName],
-                                                      partialPtc.overscanMedianLevelList[ampName][0])
+            self.overscanMedianLevelList[ampName] = np.append(
+                self.overscanMedianLevelList[ampName],
+                partialPtc.overscanMedianLevelList[ampName][0],
+            )
             self.noiseList[ampName] = np.append(self.noiseList[ampName],
                                                 partialPtc.noise[ampName])
             self.finalVars[ampName] = np.append(self.finalVars[ampName],
@@ -1097,9 +1117,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             self.inputExpIdPairs[ampName] = np.array(
                 self.inputExpIdPairs[ampName]
             )[index].tolist()
-            self.inputExpMjdPairs[ampName] = np.array(
-                self.inputExpMjdPairs[ampName]
-            )[index]
+            self.inputExpPairMjdStartList[ampName] = self.inputExpPairMjdStartList[ampName][index]
 
             self.expIdMask[ampName] = self.expIdMask[ampName][index]
             self.rawExpTimes[ampName] = self.rawExpTimes[ampName][index]
