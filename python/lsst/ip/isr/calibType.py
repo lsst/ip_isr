@@ -537,7 +537,8 @@ class IsrCalib(abc.ABC):
             for k, v in table.meta.items():
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
-
+        primaryHeader = dict(fits.open(filename)[0].header)
+        tableList[0].meta.update(primaryHeader)  # This retains things it shouldn't, like 'SIMPLE'.
         calibClass = cls.determineCalibClass(tableList[0].meta, "readFits")
         return calibClass.fromTable(tableList, **kwargs)
 
