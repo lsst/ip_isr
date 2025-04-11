@@ -316,7 +316,8 @@ class IsrCalib(abc.ABC):
                                              metadata[key], expMeta[key])
                     else:
                         metadata[key] = expMeta[key]
-        self.updateMetadata(**metadata)
+
+        self.updateMetadata(**metadata, setCalibInfo=True)
 
     def calibInfoFromDict(self, dictionary):
         """Handle common keywords.
@@ -362,17 +363,26 @@ class IsrCalib(abc.ABC):
                 raise RuntimeError(f"Incorrect calibration supplied.  Expected {self._OBSTYPE}, "
                                    f"found {metadata['OBSTYPE']}")
 
-        self._instrument = search(dictionary, ["INSTRUME", "instrument"])
-        self._raftName = search(dictionary, ["RAFTNAME"])
-        self._slotName = search(dictionary, ["SLOTNAME"])
-        self._detectorId = search(dictionary, ["DETECTOR", "detectorId"])
-        self._detectorName = search(dictionary, ["DET_NAME", "DETECTOR_NAME", "detectorName"])
-        self._detectorSerial = search(dictionary, ["DET_SER", "DETECTOR_SERIAL", "detectorSerial"])
-        self._filter = search(dictionary, ["FILTER", "filterName"])
-        self._calibId = search(dictionary, ["CALIB_ID"])
-        self._seqfile = search(dictionary, ["SEQFILE"])
-        self._seqname = search(dictionary, ["SEQNAME"])
-        self._seqcksum = search(dictionary, ["SEQCKSUM"])
+        if (value := search(dictionary, ["INSTRUME", "instrument"])) is not None:
+            self._instrument = value
+        if (value := search(dictionary, ["RAFTNAME"])) is not None:
+            self._slotName = value
+        if (value := search(dictionary, ["DETECTOR", "detectorId"])) is not None:
+            self._detectorId = value
+        if (value := search(dictionary, ["DET_NAME", "DETECTOR_NAME", "detectorName"])) is not None:
+            self._detectorName = value
+        if (value := search(dictionary, ["DET_SER", "DETECTOR_SERIAL", "detectorSerial"])) is not None:
+            self._detectorSerial = value
+        if (value := search(dictionary, ["FILTER", "filterName"])) is not None:
+            self._filter = value
+        if (value := search(dictionary, ["CALIB_ID"])) is not None:
+            self._calibId = value
+        if (value := search(dictionary, ["SEQFILE"])) is not None:
+            self._seqfile = value
+        if (value := search(dictionary, ["SEQNAME"])) is not None:
+            self._seqname = value
+        if (value := search(dictionary, ["SEQCKSUM"])) is not None:
+            self._seqcksum = value
 
     @classmethod
     def determineCalibClass(cls, metadata, message):
