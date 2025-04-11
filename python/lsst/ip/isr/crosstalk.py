@@ -785,9 +785,8 @@ class CrosstalkCalib(IsrCalib):
         if not doSubtrahendMasking:
             # When we are not using subtrahend masking, we set the mask.
             thresholdBackground = self.calculateBackground(sourceMaskedImage, badPixels)
-            threshold = lsst.afw.detection.Threshold(minPixelToMask + thresholdBackground)
-            footprints = lsst.afw.detection.FootprintSet(sourceMaskedImage, threshold)
-            footprints.setMask(sourceMaskedImage.mask, crosstalkStr)
+            toMask = (sourceMaskedImage.image.array > (minPixelToMask + thresholdBackground))
+            sourceMaskedImage.mask.array[toMask] |= sourceMaskedImage.mask.getPlaneBitMask(crosstalkStr)
 
         crosstalk = sourceMaskedImage.mask.getPlaneBitMask(crosstalkStr)
 
