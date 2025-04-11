@@ -788,7 +788,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     # Set to the default from the camera model.
                     limits.update({self.config.saturatedMaskName: amp.getSaturation()})
                 elif self.config.defaultSaturationSource == "NONE":
-                    limits.update({self.config.saturatedMaskName: 1e100})
+                    limits.update({self.config.saturatedMaskName: numpy.inf})
 
                 # And update if it is set in the config.
                 if math.isfinite(ampConfig.saturation):
@@ -802,7 +802,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     # Set to the default from the camera model.
                     limits.update({self.config.suspectMaskName: amp.getSuspectLevel()})
                 elif self.config.defaultSuspectSource == "NONE":
-                    limits.update({self.config.suspectMaskName: 1e100})
+                    limits.update({self.config.suspectMaskName: numpy.inf})
 
                 # And update if it set in the config.
                 if math.isfinite(ampConfig.suspectLevel):
