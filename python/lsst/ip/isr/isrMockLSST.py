@@ -774,7 +774,7 @@ class IsrMockLSST(IsrMock):
                 exposure,
                 crosstalkCoeffs=-1*self.crosstalkCoeffs,
                 doSubtrahendMasking=True,
-                minPixelToMask=1e100,
+                minPixelToMask=np.inf,
                 ignoreVariance=True,
                 fullAmplifier=True,
             )
