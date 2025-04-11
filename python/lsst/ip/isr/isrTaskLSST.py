@@ -812,12 +812,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             for maskName, maskThreshold in limits.items():
                 if not math.isnan(maskThreshold):
                     dataView = maskedImage.Factory(maskedImage, amp.getRawBBox())
-                    isrFunctions.makeThresholdMask(
-                        maskedImage=dataView,
-                        threshold=maskThreshold,
-                        growFootprints=0,
-                        maskName=maskName
-                    )
+                    toMask = (dataView.image.array >= maskThreshold)
+                    dataView.mask.array[toMask] |= dataView.mask.getPlaneBitMask(maskName)
 
             # Determine if we've fully masked this amplifier with SUSPECT and
             # SAT pixels.
