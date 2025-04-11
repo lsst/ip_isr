@@ -61,6 +61,9 @@ from .isrStatistics import IsrStatisticsTask
 from .ptcDataset import PhotonTransferCurveDataset
 from .isrFunctions import compareCameraKeywords
 
+from astropy.utils.iers import conf
+conf.auto_max_age = None
+
 
 def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
     """Lookup function to identify crosstalkSource entries.
