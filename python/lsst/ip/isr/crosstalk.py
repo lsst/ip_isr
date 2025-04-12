@@ -785,9 +785,8 @@ class CrosstalkCalib(IsrCalib):
         if not doSubtrahendMasking:
             # When we are not using subtrahend masking, we set the mask.
             thresholdBackground = self.calculateBackground(sourceMaskedImage, badPixels)
-            threshold = lsst.afw.detection.Threshold(minPixelToMask + thresholdBackground)
-            footprints = lsst.afw.detection.FootprintSet(sourceMaskedImage, threshold)
-            footprints.setMask(sourceMaskedImage.mask, crosstalkStr)
+            toMask = (sourceMaskedImage.image.array >= (minPixelToMask + thresholdBackground))
+            sourceMaskedImage.mask.array[toMask] |= sourceMaskedImage.mask.getPlaneBitMask(crosstalkStr)
 
         crosstalk = sourceMaskedImage.mask.getPlaneBitMask(crosstalkStr)
 
@@ -881,14 +880,8 @@ class CrosstalkCalib(IsrCalib):
                 ampData.image.array[:, :] -= background
                 self.log.debug(f"Subtrahend background level: {amp.getName()} {background}")
 
-            # Run detection twice to avoid needing an absolute value image
-            threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=True)
-            footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
-            footprints.setMask(subtrahend.mask, crosstalkStr)
-
-            threshold = lsst.afw.detection.Threshold(minPixelToMask, polarity=False)
-            footprints = lsst.afw.detection.FootprintSet(subtrahend, threshold)
-            footprints.setMask(subtrahend.mask, crosstalkStr)
+            toMask = (subtrahend.image.array >= minPixelToMask) | (subtrahend.image.array <= -minPixelToMask)
+            subtrahend.mask.array[toMask] |= subtrahend.mask.getPlaneBitMask(crosstalkStr)
 
             # Put the backgrounds back.
             for amp in targetDetector:

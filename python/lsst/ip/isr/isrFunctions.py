@@ -64,6 +64,7 @@ import lsst.afw.math as afwMath
 import lsst.meas.algorithms as measAlg
 import lsst.afw.cameraGeom as camGeom
 
+from lsst.afw.geom import SpanSet, Stencil
 from lsst.meas.algorithms.detection import SourceDetectionTask
 
 from contextlib import contextmanager
@@ -215,10 +216,12 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
         Mask plane to assign the newly masked pixels to.
     """
     if radius > 0:
-        thresh = afwDetection.Threshold(mask.getPlaneBitMask(maskNameList), afwDetection.Threshold.BITMASK)
-        fpSet = afwDetection.FootprintSet(mask, thresh)
-        fpSet = afwDetection.FootprintSet(fpSet, rGrow=radius, isotropic=False)
-        fpSet.setMask(mask, maskValue)
+        spans = SpanSet.fromMask(mask, mask.getPlaneBitMask(maskNameList))
+        # Use MANHATTAN for equivalence with 'isotropic=False` footprint grows,
+        # but CIRCLE is probably better and might be just as fast.
+        spans = spans.dilated(radius, Stencil.MANHATTAN)
+        spans = spans.clippedTo(mask.getBBox())
+        spans.setMask(mask, mask.getPlaneBitMask(maskValue))
 
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
