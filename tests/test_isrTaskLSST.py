@@ -1601,6 +1601,60 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 self.assertIn(key, metadata, msg=mode)
                 self.assertEqual(metadata[key], suspect_level * gain, msg=mode)
 
+    def test_sequencerMismatches(self):
+        """Test with a pile of sequencer mismatches."""
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # Set this to False until we have fringe correction.
+        mock_config.doAddFringe = False
+        mock_config.doAddSky = True
+        mock_config.doAddSource = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+        input_exp.metadata["SEQFILE"] = "a_sequencer"
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = True
+        isr_config.cameraKeywordsToCompare = ["SEQFILE"]
+
+        bias = self.bias.clone()
+        bias.metadata["SEQFILE"] = "b_sequencer"
+        dark = self.dark.clone()
+        dark.metadata["SEQFILE"] = "b_sequencer"
+        flat = self.flat.clone()
+        flat.metadata["SEQFILE"] = "b_sequencer"
+        crosstalk = copy.copy(self.crosstalk)
+        crosstalk.metadata["SEQFILE"] = "b_sequencer"
+        defects = copy.copy(self.defects)
+        defects.metadata["SEQFILE"] = "b_sequencer"
+        ptc = copy.copy(self.ptc)
+        ptc.metadata["SEQFILE"] = "b_sequencer"
+        linearizer = copy.copy(self.linearizer)
+        linearizer.metadata["SEQFILE"] = "b_sequencer"
+        cti = copy.copy(self.cti)
+        cti.metadata["SEQFILE"] = "b_sequencer"
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=bias,
+                dark=dark,
+                flat=flat,
+                crosstalk=crosstalk,
+                defects=defects,
+                ptc=ptc,
+                linearizer=linearizer,
+                deferredChargeCalib=cti,
+            )
+
+        for ctype in ["BIAS", "DARK", "FLAT", "CROSSTALK", "DEFECTS", "PTC", "LINEARIZER", "CTI"]:
+            self.assertTrue(result.exposure.metadata[f"ISR {ctype} SEQUENCER MISMATCH"])
+
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
 
