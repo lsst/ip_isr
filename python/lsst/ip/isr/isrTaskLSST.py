@@ -306,7 +306,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=bool,
         doc="Mask saturated pixels? NB: this is totally independent of the"
         " interpolation option - this is ONLY setting the bits in the mask."
-        " To have them interpolated make sure doSaturationInterpolation=True",
+        " To have them interpolated make sure doInterpolate=True and"
+        " maskListToInterpolate includes SAT.",
         default=True,
     )
     saturatedMaskName = pexConfig.Field(
