@@ -1556,6 +1556,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.warning("Task configured with doBootstrap=True. Ignoring provided PTC.")
             ptc = None
 
+        if not self.config.doBootstrap:
+            if ptc is None:
+                raise RuntimeError("A PTC must be supplied if config.doBootstrap is False.")
+
         # Validation step: check inputs match exposure configuration.
         exposureMetadata = ccdExposure.metadata
         doRaise = self.config.doRaiseOnCalibMismatch
