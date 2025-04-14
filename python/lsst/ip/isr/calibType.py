@@ -28,6 +28,7 @@ import warnings
 import yaml
 import numpy as np
 
+from astro_metadata_translator import merge_headers
 from astropy.table import Table
 from astropy.io import fits
 
@@ -537,9 +538,15 @@ class IsrCalib(abc.ABC):
             for k, v in table.meta.items():
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
-        primaryHeader = dict(fits.open(filename)[0].header)
-        tableList[0].meta.update(primaryHeader)  # This retains things it shouldn't, like 'SIMPLE'.
+
         calibClass = cls.determineCalibClass(tableList[0].meta, "readFits")
+        if calibClass._OBSTYPE in ("PHOTODIODE", ):
+            # Merge primary header, as these types store information
+            # there.
+            with fits.open(filename) as hdul:
+                primaryHeader = hdul[0].header
+            tableList[0].meta = merge_headers([tableList[0].meta, primaryHeader], mode="first")
+
         return calibClass.fromTable(tableList, **kwargs)
 
     def writeFits(self, filename):
