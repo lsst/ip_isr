@@ -1524,6 +1524,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 self.assertIn(key, metadata, msg=mode)
                 self.assertEqual(metadata[key], sat_level * gain, msg=mode)
 
+    def test_noPTC(self):
+        """Test if we do not supply a PTC."""
+        mock_config = self.get_mock_config_no_signal()
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_minimal_corrections()
+        isr_task = IsrTaskLSST(config=isr_config)
+
+        with self.assertRaises(RuntimeError) as cm:
+            _ = isr_task.run(input_exp.clone())
+        self.assertIn("A PTC must be supplied", cm.exception.args[0])
+
     def test_suspectModes(self):
         """Test the different suspect modes."""
         # Use a simple bias run for these.

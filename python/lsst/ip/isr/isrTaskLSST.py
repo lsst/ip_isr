@@ -306,7 +306,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=bool,
         doc="Mask saturated pixels? NB: this is totally independent of the"
         " interpolation option - this is ONLY setting the bits in the mask."
-        " To have them interpolated make sure doSaturationInterpolation=True",
+        " To have them interpolated make sure doInterpolate=True and"
+        " maskListToInterpolate includes SAT.",
         default=True,
     )
     saturatedMaskName = pexConfig.Field(
@@ -1555,6 +1556,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doBootstrap and ptc is not None:
             self.log.warning("Task configured with doBootstrap=True. Ignoring provided PTC.")
             ptc = None
+
+        if not self.config.doBootstrap:
+            if ptc is None:
+                raise RuntimeError("A PTC must be supplied if config.doBootstrap is False.")
 
         # Validation step: check inputs match exposure configuration.
         exposureMetadata = ccdExposure.metadata
