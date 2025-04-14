@@ -128,6 +128,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doFlat)
 
+        key = "LSST ISR DEFECTS APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], isr_config.doDefect)
+
     def test_isrBootstrapBias(self):
         """Test processing of a ``bootstrap`` bias frame.
 

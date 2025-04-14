@@ -1376,7 +1376,7 @@ class IsrTask(pipeBase.PipelineTask):
             compareCameraKeywords(doRaise, keywords, exposureMetadata, bias, "bias", log=self.log)
             self.compareUnits(bias.metadata, "bias")
         if self.config.doBrighterFatter:
-            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bfk", log=self.log)
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bf", log=self.log)
         if self.config.doCrosstalk:
             compareCameraKeywords(doRaise, keywords, exposureMetadata, crosstalk, "crosstalk", log=self.log)
         if self.config.doDark:
@@ -1439,6 +1439,7 @@ class IsrTask(pipeBase.PipelineTask):
         exposureMetadata["LSST ISR DARK APPLIED"] = False
         exposureMetadata["LSST ISR BF APPLIED"] = False
         exposureMetadata["LSST ISR FLAT APPLIED"] = False
+        exposureMetadata["LSST ISR DEFECTS APPLIED"] = False
 
         # Begin ISR processing.
         if self.config.doConvertIntToFloat:
@@ -1592,6 +1593,7 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doDefect:
             self.log.info("Masking defects.")
             self.maskDefect(ccdExposure, defects)
+            ccdExposure.metadata["LSST ISR DEFECTS APPLIED"] = True
 
             if self.config.numEdgeSuspect > 0:
                 self.log.info("Masking edges as SUSPECT.")
