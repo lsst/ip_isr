@@ -178,7 +178,7 @@ class PhotodiodeCalib(IsrCalib):
             metadata.pop(key)
 
         # Do translations:
-        instrument = metadata.pop("INSTRUME", "NO_INSTRUMENT")
+        instrument = metadata.pop("INSTRUME", None)
         location = metadata.pop("LOCATN", "NO_LOCATION")
 
         if instrument == "Electrometer_index_201" and location == "AuxTel":
@@ -188,7 +188,7 @@ class PhotodiodeCalib(IsrCalib):
         else:
             # This will cause problems in ingest, but we don't know
             # what to associate it with.
-            metadata["INSTRUME"] = "Unknown"
+            metadata["INSTRUME"] = instrument
 
         inDict = {}
         inDict['metadata'] = metadata
