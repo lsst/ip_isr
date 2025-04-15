@@ -509,12 +509,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Number of pixels by which to grow the saturation footprints.",
         default=1,
     )
-    brighterFatterMaskListToInterpolate = pexConfig.ListField(
-        dtype=str,
-        doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
-        "correction.",
-        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
-    )
 
     # Dark subtraction.
     doDark = pexConfig.Field(
