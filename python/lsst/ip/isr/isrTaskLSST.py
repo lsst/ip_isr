@@ -376,7 +376,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
     doNanMasking = pexConfig.Field(
         dtype=bool,
-        doc="Mask non-finite (NAN, inf) pixels.",
+        doc="Mask non-finite (NAN, inf) pixels. The UNMASKEDNAN mask plane "
+            "will be added even if this configuration is False.",
         default=True,
     )
     doWidenSaturationTrails = pexConfig.Field(
@@ -428,7 +429,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     maskListToInterpolate = pexConfig.ListField(
         dtype=str,
         doc="List of mask planes that should be interpolated.",
-        default=['SAT', 'BAD'],
+        default=["SAT", "BAD", "UNMASKEDNAN"],
     )
     doSaveInterpPixels = pexConfig.Field(
         dtype=bool,
@@ -508,12 +509,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=int,
         doc="Number of pixels by which to grow the saturation footprints.",
         default=1,
-    )
-    brighterFatterMaskListToInterpolate = pexConfig.ListField(
-        dtype=str,
-        doc="List of mask planes that should be interpolated over when applying the brighter-fatter "
-        "correction.",
-        default=["SAT", "BAD", "NO_DATA", "UNMASKEDNAN"],
     )
 
     # Dark subtraction.
@@ -1170,7 +1165,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         maskedImage = exposure.getMaskedImage()
 
         # Find and mask NaNs
-        maskedImage.getMask().addMaskPlane("UNMASKEDNAN")
         maskVal = maskedImage.getMask().getPlaneBitMask("UNMASKEDNAN")
         numNans = maskNans(maskedImage, maskVal)
         self.metadata["NUMNANS"] = numNans
@@ -1887,6 +1881,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.maskDefects(ccdExposure, defects)
             ccdExposure.metadata["LSST ISR DEFECTS APPLIED"] = True
 
+        self.log.info("Adding UNMASKEDNAN mask plane to image.")
+        ccdExposure.mask.addMaskPlane("UNMASKEDNAN")
         if self.config.doNanMasking:
             self.log.info("Masking non-finite (NAN, inf) value pixels.")
             self.maskNan(ccdExposure)
