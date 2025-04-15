@@ -1747,6 +1747,7 @@ def compareCameraKeywords(
                     exposureValue,
                     calibValue,
                 )
+                exposureMetadata[f"ISR {calibName.upper()} SEQUENCER MISMATCH"] = True
 
     if missingKeywords:
         log.info(

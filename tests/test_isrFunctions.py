@@ -1008,6 +1008,8 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
             ipIsrFunctions.compareCameraKeywords(False, keywords, exposureMetadata, calib, "test")
         self.assertEqual(len(cm[1]), 1)
         self.assertIn("Sequencer mismatch", cm[1][0])
+        self.assertIn("ISR TEST SEQUENCER MISMATCH", exposureMetadata)
+        self.assertEqual(exposureMetadata["ISR TEST SEQUENCER MISMATCH"], True)
 
         with self.assertRaises(RuntimeError):
             ipIsrFunctions.compareCameraKeywords(True, keywords, exposureMetadata, calib, "test")

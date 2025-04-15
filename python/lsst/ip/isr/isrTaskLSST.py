@@ -1610,7 +1610,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doBrighterFatter:
             if bfKernel is None:
                 raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
-            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bfk", log=self.log)
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bf", log=self.log)
         if self.config.doFlat:
             if flat is None:
                 raise RuntimeError("doFlat is True but no flat provided.")
@@ -1643,6 +1643,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         exposureMetadata["LSST ISR DARK APPLIED"] = False
         exposureMetadata["LSST ISR BF APPLIED"] = False
         exposureMetadata["LSST ISR FLAT APPLIED"] = False
+        exposureMetadata["LSST ISR DEFECTS APPLIED"] = False
 
         if self.config.doBootstrap:
             self.log.info("Configured using doBootstrap=True; using gain of 1.0 (adu units)")
@@ -1884,6 +1885,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doDefect:
             self.log.info("Applying defect masking.")
             self.maskDefects(ccdExposure, defects)
+            ccdExposure.metadata["LSST ISR DEFECTS APPLIED"] = True
 
         if self.config.doNanMasking:
             self.log.info("Masking non-finite (NAN, inf) value pixels.")
