@@ -305,7 +305,7 @@ def maskITLEdgeBleed(ccdExposure, badAmpDict,
             xCore = xCoreFP + fpCore.getBBox().getMinX()
             # get Y footprint coordinate of the core
             # by trimming the edges where edge bleeds are potentially dominant
-            if subfp.shape[0] < 200:
+            if subfp.shape[0] <= 200:
                 yCoreFP = int(numpy.argmax(numpy.sum(subfp, axis=1)))
             else:
                 yCoreFP = int(numpy.argmax(numpy.sum(subfp[100:-100, :],
