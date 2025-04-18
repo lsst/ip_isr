@@ -243,6 +243,13 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Per-detector and per-amplifier overscan configurations.",
     )
 
+    ampNoiseThreshold = pexConfig.Field(
+        dtype=float,
+        default=25.0,
+        doc="Maximum amplifier noise (e-) that is allowed before an amp is masked as bad. "
+            "Set to np.inf/np.nan to turn off noise checking.",
+    )
+
     # Amplifier to CCD assembly configuration.
     doAssembleCcd = pexConfig.Field(
         dtype=bool,
@@ -598,6 +605,9 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
             if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
                 raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+            if numpy.isfinite(self.ampNoiseThreshold):
+                raise ValueError("Cannot do amp noise thresholds with doBootstrap=True.")
+
         if self.doITLEdgeBleedMask and not self.doSaturation:
             raise ValueError("Cannot do edge bleed masking when doSaturation=False.")
 
@@ -761,6 +771,60 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 return
 
         raise UnprocessableDataError("All amps in the exposure are bad; skipping ISR.")
+
+    def checkAmpNoise(self, badAmpDict, exposure, ptc):
+        """Check if amplifier noise levels are above threshold.
+
+        Any amplifier that is above the noise level will be masked as BAD
+        and added to the badAmpDict.
+
+        Parameters
+        ----------
+        badAmpDict : `str` [`bool`]
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
+        exposure : `lsst.afw.image.Exposure`
+            Input exposure to be masked (untrimmed).
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`
+            PTC dataset with gains/read noises.
+
+        Returns
+        -------
+        badAmpDict : `str`[`bool`]
+            Dictionary of amplifiers, keyed by name.
+        """
+
+        if isTrimmedExposure(exposure):
+            raise RuntimeError("checkAmpNoise must be run on an untrimmed exposure.")
+
+        for amp in exposure.getDetector():
+            ampName = amp.getName()
+
+            doMask = False
+            if ptc.noise[ampName] > self.config.ampNoiseThreshold:
+                self.log.info(
+                    "Amplifier %s has a PTC noise level of %.2f e-, above threshold.",
+                    ampName,
+                    ptc.noise[ampName],
+                )
+                doMask = True
+            else:
+                key = f"LSST ISR OVERSCAN RESIDUAL SERIAL STDEV {ampName}"
+                overscanNoise = exposure.metadata.get(key, numpy.nan)
+                if overscanNoise * ptc.gain[ampName] > self.config.ampNoiseThreshold:
+                    self.log.warning(
+                        "Amplifier %s has an overscan read noise level of %.2f e-, above threshold.",
+                        ampName,
+                        overscanNoise * ptc.gain[ampName],
+                    )
+                    doMask = True
+
+            if doMask:
+                badAmpDict[ampName] = True
+
+                exposure.mask[amp.getRawBBox()] |= exposure.mask.getPlaneBitMask("BAD")
+
+        return badAmpDict
 
     def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector, detectorConfig, ptc=None):
         """
@@ -1812,6 +1876,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ignoreVariance=True,
             )
             ccdExposure.metadata["LSST ISR CROSSTALK APPLIED"] = True
+
+        # After crosstalk, we check amplifier noise.
+        if numpy.isfinite(self.config.ampNoiseThreshold):
+            badAmpDict = self.checkAmpNoise(badAmpDict, ccdExposure, ptc)
+
+            self.checkAllBadAmps(badAmpDict, detector)
 
         # Parallel overscan correction.
         # Output units: electron (adu if doBootstrap=True)

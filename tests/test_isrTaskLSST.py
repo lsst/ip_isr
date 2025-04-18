@@ -1717,6 +1717,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         """Get an IsrTaskLSSTConfig with minimal corrections.
         """
         isr_config = IsrTaskLSSTConfig()
+        isr_config.ampNoiseThreshold = np.inf
         isr_config.doBias = False
         isr_config.doDark = False
         isr_config.doDeferredCharge = False
