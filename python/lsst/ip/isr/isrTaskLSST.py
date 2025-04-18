@@ -2051,6 +2051,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 scalingType=self.config.flatScalingType,
                 userScale=self.config.flatUserScale,
             )
+
+            # Copy over valid polygon from flat if it is
+            # available, and set NO_DATA to 0.0 (which may
+            # be inherited from the flat in the fully
+            # vignetted region).
+            if (validPolygon := flat.info.getValidPolygon()) is not None:
+                ccdExposure.info.setValidPolygon(validPolygon)
+
+                noData = (ccdExposure.mask.array & ccdExposure.mask.getPlaneBitMask("NO_DATA")) > 0
+                ccdExposure.image.array[noData] = 0.0
+
             ccdExposure.metadata["LSST ISR FLAT APPLIED"] = True
             ccdExposure.metadata["LSST ISR FLAT SOURCE"] = flat.metadata.get("FLATSRC", "UNKNOWN")
 
