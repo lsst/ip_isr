@@ -242,7 +242,7 @@ class AmpOffsetTask(Task):
             pedestals = np.nan_to_num(np.linalg.lstsq(A, B, rcond=None)[0])
 
         metadata = exposure.getMetadata()  # Exposure metadata.
-        self.metadata["AMPOFFSET_PEDESTALS"] = {}  # Task metadata.
+        self.metadata["AMPOFFSET_PEDESTAL"] = {}  # Task metadata.
         ampNames = [amp.getName() for amp in amps]
 
         # Add the amp interface offsets to the exposure metadata.
@@ -265,7 +265,7 @@ class AmpOffsetTask(Task):
                 ampIm -= pedestal
             # Add the amp pedestal to the "Task" metadata as well.
             # Needed for Sasquatch/Chronograf!
-            self.metadata["AMPOFFSET_PEDESTALS"][ampName] = float(pedestal)
+            self.metadata["AMPOFFSET_PEDESTAL"][ampName] = float(pedestal)
         if self.config.doApplyAmpOffset:
             status = "subtracted from exposure"
             metadata.set("LSST ISR AMPOFFSET PEDESTAL SUBTRACTED", True, "Amp pedestals have been subtracted")
