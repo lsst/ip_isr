@@ -48,11 +48,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.bias_adu = isrMockLSST.BiasMockLSST(adu=True).run()
         self.dark_adu = isrMockLSST.DarkMockLSST(adu=True).run()
         self.flat_adu = isrMockLSST.FlatMockLSST(adu=True).run()
+        self.flat_adu.metadata["FLATSRC"] = "DOME"
 
         # Create calibration frames
         self.bias = isrMockLSST.BiasMockLSST().run()
         self.dark = isrMockLSST.DarkMockLSST().run()
         self.flat = isrMockLSST.FlatMockLSST().run()
+        self.flat.metadata["FLATSRC"] = "DOME"
         self.bf_kernel = isrMockLSST.BfKernelMockLSST().run()
         self.cti = isrMockLSST.DeferredChargeMockLSST().run()
 
@@ -128,6 +130,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         key = "LSST ISR FLAT APPLIED"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doFlat)
+
+        if metadata[key]:
+            key2 = "LSST ISR FLAT SOURCE"
+            self.assertIn(key2, metadata)
+            self.assertEqual(metadata[key2], "DOME")
 
         key = "LSST ISR DEFECTS APPLIED"
         self.assertIn(key, metadata)
