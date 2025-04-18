@@ -14,6 +14,7 @@ import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
 import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
+from lsst.pipe.base import UnprocessableDataError
 from lsst.meas.algorithms.detection import SourceDetectionTask
 import lsst.afw.detection as afwDetection
 
@@ -229,6 +230,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=False,
         doc="Is this task to be run in a ``bootstrap`` fashion that does not require "
             "a PTC or full calibrations?",
+    )
+
+    doCheckUnprocessableData = pexConfig.Field(
+        dtype=bool,
+        default=True,
+        doc="Check if this image is completely unprocessable due to all bad amps.",
     )
 
     overscanCamera = pexConfig.ConfigField(
@@ -729,6 +736,31 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 del maskView
 
         return badAmpDict
+
+    def checkAllBadAmps(self, badAmpDict, detector):
+        """Check if all amps are marked as bad.
+
+        Parameters
+        ----------
+        badAmpDict : `str`[`bool`]
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
+        detector : `lsst.afw.cameraGeom.Detector`
+            Detector object.
+
+        Raises
+        ------
+        UnprocessableDataError if all amps are bad and doCheckUnprocessableData
+        configuration is True.
+        """
+        if not self.config.doCheckUnprocessableData:
+            return
+
+        for amp in detector:
+            if not badAmpDict.get(amp.getName(), False):
+                return
+
+        raise UnprocessableDataError("All amps in the exposure are bad; skipping ISR.")
 
     def maskSaturatedPixels(self, badAmpDict, ccdExposure, detector, detectorConfig, ptc=None):
         """
@@ -1670,6 +1702,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Then we mark which amplifiers are completely bad from defects.
         badAmpDict = self.maskFullAmplifiers(ccdExposure, detector, defects, gains=gains)
 
+        self.checkAllBadAmps(badAmpDict, detector)
+
         # Now we go through ISR steps.
 
         # Differential non-linearity correction.
@@ -1723,6 +1757,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             overscanDetectorConfig,
             ptc=ptc,
         )
+
+        self.checkAllBadAmps(badAmpDict, detector)
 
         if self.config.doCorrectGains:
             # TODO: DM-36639
