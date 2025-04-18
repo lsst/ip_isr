@@ -28,6 +28,7 @@ import galsim
 from scipy.stats import median_abs_deviation
 
 import lsst.geom as geom
+from lsst.pipe.base import UnprocessableDataError
 import lsst.ip.isr.isrMockLSST as isrMockLSST
 import lsst.utils.tests
 from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
@@ -1654,6 +1655,119 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         for ctype in ["BIAS", "DARK", "FLAT", "CROSSTALK", "DEFECTS", "PTC", "LINEARIZER", "CTI"]:
             self.assertTrue(result.exposure.metadata[f"ISR {ctype} SEQUENCER MISMATCH"])
+
+    def test_highPtcNoiseAmps(self):
+        """Test for masking of high noise amps (in PTC)."""
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+
+        # Set a bad amplifier to a high noise.
+        bad_amp = self.detector[0].getName()
+
+        ptc = copy.copy(self.ptc)
+        ptc.noise[bad_amp] = 50.0
+
+        isr_task = IsrTaskLSST(config=isr_config)
+
+        # With the PTC this should not warn.
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+
+        # Confirm that the bad_amp is marked bad and the other amps are not.
+        # We have to special case the amp with the defect.
+        mask = result.exposure.mask
+
+        for amp in self.detector:
+            bbox = amp.getBBox()
+            bad_in_amp = ((mask[bbox].array & 2**mask.getMaskPlaneDict()["BAD"]) > 0)
+
+            if amp.getName() == bad_amp:
+                self.assertTrue(np.all(bad_in_amp))
+            elif amp.getName() == "C:0,2":
+                # This is the amp with the defect.
+                self.assertEqual(np.sum(bad_in_amp), 51)
+            else:
+                self.assertTrue(np.all(~bad_in_amp))
+
+    def test_highOverscanNoiseAmps(self):
+        """Test for masking of high noise amps (in overscan)."""
+
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+        mock_config.readNoise = 50.0
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+        isr_config.doInterpolate = False
+        # Let all the amps fail to check the logging.
+        isr_config.doCheckUnprocessableData = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+        self.assertEqual(len(cm.output), len(self.detector))
+
+        # All pixels should be BAD
+        bad_value = result.exposure.mask.getPlaneBitMask("BAD")
+        np.testing.assert_array_equal(result.exposure.mask.array & bad_value, bad_value)
+
+        # And run again to check the UnprocessableDataError.
+        isr_config.doCheckUnprocessableData = True
+        isr_task = IsrTaskLSST(config=isr_config)
+
+        with self.assertRaises(UnprocessableDataError):
+            with self.assertLogs(level=logging.WARNING):
+                result = isr_task.run(
+                    input_exp.clone(),
+                    bias=self.bias,
+                    dark=self.dark,
+                    crosstalk=self.crosstalk,
+                    ptc=self.ptc,
+                    linearizer=self.linearizer,
+                    defects=self.defects,
+                    deferredChargeCalib=self.cti,
+                )
 
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
