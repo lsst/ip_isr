@@ -27,6 +27,7 @@ import logging
 import galsim
 from scipy.stats import median_abs_deviation
 
+import lsst.afw.geom as afwGeom
 import lsst.geom as geom
 from lsst.pipe.base import UnprocessableDataError
 import lsst.ip.isr.isrMockLSST as isrMockLSST
@@ -34,6 +35,7 @@ import lsst.utils.tests
 from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
 from lsst.ip.isr.crosstalk import CrosstalkCalib
 from lsst.ip.isr import PhotonTransferCurveDataset
+from lsst.ip.isr.vignette import maskVignettedRegion
 
 
 class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
@@ -1107,6 +1109,55 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], saturation_level * gain)
+
+    def test_isrFlatVignette(self):
+        """Test ISR when the flat has a validPolygon and vignetted region."""
+
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = True
+        isr_config.doDefect = True
+
+        flat = self.flat.clone()
+        bbox = geom.Box2D(
+            corner=geom.Point2D(0, 0),
+            dimensions=geom.Extent2D(50, 50),
+        )
+        polygon = afwGeom.Polygon(bbox)
+        flat.info.setValidPolygon(polygon)
+        maskVignettedRegion(flat, polygon, vignetteValue=0.0)
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=flat,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+
+        self.assertEqual(result.exposure.info.getValidPolygon(), polygon)
+
+        noDataFlat = (flat.mask.array & flat.mask.getPlaneBitMask("NO_DATA")) > 0
+        noDataExp = (result.exposure.mask.array & result.exposure.mask.getPlaneBitMask("NO_DATA")) > 0
+        np.testing.assert_array_equal(noDataExp, noDataFlat)
+        np.testing.assert_array_equal(result.exposure.image.array[noDataExp], 0.0)
 
     def test_isrFloodedSaturatedE2V(self):
         """Test ISR when the amps are completely saturated.
