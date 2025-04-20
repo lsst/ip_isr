@@ -81,6 +81,11 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         for ampName in ptcDataset.ampNames:
             self.assertIsInstance(ptcDataset.expIdMask[ampName], np.ndarray)
             self.assertEqual(ptcDataset.expIdMask[ampName].dtype, bool)
+            self.assertIsInstance(ptcDataset.inputExpPairMjdStartList[ampName], np.ndarray)
+            self.assertIsInstance(ptcDataset.overscanMedianLevelList[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.overscanMedianLevelList[ampName].dtype, float)
+            self.assertIsInstance(ptcDataset.overscanMedian[ampName], float)
+            self.assertIsInstance(ptcDataset.overscanMedianSigma[ampName], float)
             self.assertIsInstance(ptcDataset.rawExpTimes[ampName], np.ndarray)
             self.assertEqual(ptcDataset.rawExpTimes[ampName].dtype, np.float64)
             self.assertIsInstance(ptcDataset.rawMeans[ampName], np.ndarray)
