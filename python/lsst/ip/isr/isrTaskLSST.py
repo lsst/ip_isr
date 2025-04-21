@@ -250,6 +250,20 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             "Set to np.inf/np.nan to turn off noise checking.",
     )
 
+    bssVoltageMinimum = pexConfig.Field(
+        dtype=float,
+        default=5.0,
+        doc="Minimum back-side bias voltage.  Below this the detector is ``off`` and an "
+            "UnprocessableDataError will be logged. Check will be skipped if doCheckUnprocessableData "
+            "is False or if value is greater than 0.",
+    )
+    bssVoltageKeyword = pexConfig.Field(
+        dtype=str,
+        default="BSSVBS",
+        doc="Back-side bias voltage header keyword. Only checked if doCheckUnprocessableData is True "
+            "and bssVoltageMinimum is greater than 0.",
+    )
+
     # Amplifier to CCD assembly configuration.
     doAssembleCcd = pexConfig.Field(
         dtype=bool,
@@ -1599,6 +1613,29 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         exposure.image.array[:, :] += rng.uniform(low=low, high=high, size=exposure.image.array.shape)
 
+    def checkBssVoltage(self, exposure):
+        """Check the back-side bias voltage to see if the detector is on.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.ExposureF`
+            Input exposure.
+
+        Raises
+        ------
+        `UnprocessableDataError` if voltage is off.
+        """
+        voltage = exposure.metadata.get(self.config.bssVoltageKeyword, None)
+        if voltage is None or not numpy.isfinite(voltage):
+            self.log.warning(
+                "Back-side bias voltage %s not found in metadata.",
+                self.config.bssVoltageKeyword,
+            )
+            return
+
+        if voltage < self.config.bssVoltageMinimum:
+            raise UnprocessableDataError("Back-side bias voltage is turned off; skipping ISR.")
+
     @deprecated(
         reason=(
             "makeBinnedImages is no longer used. "
@@ -1720,6 +1757,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         "doSuspect is True and defaultSuspectSource is "
                         f"{self.config.defaultSuspectSource}, but no ptc provided."
                     )
+
+        if self.config.doCheckUnprocessableData and self.config.bssVoltageMinimum > 0.0:
+            self.checkBssVoltage(ccdExposure)
 
         # FIXME: Make sure that if linearity is done then it is matched
         # with the right PTC.
