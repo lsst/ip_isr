@@ -243,6 +243,14 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Per-detector and per-amplifier overscan configurations.",
     )
 
+    serialOverscanMedianSigmaThreshold = pexConfig.Field(
+        dtype=float,
+        default=100.0,
+        doc="Number of sigma difference from per-amp overscan median (as compared to PTC) to "
+            "check if an amp is in a different state than the baseline PTC calib and should "
+            "be marked BAD. Set to np.inf/np.nan to turn off overscan median checking.",
+    )
+
     ampNoiseThreshold = pexConfig.Field(
         dtype=float,
         default=25.0,
@@ -619,6 +627,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
             if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
                 raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+            if numpy.isfinite(self.serialOverscanMedianSigmaThreshold):
+                raise ValueError("Cannot do amp overscan level checks with doBootstrap=True.")
             if numpy.isfinite(self.ampNoiseThreshold):
                 raise ValueError("Cannot do amp noise thresholds with doBootstrap=True.")
 
@@ -785,6 +795,65 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 return
 
         raise UnprocessableDataError("All amps in the exposure are bad; skipping ISR.")
+
+    def checkAmpOverscanLevel(self, badAmpDict, exposure, ptc):
+        """Check if the amplifier overscan levels have changed.
+
+        Any amplifier that has an overscan median level that has changed
+        significantly will be masked as BAD and added to toe badAmpDict.
+
+        Parameters
+        ----------
+        badAmpDict : `str` [`bool`]
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
+        exposure : `lsst.afw.image.Exposure`
+            Input exposure to be masked (untrimmed).
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`
+            PTC dataset with gains/read noises.
+
+        Returns
+        -------
+        badAmpDict : `str`[`bool`]
+            Dictionary of amplifiers, keyed by name.
+
+        """
+        if isTrimmedExposure(exposure):
+            raise RuntimeError("checkAmpOverscanLevel must be run on an untrimmed exposure.")
+
+        # We want to consolidate all the amps into one warning if necessary.
+        # This config should not be set to a finite threshold if the necessary
+        # data is not in the PTC.
+        missingWarnString = "No PTC overscan information for amplifier "
+        missingWarnFlag = False
+        for amp in exposure.getDetector():
+            ampName = amp.getName()
+
+            if not numpy.isfinite(ptc.overscanMedian[ampName]) or \
+               not numpy.isfinite(ptc.overscanMedianSigma[ampName]):
+                missingWarnString += f"{ampName},"
+                missingWarnFlag = True
+            else:
+                key = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
+                # If it is missing, just return the PTC value and it
+                # will be skipped.
+                overscanLevel = exposure.metadata.get(key, ptc.overscanMedian[ampName])
+                pull = (overscanLevel - ptc.overscanMedian[ampName])/ptc.overscanMedianSigma[ampName]
+                if numpy.abs(pull) > self.config.serialOverscanMedianSigmaThreshold:
+                    self.log.warning(
+                        "Amplifier %s has an overscan level that is %.2f sigma from the expected level; "
+                        "masking it as BAD.",
+                        ampName,
+                        pull,
+                    )
+
+                    badAmpDict[ampName] = True
+                    exposure.mask[amp.getRawBBox()] |= exposure.mask.getPlaneBitMask("BAD")
+
+        if missingWarnFlag:
+            self.log.warning(missingWarnString)
+
+        return badAmpDict
 
     def checkAmpNoise(self, badAmpDict, exposure, ptc):
         """Check if amplifier noise levels are above threshold.
@@ -1917,10 +1986,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             )
             ccdExposure.metadata["LSST ISR CROSSTALK APPLIED"] = True
 
-        # After crosstalk, we check amplifier noise.
+        # After crosstalk, we check for amplifier noise and state changes.
+        if numpy.isfinite(self.config.serialOverscanMedianSigmaThreshold):
+            badAmpDict = self.checkAmpOverscanLevel(badAmpDict, ccdExposure, ptc)
+
         if numpy.isfinite(self.config.ampNoiseThreshold):
             badAmpDict = self.checkAmpNoise(badAmpDict, ccdExposure, ptc)
 
+        if numpy.isfinite(self.config.serialOverscanMedianSigmaThreshold) or \
+           numpy.isfinite(self.config.ampNoiseThreshold):
             self.checkAllBadAmps(badAmpDict, detector)
 
         # Parallel overscan correction.
