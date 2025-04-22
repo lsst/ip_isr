@@ -425,6 +425,30 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         target=MaskingTask,
         doc="Masking task."
     )
+    doE2VEdgeBleedMask = pexConfig.Field(
+        dtype=bool,
+        doc="Mask flag-like edge bleeds from saturated columns "
+            "in E2V amplifiers.",
+        default=True,
+    )
+    e2vEdgeBleedSatMinArea = pexConfig.Field(
+        dtype=int,
+        doc="Minimum limit of saturated cores footprint area to apply edge"
+            "bleed masking in E2V amplifiers.",
+        default=20000,
+    )
+    e2vEdgeBleedSatMaxArea = pexConfig.Field(
+        dtype=int,
+        doc="Maximum limit of saturated cores footprint area to apply edge"
+            "bleed masking in E2V amplifiers.",
+        default=100000,
+    )
+    e2vEdgeBleedYMax = pexConfig.Field(
+        dtype=int,
+        doc="Height of edge bleed masking in E2V amplifiers (width is the"
+            "width of the amplifier).",
+        default=350,
+    )
     doITLEdgeBleedMask = pexConfig.Field(
         dtype=bool,
         doc="Mask edge bleeds from saturated columns in ITL amplifiers.",
@@ -633,7 +657,9 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 raise ValueError("Cannot do amp noise thresholds with doBootstrap=True.")
 
         if self.doITLEdgeBleedMask and not self.doSaturation:
-            raise ValueError("Cannot do edge bleed masking when doSaturation=False.")
+            raise ValueError("Cannot do ITL edge bleed masking when doSaturation=False.")
+        if self.doE2VEdgeBleedMask and not self.doSaturation:
+            raise ValueError("Cannot do e2v edge bleed masking when doSaturation=False.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -2061,6 +2087,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             if self.config.expectWcs and not ccdExposure.getWcs():
                 self.log.warning("No WCS found in input exposure.")
+
+        # E2V edge bleed
+        if self.config.doE2VEdgeBleedMask and detector.getPhysicalType() == 'E2V':
+            isrFunctions.maskE2VEdgeBleed(exposure=ccdExposure,
+                                          badAmpDict=badAmpDict,
+                                          e2vEdgeBleedSatMinArea=self.config.e2vEdgeBleedSatMinArea,
+                                          e2vEdgeBleedSatMaxArea=self.config.e2vEdgeBleedSatMaxArea,
+                                          e2vEdgeBleedYMax=self.config.e2vEdgeBleedYMax,
+                                          saturatedMaskName=self.config.saturatedMaskName)
 
         # ITL Dip Masking
         for maskPlane in self.config.itlDipMaskPlanes:

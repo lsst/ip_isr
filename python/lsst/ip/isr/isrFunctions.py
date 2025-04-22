@@ -35,6 +35,7 @@ __all__ = [
     "gainContext",
     "getPhysicalFilter",
     "growMasks",
+    "maskE2VEdgeBleed",
     "maskITLEdgeBleed",
     "maskITLSatSag",
     "maskITLDip",
@@ -222,6 +223,31 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
         spans = spans.dilated(radius, Stencil.MANHATTAN)
         spans = spans.clippedTo(mask.getBBox())
         spans.setMask(mask, mask.getPlaneBitMask(maskValue))
+
+
+def maskE2VEdgeBleed(exposure, badAmpDict, e2vEdgeBleedSatMinArea, e2vEdgeBleedSatMaxArea,
+                     e2vEdgeBleedYMax, saturatedMaskName):
+    maskedImage = exposure.maskedImage
+    saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
+
+    thresh = afwDetection.Threshold(saturatedBit,
+                                    afwDetection.Threshold.BITMASK
+                                    )
+    fpList = afwDetection.FootprintSet(exposure.mask, thresh).getFootprints()
+
+    satAreas = numpy.asarray([fp.getArea() for fp in fpList])
+    largeAreas, = numpy.where((satAreas >= e2vEdgeBleedSatMinArea)
+                              & (satAreas < e2vEdgeBleedSatMaxArea))
+    for largeAreasIndex in largeAreas:
+        fpCore = fpList[largeAreasIndex]
+        xCore, yCore = fpCore.getCentroid()
+
+        for amp in exposure.getDetector():
+            if amp.getBBox().contains(xCore, yCore):
+                ampName = amp.getName()
+                if ampName[:2] == 'C0':
+
+                    maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
 
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
