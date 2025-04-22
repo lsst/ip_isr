@@ -83,6 +83,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.ptc.gain[amp_name] = mock.config.gainDict.get(amp_name, mock.config.gain)
             self.ptc.noise[amp_name] = mock.config.readNoise
             self.ptc.ptcTurnoff[amp_name] = self.saturation_adu
+            pre_level = mock.config.clockInjectedOffsetLevel
+            overscan_level = mock.config.biasLevel + (pre_level / self.ptc.gain[amp_name])
+            self.ptc.overscanMedian[amp_name] = overscan_level
+            self.ptc.overscanMedianSigma[amp_name] = 10.0
 
         # TODO:
         # self.cti = isrMockLSST.DeferredChargeMockLSST().run()
@@ -1769,6 +1773,104 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             else:
                 self.assertTrue(np.all(~bad_in_amp))
 
+    def test_changedOverscanAmps(self):
+        """Tests for masking of amps where the overscan level changed."""
+
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        # Offset one amp with a constant value.
+        bad_amp = "C:0,0"
+
+        input_exp2 = input_exp.clone()
+        input_exp2.image[self.detector[bad_amp].getRawBBox()].array[:, :] -= 2000.0
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+        isr_config.doInterpolate = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            _ = isr_task.run(
+                input_exp2,
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+        self.assertEqual(len(cm.output), 1)
+        self.assertIn(f"Amplifier {bad_amp} has an overscan level", cm.output[0])
+
+        # Offset all amps to see that it is now unprocessable.
+
+        input_exp2 = input_exp.clone()
+        input_exp2.image.array[:, :] -= 2000.0
+
+        with self.assertLogs(level=logging.WARNING):
+            with self.assertRaises(UnprocessableDataError):
+                _ = isr_task.run(
+                    input_exp2,
+                    bias=self.bias,
+                    dark=self.dark,
+                    crosstalk=self.crosstalk,
+                    ptc=self.ptc,
+                    linearizer=self.linearizer,
+                    defects=self.defects,
+                    deferredChargeCalib=self.cti,
+                )
+
+        # Remove the values in the PTC and turn off check.
+        # This should run without warnings.
+        ptc = copy.copy(self.ptc)
+        for amp in self.detector:
+            ptc.overscanMedian[amp.getName()] = np.nan
+
+        isr_config.serialOverscanMedianSigmaThreshold = np.inf
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            _ = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+
+        # Turn the check back on; this should have 1 warning.
+        isr_config.serialOverscanMedianSigmaThreshold = 100.0
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            _ = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+        self.assertEqual(len(cm.output), 1)
+        self.assertIn("No PTC overscan information", cm.output[0])
+
     def test_highOverscanNoiseAmps(self):
         """Test for masking of high noise amps (in overscan)."""
 
@@ -1984,6 +2086,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config = IsrTaskLSSTConfig()
         isr_config.bssVoltageMinimum = 0.0
         isr_config.ampNoiseThreshold = np.inf
+        isr_config.serialOverscanMedianSigmaThreshold = np.inf
         isr_config.doBias = False
         isr_config.doDark = False
         isr_config.doDeferredCharge = False
