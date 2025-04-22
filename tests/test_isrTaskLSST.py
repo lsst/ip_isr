@@ -1827,6 +1827,99 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                     deferredChargeCalib=self.cti,
                 )
 
+    def test_bssVoltageChecks(self):
+        """Test the BSS voltage checks."""
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+
+        # Set the voltage.
+        input_exp.metadata["BSSVBS"] = 0.25
+
+        # Check that processing runs with checks turned off.
+        isr_config.doCheckUnprocessableData = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            _ = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+
+        # Check that processing runs with other way of turning checks off.
+        isr_config.doCheckUnprocessableData = True
+        isr_config.bssVoltageMinimum = 0.0
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            _ = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+
+        # Check that processing runs but warns if header keyword is None.
+        isr_config.doCheckUnprocessableData = True
+        isr_config.bssVoltageMinimum = 10.0
+
+        input_exp2 = input_exp.clone()
+        input_exp2.metadata["BSSVBS"] = None
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertLogs(level=logging.WARNING) as cm:
+            _ = isr_task.run(
+                input_exp2,
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+        self.assertEqual(len(cm.output), 1)
+        self.assertIn("Back-side bias voltage BSSVBS not found", cm.output[0])
+
+        # Check that it raises.
+        isr_config.doCheckUnprocessableData = True
+        isr_config.bssVoltageMinimum = 10.0
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertRaises(UnprocessableDataError):
+            _ = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
 
@@ -1889,6 +1982,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         """Get an IsrTaskLSSTConfig with minimal corrections.
         """
         isr_config = IsrTaskLSSTConfig()
+        isr_config.bssVoltageMinimum = 0.0
         isr_config.ampNoiseThreshold = np.inf
         isr_config.doBias = False
         isr_config.doDark = False
