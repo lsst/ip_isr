@@ -184,6 +184,56 @@ def _makeEdgeBleed(exposure, x, extentY, edgeBleedWidth,
                              ] = saturationFrac*saturationLevel
 
 
+class MockE2VAmp:
+    def __init__(self, name, bbox):
+        self._name = name
+        self._bbox = bbox
+
+    def getName(self):
+        return self._name
+
+    def getBBox(self):
+        return self._bbox
+
+    def __repr__(self):
+        return f"MockE2VAmp({self._name})"
+
+
+class MockE2VDetector(list):
+    def __init__(self):
+        amps = []
+        for i in range(8):
+            name = f"C1{i}"
+            bbox = geom.Box2I(corner=geom.Point2I(i*512, 2002), dimensions=geom.Extent2I(512, 2002))
+            amps.append(MockITLAmp(name, bbox))
+        for i in reversed(range(8)):
+            name = f"C0{i}"
+            bbox = geom.Box2I(corner=geom.Point2I(i*512, 0), dimensions=geom.Extent2I(512, 2002))
+            amps.append(MockITLAmp(name, bbox))
+
+        super().__init__(amps)
+
+    def getBBox(self):
+        return geom.Box2I(corner=geom.Point2I(0, 0), dimensions=geom.Extent2I(4096, 4004))
+
+
+class MockE2VExposure(afwImage.ExposureF):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def setDetector(self, detector):
+        self._detector = detector
+
+    def fillSaturationMetadata(self, saturationLevel):
+        if not self._detector:
+            raise RuntimeError("No detector set.")
+        for amp in self.getDetector():
+            self.metadata[f"LSST ISR SATURATION LEVEL {amp.getName()}"] = saturationLevel
+
+    def getDetector(self):
+        return self._detector
+
+
 class MockITLAmp:
     def __init__(self, name, bbox):
         self._name = name
@@ -287,6 +337,43 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
                                              maskName='SAT')
 
         self.assertEqual(len(defectList), 1)
+
+    def test_E2VEdgeBleedMask(self):
+        """Expect number of masked pixels according to e2v edge bleed masking.
+        """
+        detector = MockE2VDetector()
+        exposure = MockE2VExposure(detector.getBBox())
+        exposure.setDetector(detector)
+        exposure.mask.array[:, :] = 0
+        satMaskBit = exposure.mask.getPlaneBitMask('SAT')
+
+        saturationLevel = 12000.
+        exposure.fillSaturationMetadata(saturationLevel)
+
+        # add rectangular edge bleed to mock exposure
+        _setExposureSatCore(exposure, x=1600, y=1000,
+                            halfWidthX=200, halfWidthY=100,
+                            satVal=saturationLevel, satMaskBit=satMaskBit)
+        _setExposureSatColumns(exposure, x=1600, y=1000, halfWidthX=4,
+                               limY=0, satVal=saturationLevel, satMaskBit=satMaskBit,
+                               isTop=False)
+
+        exposure.image.array[:100, 1600:1800] = 10000.
+
+        numPixSatBottomEdgeBefore = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
+
+        ipIsrFunctions.maskE2VEdgeBleed(exposure,
+                                        e2vEdgeBleedSatMinArea=20000, e2vEdgeBleedSatMaxArea=100000,
+                                        e2vEdgeBleedYMax=350,
+                                        e2vEdgeBleedThreshold=500.,
+                                        saturatedMaskName='SAT')
+
+        numPixSatBottomEdgeAfter = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
+
+        # Check the number of saturated pixels
+        self.assertEqual(ipIsr.countMaskedPixels(exposure, 'SAT'), 263600)
+        # Check there are more pixels along the bottom edge after masking
+        self.assertGreater(numPixSatBottomEdgeAfter, numPixSatBottomEdgeBefore)
 
     def test_ITLEdgeBleedMask(self):
         """Expect number of masked pixels according to edge bleed masking.

@@ -225,8 +225,32 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
         spans.setMask(mask, mask.getPlaneBitMask(maskValue))
 
 
-def maskE2VEdgeBleed(exposure, badAmpDict, e2vEdgeBleedSatMinArea, e2vEdgeBleedSatMaxArea,
-                     e2vEdgeBleedYMax, e2vEdgeBleedThreshold, saturatedMaskName):
+def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=20000,
+                     e2vEdgeBleedSatMaxArea=100000,
+                     e2vEdgeBleedYMax=350, e2vEdgeBleedThreshold=500.,
+                     saturatedMaskName='SAT', log=None):
+    """Mask edge bleeds in E2V detectors.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to apply masking to.
+    e2vEdgeBleedSatMinArea : `int`, optional
+        Minimum limit of saturated cores footprint area.
+    e2vEdgeBleedSatMaxArea : `int`, optional
+        Maximum limit of saturated cores footprint area.
+    e2vEdgeBleedYMax: `float`, optional
+        Height of edge bleed masking.
+    e2vEdgeBleedThreshold: `float`, optional
+        Sky background threshold for E2V edge bleed detection.
+    saturatedMaskName : `str`, optional
+        Mask name for saturation.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
+    """
+
+    log = log if log else logging.getLogger(__name__)
+
     maskedImage = exposure.maskedImage
     saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 
@@ -241,8 +265,8 @@ def maskE2VEdgeBleed(exposure, badAmpDict, e2vEdgeBleedSatMinArea, e2vEdgeBleedS
     for largeAreasIndex in largeAreas:
         fpCore = fpList[largeAreasIndex]
         xCore, yCore = fpCore.getCentroid()
-        xCore =  int(xCore)
-        yCore =  int(yCore)
+        xCore = int(xCore)
+        yCore = int(yCore)
 
         for amp in exposure.getDetector():
             if amp.getBBox().contains(xCore, yCore):
@@ -255,10 +279,15 @@ def maskE2VEdgeBleed(exposure, badAmpDict, e2vEdgeBleedSatMinArea, e2vEdgeBleedS
                     else:
                         xmax = xCore + 20
 
+                    # Compute the median in a rectangle of width 20 pixels and
+                    # height 100 pixels
                     edgeMedian = numpy.median(maskedImage.image.array[:100, xCore:xmax])
 
+                    # Check this rectangle looks like an edge bleed
                     if edgeMedian > (ampImageBG + e2vEdgeBleedThreshold):
+                        log.info("Found edge bleed in amp %s", ampName)
                         maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
+
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
                      fpCore, itlEdgeBleedSatMinArea=10000,

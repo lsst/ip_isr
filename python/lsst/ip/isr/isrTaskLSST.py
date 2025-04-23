@@ -2096,12 +2096,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # E2V edge bleed
         if self.config.doE2VEdgeBleedMask and detector.getPhysicalType() == 'E2V':
             isrFunctions.maskE2VEdgeBleed(exposure=ccdExposure,
-                                          badAmpDict=badAmpDict,
                                           e2vEdgeBleedSatMinArea=self.config.e2vEdgeBleedSatMinArea,
                                           e2vEdgeBleedSatMaxArea=self.config.e2vEdgeBleedSatMaxArea,
                                           e2vEdgeBleedYMax=self.config.e2vEdgeBleedYMax,
                                           e2vEdgeBleedThreshold=self.config.e2vEdgeBleedThreshold,
-                                          saturatedMaskName=self.config.saturatedMaskName)
+                                          saturatedMaskName=self.config.saturatedMaskName,
+                                          log=self.log)
 
         # ITL Dip Masking
         for maskPlane in self.config.itlDipMaskPlanes:
