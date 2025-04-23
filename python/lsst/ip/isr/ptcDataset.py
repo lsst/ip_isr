@@ -34,8 +34,6 @@ from scipy.signal import fftconvolve
 
 from lsst.ip.isr import IsrCalib
 
-from deprecated.sphinx import deprecated
-
 
 def symmetrize(inputArray):
     """ Copy array over 4 quadrants prior to convolution.
@@ -150,7 +148,13 @@ class PhotonTransferCurveDataset(IsrCalib):
         each flat pair.
     overscanMedianLevelList : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the median overscan
-        level from eachinput flat pair (units: adu).
+        level from each input flat pair (units: adu).
+    overscanMedian : `dict `, [`str`, `float`]
+        Dictionary keyed by amp names containing the median of
+        overscanMedianLevelList[expIdMask] (units: adu).
+    overscanMedianSigma : `dict `, [`str`, `float`]
+        Dictionary keyed by amp names containing the median absolute
+        deviation of overscanMedianLevelList[expIdMask] (units: adu).
     noiseList : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the mean overscan
         standard deviation from each flat pair (units: adu).
@@ -246,7 +250,9 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 2.1 deprecates the `covariancesModelNoB`, `aMatrixNoB`, and
         `noiseMatrixNoB` attributes.
     Version 2.2 adds the `overscanMedianLevelList` and
-         `inputExpPairMjdStartList` attributes.
+        `inputExpPairMjdStartList` attributes.
+    Version 2.3 adds the `overscanMedian` and
+        `overscanMedianSigma` attrbutes.
     """
 
     _OBSTYPE = 'PTC'
@@ -265,7 +271,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     #  * test_ptcDataset() in test_ptcDataset.py
     #  * test_ptcDatasetSort in test_ptcDataset.py
     #  * test_ptcDatasetAppend in test_ptcDataset.py
-    _VERSION = 2.2
+    _VERSION = 2.3
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -294,6 +300,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.gainErr = {ampName: np.nan for ampName in ampNames}
         self.gainList = {ampName: np.array([]) for ampName in ampNames}
         self.overscanMedianLevelList = {ampName: np.array([]) for ampName in ampNames}
+        self.overscanMedian = {ampName: np.nan for ampName in ampNames}
+        self.overscanMedianSigma = {ampName: np.nan for ampName in ampNames}
         self.noiseList = {ampName: np.array([]) for ampName in ampNames}
         self.noise = {ampName: np.nan for ampName in ampNames}
         self.noiseErr = {ampName: np.nan for ampName in ampNames}
@@ -314,10 +322,6 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.aMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.bMatrix = {ampName: np.array([]) for ampName in ampNames}
         self.noiseMatrix = {ampName: np.array([]) for ampName in ampNames}
-        # TODO: Remove deprecated attributes in DM-47610
-        self._covariancesModelNoB = {ampName: np.array([]) for ampName in ampNames}
-        self._aMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
-        self._noiseMatrixNoB = {ampName: np.array([]) for ampName in ampNames}
 
         self.finalVars = {ampName: np.array([]) for ampName in ampNames}
         self.finalModelVars = {ampName: np.array([]) for ampName in ampNames}
@@ -330,7 +334,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'inputExpPairMjdStartList',
                                         'expIdMask', 'rawExpTimes', 'rawMeans', 'rawVars',
                                         'rowMeanVariance', 'gain', 'gainErr', 'gainList', 'noise',
-                                        'noiseErr', 'noiseList', 'overscanMedianLevelList', 'ptcFitPars',
+                                        'noiseErr', 'noiseList', 'overscanMedianLevelList',
+                                        'overscanMedian', 'overscanMedianSigma', 'ptcFitPars',
                                         'ptcFitParsError', 'ptcFitChiSq', 'ptcTurnoff', 'covariances',
                                         'covariancesModel', 'covariancesSqrtWeights', 'aMatrix',
                                         'bMatrix', 'noiseMatrix', 'finalVars', 'finalModelVars',
@@ -437,6 +442,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.noise[ampName] = noise
         self.noiseList[ampName] = np.array([noise])
         self.overscanMedianLevelList[ampName] = np.array([overscanMedianLevel])
+        self.overscanMedian[ampName] = float(overscanMedianLevel)
+        self.overscanMedianSigma[ampName] = float(0.0)
         self.histVars[ampName] = np.array([histVar])
         self.histChi2Dofs[ampName] = np.array([histChi2Dof])
         self.kspValues[ampName] = np.array([kspValue])
@@ -450,11 +457,6 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.finalVars[ampName] = np.array([np.nan])
         self.finalModelVars[ampName] = np.array([np.nan])
         self.finalMeans[ampName] = np.array([np.nan])
-
-        # TODO: Remove deprecated attributes in DM-47610
-        self._covariancesModelNoB[ampName] = np.array([nanMatrixFit])
-        self._aMatrixNoB[ampName] = nanMatrixFit
-        self._noiseMatrixNoB[ampName] = nanMatrixFit
 
     def setAuxValuesPartialDataset(self, auxDict):
         """
@@ -520,8 +522,6 @@ class PhotonTransferCurveDataset(IsrCalib):
         calib.badAmps = np.array(dictionary['badAmps'], 'str').tolist()
         calib.ampNames = []
 
-        calibVersion = dictionary['metadata']['PTC_VERSION']
-
         # The cov matrices are square
         covMatrixSide = calib.covMatrixSide
         covMatrixSideFullCovFit = calib.covMatrixSideFullCovFit
@@ -550,6 +550,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                 dictionary['overscanMedianLevelList'][ampName],
                 dtype=np.float64,
             )
+            calib.overscanMedian[ampName] = float(dictionary['overscanMedian'][ampName])
+            calib.overscanMedianSigma[ampName] = float(dictionary['overscanMedianSigma'][ampName])
             calib.noise[ampName] = float(dictionary['noise'][ampName])
             calib.noiseErr[ampName] = float(dictionary['noiseErr'][ampName])
             calib.histVars[ampName] = np.array(dictionary['histVars'][ampName], dtype=np.float64)
@@ -583,20 +585,6 @@ class PhotonTransferCurveDataset(IsrCalib):
                 calib.noiseMatrix[ampName] = np.array(
                     dictionary['noiseMatrix'][ampName],
                     dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
-
-                # TODO: Remove deprecated attributes in DM-47610
-                # Deprecated to be removed after v29
-                if calibVersion < 2.1:
-                    calib._covariancesModelNoB[ampName] = np.array(
-                        dictionary['covariancesModelNoB'][ampName], dtype=np.float64).reshape(
-                            (nSignalPoints, covMatrixSideFullCovFit, covMatrixSideFullCovFit))
-                    calib._aMatrixNoB[ampName] = np.array(
-                        dictionary['aMatrixNoB'][ampName],
-                        dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
-                    calib._noiseMatrixNoB[ampName] = np.array(
-                        dictionary['noiseMatrixNoB'][ampName],
-                        dtype=np.float64).reshape((covMatrixSideFullCovFit, covMatrixSideFullCovFit))
-
             else:
                 # Empty dataset
                 calib.covariances[ampName] = np.array([], dtype=np.float64)
@@ -664,6 +652,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['gainList'] = _dictOfArraysToDictOfLists(self.gainList)
         outDict['noiseList'] = _dictOfArraysToDictOfLists(self.noiseList)
         outDict['overscanMedianLevelList'] = _dictOfArraysToDictOfLists(self.overscanMedianLevelList)
+        outDict['overscanMedian'] = self.overscanMedian
+        outDict['overscanMedianSigma'] = self.overscanMedianSigma
         outDict['noise'] = self.noise
         outDict['noiseErr'] = self.noiseErr
         outDict['histVars'] = self.histVars
@@ -728,6 +718,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['gainList'] = dict()
         inDict['noiseList'] = dict()
         inDict['overscanMedianLevelList'] = dict()
+        inDict['overscanMedian'] = dict()
+        inDict['overscanMedianSigma'] = dict()
         inDict['noise'] = dict()
         inDict['noiseErr'] = dict()
         inDict['histVars'] = dict()
@@ -878,6 +870,12 @@ class PhotonTransferCurveDataset(IsrCalib):
             else:
                 inDict['inputExpPairMjdStartList'][ampName] = record['INPUT_EXP_PAIR_MJD_START']
                 inDict['overscanMedianLevelList'][ampName] = record['OVERSCAN_MEDIAN_LIST']
+            if calibVersion < 2.3:
+                inDict['overscanMedian'][ampName] = np.nan
+                inDict['overscanMedianSigma'][ampName] = np.nan
+            else:
+                inDict['overscanMedian'][ampName] = record['OVERSCAN_MEDIAN']
+                inDict['overscanMedianSigma'][ampName] = record['OVERSCAN_MEDIAN_SIGMA']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -930,6 +928,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'GAIN_UNADJUSTED': self.gainUnadjusted[ampName],
                 'GAIN_LIST': self.gainList[ampName],
                 'OVERSCAN_MEDIAN_LIST': self.overscanMedianLevelList[ampName],
+                'OVERSCAN_MEDIAN': self.overscanMedian[ampName],
+                'OVERSCAN_MEDIAN_SIGMA': self.overscanMedianSigma[ampName],
                 'NOISE_LIST': self.noiseList[ampName],
                 'NOISE': self.noise[ampName],
                 'NOISE_ERR': self.noiseErr[ampName],
@@ -1353,33 +1353,3 @@ class PhotonTransferCurveDataset(IsrCalib):
                              f"({self.covMatrixSideFullCovFit} > {self.covMatrixSide})."
                              "Setting the former to the latter.")
             self.covMatrixSideFullCovFit = self.covMatrixSide
-
-    @property
-    @deprecated(
-        reason="The covariancesModelNoB attribute is deprecated. Will be "
-        "removed after v28.",
-        version="v28.0",
-        category=FutureWarning
-    )
-    def covariancesModelNoB(self):
-        return self._covariancesModelNoB
-
-    @property
-    @deprecated(
-        reason="The aMatrixNoB attribute is deprecated. Will be "
-        "removed after v28.",
-        version="v28.0",
-        category=FutureWarning
-    )
-    def aMatrixNoB(self):
-        return self._aMatrixNoB
-
-    @property
-    @deprecated(
-        reason="The noiseMatrixNoB attribute is deprecated. Will be "
-        "removed after v28.",
-        version="v28.0",
-        category=FutureWarning
-    )
-    def noiseMatrixNoB(self):
-        return self._noiseMatrixNoB
