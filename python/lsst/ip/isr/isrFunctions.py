@@ -226,7 +226,7 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
 
 
 def maskE2VEdgeBleed(exposure, badAmpDict, e2vEdgeBleedSatMinArea, e2vEdgeBleedSatMaxArea,
-                     e2vEdgeBleedYMax, saturatedMaskName):
+                     e2vEdgeBleedYMax, e2vEdgeBleedThreshold, saturatedMaskName):
     maskedImage = exposure.maskedImage
     saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 
@@ -241,14 +241,24 @@ def maskE2VEdgeBleed(exposure, badAmpDict, e2vEdgeBleedSatMinArea, e2vEdgeBleedS
     for largeAreasIndex in largeAreas:
         fpCore = fpList[largeAreasIndex]
         xCore, yCore = fpCore.getCentroid()
+        xCore =  int(xCore)
+        yCore =  int(yCore)
 
         for amp in exposure.getDetector():
             if amp.getBBox().contains(xCore, yCore):
                 ampName = amp.getName()
                 if ampName[:2] == 'C0':
+                    ampImageBG = numpy.median(maskedImage[amp.getBBox()].image.array)
+                    xmax_amp = amp.getBBox().getMaxX()
+                    if xCore > xmax_amp - 20:
+                        xmax = xmax_amp
+                    else:
+                        xmax = xCore + 20
 
-                    maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
+                    edgeMedian = numpy.median(maskedImage.image.array[:100, xCore:xmax])
 
+                    if edgeMedian > (ampImageBG + e2vEdgeBleedThreshold):
+                        maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
                      fpCore, itlEdgeBleedSatMinArea=10000,

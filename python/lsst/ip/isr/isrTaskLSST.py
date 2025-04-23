@@ -449,6 +449,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             "width of the amplifier).",
         default=350,
     )
+    e2vEdgeBleedThreshold = pexConfig.Field(
+        dtype=float,
+        doc="Sky background threshold for E2V edge bleed detection.",
+        default=500.,
+    )
     doITLEdgeBleedMask = pexConfig.Field(
         dtype=bool,
         doc="Mask edge bleeds from saturated columns in ITL amplifiers.",
@@ -2095,6 +2100,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                           e2vEdgeBleedSatMinArea=self.config.e2vEdgeBleedSatMinArea,
                                           e2vEdgeBleedSatMaxArea=self.config.e2vEdgeBleedSatMaxArea,
                                           e2vEdgeBleedYMax=self.config.e2vEdgeBleedYMax,
+                                          e2vEdgeBleedThreshold=self.config.e2vEdgeBleedThreshold,
                                           saturatedMaskName=self.config.saturatedMaskName)
 
         # ITL Dip Masking
