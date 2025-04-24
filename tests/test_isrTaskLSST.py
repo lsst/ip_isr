@@ -113,6 +113,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doCrosstalk)
 
+        key = "LSST ISR OVERSCANLEVEL CHECKED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], np.isfinite(isr_config.serialOverscanMedianSigmaThreshold))
+
+        key = "LSST ISR NOISE CHECKED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], np.isfinite(isr_config.ampNoiseThreshold))
+
         key = "LSST ISR LINEARIZER APPLIED"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doLinearize)

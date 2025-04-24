@@ -1836,6 +1836,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
         exposureMetadata["LSST ISR CROSSTALK APPLIED"] = False
+        exposureMetadata["LSST ISR OVERSCANLEVEL CHECKED"] = False
+        exposureMetadata["LSST ISR NOISE CHECKED"] = False
         exposureMetadata["LSST ISR LINEARIZER APPLIED"] = False
         exposureMetadata["LSST ISR CTI APPLIED"] = False
         exposureMetadata["LSST ISR BIAS APPLIED"] = False
@@ -1989,9 +1991,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # After crosstalk, we check for amplifier noise and state changes.
         if numpy.isfinite(self.config.serialOverscanMedianSigmaThreshold):
             badAmpDict = self.checkAmpOverscanLevel(badAmpDict, ccdExposure, ptc)
+            ccdExposure.metadata["LSST ISR OVERSCANLEVEL CHECKED"] = True
 
         if numpy.isfinite(self.config.ampNoiseThreshold):
             badAmpDict = self.checkAmpNoise(badAmpDict, ccdExposure, ptc)
+            ccdExposure.metadata["LSST ISR NOISE CHECKED"] = True
 
         if numpy.isfinite(self.config.serialOverscanMedianSigmaThreshold) or \
            numpy.isfinite(self.config.ampNoiseThreshold):
