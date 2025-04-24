@@ -339,7 +339,8 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         self.assertEqual(len(defectList), 1)
 
     def test_E2VEdgeBleedMask(self):
-        """Expect number of masked pixels according to e2v edge bleed masking.
+        """Test expected number of masked pixels according to e2v edge bleed
+        masking.
         """
         detector = MockE2VDetector()
         exposure = MockE2VExposure(detector.getBBox())
@@ -351,21 +352,17 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         exposure.fillSaturationMetadata(saturationLevel)
 
         # add rectangular edge bleed to mock exposure
-        _setExposureSatCore(exposure, x=1600, y=1000,
-                            halfWidthX=200, halfWidthY=100,
-                            satVal=saturationLevel, satMaskBit=satMaskBit)
-        _setExposureSatColumns(exposure, x=1600, y=1000, halfWidthX=4,
-                               limY=0, satVal=saturationLevel, satMaskBit=satMaskBit,
-                               isTop=False)
+        _setExposureSatCore(exposure, x=1600, y=1000, halfWidthX=200, halfWidthY=100, satVal=saturationLevel,
+                            satMaskBit=satMaskBit)
+        _setExposureSatColumns(exposure, x=1600, y=1000, halfWidthX=4, limY=0, satVal=saturationLevel,
+                               satMaskBit=satMaskBit, isTop=False)
 
         exposure.image.array[:100, 1600:1800] = 10000.
 
         numPixSatBottomEdgeBefore = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
 
-        ipIsrFunctions.maskE2VEdgeBleed(exposure,
-                                        e2vEdgeBleedSatMinArea=20000, e2vEdgeBleedSatMaxArea=100000,
-                                        e2vEdgeBleedYMax=350,
-                                        e2vEdgeBleedThreshold=500.,
+        ipIsrFunctions.maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=20000, e2vEdgeBleedSatMaxArea=100000,
+                                        e2vEdgeBleedYMax=350, e2vEdgeBleedThreshold=500.,
                                         saturatedMaskName='SAT')
 
         numPixSatBottomEdgeAfter = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])

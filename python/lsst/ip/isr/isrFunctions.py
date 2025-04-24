@@ -254,9 +254,8 @@ def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=20000,
     maskedImage = exposure.maskedImage
     saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 
-    thresh = afwDetection.Threshold(saturatedBit,
-                                    afwDetection.Threshold.BITMASK
-                                    )
+    thresh = afwDetection.Threshold(saturatedBit, afwDetection.Threshold.BITMASK)
+
     fpList = afwDetection.FootprintSet(exposure.mask, thresh).getFootprints()
 
     satAreas = numpy.asarray([fp.getArea() for fp in fpList])
@@ -285,7 +284,7 @@ def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=20000,
 
                     # Check this rectangle looks like an edge bleed
                     if edgeMedian > (ampImageBG + e2vEdgeBleedThreshold):
-                        log.info("Found edge bleed in amp %s", ampName)
+                        log.info("Found edge bleed in amp %s, masking with SAT", ampName)
                         maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
 
 
