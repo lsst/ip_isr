@@ -819,6 +819,8 @@ class IsrMockLSST(IsrMock):
             # We take the absolute value for biases which have no signal.
             exposure.variance.array[:, :] = np.abs(np.median(exposure.image.array)/10.)
 
+        exposure.metadata["BSSVBS"] = 50.0
+
         if self.config.doGenerateAmpDict:
             expDict = dict()
             for amp in exposure.getDetector():

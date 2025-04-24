@@ -243,11 +243,33 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Per-detector and per-amplifier overscan configurations.",
     )
 
+    serialOverscanMedianShiftSigmaThreshold = pexConfig.Field(
+        dtype=float,
+        default=100.0,
+        doc="Number of sigma difference from per-amp overscan median (as compared to PTC) to "
+            "check if an amp is in a different state than the baseline PTC calib and should "
+            "be marked BAD. Set to np.inf/np.nan to turn off overscan median checking.",
+    )
+
     ampNoiseThreshold = pexConfig.Field(
         dtype=float,
         default=25.0,
         doc="Maximum amplifier noise (e-) that is allowed before an amp is masked as bad. "
             "Set to np.inf/np.nan to turn off noise checking.",
+    )
+
+    bssVoltageMinimum = pexConfig.Field(
+        dtype=float,
+        default=5.0,
+        doc="Minimum back-side bias voltage.  Below this the detector is ``off`` and an "
+            "UnprocessableDataError will be logged. Check will be skipped if doCheckUnprocessableData "
+            "is False or if value is greater than 0.",
+    )
+    bssVoltageKeyword = pexConfig.Field(
+        dtype=str,
+        default="BSSVBS",
+        doc="Back-side bias voltage header keyword. Only checked if doCheckUnprocessableData is True "
+            "and bssVoltageMinimum is greater than 0.",
     )
 
     # Amplifier to CCD assembly configuration.
@@ -605,6 +627,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
             if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
                 raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
+            if numpy.isfinite(self.serialOverscanMedianShiftSigmaThreshold):
+                raise ValueError("Cannot do amp overscan level checks with doBootstrap=True.")
             if numpy.isfinite(self.ampNoiseThreshold):
                 raise ValueError("Cannot do amp noise thresholds with doBootstrap=True.")
 
@@ -770,7 +794,66 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if not badAmpDict.get(amp.getName(), False):
                 return
 
-        raise UnprocessableDataError("All amps in the exposure are bad; skipping ISR.")
+        raise UnprocessableDataError(f"All amps in the exposure {detector.getName()} are bad; skipping ISR.")
+
+    def checkAmpOverscanLevel(self, badAmpDict, exposure, ptc):
+        """Check if the amplifier overscan levels have changed.
+
+        Any amplifier that has an overscan median level that has changed
+        significantly will be masked as BAD and added to toe badAmpDict.
+
+        Parameters
+        ----------
+        badAmpDict : `str` [`bool`]
+            Dictionary of amplifiers, keyed by name, value is True if
+            amplifier is fully masked.
+        exposure : `lsst.afw.image.Exposure`
+            Input exposure to be masked (untrimmed).
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`
+            PTC dataset with gains/read noises.
+
+        Returns
+        -------
+        badAmpDict : `str`[`bool`]
+            Dictionary of amplifiers, keyed by name.
+
+        """
+        if isTrimmedExposure(exposure):
+            raise RuntimeError("checkAmpOverscanLevel must be run on an untrimmed exposure.")
+
+        # We want to consolidate all the amps into one warning if necessary.
+        # This config should not be set to a finite threshold if the necessary
+        # data is not in the PTC.
+        missingWarnString = "No PTC overscan information for amplifier "
+        missingWarnFlag = False
+        for amp in exposure.getDetector():
+            ampName = amp.getName()
+
+            if not numpy.isfinite(ptc.overscanMedian[ampName]) or \
+               not numpy.isfinite(ptc.overscanMedianSigma[ampName]):
+                missingWarnString += f"{ampName},"
+                missingWarnFlag = True
+            else:
+                key = f"LSST ISR OVERSCAN SERIAL MEDIAN {ampName}"
+                # If it is missing, just return the PTC value and it
+                # will be skipped.
+                overscanLevel = exposure.metadata.get(key, ptc.overscanMedian[ampName])
+                pull = (overscanLevel - ptc.overscanMedian[ampName])/ptc.overscanMedianSigma[ampName]
+                if numpy.abs(pull) > self.config.serialOverscanMedianShiftSigmaThreshold:
+                    self.log.warning(
+                        "Amplifier %s has an overscan level that is %.2f sigma from the expected level; "
+                        "masking it as BAD.",
+                        ampName,
+                        pull,
+                    )
+
+                    badAmpDict[ampName] = True
+                    exposure.mask[amp.getRawBBox()] |= exposure.mask.getPlaneBitMask("BAD")
+
+        if missingWarnFlag:
+            self.log.warning(missingWarnString)
+
+        return badAmpDict
 
     def checkAmpNoise(self, badAmpDict, exposure, ptc):
         """Check if amplifier noise levels are above threshold.
@@ -1599,6 +1682,32 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         exposure.image.array[:, :] += rng.uniform(low=low, high=high, size=exposure.image.array.shape)
 
+    def checkBssVoltage(self, exposure):
+        """Check the back-side bias voltage to see if the detector is on.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.ExposureF`
+            Input exposure.
+
+        Raises
+        ------
+        `UnprocessableDataError` if voltage is off.
+        """
+        voltage = exposure.metadata.get(self.config.bssVoltageKeyword, None)
+        if voltage is None or not numpy.isfinite(voltage):
+            self.log.warning(
+                "Back-side bias voltage %s not found in metadata.",
+                self.config.bssVoltageKeyword,
+            )
+            return
+
+        if voltage < self.config.bssVoltageMinimum:
+            detector = exposure.getDetector()
+            raise UnprocessableDataError(
+                f"Back-side bias voltage is turned off for {detector.getName()}; skipping ISR.",
+            )
+
     @deprecated(
         reason=(
             "makeBinnedImages is no longer used. "
@@ -1721,12 +1830,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                         f"{self.config.defaultSuspectSource}, but no ptc provided."
                     )
 
+        if self.config.doCheckUnprocessableData and self.config.bssVoltageMinimum > 0.0:
+            self.checkBssVoltage(ccdExposure)
+
         # FIXME: Make sure that if linearity is done then it is matched
         # with the right PTC.
 
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
         exposureMetadata["LSST ISR CROSSTALK APPLIED"] = False
+        exposureMetadata["LSST ISR OVERSCANLEVEL CHECKED"] = False
+        exposureMetadata["LSST ISR NOISE CHECKED"] = False
         exposureMetadata["LSST ISR LINEARIZER APPLIED"] = False
         exposureMetadata["LSST ISR CTI APPLIED"] = False
         exposureMetadata["LSST ISR BIAS APPLIED"] = False
@@ -1877,10 +1991,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             )
             ccdExposure.metadata["LSST ISR CROSSTALK APPLIED"] = True
 
-        # After crosstalk, we check amplifier noise.
+        # After crosstalk, we check for amplifier noise and state changes.
+        if numpy.isfinite(self.config.serialOverscanMedianShiftSigmaThreshold):
+            badAmpDict = self.checkAmpOverscanLevel(badAmpDict, ccdExposure, ptc)
+            ccdExposure.metadata["LSST ISR OVERSCANLEVEL CHECKED"] = True
+
         if numpy.isfinite(self.config.ampNoiseThreshold):
             badAmpDict = self.checkAmpNoise(badAmpDict, ccdExposure, ptc)
+            ccdExposure.metadata["LSST ISR NOISE CHECKED"] = True
 
+        if numpy.isfinite(self.config.serialOverscanMedianShiftSigmaThreshold) or \
+           numpy.isfinite(self.config.ampNoiseThreshold):
             self.checkAllBadAmps(badAmpDict, detector)
 
         # Parallel overscan correction.
