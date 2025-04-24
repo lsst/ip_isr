@@ -86,6 +86,10 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             pre_level = mock.config.clockInjectedOffsetLevel
             overscan_level = mock.config.biasLevel + (pre_level / self.ptc.gain[amp_name])
             self.ptc.overscanMedian[amp_name] = overscan_level
+            # We set this sigma level very large because the
+            # noise characteristics of the mock image with
+            # a large serial gradient and small overscan region
+            # amplifies the noise vs LSSTCam.
             self.ptc.overscanMedianSigma[amp_name] = 10.0
 
         # TODO:
@@ -115,7 +119,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         key = "LSST ISR OVERSCANLEVEL CHECKED"
         self.assertIn(key, metadata)
-        self.assertEqual(metadata[key], np.isfinite(isr_config.serialOverscanMedianSigmaThreshold))
+        self.assertEqual(metadata[key], np.isfinite(isr_config.serialOverscanMedianShiftSigmaThreshold))
 
         key = "LSST ISR NOISE CHECKED"
         self.assertIn(key, metadata)
@@ -1846,7 +1850,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         for amp in self.detector:
             ptc.overscanMedian[amp.getName()] = np.nan
 
-        isr_config.serialOverscanMedianSigmaThreshold = np.inf
+        isr_config.serialOverscanMedianShiftSigmaThreshold = np.inf
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -1862,7 +1866,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             )
 
         # Turn the check back on; this should have 1 warning.
-        isr_config.serialOverscanMedianSigmaThreshold = 100.0
+        isr_config.serialOverscanMedianShiftSigmaThreshold = 100.0
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
@@ -2094,7 +2098,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config = IsrTaskLSSTConfig()
         isr_config.bssVoltageMinimum = 0.0
         isr_config.ampNoiseThreshold = np.inf
-        isr_config.serialOverscanMedianSigmaThreshold = np.inf
+        isr_config.serialOverscanMedianShiftSigmaThreshold = np.inf
         isr_config.doBias = False
         isr_config.doDark = False
         isr_config.doDeferredCharge = False

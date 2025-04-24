@@ -243,7 +243,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Per-detector and per-amplifier overscan configurations.",
     )
 
-    serialOverscanMedianSigmaThreshold = pexConfig.Field(
+    serialOverscanMedianShiftSigmaThreshold = pexConfig.Field(
         dtype=float,
         default=100.0,
         doc="Number of sigma difference from per-amp overscan median (as compared to PTC) to "
@@ -627,7 +627,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                 raise ValueError("Cannot run task with doBootstrap=True and doCorrectGains=True.")
             if self.doCrosstalk and self.crosstalk.doQuadraticCrosstalkCorrection:
                 raise ValueError("Cannot apply quadratic crosstalk correction with doBootstrap=True.")
-            if numpy.isfinite(self.serialOverscanMedianSigmaThreshold):
+            if numpy.isfinite(self.serialOverscanMedianShiftSigmaThreshold):
                 raise ValueError("Cannot do amp overscan level checks with doBootstrap=True.")
             if numpy.isfinite(self.ampNoiseThreshold):
                 raise ValueError("Cannot do amp noise thresholds with doBootstrap=True.")
@@ -794,7 +794,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if not badAmpDict.get(amp.getName(), False):
                 return
 
-        raise UnprocessableDataError("All amps in the exposure are bad; skipping ISR.")
+        raise UnprocessableDataError(f"All amps in the exposure {detector.getName()} are bad; skipping ISR.")
 
     def checkAmpOverscanLevel(self, badAmpDict, exposure, ptc):
         """Check if the amplifier overscan levels have changed.
@@ -839,7 +839,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 # will be skipped.
                 overscanLevel = exposure.metadata.get(key, ptc.overscanMedian[ampName])
                 pull = (overscanLevel - ptc.overscanMedian[ampName])/ptc.overscanMedianSigma[ampName]
-                if numpy.abs(pull) > self.config.serialOverscanMedianSigmaThreshold:
+                if numpy.abs(pull) > self.config.serialOverscanMedianShiftSigmaThreshold:
                     self.log.warning(
                         "Amplifier %s has an overscan level that is %.2f sigma from the expected level; "
                         "masking it as BAD.",
@@ -1703,7 +1703,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             return
 
         if voltage < self.config.bssVoltageMinimum:
-            raise UnprocessableDataError("Back-side bias voltage is turned off; skipping ISR.")
+            detector = exposure.getDetector()
+            raise UnprocessableDataError(
+                f"Back-side bias voltage is turned off for {detector.getName()}; skipping ISR.",
+            )
 
     @deprecated(
         reason=(
@@ -1989,7 +1992,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             ccdExposure.metadata["LSST ISR CROSSTALK APPLIED"] = True
 
         # After crosstalk, we check for amplifier noise and state changes.
-        if numpy.isfinite(self.config.serialOverscanMedianSigmaThreshold):
+        if numpy.isfinite(self.config.serialOverscanMedianShiftSigmaThreshold):
             badAmpDict = self.checkAmpOverscanLevel(badAmpDict, ccdExposure, ptc)
             ccdExposure.metadata["LSST ISR OVERSCANLEVEL CHECKED"] = True
 
@@ -1997,7 +2000,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             badAmpDict = self.checkAmpNoise(badAmpDict, ccdExposure, ptc)
             ccdExposure.metadata["LSST ISR NOISE CHECKED"] = True
 
-        if numpy.isfinite(self.config.serialOverscanMedianSigmaThreshold) or \
+        if numpy.isfinite(self.config.serialOverscanMedianShiftSigmaThreshold) or \
            numpy.isfinite(self.config.ampNoiseThreshold):
             self.checkAllBadAmps(badAmpDict, detector)
 
