@@ -868,6 +868,7 @@ class DeferredChargeCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
+        calib.inputGains[ampName] = dictionary['inputGains']
         calib.driftScale = dictionary['driftScale']
         calib.decayTime = dictionary['decayTime']
         calib.globalCti = dictionary['globalCti']
@@ -888,7 +889,6 @@ class DeferredChargeCalib(IsrCalib):
                                                     ampTraps['coeffs'])
 
         for ampName in allAmpNames:
-            calib.inputGains[ampName] = dictionary['inputGains'][ampName]
             calib.signals[ampName] = np.array(dictionary['signals'][ampName], dtype=np.float64)
             calib.serialEper[ampName] = np.array(dictionary['serialEper'][ampName], dtype=np.float64)
             calib.parallelEper[ampName] = np.array(dictionary['parallelEper'][ampName], dtype=np.float64)
