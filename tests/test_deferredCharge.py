@@ -92,6 +92,8 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
         self.trapCoeffs = [5.0, 1e-3]
         self.calib = DeferredChargeCalib()
 
+        self.calib.inputGains['amp0'] = 1.5
+        self.calib.inputGains=['amp1'] = 1.7
         self.calib.driftScale['amp0'] = 1.8e-4
         self.calib.driftScale['amp1'] = 2.8e-4
         self.calib.decayTime['amp0'] = 3.1
