@@ -2110,7 +2110,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.deferredChargeCorrection.run(
                 ccdExposure,
                 deferredChargeCalib,
-                gains=gains,
+                gains=deferredChargeGains,
             )
             ccdExposure.metadata["LSST ISR CTI APPLIED"] = True
 
