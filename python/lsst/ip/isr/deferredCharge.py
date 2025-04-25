@@ -784,9 +784,9 @@ class DeferredChargeCalib(IsrCalib):
 
     Version 1.1 deprecates the USEGAINS attribute and standardizes
         everything to electron units.
-    Version 1.2 adds the `signal`, `serialEper`, `parallelEper`,
-        `serialCtiTurnoff`, `parallelCtiTurnoff`,
-        `serialCtiTurnoffSamplingErr`, `parallelCtiTurnoffSamplingErr`
+    Version 1.2 adds the ``signal``, ``serialEper``, ``parallelEper``,
+        ``serialCtiTurnoff``, ``parallelCtiTurnoff``,
+        ``serialCtiTurnoffSamplingErr``, ``parallelCtiTurnoffSamplingErr``
         attributes.
     Version 1.3 adds the `inputGains` attribute.
     """
@@ -868,7 +868,7 @@ class DeferredChargeCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
-        calib.inputGains[ampName] = dictionary['inputGains']
+        calib.inputGains = dictionary['inputGains']
         calib.driftScale = dictionary['driftScale']
         calib.decayTime = dictionary['decayTime']
         calib.globalCti = dictionary['globalCti']
@@ -1011,9 +1011,9 @@ class DeferredChargeCalib(IsrCalib):
                 amp: value for amp, value in zip(amps, parallelCtiTurnoffSamplingErr)
             }
         if calibVersion < 1.3:
-            inputGains = {amp: np.nan for amp in amps}
+            inDict['inputGains'] = {amp: np.nan for amp in amps}
         else:
-            inputGains = {amp: value for amp, value in zip(amps, inputGains)}
+            inDict['inputGains'] = {amp: value for amp, value in zip(amps, inputGains)}
 
         inDict['serialTraps'] = {}
         trapTable = tableList[1]

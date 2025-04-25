@@ -1858,6 +1858,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 "CTI",
                 log=self.log,
             )
+            deferredChargeCalibVersion = deferredChargeCalib.metadata["CTI_VERSION"]
+            if self.config.doBootstrap and deferredChargeCalibVersion < 1.3:
+                raise RuntimeError("doDeferredCharge is True and doBootstrap is True, which requires "
+                                   "a DeferredChargeCalib version >=1.3, which contains the input gains "
+                                   "used to generate the calibraiton.")
         if self.config.doDefect:
             if defects is None:
                 raise RuntimeError("doDefect is True but no defects provided.")
