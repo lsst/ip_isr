@@ -868,7 +868,7 @@ class DeferredChargeCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
-        calib.inputGains[ampName] = dictionary['inputGains']
+        calib.inputGains = dictionary['inputGains']
         calib.driftScale = dictionary['driftScale']
         calib.decayTime = dictionary['decayTime']
         calib.globalCti = dictionary['globalCti']
@@ -1011,9 +1011,9 @@ class DeferredChargeCalib(IsrCalib):
                 amp: value for amp, value in zip(amps, parallelCtiTurnoffSamplingErr)
             }
         if calibVersion < 1.3:
-            inputGains = {amp: np.nan for amp in amps}
+            inDict['inputGains'] = {amp: np.nan for amp in amps}
         else:
-            inputGains = {amp: value for amp, value in zip(amps, inputGains)}
+            inDict['inputGains'] = {amp: value for amp, value in zip(amps, inputGains)}
 
         inDict['serialTraps'] = {}
         trapTable = tableList[1]
