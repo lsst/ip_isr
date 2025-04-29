@@ -225,7 +225,7 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
         spans.setMask(mask, mask.getPlaneBitMask(maskValue))
 
 
-def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=20000,
+def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=10000,
                      e2vEdgeBleedSatMaxArea=100000,
                      e2vEdgeBleedYMax=350, e2vEdgeBleedThreshold=500.,
                      saturatedMaskName='SAT', log=None):

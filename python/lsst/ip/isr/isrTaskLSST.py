@@ -435,7 +435,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=int,
         doc="Minimum limit of saturated cores footprint area to apply edge"
             "bleed masking in E2V amplifiers.",
-        default=20000,
+        default=10000,
     )
     e2vEdgeBleedSatMaxArea = pexConfig.Field(
         dtype=int,
