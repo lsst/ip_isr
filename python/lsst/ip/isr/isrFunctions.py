@@ -56,6 +56,7 @@ __all__ = [
 import logging
 import math
 import numpy
+import scipy.signal
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -972,9 +973,14 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
         for iteration in range(maxIter):
 
-            afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
+            outArray = scipy.signal.convolve(
+                tempImage.array,
+                kernelImage.array,
+                mode="same",
+                method="fft",
+            )
+
             tmpArray = tempImage.getArray()
-            outArray = outImage.getArray()
 
             with numpy.errstate(invalid="ignore", over="ignore"):
                 # First derivative term
