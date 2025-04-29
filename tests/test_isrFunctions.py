@@ -362,7 +362,7 @@ class IsrFunctionsCases(lsst.utils.tests.TestCase):
         numPixSatBottomEdgeBefore = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])
 
         ipIsrFunctions.maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=20000, e2vEdgeBleedSatMaxArea=100000,
-                                        e2vEdgeBleedYMax=350, e2vEdgeBleedThreshold=500.,
+                                        e2vEdgeBleedYMax=350,
                                         saturatedMaskName='SAT')
 
         numPixSatBottomEdgeAfter = len(np.where(exposure.mask.array[0, :] == satMaskBit)[0])

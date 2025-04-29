@@ -449,12 +449,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             "is the width of the amplifier).",
         default=350,
     )
-    e2vEdgeBleedThreshold = pexConfig.Field(
-        dtype=float,
-        doc="Threshold above sky background to trigger E2V edge bleed"
-            "detection (in e-).",
-        default=500.,
-    )
     doITLEdgeBleedMask = pexConfig.Field(
         dtype=bool,
         doc="Mask edge bleeds from saturated columns in ITL amplifiers.",
@@ -2095,13 +2089,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 self.log.warning("No WCS found in input exposure.")
 
         # E2V edge bleed
-        if self.config.doE2VEdgeBleedMask and detector.getPhysicalType() == 'E2V':
-            isrFunctions.maskE2VEdgeBleed(exposure=ccdExposure,
-                                          e2vEdgeBleedSatMinArea=self.config.e2vEdgeBleedSatMinArea,
-                                          e2vEdgeBleedSatMaxArea=self.config.e2vEdgeBleedSatMaxArea,
-                                          e2vEdgeBleedYMax=self.config.e2vEdgeBleedYMax,
-                                          e2vEdgeBleedThreshold=self.config.e2vEdgeBleedThreshold,
-                                          saturatedMaskName=self.config.saturatedMaskName, log=self.log)
+        if self.config.doE2VEdgeBleedMask and detector.getPhysicalType() == "E2V":
+            isrFunctions.maskE2VEdgeBleed(
+                exposure=ccdExposure,
+                e2vEdgeBleedSatMinArea=self.config.e2vEdgeBleedSatMinArea,
+                e2vEdgeBleedSatMaxArea=self.config.e2vEdgeBleedSatMaxArea,
+                e2vEdgeBleedYMax=self.config.e2vEdgeBleedYMax,
+                saturatedMaskName=self.config.saturatedMaskName,
+                log=self.log,
+            )
 
         # ITL Dip Masking
         for maskPlane in self.config.itlDipMaskPlanes:

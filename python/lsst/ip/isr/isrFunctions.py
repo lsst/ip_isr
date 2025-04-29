@@ -227,8 +227,8 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
 
 def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=10000,
                      e2vEdgeBleedSatMaxArea=100000,
-                     e2vEdgeBleedYMax=350, e2vEdgeBleedThreshold=500.,
-                     saturatedMaskName='SAT', log=None):
+                     e2vEdgeBleedYMax=350,
+                     saturatedMaskName="SAT", log=None):
     """Mask edge bleeds in E2V detectors.
 
     Parameters
@@ -241,8 +241,6 @@ def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=10000,
         Maximum limit of saturated cores footprint area.
     e2vEdgeBleedYMax: `float`, optional
         Height of edge bleed masking.
-    e2vEdgeBleedThreshold: `float`, optional
-        Sky background threshold for E2V edge bleed detection.
     saturatedMaskName : `str`, optional
         Mask name for saturation.
     log : `logging.Logger`, optional
@@ -271,19 +269,16 @@ def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=10000,
             if amp.getBBox().contains(xCore, yCore):
                 ampName = amp.getName()
                 if ampName[:2] == 'C0':
-                    ampImageBG = numpy.median(maskedImage[amp.getBBox()].image.array)
-                    xmax_amp = amp.getBBox().getMaxX()
-                    if xCore > xmax_amp - 20:
-                        xmax = xmax_amp
-                    else:
-                        xmax = xCore + 20
+                    # Check that the footprint reaches the bottom of the
+                    # amplifier.
+                    if fpCore.getBBox().getMinY() == 0:
+                        # This is a large saturation footprint that hits the
+                        # edge, and is thus classified as an edge bleed.
 
-                    # Compute the median in a rectangle of width 20 pixels and
-                    # height 100 pixels
-                    edgeMedian = numpy.median(maskedImage.image.array[:100, xCore:xmax])
+                        # TODO DM-50587: Optimize number of rows to mask by
+                        # looking at the median signal level as a function of
+                        # row number on the right side of the saturation trail.
 
-                    # Check this rectangle looks like an edge bleed
-                    if edgeMedian > (ampImageBG + e2vEdgeBleedThreshold):
                         log.info("Found edge bleed in amp %s, masking with SAT", ampName)
                         maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
 
