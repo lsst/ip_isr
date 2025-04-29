@@ -279,7 +279,7 @@ def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=10000,
                         # looking at the median signal level as a function of
                         # row number on the right side of the saturation trail.
 
-                        log.info("Found edge bleed in amp %s, masking with SAT", ampName)
+                        log.info("Found E2V edge bleed in amp %s, column %d.", ampName, xCore)
                         maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
 
 
@@ -479,7 +479,7 @@ def _applyMaskITLEdgeBleed(ccdExposure, xCore,
             edgeMedian = numpy.median(sliceImage[:50, lowerRangeSmall:upperRangeSmall])
             if edgeMedian > (ampImageBG + itlEdgeBleedThreshold):
 
-                log.info("Found edge bleed around column %d", xCore)
+                log.info("Found ITL edge bleed in amp %s, column %d.", ampName, xCore)
 
                 # We need an estimate of the maximum width
                 # of the edge bleed for our masking model
@@ -609,7 +609,7 @@ def maskITLDip(exposure, detectorConfig, maskPlaneNames=["SUSPECT", "ITL_DIP"], 
         maxCol = numpy.clip(maxCol, None, exposure.mask.array.shape[1] - 1)
 
         log.info(
-            "Found ITL dip (width %d; bkg %.2f); masking column %d to %d",
+            "Found ITL dip (width %d; bkg %.2f); masking column %d to %d.",
             width,
             approxBackground,
             minCol,
