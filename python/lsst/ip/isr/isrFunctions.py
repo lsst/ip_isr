@@ -57,6 +57,7 @@ __all__ = [
 import logging
 import math
 import numpy
+import scipy.signal
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -1013,11 +1014,8 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
         nanIndex = numpy.isnan(tempImage.getArray())
         tempImage.getArray()[nanIndex] = 0.
 
-        outImage = afwImage.ImageD(image.getDimensions())
         corr = numpy.zeros(image.array.shape, dtype=numpy.float64)
         prev_image = numpy.zeros(image.array.shape, dtype=numpy.float64)
-        convCntrl = afwMath.ConvolutionControl(False, True, 1)
-        fixedKernel = afwMath.FixedKernel(kernelImage)
 
         # Define boundary by convolution region.  The region that the
         # correction will be calculated for is one fewer in each dimension
@@ -1031,9 +1029,13 @@ def brighterFatterCorrection(exposure, kernel, maxIter, threshold, applyGain, ga
 
         for iteration in range(maxIter):
 
-            afwMath.convolve(outImage, tempImage, fixedKernel, convCntrl)
+            outArray = scipy.signal.convolve(
+                tempImage.array,
+                kernelImage.array,
+                mode="same",
+                method="fft",
+            )
             tmpArray = tempImage.getArray()
-            outArray = outImage.getArray()
 
             with numpy.errstate(invalid="ignore", over="ignore"):
                 # First derivative term
