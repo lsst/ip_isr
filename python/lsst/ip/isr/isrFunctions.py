@@ -35,6 +35,7 @@ __all__ = [
     "gainContext",
     "getPhysicalFilter",
     "growMasks",
+    "maskE2VEdgeBleed",
     "maskITLEdgeBleed",
     "maskITLSatSag",
     "maskITLDip",
@@ -222,6 +223,64 @@ def growMasks(mask, radius=0, maskNameList=['BAD'], maskValue="BAD"):
         spans = spans.dilated(radius, Stencil.MANHATTAN)
         spans = spans.clippedTo(mask.getBBox())
         spans.setMask(mask, mask.getPlaneBitMask(maskValue))
+
+
+def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=10000,
+                     e2vEdgeBleedSatMaxArea=100000,
+                     e2vEdgeBleedYMax=350,
+                     saturatedMaskName="SAT", log=None):
+    """Mask edge bleeds in E2V detectors.
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        Exposure to apply masking to.
+    e2vEdgeBleedSatMinArea : `int`, optional
+        Minimum limit of saturated cores footprint area.
+    e2vEdgeBleedSatMaxArea : `int`, optional
+        Maximum limit of saturated cores footprint area.
+    e2vEdgeBleedYMax: `float`, optional
+        Height of edge bleed masking.
+    saturatedMaskName : `str`, optional
+        Mask name for saturation.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
+    """
+
+    log = log if log else logging.getLogger(__name__)
+
+    maskedImage = exposure.maskedImage
+    saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
+
+    thresh = afwDetection.Threshold(saturatedBit, afwDetection.Threshold.BITMASK)
+
+    fpList = afwDetection.FootprintSet(exposure.mask, thresh).getFootprints()
+
+    satAreas = numpy.asarray([fp.getArea() for fp in fpList])
+    largeAreas, = numpy.where((satAreas >= e2vEdgeBleedSatMinArea)
+                              & (satAreas < e2vEdgeBleedSatMaxArea))
+    for largeAreasIndex in largeAreas:
+        fpCore = fpList[largeAreasIndex]
+        xCore, yCore = fpCore.getCentroid()
+        xCore = int(xCore)
+        yCore = int(yCore)
+
+        for amp in exposure.getDetector():
+            if amp.getBBox().contains(xCore, yCore):
+                ampName = amp.getName()
+                if ampName[:2] == 'C0':
+                    # Check that the footprint reaches the bottom of the
+                    # amplifier.
+                    if fpCore.getBBox().getMinY() == 0:
+                        # This is a large saturation footprint that hits the
+                        # edge, and is thus classified as an edge bleed.
+
+                        # TODO DM-50587: Optimize number of rows to mask by
+                        # looking at the median signal level as a function of
+                        # row number on the right side of the saturation trail.
+
+                        log.info("Found E2V edge bleed in amp %s, column %d.", ampName, xCore)
+                        maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
 
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
@@ -420,7 +479,7 @@ def _applyMaskITLEdgeBleed(ccdExposure, xCore,
             edgeMedian = numpy.median(sliceImage[:50, lowerRangeSmall:upperRangeSmall])
             if edgeMedian > (ampImageBG + itlEdgeBleedThreshold):
 
-                log.info("Found edge bleed around column %d", xCore)
+                log.info("Found ITL edge bleed in amp %s, column %d.", ampName, xCore)
 
                 # We need an estimate of the maximum width
                 # of the edge bleed for our masking model
@@ -550,7 +609,7 @@ def maskITLDip(exposure, detectorConfig, maskPlaneNames=["SUSPECT", "ITL_DIP"], 
         maxCol = numpy.clip(maxCol, None, exposure.mask.array.shape[1] - 1)
 
         log.info(
-            "Found ITL dip (width %d; bkg %.2f); masking column %d to %d",
+            "Found ITL dip (width %d; bkg %.2f); masking column %d to %d.",
             width,
             approxBackground,
             minCol,
