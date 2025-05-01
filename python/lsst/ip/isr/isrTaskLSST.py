@@ -263,7 +263,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=5.0,
         doc="Minimum back-side bias voltage.  Below this the detector is ``off`` and an "
             "UnprocessableDataError will be logged. Check will be skipped if doCheckUnprocessableData "
-            "is False or if value is greater than 0.",
+            "is False or if value is less than or equal to 0.",
     )
     bssVoltageKeyword = pexConfig.Field(
         dtype=str,
