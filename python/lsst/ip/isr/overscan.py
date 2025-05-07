@@ -64,6 +64,13 @@ class OverscanCorrectionTaskConfigBase(pexConfig.Config):
              "or number of spline knots if overscan fit type is a spline."),
         default=1,
     )
+    perRowFilterKernel = pexConfig.Field(
+        dtype=int,
+        doc=("Do median filtering on MEDIAN_PER_ROW and MEAN_PER_ROW when "
+             "the this kernel size is > 0. Must be odd if > 0."),
+        default=0,
+        check=lambda x: x <= 0 or x // 2 != x / 2,
+    )
     numSigmaClip = pexConfig.Field(
         dtype=float,
         doc="Rejection threshold (sigma) for collapsing overscan before fit",
@@ -929,6 +936,10 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 overscanVector = fitOverscanImageMean(mi, self.config.maskPlanes, isTransposed)
 
             overscanVector = self.fillMaskedPixels(overscanVector)
+
+            if self.config.perRowFilterKernel > 0:
+                overscanVector = medfilt(overscanVector, kernel_size=self.config.perRowFilterKernel)
+
             maskArray = self.maskExtrapolated(overscanVector)
         else:
             collapsed = self.collapseArray(masked)
