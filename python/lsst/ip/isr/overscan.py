@@ -938,7 +938,9 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             overscanVector = self.fillMaskedPixels(overscanVector)
 
             if self.config.perRowFilterKernel > 0:
-                overscanVector = medfilt(overscanVector, kernel_size=self.config.perRowFilterKernel)
+                smoothed = medfilt(overscanVector, kernel_size=self.config.perRowFilterKernel)
+                halfKernel = self.config.perRowFilterKernel // 2
+                overscanVector[halfKernel: -halfKernel] = smoothed[halfKernel: -halfKernel]
 
             maskArray = self.maskExtrapolated(overscanVector)
         else:
