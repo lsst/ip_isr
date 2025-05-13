@@ -820,6 +820,7 @@ class IsrMockLSST(IsrMock):
             exposure.variance.array[:, :] = np.abs(np.median(exposure.image.array)/10.)
 
         exposure.metadata["BSSVBS"] = 50.0
+        exposure.metadata["HVBIAS"] = "ON"
 
         if self.config.doGenerateAmpDict:
             expDict = dict()
