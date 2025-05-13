@@ -2066,10 +2066,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # This will be performed in electron units
         # Output units: same as input units
         if self.config.doDeferredCharge:
+            if self.config.doBootstrap:
+                self.log.info("Applying deferred charge correction with doBootstrap=True: "
+                              "will need to use deferredChargeCalib.inputGains to apply "
+                              "CTI correction in electron units.")
+                deferredChargeGains = deferredChargeCalib.inputGains
+            else:
+                deferredChargeGains = gains
             self.deferredChargeCorrection.run(
                 ccdExposure,
                 deferredChargeCalib,
-                gains=gains,
+                gains=deferredChargeGains,
             )
             ccdExposure.metadata["LSST ISR CTI APPLIED"] = True
 
