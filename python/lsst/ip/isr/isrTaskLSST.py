@@ -410,6 +410,13 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Apply correction for CCD defects, e.g. hot pixels?",
         default=True,
     )
+    badAmps = pexConfig.ListField(
+        dtype=str,
+        doc="List of bad amps that should be masked as BAD in the defect code. "
+            "Value should be of form {detector_name}_{amp_name}, e.g. ``R42_S21_C07``. "
+            "Only used if doDefect is True.",
+        default=[],
+    )
     doNanMasking = pexConfig.Field(
         dtype=bool,
         doc="Mask non-finite (NAN, inf) pixels. The UNMASKEDNAN mask plane "
@@ -1316,6 +1323,19 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         else:
             defectList = defectBaseList
         defectList.maskPixels(maskedImage, maskName="BAD")
+
+        if len(self.config.badAmps) == 0:
+            return
+
+        detector = exposure.getDetector()
+        mask = maskedImage.mask
+        for badAmp in self.config.badAmps:
+            if badAmp.startswith(detector.getName()):
+                # Split on the full detector name plus _, which
+                # gives us an empty string and the amp name.
+                ampName = badAmp.split(detector.getName() + "_")[-1]
+                self.log.info("Masking amplifier %s as bad via config.", ampName)
+                mask[detector[ampName].getBBox()].array[:, :] |= mask.getPlaneBitMask("BAD")
 
     def maskEdges(self, exposure, numEdgePixels=0, maskPlane="SUSPECT", level='DETECTOR'):
         """Mask edge pixels with applicable mask plane.
