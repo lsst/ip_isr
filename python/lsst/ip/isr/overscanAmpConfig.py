@@ -56,6 +56,11 @@ class OverscanAmpConfig(pexConfig.Config):
             "Units are e-/ADU.",
         default=float("NaN"),
     )
+    maskAmpAsBad = pexConfig.Field(
+        dtype=bool,
+        doc="Mask this amp as BAD (if doDefect=True)?",
+        default=False,
+    )
 
     def setDefaults(self):
         super().setDefaults()
@@ -188,6 +193,23 @@ class OverscanDetectorConfig(pexConfig.Config):
                 return True
 
         return False
+
+    @property
+    def badAmpsToMask(self):
+        """Get all amp names that should be masked.
+
+        Returns
+        -------
+        badAmpsToMask : `list` [`str`]
+            List of bad amp names.
+        """
+        badAmpsToMask = []
+
+        for ampKey, ampRule in self.ampRules.items():
+            if ampRule.maskAmpAsBad:
+                badAmpsToMask.append(ampKey)
+
+        return badAmpsToMask
 
     def getOverscanAmpConfig(self, amplifier):
         """Get the OverscanAmpConfig for a specific amplifier.

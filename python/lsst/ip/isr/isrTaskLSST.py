@@ -1317,6 +1317,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             defectList = defectBaseList
         defectList.maskPixels(maskedImage, maskName="BAD")
 
+        # Additionally, check for any bad amps.
+        detector = exposure.getDetector()
+        detectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
+        mask = maskedImage.mask
+        for badAmp in detectorConfig.badAmpsToMask:
+            self.log.info("Masking amplifier %s as bad.", badAmp)
+            mask[detector[badAmp].getBBox()].array[:, :] |= mask.getPlaneBitMask("BAD")
+
     def maskEdges(self, exposure, numEdgePixels=0, maskPlane="SUSPECT", level='DETECTOR'):
         """Mask edge pixels with applicable mask plane.
 
