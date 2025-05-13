@@ -271,6 +271,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Back-side bias voltage header keyword. Only checked if doCheckUnprocessableData is True "
             "and bssVoltageMinimum is greater than 0.",
     )
+    hvBiasKeyword = pexConfig.Field(
+        dtype=str,
+        default="HVBIAS",
+        doc="Back-side bias voltage on/off header keyword. Only checked if doCheckUnprocessableData is True "
+            "and bssVoltageMinimum is greater than 0.",
+    )
 
     # Amplifier to CCD assembly configuration.
     doAssembleCcd = pexConfig.Field(
@@ -1748,7 +1754,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             )
             return
 
-        if voltage < self.config.bssVoltageMinimum:
+        hv = exposure.metadata.get(self.config.hvBiasKeyword, None)
+        if hv is None:
+            self.log.warning(
+                "HV bias on %s not found in metadata.",
+                self.config.hvBiasKeyword,
+            )
+            return
+
+        if voltage < self.config.bssVoltageMinimum or hv == "OFF":
             detector = exposure.getDetector()
             raise UnprocessableDataError(
                 f"Back-side bias voltage is turned off for {detector.getName()}; skipping ISR.",
