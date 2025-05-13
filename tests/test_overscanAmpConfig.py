@@ -280,6 +280,20 @@ class OverscanAmpConfigTestCase(lsst.utils.tests.TestCase):
 
         self.assertEqual(detectorConfig4.md5, detectorConfig3.md5)
 
+    def testAmpConfigBadAmps(self):
+        detectorConfig = OverscanDetectorConfig()
+        overscanAmpConfigOverride = OverscanAmpConfig()
+        overscanAmpConfigOverride.maskAmpAsBad = True
+
+        badAmps = detectorConfig.badAmpsToMask
+        self.assertEqual(len(badAmps), 0)
+
+        detectorConfig.ampRules["amp1"] = overscanAmpConfigOverride
+        detectorConfig.ampRules["amp2"] = overscanAmpConfigOverride
+
+        badAmps = detectorConfig.badAmpsToMask
+        self.assertEqual(badAmps, ["amp1", "amp2"])
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
