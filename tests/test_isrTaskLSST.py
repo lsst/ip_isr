@@ -2037,6 +2037,51 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 deferredChargeCalib=self.cti,
             )
 
+    def test_overrideMaskBadAmp(self):
+        """Test overriding config to mask an amp."""
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+
+        bad_amps = ["C:0,0", "C:0,1"]
+
+        detector_name = self.detector.getName()
+        isr_config.badAmps = [f"{detector_name}_{bad_amp}" for bad_amp in bad_amps]
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti,
+            )
+
+        for amp_name in bad_amps:
+            mask_array = result.exposure[self.detector[amp_name].getBBox()].mask.array
+            bad_mask = result.exposure.mask.getPlaneBitMask("BAD")
+            self.assertTrue(np.all((mask_array & bad_mask) > 0))
+
+        # Make sure it didn't obliterate everything.
+        mask_array = result.exposure.mask.array
+        self.assertFalse(np.all((mask_array & bad_mask) > 0))
+
     def get_mock_config_no_signal(self):
         """Get an IsrMockLSSTConfig with all signal set to False.
 
