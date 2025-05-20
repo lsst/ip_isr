@@ -2239,6 +2239,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                 noData = (ccdExposure.mask.array & ccdExposure.mask.getPlaneBitMask("NO_DATA")) > 0
                 ccdExposure.image.array[noData] = 0.0
+                ccdExposure.variance.array[noData] = 0.0
 
             ccdExposure.metadata["LSST ISR FLAT APPLIED"] = True
             ccdExposure.metadata["LSST ISR FLAT SOURCE"] = flat.metadata.get("FLATSRC", "UNKNOWN")
