@@ -245,7 +245,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
 
     serialOverscanMedianShiftSigmaThreshold = pexConfig.Field(
         dtype=float,
-        default=100.0,
+        default=numpy.inf,
         doc="Number of sigma difference from per-amp overscan median (as compared to PTC) to "
             "check if an amp is in a different state than the baseline PTC calib and should "
             "be marked BAD. Set to np.inf/np.nan to turn off overscan median checking.",
