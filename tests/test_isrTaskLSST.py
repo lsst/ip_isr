@@ -1816,6 +1816,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doFlat = False
         isr_config.doDefect = True
         isr_config.doInterpolate = False
+        isr_config.serialOverscanMedianShiftSigmaThreshold = 100.0
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertLogs(level=logging.WARNING) as cm:
