@@ -1073,7 +1073,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                               )
             if self.config.doITLSatSagMask:
                 isrFunctions.maskITLSatSag(ccdExposure=exposure, fpCore=fpCore,
-                                           saturatedMaskName=self.config.saturatedMaskName)
+                                           saturatedMaskName=self.config.saturatedMaskName, log=self.log)
 
     def overscanCorrection(self, mode, detectorConfig, detector, badAmpDict, ccdExposure):
         """Apply serial overscan correction in place to all amps.
