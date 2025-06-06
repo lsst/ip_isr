@@ -150,7 +150,7 @@ class PhotodiodeCalib(IsrCalib):
         return outDict
 
     @classmethod
-    def fromTable(cls, tableList):
+    def fromTable(cls, tableList, **kwargs):
         """Construct calibration from a list of tables.
 
         This method uses the `fromDict` method to create the
@@ -169,15 +169,40 @@ class PhotodiodeCalib(IsrCalib):
             The calibration defined in the tables.
         """
         dataTable = tableList[0]
-
         metadata = dataTable.meta
+
+        # Dump useless entries that are carried over from merging
+        # HDU[0]'s header with the header from HDU[1] (which has the
+        # data table).
+        for key in ("SIMPLE", "BITPIX", "NAXIS", "EXTEND"):
+            metadata.pop(key)
+
+        # Do translations:
+        instrument = metadata.pop("INSTRUME", None)
+        location = metadata.pop("LOCATN", "NO_LOCATION")
+
+        if instrument == "Electrometer_index_201" and location == "AuxTel":
+            metadata["INSTRUME"] = "LATISS"
+        elif location == "MainTel" and instrument in ("Electrometer_index_101",
+                                                      "Electrometer_index_102",
+                                                      "Electrometer_index_103"):
+            metadata["INSTRUME"] = "LSSTCam"
+        else:
+            # This will cause problems in ingest, but we don't know
+            # what to associate it with.
+            metadata["INSTRUME"] = instrument
+
         inDict = {}
         inDict['metadata'] = metadata
+
         if 'OBSTYPE' not in metadata:
             inDict['metadata']['OBSTYPE'] = cls._OBSTYPE
         inDict['integrationMethod'] = metadata.pop('INTEGRATION_METHOD', 'DIRECT_SUM')
 
-        for key in ('TIME', 'Elapsed Time', ):
+        # These will use the last column found, so "RNUM" (which is in
+        # seconds) will replace "Elapsed Time" (which is in integer
+        # sample counts) when both are found in the table.
+        for key in ('TIME', 'Elapsed Time', 'RNUM'):
             if key in dataTable.columns:
                 inDict['timeSamples'] = dataTable[key]
         for key in ('CURRENT', 'Signal', ):
