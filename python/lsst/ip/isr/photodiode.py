@@ -183,7 +183,9 @@ class PhotodiodeCalib(IsrCalib):
 
         if instrument == "Electrometer_index_201" and location == "AuxTel":
             metadata["INSTRUME"] = "LATISS"
-        elif instrument == "Electrometer_index_101" and location == "MainTel":
+        elif location == "MainTel" and instrument in ("Electrometer_index_101",
+                                                      "Electrometer_index_102",
+                                                      "Electrometer_index_103"):
             metadata["INSTRUME"] = "LSSTCam"
         else:
             # This will cause problems in ingest, but we don't know
