@@ -119,6 +119,13 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector", "physical_filter"],
         isCalibration=True,
     )
+    testBfKernel = cT.Input(
+        name="testBfk",
+        doc="Complete kernel + gain solutions, only for internal use by cp_pipe.",
+        storageClass="BrighterFatterKernel",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+    )
     outputExposure = cT.Output(
         name='postISRCCD',
         doc="Output ISR processed exposure.",
@@ -170,6 +177,8 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.defects
         if config.doBrighterFatter is not True:
             del self.bfKernel
+        if config.doTestBrighterFatter is not True:
+            del self.testBfkKernel
         if config.doDark is not True:
             del self.dark
         if config.doFlat is not True:
@@ -534,6 +543,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
 
     # Brighter-Fatter correction.
+    doTestBrighterFatter = pexConfig.Field(
+        dtype=bool,
+        doc="Apply the brighter-fatter correction?",
+        default=False,
+    )
     doBrighterFatter = pexConfig.Field(
         dtype=bool,
         doc="Apply the brighter-fatter correction?",
@@ -558,7 +572,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Threshold used to stop iterating the brighter-fatter correction.  It is the "
         "absolute value of the difference between the current corrected image and the one "
         "from the previous iteration summed over all the pixels.",
-        default=1000,
+        default=10,
     )
     brighterFatterMaskListToInterpolate = pexConfig.ListField(
         dtype=str,
@@ -674,6 +688,10 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         if self.doE2VEdgeBleedMask and not self.doSaturation:
             raise ValueError("Cannot do e2v edge bleed masking when doSaturation=False.")
 
+        if self.doBrighterFatter and self.doTestBrighterFatter:
+            raise ValueError("Cannot apply both the brighter-fatter correction and the test brighter-"
+                             "fatter correction")
+
     def setDefaults(self):
         super().setDefaults()
 
@@ -733,6 +751,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     'crosstalk': self.config.doCrosstalk,
                     'defects': self.config.doDefect,
                     'bfKernel': self.config.doBrighterFatter,
+                    'testBfKernel': self.config.doTestBrighterFatter,
                     'dark': self.config.doDark,
                     }
 
@@ -1519,11 +1538,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             useLegacyInterp=self.config.useLegacyInterp,
         )
         bfExp = interpExp.clone()
-        bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
-                                                          self.config.brighterFatterMaxIter,
-                                                          self.config.brighterFatterThreshold,
-                                                          brighterFatterApplyGain,
-                                                          bfGains)
+        bfResults = isrFunctions.brighterFatterCorrection(
+            bfExp, bfKernel,
+            self.config.brighterFatterMaxIter,
+            self.config.brighterFatterThreshold,
+            brighterFatterApplyGain,
+            bfGains,
+        )
         bfCorrIters = bfResults[1]
         if bfCorrIters == self.config.brighterFatterMaxIter:
             self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
@@ -1804,8 +1825,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         return bin1, bin2
 
     def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
-            ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
-            flat=None, camera=None, **kwargs
+            ptc=None, crosstalk=None, defects=None, bfKernel=None, testBfKernel=None, bfGains=None,
+            dark=None, flat=None, camera=None, **kwargs
             ):
 
         detector = ccdExposure.getDetector()
@@ -1870,6 +1891,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if bfKernel is None:
                 raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
             compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bf", log=self.log)
+        if self.config.doTestBrighterFatter:
+            if testBfKernel is None:
+                raise RuntimeError("doBrighterFatter is True not no testBfKernel provided.")
+            compareCameraKeywords(doRaise, keywords, exposureMetadata, testBfKernel, "bf", log=self.log)
         if self.config.doFlat:
             if flat is None:
                 raise RuntimeError("doFlat is True but no flat provided.")
@@ -2191,10 +2216,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
-        if self.config.doBrighterFatter:
+        if self.config.doBrighterFatter or self.config.doTestBrighterFatter:
             self.log.info("Applying brighter-fatter correction.")
 
-            bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
+            # Use the right kernel
+            kernel = testBfKernel if self.config.doTestBrighterFatter else bfKernel
+            bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, kernel)
 
             # Needs to be done in electrons; applyBrighterFatterCorrection
             # will convert the image if necessary.
