@@ -26,9 +26,10 @@ import logging
 import os.path
 import warnings
 import yaml
+import json
 import numpy as np
 
-from astropy.table import Table
+from astropy.table import Table, Column
 from astropy.io import fits
 
 from lsst.daf.base import PropertyList
@@ -131,7 +132,7 @@ class IsrCalib(abc.ABC):
                         # operator.
                         if np.all(attrSelf[key] != attrOther[key]):
                             return False
-            elif isinstance(attrSelf, np.ndarray):
+            elif isinstance(attrSelf, np.ndarray) or isinstance(attrSelf, list) or isinstance(attrSelf, Column):
                 # Bare array.
                 if isinstance(attrSelf[0], (str, np.str_, np.bytes_)):
                     if not np.all(attrSelf == attrOther):
@@ -409,6 +410,10 @@ class IsrCalib(abc.ABC):
             content methods).
         """
         calibClassName = metadata.get("CALIBCLS")
+        if calibClassName is None:
+            calibClassName = metadata.get("fileType")
+            if calibClassName == "shutterMotionProfile":
+                calibClassName = "lsst.ip.isr.ShutterMotionProfile"
         calibClass = doImport(calibClassName) if calibClassName is not None else cls
         if calibClass is IsrCalib:
             raise ValueError(f"Cannot use base class to read calibration data: {message}")
@@ -444,6 +449,11 @@ class IsrCalib(abc.ABC):
             with open(filename, "r") as f:
                 data = yaml.load(f, Loader=yaml.CLoader)
             calibClass = cls.determineCalibClass(data["metadata"], "readText/YAML")
+            return calibClass.fromDict(data, **kwargs)
+        elif filename.endswith((".json", ".JSON")):
+            with open(filename, "r") as f:
+                data = json.load(f)
+            calibClass = cls.determineCalibClass(data, "readText/JSON")
             return calibClass.fromDict(data, **kwargs)
         else:
             raise RuntimeError(f"Unknown filename extension: {filename}")
