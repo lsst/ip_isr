@@ -133,7 +133,8 @@ class IsrCalib(abc.ABC):
                         # operator.
                         if np.all(attrSelf[key] != attrOther[key]):
                             return False
-            elif isinstance(attrSelf, np.ndarray) or isinstance(attrSelf, list) or isinstance(attrSelf, Column):
+            elif (isinstance(attrSelf, np.ndarray) or isinstance(attrSelf, Column)
+                  or isinstance(attrOther, np.ndarray) or isinstance(attrOther, Column)):
                 # Bare array.
                 if isinstance(attrSelf[0], (str, np.str_, np.bytes_)):
                     if not np.all(attrSelf == attrOther):
