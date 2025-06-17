@@ -118,15 +118,12 @@ class ShutterMotionProfile(IsrCalib):
         # Equation (3.1)
         j0 = self.fit_jerk0[modelIndex]
         j1 = self.fit_jerk1[modelIndex]
-        # j2 = self.fit_jerk2[modelIndex]  # Not used?
 
         # Equation (3.2)
         a1 = j0*t1
-        # a2 = a1 + j1*(t2 - t1)  # Not used?
 
         # Equation (3.4)
         A1 = a1 - j1*t1
-        # A2 = a2 - j2*t2  # Not used?
 
         # First estimate of midpoint, where acceleration is zero.
         # a = 0 = A1 + j1*t  (Equation 5.1)
@@ -237,7 +234,25 @@ class ShutterMotionProfile(IsrCalib):
 
     @classmethod
     def fromTable(cls, tableList):
-        """CZW"""
+        """Construct calibration from a list of tables.
+
+        This method uses the `fromDict` method to create the
+        calibration, after constructing an appropriate dictionary from
+        the input tables.
+
+        Parameters
+        ----------
+        tableList : `list` [`lsst.afw.table.Table`]
+            List of tables to use to construct the crosstalk
+            calibration.  For shutter motion profiles, the first table
+            contains the samples, the second the Hall transition data,
+            and the third the model fits.
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.ShutterMotionProfile`
+            The calibration defined in the tables.
+        """
         samples = tableList[0]
         transitions = tableList[1]
         modelFits = tableList[2]
@@ -266,7 +281,9 @@ class ShutterMotionProfile(IsrCalib):
 
         if "OBSTYPE" not in metadata:
             metadata["OBSTYPE"] = cls._OBSTYPE
-        # UGH UGH UGH UGH UGH
+
+        # This translation is needed to support correct
+        # round-tripping.  It's not an elegant solution.
         for key in ("fileName", "fileType", "obsId", "version", "side", "isOpen"):
             if key.upper() in metadata:
                 value = metadata.pop(key.upper())
@@ -276,11 +293,23 @@ class ShutterMotionProfile(IsrCalib):
             if key in metadata:
                 if metadata[key] == "":
                     metadata[key] = None
+
         calib.updateMetadata(**metadata)
         return calib
 
     def toTable(self):
-        """CZW"""
+        """Construct a list of tables containing the information in this
+        calibration.
+
+        The list of tables should create an identical calibration
+        after being passed to this class's fromTable method.
+
+        Returns
+        -------
+        tableList : `list` [`lsst.afw.table.Table`]
+            List of tables containing the shutter motion profile
+            information.
+        """
         self.updateMetadata()
 
         samples = Table([{"TIME_TAI": self.time_tai,
@@ -308,7 +337,18 @@ class ShutterMotionProfile(IsrCalib):
         return [samples, transitions, modelFits]
 
     def readEncodeSamples(self, inputSamples):
-        """CZW"""
+        """Read a list of input samples into the calibration.
+
+        Parameters
+        ----------
+        inputSamples : `list` [`dict` [`str` `str`]]
+            List of dictionaries of samples.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the calibration has already read samples.
+        """
         if len(self.time_tai) != 0:
             raise RuntimeError("Cannot re-read already-read calibration.")
 
@@ -318,6 +358,18 @@ class ShutterMotionProfile(IsrCalib):
             self.position.append(sample["position"])
 
     def writeEncodeSamples(self):
+        """Return list of samples as dictionaries.
+
+        Returns
+        -------
+        inputSamples : `list` [`dict` [`str` `str`]]
+            List of dictionaries of samples.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the calibration has not read samples.
+        """
         if len(self.time_tai) == 0:
             raise RuntimeError("Cannot export empty calibration.")
 
@@ -329,7 +381,18 @@ class ShutterMotionProfile(IsrCalib):
         return samples
 
     def readHallTransitions(self, inputTransitions):
-        """CZW"""
+        """Read a list of input samples into the calibration.
+
+        Parameters
+        ----------
+        inputTransitions : `list` [`dict` [`str` `str`]]
+            List of dictionaries of transitions.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the calibration has already read samples.
+        """
         if len(self.hall_time_tai) != 0:
             raise RuntimeError("Cannot re-read alreday-read calibration.")
 
@@ -341,6 +404,19 @@ class ShutterMotionProfile(IsrCalib):
             self.hall_isOn.append(bool(transition["isOn"]))
 
     def writeHallTransitions(self):
+        """Return list of samples as dictionaries.
+
+        Returns
+        -------
+        inputTransitions : `list` [`dict` [`str` `str`]]
+            List of dictionaries of Hall transitions
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the calibration has not read Hall
+            transitions.
+        """
         if len(self.hall_time_tai) == 0:
             raise RuntimeError("Cannot export empty calibration.")
 
@@ -359,7 +435,18 @@ class ShutterMotionProfile(IsrCalib):
         return transitions
 
     def readFitResults(self, fitResults):
-        """CZW"""
+        """Read a list of fit results into the calibration.
+
+        Parameters
+        ----------
+        inputTransitions : `list` [`dict` [`str` `str`]]
+            List of dictionaries of fit results.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the calibration has already read fit results.
+        """
         if len(self.fit_name) != 0:
             raise RuntimeError("Cannot re-read already-read fit results.")
         self.fit_model = fitResults.pop("Model")
@@ -374,6 +461,19 @@ class ShutterMotionProfile(IsrCalib):
             self.fit_jerk2.append(fitModel["Jerk2"])
 
     def writeFitResults(self):
+        """Return list of samples as dictionaries.
+
+        Returns
+        -------
+        inputTransitions : `list` [`dict` [`str` `str`]]
+            List of dictionaries of Hall transitions
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the calibration has not read Hall
+            transitions.
+        """
         if len(self.fit_name) == 0:
             raise RuntimeError("Cannot export empty calibration.")
 
