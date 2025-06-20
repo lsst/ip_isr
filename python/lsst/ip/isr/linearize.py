@@ -95,20 +95,24 @@ class Linearizer(IsrCalib):
         Chi-squared value of the linearity fit, indexed as above.
     fitResiduals : `dict` [`str`, `numpy.array`], optional
         Residuals of the fit, indexed as above. Used for
-        calculating photdiode corrections
+        calculating photodiode corrections
     fitResidualsSigmaMad : `dict` [`str`, `float`], optional
         Robust median-absolute-deviation of fit residuals, scaled
         by the signal level.
+    fitResidualsUnmasked : `dict` [`str`, `float`], optional
+        Same as fitResiduals, but all outliers are included and
+        not masked as nans.
     linearFit : The linear fit to the low flux region of the curve.
         [intercept, slope].
     tableData : `numpy.array`, optional
         Lookup table data for the linearity correction.
 
     Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
+    Version 1.5 adds ``fitResidualsUnmasked``.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.4
+    _VERSION = 1.5
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -123,6 +127,7 @@ class Linearizer(IsrCalib):
         self.fitChiSq = dict()
         self.fitResiduals = dict()
         self.fitResidualsSigmaMad = dict()
+        self.fitResidualsUnmasked = dict()
         self.linearFit = dict()
         self.linearityTurnoff = dict()
         self.linearityMaxSignal = dict()
@@ -144,7 +149,8 @@ class Linearizer(IsrCalib):
                                         'linearityCoeffs', 'linearityType', 'linearityBBox',
                                         'fitParams', 'fitParamsErr', 'fitChiSq',
                                         'fitResiduals', 'fitResidualsSigmaMad', 'linearFit', 'tableData',
-                                        'units', 'linearityTurnoff', 'linearityMaxSignal'])
+                                        'units', 'linearityTurnoff', 'linearityMaxSignal',
+                                        'fitResidualsUnmasked'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -249,6 +255,7 @@ class Linearizer(IsrCalib):
                 calib.fitChiSq[ampName] = amp.get('fitChiSq', np.nan)
                 calib.fitResiduals[ampName] = np.array(amp.get('fitResiduals', [0.0]))
                 calib.fitResidualsSigmaMad[ampName] = np.array(amp.get('fitResidualsSigmaMad', np.nan))
+                calib.fitResidualsUnmasked[ampName] = np.array(amp.get('fitResidualsUnmasked', [0.0]))
                 calib.linearFit[ampName] = np.array(amp.get('linearFit', [0.0]))
 
                 calib.linearityTurnoff[ampName] = np.array(amp.get('linearityTurnoff', np.nan))
@@ -286,7 +293,8 @@ class Linearizer(IsrCalib):
                 'fitParamsErr': self.fitParamsErr[ampName].tolist(),
                 'fitChiSq': self.fitChiSq[ampName],
                 'fitResiduals': self.fitResiduals[ampName].tolist(),
-                'fitResidualsSigmaMad': self.fitResiduals[ampName],
+                'fitResidualsSigmaMad': self.fitResidualsSigmaMad[ampName],
+                'fitResidualsUnmasked': self.fitResidualsUnmasked[ampName].tolist(),
                 'linearFit': self.linearFit[ampName].tolist(),
                 'linearityTurnoff': self.linearityTurnoff[ampName],
                 'linearityMaxSignal': self.linearityMaxSignal[ampName],
@@ -342,6 +350,8 @@ class Linearizer(IsrCalib):
             fitChiSq = record['RED_CHI_SQ'] if 'RED_CHI_SQ' in record.columns else np.nan
             fitResiduals = record['FIT_RES'] if 'FIT_RES' in record.columns else np.array([0.0])
             fitResidualsSigmaMad = record['FIT_RES_SIGMAD'] if 'FIT_RES_SIGMAD' in record.columns else np.nan
+            fitResidualsUnmasked = record['FIT_RES_UNMASKED'] \
+                if 'FIT_RES_UNMASKED' in record.columns else np.array([0.0])
             linearFit = record['LIN_FIT'] if 'LIN_FIT' in record.columns else np.array([0.0])
 
             linearityTurnoff = record['LINEARITY_TURNOFF'] if 'LINEARITY_TURNOFF' in record.columns \
@@ -359,6 +369,7 @@ class Linearizer(IsrCalib):
                 'fitChiSq': fitChiSq,
                 'fitResiduals': fitResiduals,
                 'fitResidualsSigmaMad': fitResidualsSigmaMad,
+                'fitResidualsUnmasked': fitResidualsUnmasked,
                 'linearFit': linearFit,
                 'linearityTurnoff': linearityTurnoff,
                 'linearityMaxSignal': linearityMaxSignal,
@@ -398,6 +409,7 @@ class Linearizer(IsrCalib):
                           'RED_CHI_SQ': self.fitChiSq[ampName],
                           'FIT_RES': self.fitResiduals[ampName],
                           'FIT_RES_SIGMAD': self.fitResidualsSigmaMad[ampName],
+                          'FIT_RES_UNMASKED': self.fitResidualsUnmasked[ampName],
                           'LIN_FIT': self.linearFit[ampName],
                           'LINEARITY_TURNOFF': self.linearityTurnoff[ampName],
                           'LINEARITY_MAX_SIGNAL': self.linearityMaxSignal[ampName],
