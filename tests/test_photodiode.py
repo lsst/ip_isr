@@ -123,6 +123,18 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
                                 currentSamples=new_currents[index])
         self.assertFloatsAlmostEqual(calib.integrateChargeSum(), 3.6049277e-09, rtol=1e-14)
 
+    def testIntegrateMean(self):
+        rng = np.random.RandomState(12345)
+
+        timeSamples = np.linspace(0, 5, 100)
+        currentSamples = rng.normal(loc=-1e-9, scale=1e-11, size=len(timeSamples))
+        calib = PhotodiodeCalib(timeSamples=timeSamples, currentSamples=currentSamples)
+        calib.currentScale = -1.0
+        expTime = 5.0
+        expected = 1e-9 * expTime
+
+        self.assertFloatsAlmostEqual(calib.integrateMean(expTime), expected, rtol=1e-3)
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
