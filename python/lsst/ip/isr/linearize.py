@@ -99,16 +99,24 @@ class Linearizer(IsrCalib):
     fitResidualsSigmaMad : `dict` [`str`, `float`], optional
         Robust median-absolute-deviation of fit residuals, scaled
         by the signal level.
-    fitResidualsUnmasked : `dict` [`str`, `float`], optional
+    fitResidualsUnmasked : `dict` [`str`, `numpy.array`], optional
         Same as fitResiduals, but all outliers are included and
         not masked as nans.
     linearFit : The linear fit to the low flux region of the curve.
         [intercept, slope].
     tableData : `numpy.array`, optional
         Lookup table data for the linearity correction.
+    inputAbscissa : `dict` [`str`, `numpy.array`], optional
+        Input abscissa used to construct linearizer (usually photodiode
+        or exposure time).
+    inputOrdinate : `dict` [`str`, `numpy.array`], optional
+        Input ordinate used to construct linearizer (raw mean counts).
+    inputMask : `dict` [`str`, `numpy.array`], optional
+        Input mask used for the fitting.
 
     Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
-    Version 1.5 adds ``fitResidualsUnmasked``.
+    Version 1.5 adds ``fitResidualsUnmasked``, ``inputAbscissa``,
+        ``inputOrdinate``, and ``inputMask``.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
@@ -122,6 +130,9 @@ class Linearizer(IsrCalib):
         self.linearityCoeffs = dict()
         self.linearityType = dict()
         self.linearityBBox = dict()
+        self.inputAbscissa = dict()
+        self.inputOrdinate = dict()
+        self.inputMask = dict()
         self.fitParams = dict()
         self.fitParamsErr = dict()
         self.fitChiSq = dict()
@@ -150,7 +161,8 @@ class Linearizer(IsrCalib):
                                         'fitParams', 'fitParamsErr', 'fitChiSq',
                                         'fitResiduals', 'fitResidualsSigmaMad', 'linearFit', 'tableData',
                                         'units', 'linearityTurnoff', 'linearityMaxSignal',
-                                        'fitResidualsUnmasked'])
+                                        'fitResidualsUnmasked', 'inputAbscissa', 'inputOrdinate',
+                                        'inputMask'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -250,6 +262,10 @@ class Linearizer(IsrCalib):
                 calib.linearityType[ampName] = amp.get('linearityType', 'None')
                 calib.linearityBBox[ampName] = amp.get('linearityBBox', None)
 
+                calib.inputAbscissa[ampName] = np.array(amp.get('inputAbscissa', [0.0]))
+                calib.inputOrdinate[ampName] = np.array(amp.get('inputOrdinate', [0.0]))
+                calib.inputMask[ampName] = np.array(amp.get('inputMask', [False]))
+
                 calib.fitParams[ampName] = np.array(amp.get('fitParams', [0.0]))
                 calib.fitParamsErr[ampName] = np.array(amp.get('fitParamsErr', [0.0]))
                 calib.fitChiSq[ampName] = amp.get('fitChiSq', np.nan)
@@ -289,6 +305,9 @@ class Linearizer(IsrCalib):
                 'linearityType': self.linearityType[ampName],
                 'linearityCoeffs': self.linearityCoeffs[ampName].tolist(),
                 'linearityBBox': self.linearityBBox[ampName],
+                'inputAbscissa': self.inputAbscissa[ampName].tolist(),
+                'inputOrdinate': self.inputOrdinate[ampName].tolist(),
+                'inputMask': self.inputMask[ampName].tolist(),
                 'fitParams': self.fitParams[ampName].tolist(),
                 'fitParamsErr': self.fitParamsErr[ampName].tolist(),
                 'fitChiSq': self.fitChiSq[ampName],
@@ -345,6 +364,9 @@ class Linearizer(IsrCalib):
         for record in coeffTable:
             ampName = record['AMPLIFIER_NAME']
 
+            inputAbscissa = record['INP_ABSCISSA'] if 'INP_ABSCISSA' in record.columns else np.array([0.0])
+            inputOrdinate = record['INP_ORDINATE'] if 'INP_ORDINATE' in record.columns else np.array([0.0])
+            inputMask = record['INP_MASK'] if 'INP_MASK' in record.columns else np.array([False])
             fitParams = record['FIT_PARAMS'] if 'FIT_PARAMS' in record.columns else np.array([0.0])
             fitParamsErr = record['FIT_PARAMS_ERR'] if 'FIT_PARAMS_ERR' in record.columns else np.array([0.0])
             fitChiSq = record['RED_CHI_SQ'] if 'RED_CHI_SQ' in record.columns else np.nan
@@ -364,6 +386,9 @@ class Linearizer(IsrCalib):
                 'linearityCoeffs': record['COEFFS'],
                 'linearityBBox': Box2I(Point2I(record['BBOX_X0'], record['BBOX_Y0']),
                                        Extent2I(record['BBOX_DX'], record['BBOX_DY'])),
+                'inputAbscissa': inputAbscissa,
+                'inputOrdinate': inputOrdinate,
+                'inputMask': inputMask,
                 'fitParams': fitParams,
                 'fitParamsErr': fitParamsErr,
                 'fitChiSq': fitChiSq,
@@ -404,6 +429,9 @@ class Linearizer(IsrCalib):
                           'BBOX_Y0': self.linearityBBox[ampName].getMinY(),
                           'BBOX_DX': self.linearityBBox[ampName].getWidth(),
                           'BBOX_DY': self.linearityBBox[ampName].getHeight(),
+                          'INP_ABSCISSA': self.inputAbscissa[ampName],
+                          'INP_ORDINATE': self.inputOrdinate[ampName],
+                          'INP_MASK': self.inputMask[ampName],
                           'FIT_PARAMS': self.fitParams[ampName],
                           'FIT_PARAMS_ERR': self.fitParamsErr[ampName],
                           'RED_CHI_SQ': self.fitChiSq[ampName],
