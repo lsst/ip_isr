@@ -50,7 +50,7 @@ class PhotodiodeCalib(IsrCalib):
         ``"integrationMethod"``
             Name of the algorithm to use to integrate the current
             samples. Allowed values are ``DIRECT_SUM``,
-            ``TRIMMED_SUM``, and ``CHARGE_SUM`` (`str`).
+            ``TRIMMED_SUM``, ``CHARGE_SUM``, ``MEAN`` (`str`).
         ``"currentScale"``
             Scale factor to apply to the current samples for the
             ``CHARGE_SUM`` integration method. A typical value
@@ -260,13 +260,20 @@ class PhotodiodeCalib(IsrCalib):
         return cls(timeSamples=rawData['time'], currentSamples=rawData['current'],
                    day_obs=int(day_obs), seq_num=int(seq_num))
 
-    def integrate(self):
+    def integrate(self, exposureTime=None):
         """Integrate the current.
+
+        Parameters
+        ----------
+        exposureTime : `float`, optional
+            Image exposure time. Required if integrationMethod is ``MEAN``.
 
         Raises
         ------
         RuntimeError
             Raised if the integration method is not known.
+        ValueError
+            Raised if the exposure time is not set and method is MEAN.
         """
         if self.integrationMethod == 'DIRECT_SUM':
             return self.integrateDirectSum()
@@ -274,6 +281,10 @@ class PhotodiodeCalib(IsrCalib):
             return self.integrateTrimmedSum()
         elif self.integrationMethod == 'CHARGE_SUM':
             return self.integrateChargeSum()
+        elif self.integrationMethod == 'MEAN':
+            if exposureTime is None:
+                raise ValueError("Exposure time must be provided if integration method is MEAN.")
+            return self.integrateMean(exposureTime)
         else:
             raise RuntimeError(f"Unknown integration method {self.integrationMethod}")
 
@@ -345,3 +356,18 @@ class PhotodiodeCalib(IsrCalib):
         bg_current = np.sum(charge[bg])/np.sum(dt[bg])
         # Return the background-subtracted total charge.
         return np.sum(charge - bg_current*dt)
+
+    def integrateMean(self, exposureTime):
+        """
+        Take the mean of the photodiode trace, and multiply by exposure time.
+
+        The current scale is also used.
+
+        Parameters
+        ----------
+        exposureTime : `float`
+            Exposure time in sections.
+        """
+        mean = self.currentScale * np.mean(self.currentSamples)
+
+        return mean * exposureTime
