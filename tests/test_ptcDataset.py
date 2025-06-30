@@ -475,6 +475,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     photoCharge=testArr[i],
                     ampOffset=testArr[i],
                     expIdMask=True,
+                    nPixelCovariance=100_000,
                     covariance=testCov[i, :, :].reshape(4, 4),
                     covSqrtWeights=testCov[i, :, :].reshape(4, 4),
                     gain=testArr[i],
@@ -512,6 +513,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             np.testing.assert_array_equal(ptc.histVars[ampName], testArr)
             np.testing.assert_array_equal(ptc.histChi2Dofs[ampName], testArr)
             np.testing.assert_array_equal(ptc.kspValues[ampName], testArr)
+            np.testing.assert_array_equal(ptc.nPixelCovariances[ampName], 100_000)
             np.testing.assert_array_equal(ptc.covariances[ampName], testCov)
             np.testing.assert_array_equal(ptc.covariancesSqrtWeights[ampName], testCov)
             # These two should have the same shape, but no useful values.
