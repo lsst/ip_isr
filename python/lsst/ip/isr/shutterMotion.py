@@ -26,6 +26,7 @@ __all__ = ["ShutterMotionProfile"]
 
 from astropy.table import Table
 from scipy.optimize import newton
+from numpy import nan
 
 from lsst.ip.isr import IsrCalib
 
@@ -130,7 +131,11 @@ class ShutterMotionProfile(IsrCalib):
         def acc(t):
             return A1 + j1 * t
 
-        tm_accel = newton(acc, 0.5*(t2 + t1))
+        try:
+            tm_accel = newton(acc, 0.5*(t2 + t1))
+        except Exception as e:
+            self.log.warn(f"Midpoint calculation (from acceleration) failed to converge: {e}")
+            tm_accel = nan
 
         # Second estimate of midpoint, when s is halfway betweeen
         # start and final position.  Equation (5.2).
@@ -141,7 +146,11 @@ class ShutterMotionProfile(IsrCalib):
         def pos(t):
             return j1*(t**3)/6. + A1*(t**2)/2. + V1*t + S1 - Smid
 
-        tm_position = newton(pos, tm_accel)
+        try:
+            tm_position = newton(pos, tm_accel)
+        except Exception as e:
+            self.log.warn(f"Midpoint calculation (from position) failed to converge: {e}")
+            tm_position = nan
 
         # Restore t0 so these can be compared to raw timestamps.
         return tm_accel + t0, tm_position + t0
