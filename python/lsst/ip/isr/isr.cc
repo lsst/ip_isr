@@ -37,7 +37,7 @@ namespace {
 
 template <typename PixelT>
 static void declareCountMaskedPixels(py::module& mod, std::string const& suffix) {
-    py::class_<CountMaskedPixels<PixelT>> cls(mod, ("CountMaskedPixels" + suffix).c_str());
+    py::classh<CountMaskedPixels<PixelT>> cls(mod, ("CountMaskedPixels" + suffix).c_str());
 
     cls.def("reset", &CountMaskedPixels<PixelT>::reset);
     cls.def("apply", &CountMaskedPixels<PixelT>::apply, "image"_a, "bitmask"_a);
