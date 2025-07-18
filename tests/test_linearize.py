@@ -336,7 +336,8 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 linearizer.linearityBBox[ampName] = ampBox
                 linearizer.inputAbscissa[ampName] = np.array([])
                 linearizer.inputOrdinate[ampName] = np.array([])
-                linearizer.inputMask[ampName] = np.array([])
+                linearizer.inputMask[ampName] = np.array([], dtype=np.bool_)
+                linearizer.inputGroupingIndex[ampName] = np.array([], dtype=np.int64)
                 linearizer.fitParams[ampName] = np.array([])
                 linearizer.fitParamsErr[ampName] = np.array([])
                 linearizer.fitChiSq[ampName] = np.nan
