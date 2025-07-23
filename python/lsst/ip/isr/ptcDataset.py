@@ -119,6 +119,9 @@ class PhotonTransferCurveDataset(IsrCalib):
     rawVars : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         difference image of the exposures in each flat pair (units: adu^2).
+    rawDeltas : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the scaled unmasked delta of
+        the means of the exposures in each flat pair (units: adu).
     rowMeanVariance : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         means of the rows of the difference image of the exposures
@@ -234,6 +237,9 @@ class PhotonTransferCurveDataset(IsrCalib):
     photoCharges : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the integrated photocharge
         for linearity calibration.
+    photoChargeDeltas : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the delta for the integrated
+        photocharge.
     auxValues : `dict`, [`str`, `np.ndarray`]
         Dictionary of per-detector auxiliary header values that can be used
         for PTC, linearity computation.
@@ -257,6 +263,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 2.3 adds the `overscanMedian` and
         `overscanMedianSigma` attrbutes.
     Version 2.4 adds the `nPixelCovariances` attribute.
+    Version 2.5 adds the `rawDeltas` and `photoChargeDeltas` attributes.
     """
 
     _OBSTYPE = 'PTC'
@@ -275,7 +282,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     #  * test_ptcDataset() in test_ptcDataset.py
     #  * test_ptcDatasetSort in test_ptcDataset.py
     #  * test_ptcDatasetAppend in test_ptcDataset.py
-    _VERSION = 2.4
+    _VERSION = 2.5
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -295,8 +302,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawExpTimes = {ampName: np.array([]) for ampName in ampNames}
         self.rawMeans = {ampName: np.array([]) for ampName in ampNames}
         self.rawVars = {ampName: np.array([]) for ampName in ampNames}
+        self.rawDeltas = {ampName: np.array([]) for ampName in ampNames}
         self.rowMeanVariance = {ampName: np.array([]) for ampName in ampNames}
         self.photoCharges = {ampName: np.array([]) for ampName in ampNames}
+        self.photoChargeDeltas = {ampName: np.array([]) for ampName in ampNames}
         self.ampOffsets = {ampName: np.array([]) for ampName in ampNames}
 
         self.gain = {ampName: np.nan for ampName in ampNames}
@@ -346,7 +355,8 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'bMatrix', 'noiseMatrix', 'finalVars', 'finalModelVars',
                                         'finalMeans', 'photoCharges', 'histVars', 'histChi2Dofs',
                                         'kspValues', 'auxValues', 'ptcTurnoffSamplingError',
-                                        'ampOffsets', 'gainUnadjusted', 'nPixelCovariances'])
+                                        'ampOffsets', 'gainUnadjusted', 'nPixelCovariances',
+                                        'rawDeltas', 'photoChargeDeltas'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
         self._validateCovarianceMatrizSizes()
@@ -359,8 +369,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             rawExpTime=np.nan,
             rawMean=np.nan,
             rawVar=np.nan,
+            rawDelta=np.nan,
             rowMeanVariance=np.nan,
             photoCharge=np.nan,
+            photoChargeDelta=np.nan,
             ampOffset=np.nan,
             expIdMask=False,
             nPixelCovariance=-1,
@@ -392,12 +404,18 @@ class PhotonTransferCurveDataset(IsrCalib):
         rawVar : `float`, optional
             Variance of the difference of the exposures in this pair
             (units: adu^2).
+        rawDelta : `float`, optional
+            Delta of the means of the exposure in this pair
+            (units: adu).
         rowMeanVariance : `float`, optional
             Variance of the means of the rows in the difference image
             of the exposures in this pair (units: adu^2).
         photoCharge : `float`, optional
             Integrated photocharge for flat pair for linearity calibration
-            (units: electron).
+            (arbitrary units).
+        photoChargeDelta : `float`, optional
+            Delta between integrated photocharge for the flat pair
+            (arbitrary units).
         ampOffset : `float`, optional
             Amp offset for this amplifier.
         expIdMask : `bool`, optional
@@ -438,8 +456,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.rawExpTimes[ampName] = np.array([rawExpTime])
         self.rawMeans[ampName] = np.array([rawMean])
         self.rawVars[ampName] = np.array([rawVar])
+        self.rawDeltas[ampName] = np.array([rawDelta])
         self.rowMeanVariance[ampName] = np.array([rowMeanVariance])
         self.photoCharges[ampName] = np.array([photoCharge])
+        self.photoChargeDeltas[ampName] = np.array([photoChargeDelta])
         self.ampOffsets[ampName] = np.array([ampOffset])
         self.expIdMask[ampName] = np.array([expIdMask])
         self.nPixelCovariances[ampName] = nPixelCovariance
@@ -548,6 +568,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName], dtype=np.float64)
             calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName], dtype=np.float64)
             calib.rawVars[ampName] = np.array(dictionary['rawVars'][ampName], dtype=np.float64)
+            calib.rawDeltas[ampName] = np.array(dictionary['rawDeltas'][ampName], dtype=np.float64)
             calib.rowMeanVariance[ampName] = np.array(dictionary['rowMeanVariance'][ampName],
                                                       dtype=np.float64)
             calib.gain[ampName] = float(dictionary['gain'][ampName])
@@ -608,6 +629,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.finalModelVars[ampName] = np.array(dictionary['finalModelVars'][ampName], dtype=np.float64)
             calib.finalMeans[ampName] = np.array(dictionary['finalMeans'][ampName], dtype=np.float64)
             calib.photoCharges[ampName] = np.array(dictionary['photoCharges'][ampName], dtype=np.float64)
+            calib.photoChargeDeltas[ampName] = np.array(
+                dictionary['photoChargeDeltas'][ampName],
+                dtype=np.float64,
+            )
             calib.ampOffsets[ampName] = np.array(dictionary['ampOffsets'][ampName], dtype=np.float64)
 
         for key, value in dictionary['auxValues'].items():
@@ -655,6 +680,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['rawExpTimes'] = _dictOfArraysToDictOfLists(self.rawExpTimes)
         outDict['rawMeans'] = _dictOfArraysToDictOfLists(self.rawMeans)
         outDict['rawVars'] = _dictOfArraysToDictOfLists(self.rawVars)
+        outDict['rawDeltas'] = _dictOfArraysToDictOfLists(self.rawDeltas)
         outDict['rowMeanVariance'] = _dictOfArraysToDictOfLists(self.rowMeanVariance)
         outDict['gain'] = self.gain
         outDict['gainErr'] = self.gainErr
@@ -685,6 +711,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['finalModelVars'] = _dictOfArraysToDictOfLists(self.finalModelVars)
         outDict['finalMeans'] = _dictOfArraysToDictOfLists(self.finalMeans)
         outDict['photoCharges'] = _dictOfArraysToDictOfLists(self.photoCharges)
+        outDict['photoChargeDeltas'] = _dictOfArraysToDictOfLists(self.photoChargeDeltas)
         outDict['ampOffsets'] = _dictOfArraysToDictOfLists(self.ampOffsets)
         outDict['auxValues'] = _dictOfArraysToDictOfLists(self.auxValues)
 
@@ -722,6 +749,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['rawExpTimes'] = dict()
         inDict['rawMeans'] = dict()
         inDict['rawVars'] = dict()
+        inDict['rawDeltas'] = dict()
         inDict['rowMeanVariance'] = dict()
         inDict['gain'] = dict()
         inDict['gainErr'] = dict()
@@ -753,6 +781,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['finalMeans'] = dict()
         inDict['badAmps'] = []
         inDict['photoCharges'] = dict()
+        inDict['photoChargeDeltas'] = dict()
         inDict['ampOffsets'] = dict()
 
         # TODO: DM-47610, remove after v29
@@ -892,6 +921,18 @@ class PhotonTransferCurveDataset(IsrCalib):
                 inDict['nPixelCovariances'][ampName] = -1
             else:
                 inDict['nPixelCovariances'][ampName] = record['NPIXEL_COVARIANCES']
+            if calibVersion < 2.5:
+                inDict['rawDeltas'][ampName] = np.full_like(
+                    inDict['rawMeans'][ampName],
+                    np.nan,
+                )
+                inDict['photoChargeDeltas'][ampName] = np.full_like(
+                    inDict['rawMeans'][ampName],
+                    np.nan,
+                )
+            else:
+                inDict['rawDeltas'][ampName] = record['RAW_DELTAS']
+                inDict['photoChargeDeltas'][ampName] = record['PHOTO_CHARGE_DELTAS']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -938,6 +979,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'RAW_EXP_TIMES': self.rawExpTimes[ampName],
                 'RAW_MEANS': self.rawMeans[ampName],
                 'RAW_VARS': self.rawVars[ampName],
+                'RAW_DELTAS': self.rawDeltas[ampName],
                 'ROW_MEAN_VARIANCE': self.rowMeanVariance[ampName],
                 'GAIN': self.gain[ampName],
                 'GAIN_ERR': self.gainErr[ampName],
@@ -962,6 +1004,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'NOISE_MATRIX': self.noiseMatrix[ampName].ravel(),
                 'BAD_AMPS': badAmps,
                 'PHOTO_CHARGE': self.photoCharges[ampName],
+                'PHOTO_CHARGE_DELTAS': self.photoChargeDeltas[ampName],
                 'AMP_OFFSETS': self.ampOffsets[ampName],
                 'NPIXEL_COVARIANCES': self.nPixelCovariances[ampName],
                 'COVARIANCES': self.covariances[ampName].ravel(),
@@ -1054,10 +1097,14 @@ class PhotonTransferCurveDataset(IsrCalib):
                                                partialPtc.rawMeans[ampName][0])
             self.rawVars[ampName] = np.append(self.rawVars[ampName],
                                               partialPtc.rawVars[ampName][0])
+            self.rawDeltas[ampName] = np.append(self.rawDeltas[ampName],
+                                                partialPtc.rawDeltas[ampName][0])
             self.rowMeanVariance[ampName] = np.append(self.rowMeanVariance[ampName],
                                                       partialPtc.rowMeanVariance[ampName][0])
             self.photoCharges[ampName] = np.append(self.photoCharges[ampName],
                                                    partialPtc.photoCharges[ampName][0])
+            self.photoChargeDeltas[ampName] = np.append(self.photoChargeDeltas[ampName],
+                                                        partialPtc.photoChargeDeltas[ampName][0])
             self.ampOffsets[ampName] = np.append(self.ampOffsets[ampName],
                                                  partialPtc.ampOffsets[ampName][0])
             self.histVars[ampName] = np.append(self.histVars[ampName],
@@ -1146,8 +1193,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             self.rawExpTimes[ampName] = self.rawExpTimes[ampName][index]
             self.rawMeans[ampName] = self.rawMeans[ampName][index]
             self.rawVars[ampName] = self.rawVars[ampName][index]
+            self.rawDeltas[ampName] = self.rawDeltas[ampName][index]
             self.rowMeanVariance[ampName] = self.rowMeanVariance[ampName][index]
             self.photoCharges[ampName] = self.photoCharges[ampName][index]
+            self.photoChargeDeltas[ampName] = self.photoChargeDeltas[ampName][index]
             self.ampOffsets[ampName] = self.ampOffsets[ampName][index]
 
             self.gainList[ampName] = self.gainList[ampName][index]
