@@ -183,13 +183,8 @@ class ShutterMotionProfile(IsrCalib):
         motionProfile = dictionary.pop('motionProfile')
 
         encodeSamples = motionProfile.pop("encodeSamples")
-        calib.readEncodeSamples(encodeSamples)
-
         hallTransitions = motionProfile.pop("hallTransitions")
-        calib.readHallTransitions(hallTransitions)
-
         fitResults = motionProfile.pop("fitResults")
-        calib.readFitResults(fitResults)
 
         if 'metadata' in dictionary:
             metadata = dictionary.pop('metadata')
@@ -197,9 +192,19 @@ class ShutterMotionProfile(IsrCalib):
                 dictionary[key] = value
         calib.setMetadata(dictionary)
 
+        formatVersion = calib.metadata['version']
+
         startTime = motionProfile.pop("startTime")
-        motionProfile["startTime_tai"] = startTime["tai"]
-        motionProfile["startTime_mjd"] = startTime["mjd"]
+        if formatVersion == 1.0:
+            motionProfile["startTime_tai"] = startTime["tai"]
+            motionProfile["startTime_mjd"] = startTime["mjd"]
+        else:
+            motionProfile["startTime_tai"] = startTime["tai"]["isot"]
+            motionProfile["startTime_mjd"] = startTime["tai"]["mjd"]
+
+        calib.readEncodeSamples(encodeSamples, formatVersion)
+        calib.readHallTransitions(hallTransitions, formatVersion)
+        calib.readFitResults(fitResults)
 
         calib.updateMetadata(**motionProfile)
         return calib
@@ -216,29 +221,55 @@ class ShutterMotionProfile(IsrCalib):
             Dictionary of properties.
         """
         self.updateMetadata()
+        formatVersion = self.metadata['version']
 
-        outDict = {"fileName": self.metadata["fileName"],
-                   "fileType": self.metadata["fileType"],
-                   "metadata": {
-                       "CALIBCLS": "lsst.ip.isr.ShutterMotionProfile",
-                       "OBSTYPE": self._OBSTYPE, },
-                   "obsId": self.metadata["obsId"],
-                   "version": self.metadata.get("version", -1),
-                   "motionProfile": {
-                       "startTime": {
-                           "tai": self.metadata["startTime_tai"],
-                           "mjd": self.metadata["startTime_mjd"], },
-                       "startPosition": self.metadata["startPosition"],
-                       "targetPosition": self.metadata["targetPosition"],
-                       "endPosition": self.metadata["endPosition"],
-                       "targetDuration": self.metadata["targetDuration"],
-                       "actionDuration": self.metadata["actionDuration"],
-                       "side": self.metadata["side"],
-                       "isOpen": self.metadata["isOpen"],
-                       "encodeSamples": self.writeEncodeSamples(),
-                       "hallTransitions": self.writeHallTransitions(),
-                       "fitResults": self.writeFitResults(), }, }
-
+        if formatVersion == 1.0:
+            outDict = {"fileName": self.metadata["fileName"],
+                       "fileType": self.metadata["fileType"],
+                       "metadata": {
+                           "CALIBCLS": "lsst.ip.isr.ShutterMotionProfile",
+                           "OBSTYPE": self._OBSTYPE, },
+                       "obsId": self.metadata["obsId"],
+                       "version": self.metadata.get("version", -1),
+                       "motionProfile": {
+                           "startTime": {
+                               "tai": self.metadata["startTime_tai"],
+                               "mjd": self.metadata["startTime_mjd"], },
+                           "startPosition": self.metadata["startPosition"],
+                           "targetPosition": self.metadata["targetPosition"],
+                           "endPosition": self.metadata["endPosition"],
+                           "targetDuration": self.metadata["targetDuration"],
+                           "actionDuration": self.metadata["actionDuration"],
+                           "side": self.metadata["side"],
+                           "isOpen": self.metadata["isOpen"],
+                           "encodeSamples": self.writeEncodeSamples(),
+                           "hallTransitions": self.writeHallTransitions(),
+                           "fitResults": self.writeFitResults(), }, }
+        elif formatVersion == 2.0:
+            outDict = {"fileName": self.metadata["fileName"],
+                       "fileType": self.metadata["fileType"],
+                       "metadata": {
+                           "CALIBCLS": "lsst.ip.isr.ShutterMotionProfile",
+                           "OBSTYPE": self._OBSTYPE, },
+                       "obsId": self.metadata["obsId"],
+                       "version": self.metadata.get("version", -1),
+                       "motionProfile": {
+                           "startTime": {
+                               "tai": {
+                                   "isot": self.metadata["startTime_tai"],
+                                   "mjd": self.metadata["startTime_mjd"], }, },
+                           "startPosition": self.metadata["startPosition"],
+                           "targetPosition": self.metadata["targetPosition"],
+                           "endPosition": self.metadata["endPosition"],
+                           "targetDuration": self.metadata["targetDuration"],
+                           "actionDuration": self.metadata["actionDuration"],
+                           "side": self.metadata["side"],
+                           "isOpen": self.metadata["isOpen"],
+                           "encodeSamples": self.writeEncodeSamples(),
+                           "hallTransitions": self.writeHallTransitions(),
+                           "fitResults": self.writeFitResults(), }, }
+        else:
+            raise RuntimeError(f"Unknown file version: {formatVersion}")
         return outDict
 
     @classmethod
@@ -345,26 +376,37 @@ class ShutterMotionProfile(IsrCalib):
 
         return [samples, transitions, modelFits]
 
-    def readEncodeSamples(self, inputSamples):
+    def readEncodeSamples(self, inputSamples, formatVersion):
         """Read a list of input samples into the calibration.
 
         Parameters
         ----------
         inputSamples : `list` [`dict` [`str` `str`]]
             List of dictionaries of samples.
+        formatVersion : `float`
+            Version of the file format to read.
 
         Raises
         ------
         RuntimeError
-            Raised if the calibration has already read samples.
+            Raised if the calibration has already read samples, or if
+            the format is not known.
         """
         if len(self.time_tai) != 0:
             raise RuntimeError("Cannot re-read already-read calibration.")
 
-        for sample in inputSamples:
-            self.time_tai.append(sample["time"]["tai"])
-            self.time_mjd.append(sample["time"]["mjd"])
-            self.position.append(sample["position"])
+        if formatVersion == 1.0:
+            for sample in inputSamples:
+                self.time_tai.append(sample["time"]["tai"])
+                self.time_mjd.append(sample["time"]["mjd"])
+                self.position.append(sample["position"])
+        elif formatVersion == 2.0:
+            for sample in inputSamples:
+                self.time_tai.append(sample["tai"]["isot"])
+                self.time_mjd.append(sample["tai"]["mjd"])
+                self.position.append(sample["position"])
+        else:
+            raise RuntimeError(f"Unknown file version: {formatVersion}")
 
     def writeEncodeSamples(self):
         """Return list of samples as dictionaries.
@@ -382,35 +424,59 @@ class ShutterMotionProfile(IsrCalib):
         if len(self.time_tai) == 0:
             raise RuntimeError("Cannot export empty calibration.")
 
+        formatVersion = self.metadata['version']
+
         samples = []
-        for tai, mjd, position in zip(self.time_tai, self.time_mjd, self.position):
-            sample = {"time": {"tai": tai, "mjd": mjd},
-                      "position": position}
-            samples.append(sample)
+        if formatVersion == 1.0:
+            for tai, mjd, position in zip(self.time_tai, self.time_mjd, self.position):
+                sample = {"time": {"tai": tai, "mjd": mjd},
+                          "position": position}
+                samples.append(sample)
+        elif formatVersion == 2.0:
+            for tai, mjd, position in zip(self.time_tai, self.time_mjd, self.position):
+                sample = {"tai": {"isot": tai, "mjd": mjd},
+                          "position": position}
+                samples.append(sample)
+        else:
+            raise RuntimeError(f"Unknown file version: {formatVersion}")
+
         return samples
 
-    def readHallTransitions(self, inputTransitions):
+    def readHallTransitions(self, inputTransitions, formatVersion):
         """Read a list of input samples into the calibration.
 
         Parameters
         ----------
         inputTransitions : `list` [`dict` [`str` `str`]]
             List of dictionaries of transitions.
+        formatVersion : `float`
+            Version of the file format to read.
 
         Raises
         ------
         RuntimeError
-            Raised if the calibration has already read samples.
+            Raised if the calibration has already read samples, or if
+            the format is not known.
         """
         if len(self.hall_time_tai) != 0:
             raise RuntimeError("Cannot re-read alreday-read calibration.")
 
-        for transition in inputTransitions:
-            self.hall_time_tai.append(transition["time"]["tai"])
-            self.hall_time_mjd.append(transition["time"]["mjd"])
-            self.hall_position.append(transition["position"])
-            self.hall_sensorId.append(transition["sensorId"])
-            self.hall_isOn.append(bool(transition["isOn"]))
+        if formatVersion == 1.0:
+            for transition in inputTransitions:
+                self.hall_time_tai.append(transition["time"]["tai"])
+                self.hall_time_mjd.append(transition["time"]["mjd"])
+                self.hall_position.append(transition["position"])
+                self.hall_sensorId.append(transition["sensorId"])
+                self.hall_isOn.append(bool(transition["isOn"]))
+        elif formatVersion == 2.0:
+            for transition in inputTransitions:
+                self.hall_time_tai.append(transition["tai"]["isot"])
+                self.hall_time_mjd.append(transition["tai"]["mjd"])
+                self.hall_position.append(transition["position"])
+                self.hall_sensorId.append(transition["sensorId"])
+                self.hall_isOn.append(bool(transition["isOn"]))
+        else:
+            raise RuntimeError(f"Unknown file version: {formatVersion}")
 
     def writeHallTransitions(self):
         """Return list of samples as dictionaries.
@@ -429,17 +495,27 @@ class ShutterMotionProfile(IsrCalib):
         if len(self.hall_time_tai) == 0:
             raise RuntimeError("Cannot export empty calibration.")
 
+        formatVersion = self.metadata['version']
+        if formatVersion not in (1.0, 2.0):
+            raise RuntimeError(f"Unknown file version: {formatVersion}")
         transitions = []
+
         for tai, mjd, position, sensorId, isOn in zip(
                 self.hall_time_tai,
                 self.hall_time_mjd,
                 self.hall_position,
                 self.hall_sensorId,
                 self.hall_isOn):
-            transition = {"time": {"tai": tai, "mjd": mjd},
-                          "position": position,
-                          "sensorId": sensorId,
-                          "isOn": isOn}
+            if formatVersion == 1.0:
+                transition = {"time": {"tai": tai, "mjd": mjd},
+                              "position": position,
+                              "sensorId": sensorId,
+                              "isOn": isOn}
+            elif formatVersion == 2.0:
+                transition = {"tai": {"isot": tai, "mjd": mjd},
+                              "position": position,
+                              "sensorId": sensorId,
+                              "isOn": isOn}
             transitions.append(transition)
         return transitions
 
