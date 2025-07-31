@@ -178,7 +178,7 @@ class ShutterMotionProfile(IsrCalib):
         calib = cls()
 
         if calib._OBSTYPE != dictionary['fileType']:
-            raise RuntimeError(f"Incorrect photodiode supplied.  Expected {calib._OBSTYPE}, "
+            raise RuntimeError(f"Incorrect calibration supplied.  Expected {calib._OBSTYPE}, "
                                f"found {dictionary['OBSTYPE']}")
         motionProfile = dictionary.pop('motionProfile')
 
