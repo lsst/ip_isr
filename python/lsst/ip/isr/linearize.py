@@ -118,7 +118,8 @@ class Linearizer(IsrCalib):
     inputGroupingIndex : `dict` [`str`, `np.ndarray`], optional
         Input grouping index used for fitting.
     inputNormalization : `dict` [`str`, `np.ndarray`], optional
-        Input normalization for abscissa for fit.
+        Input normalization that was applied to the abscissa for
+        each pair from the PTC used for the linearization fit.
 
     Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
     Version 1.5 adds ``fitResidualsUnmasked``, ``inputAbscissa``,
