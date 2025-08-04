@@ -76,7 +76,7 @@ class Linearizer(IsrCalib):
         Whether the detector parameters should be overridden.
     ampNames : `list` [`str`]
         List of amplifier names to correct.
-    linearityCoeffs : `dict` [`str`, `numpy.array`]
+    linearityCoeffs : `dict` [`str`, `np.ndarray`]
         Coefficients to use in correction.  Indexed by amplifier
         names.  The format of the array depends on the type of
         correction to apply.
@@ -85,30 +85,50 @@ class Linearizer(IsrCalib):
     linearityBBox : `dict` [`str`, `lsst.geom.Box2I`]
         Bounding box the correction is valid over, indexed by
         amplifier names.
-    fitParams : `dict` [`str`, `numpy.array`], optional
+    fitParams : `dict` [`str`, `np.ndarray`], optional
         Linearity fit parameters used to construct the correction
         coefficients, indexed as above.
-    fitParamsErr : `dict` [`str`, `numpy.array`], optional
+    fitParamsErr : `dict` [`str`, `np.ndarray`], optional
         Uncertainty values of the linearity fit parameters used to
         construct the correction coefficients, indexed as above.
     fitChiSq : `dict` [`str`, `float`], optional
         Chi-squared value of the linearity fit, indexed as above.
-    fitResiduals : `dict` [`str`, `numpy.array`], optional
+    fitResiduals : `dict` [`str`, `np.ndarray`], optional
         Residuals of the fit, indexed as above. Used for
-        calculating photdiode corrections
+        calculating photodiode corrections
     fitResidualsSigmaMad : `dict` [`str`, `float`], optional
         Robust median-absolute-deviation of fit residuals, scaled
         by the signal level.
+    fitResidualsUnmasked : `dict` [`str`, `np.ndarray`], optional
+        Same as fitResiduals, but all outliers are included and
+        not masked as nans.
+    fitResidualsModel : `dict` [`str`, `np.ndarray`], optional
+        The model count level for each of the fitResiduals.
     linearFit : The linear fit to the low flux region of the curve.
         [intercept, slope].
-    tableData : `numpy.array`, optional
+    tableData : `np.ndarray`, optional
         Lookup table data for the linearity correction.
+    inputAbscissa : `dict` [`str`, `np.ndarray`], optional
+        Input abscissa used to construct linearizer (usually photodiode
+        or exposure time).
+    inputOrdinate : `dict` [`str`, `np.ndarray`], optional
+        Input ordinate used to construct linearizer (raw mean counts).
+    inputMask : `dict` [`str`, `np.ndarray`], optional
+        Input mask used for the fitting.
+    inputGroupingIndex : `dict` [`str`, `np.ndarray`], optional
+        Input grouping index used for fitting.
+    inputNormalization : `dict` [`str`, `np.ndarray`], optional
+        Input normalization that was applied to the abscissa for
+        each pair from the PTC used for the linearization fit.
 
     Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
+    Version 1.5 adds ``fitResidualsUnmasked``, ``inputAbscissa``,
+        ``inputOrdinate``, ``inputMask``, ``inputGroupingIndex``,
+        ``fitResidualsModel``, and ``inputNormalization``.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.4
+    _VERSION = 1.5
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -118,11 +138,18 @@ class Linearizer(IsrCalib):
         self.linearityCoeffs = dict()
         self.linearityType = dict()
         self.linearityBBox = dict()
+        self.inputAbscissa = dict()
+        self.inputOrdinate = dict()
+        self.inputMask = dict()
+        self.inputGroupingIndex = dict()
+        self.inputNormalization = dict()
         self.fitParams = dict()
         self.fitParamsErr = dict()
         self.fitChiSq = dict()
         self.fitResiduals = dict()
         self.fitResidualsSigmaMad = dict()
+        self.fitResidualsUnmasked = dict()
+        self.fitResidualsModel = dict()
         self.linearFit = dict()
         self.linearityTurnoff = dict()
         self.linearityMaxSignal = dict()
@@ -144,7 +171,10 @@ class Linearizer(IsrCalib):
                                         'linearityCoeffs', 'linearityType', 'linearityBBox',
                                         'fitParams', 'fitParamsErr', 'fitChiSq',
                                         'fitResiduals', 'fitResidualsSigmaMad', 'linearFit', 'tableData',
-                                        'units', 'linearityTurnoff', 'linearityMaxSignal'])
+                                        'units', 'linearityTurnoff', 'linearityMaxSignal',
+                                        'fitResidualsUnmasked', 'inputAbscissa', 'inputOrdinate',
+                                        'inputMask', 'inputGroupingIndex', 'fitResidualsModel',
+                                        'inputNormalization'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -244,11 +274,19 @@ class Linearizer(IsrCalib):
                 calib.linearityType[ampName] = amp.get('linearityType', 'None')
                 calib.linearityBBox[ampName] = amp.get('linearityBBox', None)
 
+                calib.inputAbscissa[ampName] = np.array(amp.get('inputAbscissa', [0.0]))
+                calib.inputOrdinate[ampName] = np.array(amp.get('inputOrdinate', [0.0]))
+                calib.inputMask[ampName] = np.array(amp.get('inputMask', [False]))
+                calib.inputGroupingIndex[ampName] = np.array(amp.get('inputGroupingIndex', [0.0]))
+                calib.inputNormalization[ampName] = np.array(amp.get('inputNormalization', [1.0]))
+
                 calib.fitParams[ampName] = np.array(amp.get('fitParams', [0.0]))
                 calib.fitParamsErr[ampName] = np.array(amp.get('fitParamsErr', [0.0]))
                 calib.fitChiSq[ampName] = amp.get('fitChiSq', np.nan)
                 calib.fitResiduals[ampName] = np.array(amp.get('fitResiduals', [0.0]))
                 calib.fitResidualsSigmaMad[ampName] = np.array(amp.get('fitResidualsSigmaMad', np.nan))
+                calib.fitResidualsUnmasked[ampName] = np.array(amp.get('fitResidualsUnmasked', [0.0]))
+                calib.fitResidualsModel[ampName] = np.array(amp.get('fitResidualsModel', [0.0]))
                 calib.linearFit[ampName] = np.array(amp.get('linearFit', [0.0]))
 
                 calib.linearityTurnoff[ampName] = np.array(amp.get('linearityTurnoff', np.nan))
@@ -282,11 +320,18 @@ class Linearizer(IsrCalib):
                 'linearityType': self.linearityType[ampName],
                 'linearityCoeffs': self.linearityCoeffs[ampName].tolist(),
                 'linearityBBox': self.linearityBBox[ampName],
+                'inputAbscissa': self.inputAbscissa[ampName].tolist(),
+                'inputOrdinate': self.inputOrdinate[ampName].tolist(),
+                'inputMask': self.inputMask[ampName].tolist(),
+                'inputGroupingIndex': self.inputGroupingIndex[ampName].tolist(),
+                'inputNormalization': self.inputNormalization[ampName].tolist(),
                 'fitParams': self.fitParams[ampName].tolist(),
                 'fitParamsErr': self.fitParamsErr[ampName].tolist(),
                 'fitChiSq': self.fitChiSq[ampName],
                 'fitResiduals': self.fitResiduals[ampName].tolist(),
-                'fitResidualsSigmaMad': self.fitResiduals[ampName],
+                'fitResidualsSigmaMad': self.fitResidualsSigmaMad[ampName],
+                'fitResidualsUnmasked': self.fitResidualsUnmasked[ampName].tolist(),
+                'fitResidualsModel': self.fitResidualsModel[ampName].tolist(),
                 'linearFit': self.linearFit[ampName].tolist(),
                 'linearityTurnoff': self.linearityTurnoff[ampName],
                 'linearityMaxSignal': self.linearityMaxSignal[ampName],
@@ -337,11 +382,22 @@ class Linearizer(IsrCalib):
         for record in coeffTable:
             ampName = record['AMPLIFIER_NAME']
 
+            inputAbscissa = record['INP_ABSCISSA'] if 'INP_ABSCISSA' in record.columns else np.array([0.0])
+            inputOrdinate = record['INP_ORDINATE'] if 'INP_ORDINATE' in record.columns else np.array([0.0])
+            inputMask = record['INP_MASK'] if 'INP_MASK' in record.columns else np.array([False])
+            inputGroupingIndex = record['INP_GROUPING_INDEX'] if 'INP_GROUPING_INDEX' in record.columns \
+                else np.array([0])
+            inputNormalization = record['INP_NORMALIZATION'] if 'INP_NORMALIZATION' in record.columns \
+                else np.array([1.0])
             fitParams = record['FIT_PARAMS'] if 'FIT_PARAMS' in record.columns else np.array([0.0])
             fitParamsErr = record['FIT_PARAMS_ERR'] if 'FIT_PARAMS_ERR' in record.columns else np.array([0.0])
             fitChiSq = record['RED_CHI_SQ'] if 'RED_CHI_SQ' in record.columns else np.nan
             fitResiduals = record['FIT_RES'] if 'FIT_RES' in record.columns else np.array([0.0])
             fitResidualsSigmaMad = record['FIT_RES_SIGMAD'] if 'FIT_RES_SIGMAD' in record.columns else np.nan
+            fitResidualsUnmasked = record['FIT_RES_UNMASKED'] \
+                if 'FIT_RES_UNMASKED' in record.columns else np.array([0.0])
+            fitResidualsModel = record['FIT_RES_MODEL'] \
+                if 'FIT_RES_MODEL' in record.columns else np.array([0.0])
             linearFit = record['LIN_FIT'] if 'LIN_FIT' in record.columns else np.array([0.0])
 
             linearityTurnoff = record['LINEARITY_TURNOFF'] if 'LINEARITY_TURNOFF' in record.columns \
@@ -354,11 +410,18 @@ class Linearizer(IsrCalib):
                 'linearityCoeffs': record['COEFFS'],
                 'linearityBBox': Box2I(Point2I(record['BBOX_X0'], record['BBOX_Y0']),
                                        Extent2I(record['BBOX_DX'], record['BBOX_DY'])),
+                'inputAbscissa': inputAbscissa,
+                'inputOrdinate': inputOrdinate,
+                'inputMask': inputMask,
+                'inputGroupingIndex': inputGroupingIndex,
+                'inputNormalization': inputNormalization,
                 'fitParams': fitParams,
                 'fitParamsErr': fitParamsErr,
                 'fitChiSq': fitChiSq,
                 'fitResiduals': fitResiduals,
                 'fitResidualsSigmaMad': fitResidualsSigmaMad,
+                'fitResidualsUnmasked': fitResidualsUnmasked,
+                'fitResidualsModel': fitResidualsModel,
                 'linearFit': linearFit,
                 'linearityTurnoff': linearityTurnoff,
                 'linearityMaxSignal': linearityMaxSignal,
@@ -393,11 +456,18 @@ class Linearizer(IsrCalib):
                           'BBOX_Y0': self.linearityBBox[ampName].getMinY(),
                           'BBOX_DX': self.linearityBBox[ampName].getWidth(),
                           'BBOX_DY': self.linearityBBox[ampName].getHeight(),
+                          'INP_ABSCISSA': self.inputAbscissa[ampName],
+                          'INP_ORDINATE': self.inputOrdinate[ampName],
+                          'INP_MASK': self.inputMask[ampName],
+                          'INP_GROUPING_INDEX': self.inputGroupingIndex[ampName],
+                          'INP_NORMALIZATION': self.inputNormalization[ampName],
                           'FIT_PARAMS': self.fitParams[ampName],
                           'FIT_PARAMS_ERR': self.fitParamsErr[ampName],
                           'RED_CHI_SQ': self.fitChiSq[ampName],
                           'FIT_RES': self.fitResiduals[ampName],
                           'FIT_RES_SIGMAD': self.fitResidualsSigmaMad[ampName],
+                          'FIT_RES_UNMASKED': self.fitResidualsUnmasked[ampName],
+                          'FIT_RES_MODEL': self.fitResidualsModel[ampName],
                           'LIN_FIT': self.linearFit[ampName],
                           'LINEARITY_TURNOFF': self.linearityTurnoff[ampName],
                           'LINEARITY_MAX_SIGNAL': self.linearityMaxSignal[ampName],
@@ -593,9 +663,9 @@ class LinearizeBase(metaclass=abc.ABCMeta):
             Dictionary of parameter keywords:
 
             ``coeffs``
-                Coefficient vector (`list` or `numpy.array`).
+                Coefficient vector (`list` or `np.ndarray`).
             ``table``
-                Lookup table data (`numpy.array`).
+                Lookup table data (`np.ndarray`).
             ``log``
                 Logger to handle messages (`logging.Logger`).
 
@@ -646,9 +716,9 @@ class LinearizeLookupTable(LinearizeBase):
             Dictionary of parameter keywords:
 
             ``coeffs``
-                Columnation vector (`list` or `numpy.array`).
+                Columnation vector (`list` or `np.ndarray`).
             ``table``
-                Lookup table data (`numpy.array`).
+                Lookup table data (`np.ndarray`).
             ``log``
                 Logger to handle messages (`logging.Logger`).
 
@@ -720,7 +790,7 @@ class LinearizePolynomial(LinearizeBase):
             Dictionary of parameter keywords:
 
             ``coeffs``
-                Coefficient vector (`list` or `numpy.array`).
+                Coefficient vector (`list` or `np.ndarray`).
                 If the order of the polynomial is n, this list
                 should have a length of n-1 ("k0" and "k1" are
                 not needed for the correction).
@@ -768,7 +838,7 @@ class LinearizeSquared(LinearizeBase):
             Dictionary of parameter keywords:
 
             ``coeffs``
-                Coefficient vector (`list` or `numpy.array`).
+                Coefficient vector (`list` or `np.ndarray`).
             ``log``
                 Logger to handle messages (`logging.Logger`).
 
@@ -815,7 +885,7 @@ class LinearizeSpline(LinearizeBase):
             Dictionary of parameter keywords:
 
             ``coeffs``
-                Coefficient vector (`list` or `numpy.array`).
+                Coefficient vector (`list` or `np.ndarray`).
             ``log``
                 Logger to handle messages (`logging.Logger`).
             ``gain``
@@ -871,7 +941,7 @@ class LinearizeProportional(LinearizeBase):
             Dictionary of parameter keywords:
 
             ``coeffs``
-                Coefficient vector (`list` or `numpy.array`).
+                Coefficient vector (`list` or `np.ndarray`).
             ``log``
                 Logger to handle messages (`logging.Logger`).
 
@@ -901,7 +971,7 @@ class LinearizeNone(LinearizeBase):
             Dictionary of parameter keywords:
 
             ``coeffs``
-                Coefficient vector (`list` or `numpy.array`).
+                Coefficient vector (`list` or `np.ndarray`).
             ``log``
                 Logger to handle messages (`logging.Logger`).
 
