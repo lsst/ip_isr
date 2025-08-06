@@ -42,8 +42,8 @@ class ShutterMotionProfile(IsrCalib):
         Additional parameters.
     """
 
-    _OBSTYPE = 'shutterMotionProfile'
-    _SCHEMA = 'ShutterMotionProfile'
+    _OBSTYPE = "shutterMotionProfile"
+    _SCHEMA = "ShutterMotionProfile"
     _VERSION = 1.0
 
     def __init__(self, **kwargs):
@@ -66,19 +66,20 @@ class ShutterMotionProfile(IsrCalib):
         self.fit_jerk1 = []
         self.fit_jerk2 = []
 
-        self.requiredAttributes.update(['time_tai', 'time_mjd', 'position',
-                                        'hall_time_tai', 'hall_time_mjd', 'hall_position',
-                                        'hall_sensorId', 'hall_isOn',
-                                        'fit_name', 'fit_start_time', 'fit_pivot1',
-                                        'fit_pivot2', 'fit_jerk0', 'fit_jerk1', 'fit_jerk2',
+        self.requiredAttributes.update(["time_tai", "time_mjd", "position",
+                                        "hall_time_tai", "hall_time_mjd", "hall_position",
+                                        "hall_sensorId", "hall_isOn",
+                                        "fit_name", "fit_start_time", "fit_pivot1",
+                                        "fit_pivot2", "fit_jerk0", "fit_jerk1", "fit_jerk2",
                                         ])
 
     def calculateMidpoint(self, modelName="hallSensorFit"):
         """Calculate time of midpoint of travel for this profile.
 
-        Derived from Shuang Liang's CTN-002.  Equation numbers listed
-        are from this document.  As the fits have already been done,
-        we can ignore the raw position/Hall sensor data.
+        Derived from Shuang Liang's CTN-002 (https://ctn-002.lsst.io).
+        Equation numbers listed are from this document.  As the fits
+        have already been done, we can ignore the raw position/Hall
+        sensor data.
 
         Parameters
         ----------
@@ -103,7 +104,6 @@ class ShutterMotionProfile(IsrCalib):
             Raised if the requested ``modelName`` is not found in the
             calibration.
         """
-        # I think these are all "six-parameter" models.
         modelIndex = -1
         for idx, name in enumerate(self.fit_name):
             if name == modelName:
@@ -141,7 +141,7 @@ class ShutterMotionProfile(IsrCalib):
         # start and final position.  Equation (5.2).
         V1 = t1**2 * (j0 - j1)/2. - t1*A1
         S1 = t1**3 * (j0 - j1)/6. - t1**2 * A1/2. - t1*V1
-        Smid = 0.5*(self.metadata['startPosition'] + self.metadata['endPosition'])
+        Smid = 0.5*(self.metadata["startPosition"] + self.metadata["endPosition"])
 
         def pos(t):
             return j1*(t**3)/6. + A1*(t**2)/2. + V1*t + S1 - Smid
@@ -177,28 +177,30 @@ class ShutterMotionProfile(IsrCalib):
         """
         calib = cls()
 
-        if calib._OBSTYPE != dictionary['fileType']:
+        if calib._OBSTYPE != dictionary["fileType"]:
             raise RuntimeError(f"Incorrect calibration supplied.  Expected {calib._OBSTYPE}, "
                                f"found {dictionary['OBSTYPE']}")
-        motionProfile = dictionary.pop('motionProfile')
+        motionProfile = dictionary.pop("motionProfile")
 
         encodeSamples = motionProfile.pop("encodeSamples")
         hallTransitions = motionProfile.pop("hallTransitions")
         fitResults = motionProfile.pop("fitResults")
 
-        if 'metadata' in dictionary:
-            metadata = dictionary.pop('metadata')
+        if "metadata" in dictionary:
+            metadata = dictionary.pop("metadata")
             for key, value in metadata.items():
                 dictionary[key] = value
         calib.setMetadata(dictionary)
 
-        formatVersion = calib.metadata['version']
+        formatVersion = calib.metadata["version"]
 
         startTime = motionProfile.pop("startTime")
         if formatVersion == 1.0:
+            # Original format.
             motionProfile["startTime_tai"] = startTime["tai"]
             motionProfile["startTime_mjd"] = startTime["mjd"]
         else:
+            # Update to clarify all times are in the TAI system.
             motionProfile["startTime_tai"] = startTime["tai"]["isot"]
             motionProfile["startTime_mjd"] = startTime["tai"]["mjd"]
 
@@ -221,53 +223,64 @@ class ShutterMotionProfile(IsrCalib):
             Dictionary of properties.
         """
         self.updateMetadata()
-        formatVersion = self.metadata['version']
+        formatVersion = self.metadata["version"]
 
         if formatVersion == 1.0:
-            outDict = {"fileName": self.metadata["fileName"],
-                       "fileType": self.metadata["fileType"],
-                       "metadata": {
-                           "CALIBCLS": "lsst.ip.isr.ShutterMotionProfile",
-                           "OBSTYPE": self._OBSTYPE, },
-                       "obsId": self.metadata["obsId"],
-                       "version": self.metadata.get("version", -1),
-                       "motionProfile": {
-                           "startTime": {
-                               "tai": self.metadata["startTime_tai"],
-                               "mjd": self.metadata["startTime_mjd"], },
-                           "startPosition": self.metadata["startPosition"],
-                           "targetPosition": self.metadata["targetPosition"],
-                           "endPosition": self.metadata["endPosition"],
-                           "targetDuration": self.metadata["targetDuration"],
-                           "actionDuration": self.metadata["actionDuration"],
-                           "side": self.metadata["side"],
-                           "isOpen": self.metadata["isOpen"],
-                           "encodeSamples": self.writeEncodeSamples(),
-                           "hallTransitions": self.writeHallTransitions(),
-                           "fitResults": self.writeFitResults(), }, }
+            outDict = {
+                "fileName": self.metadata["fileName"],
+                "fileType": self.metadata["fileType"],
+                "metadata": {
+                    "CALIBCLS": "lsst.ip.isr.ShutterMotionProfile",
+                    "OBSTYPE": self._OBSTYPE,
+                },
+                "obsId": self.metadata["obsId"],
+                "version": self.metadata.get("version", -1),
+                "motionProfile": {
+                    "startTime": {
+                        "tai": self.metadata["startTime_tai"],
+                        "mjd": self.metadata["startTime_mjd"],
+                    },
+                    "startPosition": self.metadata["startPosition"],
+                    "targetPosition": self.metadata["targetPosition"],
+                    "endPosition": self.metadata["endPosition"],
+                    "targetDuration": self.metadata["targetDuration"],
+                    "actionDuration": self.metadata["actionDuration"],
+                    "side": self.metadata["side"],
+                    "isOpen": self.metadata["isOpen"],
+                    "encodeSamples": self.writeEncodeSamples(),
+                    "hallTransitions": self.writeHallTransitions(),
+                    "fitResults": self.writeFitResults(),
+                },
+            }
         elif formatVersion == 2.0:
-            outDict = {"fileName": self.metadata["fileName"],
-                       "fileType": self.metadata["fileType"],
-                       "metadata": {
-                           "CALIBCLS": "lsst.ip.isr.ShutterMotionProfile",
-                           "OBSTYPE": self._OBSTYPE, },
-                       "obsId": self.metadata["obsId"],
-                       "version": self.metadata.get("version", -1),
-                       "motionProfile": {
-                           "startTime": {
-                               "tai": {
-                                   "isot": self.metadata["startTime_tai"],
-                                   "mjd": self.metadata["startTime_mjd"], }, },
-                           "startPosition": self.metadata["startPosition"],
-                           "targetPosition": self.metadata["targetPosition"],
-                           "endPosition": self.metadata["endPosition"],
-                           "targetDuration": self.metadata["targetDuration"],
-                           "actionDuration": self.metadata["actionDuration"],
-                           "side": self.metadata["side"],
-                           "isOpen": self.metadata["isOpen"],
-                           "encodeSamples": self.writeEncodeSamples(),
-                           "hallTransitions": self.writeHallTransitions(),
-                           "fitResults": self.writeFitResults(), }, }
+            outDict = {
+                "fileName": self.metadata["fileName"],
+                "fileType": self.metadata["fileType"],
+                "metadata": {
+                    "CALIBCLS": "lsst.ip.isr.ShutterMotionProfile",
+                    "OBSTYPE": self._OBSTYPE,
+                },
+                "obsId": self.metadata["obsId"],
+                "version": self.metadata.get("version", -1),
+                "motionProfile": {
+                    "startTime": {
+                        "tai": {
+                            "isot": self.metadata["startTime_tai"],
+                            "mjd": self.metadata["startTime_mjd"],
+                        },
+                    },
+                    "startPosition": self.metadata["startPosition"],
+                    "targetPosition": self.metadata["targetPosition"],
+                    "endPosition": self.metadata["endPosition"],
+                    "targetDuration": self.metadata["targetDuration"],
+                    "actionDuration": self.metadata["actionDuration"],
+                    "side": self.metadata["side"],
+                    "isOpen": self.metadata["isOpen"],
+                    "encodeSamples": self.writeEncodeSamples(),
+                    "hallTransitions": self.writeHallTransitions(),
+                    "fitResults": self.writeFitResults(),
+                },
+            }
         else:
             raise RuntimeError(f"Unknown file version: {formatVersion}")
         return outDict
@@ -424,7 +437,7 @@ class ShutterMotionProfile(IsrCalib):
         if len(self.time_tai) == 0:
             raise RuntimeError("Cannot export empty calibration.")
 
-        formatVersion = self.metadata['version']
+        formatVersion = self.metadata["version"]
 
         samples = []
         if formatVersion == 1.0:
@@ -495,7 +508,7 @@ class ShutterMotionProfile(IsrCalib):
         if len(self.hall_time_tai) == 0:
             raise RuntimeError("Cannot export empty calibration.")
 
-        formatVersion = self.metadata['version']
+        formatVersion = self.metadata["version"]
         if formatVersion not in (1.0, 2.0):
             raise RuntimeError(f"Unknown file version: {formatVersion}")
         transitions = []
