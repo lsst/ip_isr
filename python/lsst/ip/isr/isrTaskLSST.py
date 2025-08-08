@@ -1712,8 +1712,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # This ID is a unique combination of {exposure, detector} for a raw
         # image as we have here. We additionally need to take the lower
         # 32 bits to be used as a random seed.
-        seed = exposure.info.id & 0xFFFFFFFF
-        if seed is None:
+        if exposure.info.id is not None:
+            seed = exposure.info.id & 0xFFFFFFFF
+        else:
             seed = fallbackSeed
             self.log.warning("No exposure ID found; using fallback random seed.")
 
