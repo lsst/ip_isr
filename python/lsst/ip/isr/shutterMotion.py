@@ -26,7 +26,7 @@ __all__ = ["ShutterMotionProfile"]
 
 from astropy.table import Table
 from scipy.optimize import newton
-from numpy import nan
+import numpy as np
 
 from lsst.ip.isr import IsrCalib
 
@@ -135,7 +135,7 @@ class ShutterMotionProfile(IsrCalib):
             tm_accel = newton(acc, 0.5*(t2 + t1))
         except Exception as e:
             self.log.warn(f"Midpoint calculation (from acceleration) failed to converge: {e}")
-            tm_accel = nan
+            tm_accel = np.nan
 
         # Second estimate of midpoint, when s is halfway betweeen
         # start and final position.  Equation (5.2).
@@ -150,7 +150,7 @@ class ShutterMotionProfile(IsrCalib):
             tm_position = newton(pos, tm_accel)
         except Exception as e:
             self.log.warn(f"Midpoint calculation (from position) failed to converge: {e}")
-            tm_position = nan
+            tm_position = np.nan
 
         # Restore t0 so these can be compared to raw timestamps.
         return tm_accel + t0, tm_position + t0
@@ -313,24 +313,31 @@ class ShutterMotionProfile(IsrCalib):
         metadata = samples.meta
 
         calib = cls()
-        calib.time_tai = samples["TIME_TAI"]
-        calib.time_mjd = samples["TIME_MJD"]
-        calib.position = samples["POSITION"]
+        calib.time_tai = np.squeeze(samples["TIME_TAI"].data).tolist()
+        if hasattr(calib.time_tai[0], "decode"):
+            calib.time_tai = [time.decode("utf-8") for time in calib.time_tai]
+        calib.time_mjd = np.squeeze(samples["TIME_MJD"].data).tolist()
+        calib.position = np.squeeze(samples["POSITION"].data).tolist()
 
-        calib.hall_time_tai = transitions["HALL_TIME_TAI"]
-        calib.hall_time_mjd = transitions["HALL_TIME_MJD"]
-        calib.hall_position = transitions["HALL_POSITION"]
-        calib.hall_sensorId = transitions["HALL_SENSORID"]
-        calib.hall_isOn = transitions["HALL_ISON"]
+        calib.hall_time_tai = np.squeeze(transitions["HALL_TIME_TAI"].data).tolist()
+        if hasattr(calib.hall_time_tai[0], "decode"):
+            calib.hall_time_tai = [time.decode("utf-8") for time in calib.hall_time_tai]
+        calib.hall_time_mjd = np.squeeze(transitions["HALL_TIME_MJD"].data).tolist()
+        calib.hall_position = np.squeeze(transitions["HALL_POSITION"].data).tolist()
+        calib.hall_sensorId = np.squeeze(transitions["HALL_SENSORID"].data).tolist()
+        calib.hall_isOn = np.squeeze(transitions["HALL_ISON"].data).tolist()
 
         calib.fit_model = modelFits.meta["FIT_MODEL"]
-        calib.fit_name = modelFits["FIT_NAME"]
-        calib.fit_start_time = modelFits["FIT_START_TIME"]
-        calib.fit_pivot1 = modelFits["FIT_PIVOT1"]
-        calib.fit_pivot2 = modelFits["FIT_PIVOT2"]
-        calib.fit_jerk0 = modelFits["FIT_JERK0"]
-        calib.fit_jerk1 = modelFits["FIT_JERK1"]
-        calib.fit_jerk2 = modelFits["FIT_JERK2"]
+
+        calib.fit_name = np.squeeze(modelFits["FIT_NAME"].data).tolist()
+        if hasattr(calib.fit_name[0], "decode"):
+            calib.fit_name = [fit.decode("utf-8") for fit in calib.fit_name]
+        calib.fit_start_time = np.squeeze(modelFits["FIT_START_TIME"].data).tolist()
+        calib.fit_pivot1 = np.squeeze(modelFits["FIT_PIVOT1"].data).tolist()
+        calib.fit_pivot2 = np.squeeze(modelFits["FIT_PIVOT2"].data).tolist()
+        calib.fit_jerk0 = np.squeeze(modelFits["FIT_JERK0"].data).tolist()
+        calib.fit_jerk1 = np.squeeze(modelFits["FIT_JERK1"].data).tolist()
+        calib.fit_jerk2 = np.squeeze(modelFits["FIT_JERK2"].data).tolist()
 
         if "OBSTYPE" not in metadata:
             metadata["OBSTYPE"] = cls._OBSTYPE
@@ -365,21 +372,35 @@ class ShutterMotionProfile(IsrCalib):
         """
         self.updateMetadata()
 
-        samples = Table([{"TIME_TAI": self.time_tai,
-                          "TIME_MJD": self.time_mjd,
-                          "POSITION": self.position}])
-        transitions = Table([{"HALL_TIME_TAI": self.hall_time_tai,
-                              "HALL_TIME_MJD": self.hall_time_mjd,
-                              "HALL_POSITION": self.hall_position,
-                              "HALL_SENSORID": self.hall_sensorId,
-                              "HALL_ISON": self.hall_isOn}])
-        modelFits = Table([{"FIT_NAME": self.fit_name,
-                            "FIT_START_TIME": self.fit_start_time,
-                            "FIT_PIVOT1": self.fit_pivot1,
-                            "FIT_PIVOT2": self.fit_pivot2,
-                            "FIT_JERK0": self.fit_jerk0,
-                            "FIT_JERK1": self.fit_jerk1,
-                            "FIT_JERK2": self.fit_jerk2}])
+        samples = Table(
+            {"TIME_TAI": np.array(self.time_tai).tolist(),
+             "TIME_MJD": np.array(self.time_mjd).tolist(),
+             "POSITION": np.array(self.position).tolist()},
+            names=("TIME_TAI", "TIME_MJD", "POSITION"),
+            dtype=("U32", "f8", "f8")
+        )
+        transitions = Table(
+            {"HALL_TIME_TAI": np.array(self.hall_time_tai).tolist(),
+             "HALL_TIME_MJD": np.array(self.hall_time_mjd).tolist(),
+             "HALL_POSITION": np.array(self.hall_position).tolist(),
+             "HALL_SENSORID": np.array(self.hall_sensorId).tolist(),
+             "HALL_ISON": np.array(self.hall_isOn).tolist()},
+            names=("HALL_TIME_TAI", "HALL_TIME_MJD", "HALL_POSITION",
+                   "HALL_SENSORID", "HALL_ISON"),
+            dtype=("U32", "f8", "f8", "i4", "?")
+        )
+        modelFits = Table(
+            {"FIT_NAME": np.array(self.fit_name).tolist(),
+             "FIT_START_TIME": np.array(self.fit_start_time).tolist(),
+             "FIT_PIVOT1": np.array(self.fit_pivot1).tolist(),
+             "FIT_PIVOT2": np.array(self.fit_pivot2).tolist(),
+             "FIT_JERK0": np.array(self.fit_jerk0).tolist(),
+             "FIT_JERK1": np.array(self.fit_jerk1).tolist(),
+             "FIT_JERK2": np.array(self.fit_jerk2).tolist()},
+            names=("FIT_NAME", "FIT_START_TIME", "FIT_PIVOT1", "FIT_PIVOT2",
+                   "FIT_JERK0", "FIT_JERK1", "FIT_JERK2"),
+            dtype=("U32", "f8", "f8", "f8", "f8", "f8", "f8")
+        )
         modelFits.meta["FIT_MODEL"] = self.fit_model
 
         inMeta = self.getMetadata().toDict()
@@ -550,6 +571,8 @@ class ShutterMotionProfile(IsrCalib):
         self.fit_model = fitResults.pop("Model")
 
         for fitName, fitModel in fitResults.items():
+            if hasattr(fitName, "decode"):
+                fitName = fitName.decode("utf-8")
             self.fit_name.append(fitName)
             self.fit_start_time.append(fitModel["ModelStartTime"])
             self.fit_pivot1.append(fitModel["PivotPoint1"])

@@ -47,8 +47,6 @@ class ShutterMotionV1TestCase(lsst.utils.tests.TestCase):
         self.assertEqual(self.calib, newCalib)
 
     def testMidpointCalculation(self):
-        """
-        """
         mid_accel, mid_position = self.calib.calculateMidpoint(modelName="hallSensorFit")
         self.assertFloatsAlmostEqual(mid_accel, 0.45052044442394185)
         self.assertFloatsAlmostEqual(mid_position, 0.44985220648315977)
@@ -77,8 +75,6 @@ class ShutterMotionV2TestCase(lsst.utils.tests.TestCase):
         self.assertEqual(self.calib, newCalib)
 
     def testMidpointCalculation(self):
-        """
-        """
         mid_accel, mid_position = self.calib.calculateMidpoint(modelName="hallSensorFit")
         self.assertFloatsAlmostEqual(mid_accel, 0.4503675064864023)
         self.assertFloatsAlmostEqual(mid_position, 0.45007949121581464)
