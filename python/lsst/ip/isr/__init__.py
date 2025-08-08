@@ -49,3 +49,4 @@ from .transmissionCurve import *
 from .ampOffset import *
 from .overscanAmpConfig import *
 from .binExposureTask import *
+from .flatGradient import *
