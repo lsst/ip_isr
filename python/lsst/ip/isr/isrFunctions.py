@@ -541,13 +541,21 @@ def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT", log=None):
 
     cc = numpy.sum(fpCore.getSpans().asArray(), axis=0)
     # Mask full columns that have 30 percent of the height of the footprint
-    # saturated
-    columnsToMaskFP = numpy.where(cc > fpCore.getSpans().asArray().shape[0]*0.3)
+    # saturated and only if the saturated footprint box is mostly vertical
+    ratioSatFP = fpCore.getSpans().asArray().shape[0]/fpCore.getSpans().asArray().shape[1]
 
-    columnsToMask = [x + int(fpCore.getBBox().getMinX()) for x in columnsToMaskFP]
+    if ratioSatFP > 0.5:
+        # We apply the masking if the saturation footprint has a width of
+        # at most twice the height, to avoid trigerring in the case of
+        # horizontal saturation box (e.g. in the case of a satellite trail).
+        columnsToMaskFP = numpy.where(cc > fpCore.getSpans().asArray().shape[0]*0.3)
 
-    log.info("Masking %d columns for saturation sag masking.", len(columnsToMask[0]))
-    maskedImage.mask.array[:, columnsToMask[0]] |= saturatedBit
+        columnsToMask = [x + int(fpCore.getBBox().getMinX()) for x in columnsToMaskFP]
+
+        log.info("Masking %d columns for saturation sag masking.", len(columnsToMask[0]))
+        maskedImage.mask.array[:, columnsToMask[0]] |= saturatedBit
+    else:
+        log.info("Saturated footprint too wide, no saturation sag masking applied.")
 
 
 def maskITLDip(exposure, detectorConfig, maskPlaneNames=["SUSPECT", "ITL_DIP"], log=None):
