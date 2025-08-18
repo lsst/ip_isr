@@ -513,6 +513,16 @@ class Defects(IsrCalib):
 
         return values[:n]
 
+    def defineReason(defectList):
+        reason = []
+        for i in range(len(defectList)):
+            reason.append('COLD_PIX')
+        return reason
+
+    def setReason(cls, reason):
+        cls.getReason = reason
+        return cls
+
     @classmethod
     def fromTable(cls, tableList, normalize_on_init=True):
         """Construct a `Defects` from the contents of a
@@ -605,7 +615,13 @@ class Defects(IsrCalib):
 
             defectList.append(box)
 
+        import IPython
+        IPython.embed()
         defects = cls(defectList, normalize_on_init=normalize_on_init)
+
+        defectsReason = defineReason(defectList)
+        unNormalizedDefects = cls(defectList, normalize_on_init=False)
+        setReason(unNormalizedDefects, defectsReason)
         newMeta = dict(table.meta)
         defects.updateMetadata(setCalibInfo=True, **newMeta)
 
