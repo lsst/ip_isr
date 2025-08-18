@@ -47,6 +47,7 @@ from .deferredCharge import *
 from .isrStatistics import *
 from .transmissionCurve import *
 from .ampOffset import *
+from .astier23BFcorr import *
 from .overscanAmpConfig import *
 from .binExposureTask import *
 from .flatGradient import *

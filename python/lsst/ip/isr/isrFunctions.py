@@ -68,6 +68,7 @@ import lsst.afw.cameraGeom as camGeom
 
 from lsst.afw.geom import SpanSet, Stencil
 from lsst.meas.algorithms.detection import SourceDetectionTask
+from .astier23BFcorr import BFCorr
 
 from contextlib import contextmanager
 
@@ -89,6 +90,20 @@ def createPsf(fwhm):
     """
     ksize = 4*int(fwhm) + 1
     return measAlg.DoubleGaussianPsf(ksize, ksize, fwhm/(2*math.sqrt(2*math.log(2))))
+
+def electrostaticModelBrighterFatterCorrection(exposure, applyGain, gains=None):
+    """Use BFE correction from electrostatic model in Astier+23"""
+    image = exposure.getMaskedImage().getImage()
+    # Change this file location
+    detectorName = exposure.detector.getName()
+    fileName = f"/sdf/home/a/astier/place/run7/E2016/{detectorName}/avalues.npy"
+    # The image needs to be units of electrons/holes
+    with gainContext(exposure, image, applyGain, gains):
+        bf_corr = BFCorr(fileName)
+        delta = bf_corr.DeltaImageFFT(image.getArray())
+        image.getArray()[:] -= delta[:]
+
+    return
 
 
 def transposeMaskedImage(maskedImage):
