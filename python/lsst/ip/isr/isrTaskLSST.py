@@ -539,6 +539,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Apply the brighter-fatter correction?",
         default=True,
     )
+    # Brighter-Fatter correction following Astier23+.
+    doAstier23 = pexConfig.Field(
+        dtype=bool,
+        doc="Correct science image following Astier23+",
+        default=False,
+    )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
         doc="The level at which to correct for brighter-fatter.",
@@ -1519,23 +1525,36 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             useLegacyInterp=self.config.useLegacyInterp,
         )
         bfExp = interpExp.clone()
-        bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
-                                                          self.config.brighterFatterMaxIter,
-                                                          self.config.brighterFatterThreshold,
-                                                          brighterFatterApplyGain,
-                                                          bfGains)
-        bfCorrIters = bfResults[1]
-        if bfCorrIters == self.config.brighterFatterMaxIter:
-            self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
-                             bfResults[0])
-        else:
-            self.log.info("Finished brighter-fatter correction in %d iterations.",
-                          bfResults[1])
 
-        image = ccdExposure.getMaskedImage().getImage()
-        bfCorr = bfExp.getMaskedImage().getImage()
-        bfCorr -= interpExp.getMaskedImage().getImage()
-        image += bfCorr
+        if not self.config.doAstier23:
+            bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
+                                                            self.config.brighterFatterMaxIter,
+                                                            self.config.brighterFatterThreshold,
+                                                            brighterFatterApplyGain,
+                                                            bfGains)
+            bfCorrIters = bfResults[1]
+            if bfCorrIters == self.config.brighterFatterMaxIter:
+                self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
+                                bfResults[0])
+            else:
+                self.log.info("Finished brighter-fatter correction in %d iterations.",
+                            bfResults[1])
+
+            image = ccdExposure.getMaskedImage().getImage()
+            bfCorr = bfExp.getMaskedImage().getImage()
+            bfCorr -= interpExp.getMaskedImage().getImage()
+            image += bfCorr
+        else:
+            # Use model in Astier+23
+            # bfExp is modified in place, like with the other methods
+            # above.
+            self.log.info("Applying brighter-fatter correction using model in Astier+23")
+            isrFunctions.electrostaticModelBrighterFatterCorrection(
+                bfExp,
+                brighterFatterApplyGain,
+                bfGains)
+            bfCorrIters = 1
+
 
         # Applying the brighter-fatter correction applies a
         # convolution to the science image. At the edges this
