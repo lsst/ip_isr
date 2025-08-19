@@ -83,6 +83,8 @@ class Defects(IsrCalib):
     def __init__(self, defectList=None, metadata=None, *, normalize_on_init=True, **kwargs):
         self._defects = []
 
+        # _defects is a list of tuples of meas and reason (0 is no reason assigned)
+
         if defectList is not None:
             self._bulk_update = True
             for d in defectList:
@@ -416,6 +418,7 @@ class Defects(IsrCalib):
         yCol = []
         widthCol = []
         heightCol = []
+        reason = []
 
         nrows = len(self._defects)
         if nrows:
@@ -425,6 +428,7 @@ class Defects(IsrCalib):
                 yCol.append(box.getBeginY())
                 widthCol.append(box.getWidth())
                 heightCol.append(box.getHeight())
+                reason.append(self._defects.)
 
         outDict['x0'] = xCol
         outDict['y0'] = yCol
@@ -464,6 +468,7 @@ class Defects(IsrCalib):
         yCol = []
         widthCol = []
         heightCol = []
+        reason = []
 
         nrows = len(self._defects)
         if nrows:
@@ -622,6 +627,7 @@ class Defects(IsrCalib):
         defectsReason = defineReason(defectList)
         unNormalizedDefects = cls(defectList, normalize_on_init=False)
         setReason(unNormalizedDefects, defectsReason)
+        # define dict assigning bit to reason so that we can interpret it like the masks.
         newMeta = dict(table.meta)
         defects.updateMetadata(setCalibInfo=True, **newMeta)
 
