@@ -368,6 +368,11 @@ class PhotodiodeCalib(IsrCalib):
         exposureTime : `float`
             Exposure time in sections.
         """
-        mean = self.currentScale * np.mean(self.currentSamples)
+        goodValues = (np.isfinite(self.currentSamples) & (np.abs(self.currentSamples) < 1e20))
+        if goodValues.sum() == 0:
+            # Return nan rather than a bogus value.
+            mean = np.nan
+        else:
+            mean = self.currentScale * np.mean(self.currentSamples[goodValues])
 
         return mean * exposureTime
