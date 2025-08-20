@@ -101,6 +101,7 @@ class AssembleCcdTask(pipeBase.Task):
                 return assembleInput
         else:
             raise TypeError("Expected either a dictionary of amp exposures or a single raw exposure")
+        self.log.info(f"CZW: assembleInput {assembleInput}")
 
         if ccd is None:
             raise RuntimeError("No ccd detector found")
@@ -109,6 +110,8 @@ class AssembleCcdTask(pipeBase.Task):
             outBox = cameraGeomUtils.calcRawCcdBBox(ccd)
         else:
             outBox = ccd.getBBox()
+        self.log.info(f"CZW: outbox {outBox} doTrim {self.config.doTrim}")
+
         outExposure = afwImage.ExposureF(outBox)
         outMI = outExposure.getMaskedImage()
 
@@ -120,6 +123,7 @@ class AssembleCcdTask(pipeBase.Task):
         for amp in ccd:
             inMI = getNextExposure(amp).getMaskedImage()
             assemble(outMI, inMI, amp)
+            self.log.info(f"CZW: assemble {amp.getName()} {inMI.getBBox()} {outMI.getBBox()}")
         #
         # If we are returning an "untrimmed" image (with overscans and
         # extended register) we need to update the ampInfo table in the
@@ -128,7 +132,7 @@ class AssembleCcdTask(pipeBase.Task):
         #
         if not self.config.doTrim:
             ccd = cameraGeom.makeUpdatedDetector(ccd)
-
+        self.log.info("CZW: ccdBoxes {ccd.getBBox()} {ccd[0].getBBox()} {ccd[0].getRawDataBBox()}")
         outExposure.setDetector(ccd)
         self.postprocessExposure(outExposure=outExposure, inExposure=getNextExposure(ccd[0]))
 
