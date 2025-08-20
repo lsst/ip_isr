@@ -148,6 +148,10 @@ class PhotodiodeTestCase(lsst.utils.tests.TestCase):
 
         self.assertFloatsAlmostEqual(calib.integrateMean(expTime), expected, rtol=1e-3)
 
+        currentSamples[:] = 1e38
+        calib = PhotodiodeCalib(timeSamples=timeSamples, currentSamples=currentSamples)
+        self.assertTrue(np.isnan(calib.integrateMean(expTime)))
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass
