@@ -97,13 +97,13 @@ def electrostaticModelBrighterFatterCorrection(exposure, applyGain, gains=None):
     # Change this file location
     detectorName = exposure.detector.getName()
     fileName = f"/sdf/home/a/astier/place/run7/E2016/{detectorName}/avalues.npy"
-    # The image needs to be units of electrons/holes
+    # The image needs to be units of electrons/holes}
+
     with gainContext(exposure, image, applyGain, gains):
         bf_corr = BFCorr(fileName)
         delta = bf_corr.DeltaImageFFT(image.getArray())
-        image.getArray()[:] -= delta[:]
-
-    return
+        # image.getArray()[:] -= delta[:]
+    return delta
 
 
 def transposeMaskedImage(maskedImage):

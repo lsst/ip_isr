@@ -1527,6 +1527,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bfExp = interpExp.clone()
 
         if not self.config.doAstier23:
+            self.log.warning("PFF I AM DOING COULTON 19")
             bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
                                                             self.config.brighterFatterMaxIter,
                                                             self.config.brighterFatterThreshold,
@@ -1548,12 +1549,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Use model in Astier+23
             # bfExp is modified in place, like with the other methods
             # above.
+            self.log.warning("PFF I AM DOING ASTIER 23")
             self.log.info("Applying brighter-fatter correction using model in Astier+23")
-            isrFunctions.electrostaticModelBrighterFatterCorrection(
-                bfExp,
-                brighterFatterApplyGain,
-                bfGains)
+            delta = isrFunctions.electrostaticModelBrighterFatterCorrection(bfExp, brighterFatterApplyGain, bfGains)
             bfCorrIters = 1
+            image = ccdExposure.getMaskedImage().getImage()
+            image.getArray()[:] -= delta[:]
 
 
         # Applying the brighter-fatter correction applies a
@@ -2212,6 +2213,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doBrighterFatter:
+            self.log.warning("PFF I AM DOING BF")
             self.log.info("Applying brighter-fatter correction.")
 
             bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
@@ -2245,7 +2247,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             ccdExposure.metadata["LSST ISR BF APPLIED"] = True
             metadata["LSST ISR BF ITERS"] = bfCorrIters
-
+        else:
+            self.log.warning("PFF I AM NOT DOING BF")
         # Variance plane creation
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doVariance:
