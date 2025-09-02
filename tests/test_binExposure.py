@@ -22,16 +22,16 @@ import unittest
 
 import lsst.utils.tests
 import lsst.afw.image as afwImage
-from lsst.ip.isr.binExposureTask import binExposure
+from lsst.ip.isr.binImageDataTask import binImageData
 
 
-class BinExposureTestCases(lsst.utils.tests.TestCase):
+class BinImageDataTestCases(lsst.utils.tests.TestCase):
 
     def setUp(self):
-        '''Set up both ExposureF and ExposureI inputs,
-        plus reference images that represent the expected
-        output from an 8x8 binning.
-        '''
+        """Set up the various image and image-like data type inputs,
+        plus reference images that represent the expected output from
+        an 8x8 binning.
+        """
         self.imageF = afwImage.ImageF(2048, 2048)
         self.imageF.set(100)
         self.miF = afwImage.makeMaskedImage(self.imageF)
@@ -42,40 +42,41 @@ class BinExposureTestCases(lsst.utils.tests.TestCase):
         self.miI = afwImage.makeMaskedImage(self.imageI)
         self.expI = afwImage.makeExposure(self.miI)
 
-        refImageF = afwImage.ImageF(256, 256)
-        refImageF.set(100)
-        refMiF = afwImage.makeMaskedImage(refImageF)
-        self.refExpF = afwImage.makeExposure(refMiF)
+        self.refImageF = afwImage.ImageF(256, 256)
+        self.refImageF.set(100)
+        self.refMiF = afwImage.makeMaskedImage(self.refImageF)
+        self.refExpF = afwImage.makeExposure(self.refMiF)
 
-        refImageI = afwImage.ImageI(256, 256)
-        refImageI.set(100)
-        refMiI = afwImage.makeMaskedImage(refImageI)
-        self.refExpI = afwImage.makeExposure(refMiI)
+        self.refImageI = afwImage.ImageI(256, 256)
+        self.refImageI.set(100)
+        self.refMiI = afwImage.makeMaskedImage(self.refImageI)
+        self.refExpI = afwImage.makeExposure(self.refMiI)
 
-    def test_ExposureBinning(self):
-        '''Test an 8x8 binning.'''
-        binnedExposure = binExposure(self.expF, binFactor=8)
-        self.assertMaskedImagesEqual(
-            self.refExpF.getMaskedImage(),
-            binnedExposure.getMaskedImage(),
-        )
+    def test_ImageDataBinning(self):
+        """Test an 8x8 binning."""
+        images = [(self.imageF, self.refImageF), (self.imageI, self.refImageI)]
+        maskedImages = [(self.miF, self.refMiF), (self.miI, self.refMiI)]
+        exposures = [(self.expF, self.refExpF), (self.expI, self.refExpI)]
 
-        binnedExposure = binExposure(self.expI, binFactor=8)
-        self.assertMaskedImagesEqual(
-            self.refExpI.getMaskedImage(),
-            binnedExposure.getMaskedImage(),
-        )
+        for input, ref in images:
+            binnedData = binImageData(input, binFactor=8)
+            self.assertImagesEqual(ref, binnedData)
+        for input, ref in maskedImages:
+            binnedData = binImageData(input, binFactor=8)
+            self.assertMaskedImagesEqual(ref, binnedData)
+        for input, ref in exposures:
+            binnedData = binImageData(input, binFactor=8)
+            self.assertMaskedImagesEqual(
+                ref.getMaskedImage(), binnedData.getMaskedImage()
+            )
 
-    def test_BinExsposureDataTypes(self):
-        '''Test that a TypeError is raised should the input
-        not be of type `lsst.afw.image.Exposure or one of its sub-types.
-        '''
+    def test_BinImageDataTypes(self):
+        """Test that a TypeError is raised should the input
+        not be of type `lsst.afw.image.Image`, `lsst.afw.image.MaskedImage`, or
+        `lsst.afw.image.Exposure, or one of their sub-types.
+        """
         with self.assertRaises(TypeError):
-            _ = binExposure(None)
-        with self.assertRaises(TypeError):
-            _ = binExposure(self.imageF)
-        with self.assertRaises(TypeError):
-            _ = binExposure(self.miF)
+            _ = binImageData(None)
 
 
 def setup_module(module):
@@ -84,5 +85,6 @@ def setup_module(module):
 
 if __name__ == "__main__":
     import sys
+
     setup_module(sys.modules[__name__])
     unittest.main()
