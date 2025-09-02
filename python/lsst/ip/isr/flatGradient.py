@@ -57,9 +57,6 @@ class FlatGradient(IsrCalib):
         self.centroidDeltaY = 0.0
         self.gradientX = 0.0
         self.gradientY = 0.0
-        self.outerGradientX = 0.0
-        self.outerGradientY = 0.0
-        self.outerGradientRadius = np.inf
         self.normalizationFactor = 1.0
 
         super().__init__(**kwargs)
@@ -75,9 +72,6 @@ class FlatGradient(IsrCalib):
                 "centroidDeltaY",
                 "gradientX",
                 "gradientY",
-                "outerGradientX",
-                "outerGradientY",
-                "outerGradientRadius",
                 "normalizationFactor",
             ],
         )
@@ -96,9 +90,6 @@ class FlatGradient(IsrCalib):
         centroidDeltaY=0.0,
         gradientX=0.0,
         gradientY=0.0,
-        outerGradientX=0.0,
-        outerGradientY=0.0,
-        outerGradientRadius=np.inf,
         normalizationFactor=1.0,
     ):
         """Set the parameters for the gradient model.
@@ -127,16 +118,6 @@ class FlatGradient(IsrCalib):
             Slope of gradient in x direction (throughput/mm).
         gradientY : `float`, optional
             Slope of gradient in y direction (throughput/mm).
-        outerGradientX : `float`, optional
-            Slope of additional gradient in x direction (throughput/mm)
-            that is only applied at focal plane radius greater than
-            ``outerGradientRadius``.
-        outerGradientY : `float`, optional
-            Slope of additional gradient in y direction (throughput/mm)
-            that is only applied at focal plane radius greater than
-            ``outerGradientRadius``.
-        outerGradientRadius : `float`, optional
-            Minimum radius (mm) where the outer gradient is used.
         normalizationFactor : `float`, optional
             Overall normalization factor (used to, e.g. make the
             center of the focal plane equal to 1.0 vs. a focal-plane
@@ -154,9 +135,6 @@ class FlatGradient(IsrCalib):
         self.centroidDeltaY = centroidDeltaY
         self.gradientX = gradientX
         self.gradientY = gradientY
-        self.outerGradientX = outerGradientX
-        self.outerGradientY = outerGradientY
-        self.outerGradientRadius = outerGradientRadius
         self.normalizationFactor = normalizationFactor
 
     def computeRadialSplineModelXY(self, x, y):
@@ -212,10 +190,8 @@ class FlatGradient(IsrCalib):
         """Compute the gradient model values.
 
         The gradient model is a plane constrained to be 1.0 at the
-        ``centroidX``, ``centroidY`` values. The outer gradient model is
-        the same, except only applies at large radius (above the
-        ``outerGradientRadius``). Dividing by this model will remove
-        the planar gradient in a flat field. Note that the planar
+        ``centroidX``, ``centroidY`` values. Dividing by this model will
+        remove the planar gradient in a flat field. Note that the planar
         gradient pivot is always at the same position, and does not
         move with the radial gradient centroid so as to keep the
         model fit more stable.
@@ -233,22 +209,6 @@ class FlatGradient(IsrCalib):
             Gradient model values at the x/y positions.
         """
         gradient = 1 + self.gradientX*(x - self.centroidX) + self.gradientY*(y - self.centroidY)
-
-        if np.isfinite(self.outerGradientRadius):
-            # This includes the centroid, but not the delta.
-            fpRadius = np.sqrt((x - self.centroidX)**2. + (y - self.centroidY)**2.)
-
-            outerGradient = np.ones(len(x))
-
-            outer = (fpRadius >= self.outerGradientRadius)
-            if outer.sum() > 0:
-                outerGradient[outer] = (
-                    1
-                    + self.outerGradientX*(x[outer] - self.centroidX)
-                    + self.outerGradientY*(y[outer] - self.centroidY)
-                )
-
-            gradient *= outerGradient
 
         return gradient
 
@@ -304,9 +264,6 @@ class FlatGradient(IsrCalib):
         calib.centroidDeltaY = dictionary["centroidDeltaY"]
         calib.gradientX = dictionary["gradientX"]
         calib.gradientY = dictionary["gradientY"]
-        calib.outerGradientX = dictionary["outerGradientX"]
-        calib.outerGradientY = dictionary["outerGradientY"]
-        calib.outerGradientRadius = dictionary["outerGradientRadius"]
         calib.normalizationFactor = dictionary["normalizationFactor"]
 
         calib.updateMetadata()
@@ -335,9 +292,6 @@ class FlatGradient(IsrCalib):
         outDict["centroidDeltaY"] = float(self.centroidDeltaY)
         outDict["gradientX"] = float(self.gradientX)
         outDict["gradientY"] = float(self.gradientY)
-        outDict["outerGradientX"] = float(self.outerGradientX)
-        outDict["outerGradientY"] = float(self.outerGradientY)
-        outDict["outerGradientRadius"] = float(self.outerGradientRadius)
         outDict["normalizationFactor"] = float(self.normalizationFactor)
 
         return outDict
@@ -370,9 +324,6 @@ class FlatGradient(IsrCalib):
         inDict["centroidDeltaY"] = float(gradientTable[0]["CENTROID_DELTA_Y"][0])
         inDict["gradientX"] = float(gradientTable[0]["GRADIENT_X"][0])
         inDict["gradientY"] = float(gradientTable[0]["GRADIENT_Y"][0])
-        inDict["outerGradientX"] = float(gradientTable[0]["OUTER_GRADIENT_X"][0])
-        inDict["outerGradientY"] = float(gradientTable[0]["OUTER_GRADIENT_Y"][0])
-        inDict["outerGradientRadius"] = float(gradientTable[0]["OUTER_GRADIENT_RADIUS"][0])
         inDict["normalizationFactor"] = float(gradientTable[0]["NORMALIZATION_FACTOR"][0])
 
         return cls().fromDict(inDict)
@@ -399,9 +350,6 @@ class FlatGradient(IsrCalib):
                 "CENTROID_DELTA_Y": np.array([self.centroidDeltaY]),
                 "GRADIENT_X": np.array([self.gradientX]),
                 "GRADIENT_Y": np.array([self.gradientY]),
-                "OUTER_GRADIENT_X": np.array([self.outerGradientX]),
-                "OUTER_GRADIENT_Y": np.array([self.outerGradientY]),
-                "OUTER_GRADIENT_RADIUS": np.array([self.outerGradientRadius]),
                 "NORMALIZATION_FACTOR": np.array([self.normalizationFactor]),
             },)
         )

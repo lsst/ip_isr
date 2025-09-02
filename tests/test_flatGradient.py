@@ -61,9 +61,6 @@ class FlatGradientTest(lsst.utils.tests.TestCase):
             centroidDeltaY=-0.5,
             gradientX=1e-4,
             gradientY=5e-5,
-            outerGradientX=5e-5,
-            outerGradientY=1e-4,
-            outerGradientRadius=325.0,
             normalizationFactor=1.1,
         )
 
@@ -87,12 +84,6 @@ class FlatGradientTest(lsst.utils.tests.TestCase):
         self.assertEqual(type(b.gradientX), float)
         self.assertEqual(b.gradientY, a.gradientY)
         self.assertEqual(type(b.gradientY), float)
-        self.assertEqual(b.outerGradientX, a.outerGradientX)
-        self.assertEqual(type(b.outerGradientX), float)
-        self.assertEqual(b.outerGradientY, a.outerGradientY)
-        self.assertEqual(type(b.outerGradientY), float)
-        self.assertEqual(b.outerGradientRadius, a.outerGradientRadius)
-        self.assertEqual(type(b.outerGradientRadius), float)
         self.assertEqual(b.normalizationFactor, a.normalizationFactor)
         self.assertEqual(type(b.normalizationFactor), float)
 
@@ -144,32 +135,15 @@ class FlatGradientTest(lsst.utils.tests.TestCase):
         x = np.arange(-300, 300, dtype=np.float64)
         y = np.arange(-300, 300, dtype=np.float64)
 
-        inGradient = (
+        gradient = (
             1
             + self.flatGradient.gradientX*(x - self.flatGradient.centroidX)
             + self.flatGradient.gradientY*(y - self.flatGradient.centroidY)
         )
-        fpRadius = np.sqrt(x**2. + y**2.)
-        outer = (fpRadius >= self.flatGradient.outerGradientRadius)
-        outerGradient = (
-            1
-            + self.flatGradient.outerGradientX*(x - self.flatGradient.centroidX)
-            + self.flatGradient.outerGradientY*(y - self.flatGradient.centroidY)
-        )
-
-        gradient = inGradient.copy()
-        gradient[outer] *= outerGradient[outer]
 
         model = self.flatGradient.computeGradientModel(x, y)
 
         np.testing.assert_array_almost_equal(model, gradient)
-
-        # And without the outer gradient.
-        self.flatGradient.outerGradientRadius = np.inf
-
-        model = self.flatGradient.computeGradientModel(x, y)
-
-        np.testing.assert_array_almost_equal(model, inGradient)
 
     def test_computeFullModel(self):
         x = np.arange(-300, 300, dtype=np.float64)
@@ -188,21 +162,11 @@ class FlatGradientTest(lsst.utils.tests.TestCase):
                          + (y - centroidY)**2.)
         radial = spl(np.clip(radius, 0.0, 368.0))
 
-        inGradient = (
+        gradient = (
             1
             + self.flatGradient.gradientX*(x - self.flatGradient.centroidX)
             + self.flatGradient.gradientY*(y - self.flatGradient.centroidY)
         )
-        fpRadius = np.sqrt(x**2. + y**2.)
-        outer = (fpRadius >= self.flatGradient.outerGradientRadius)
-        outerGradient = (
-            1
-            + self.flatGradient.outerGradientX*(x - self.flatGradient.centroidX)
-            + self.flatGradient.outerGradientY*(y - self.flatGradient.centroidY)
-        )
-
-        gradient = inGradient.copy()
-        gradient[outer] *= outerGradient[outer]
 
         full_model = radial / gradient
         full_model[is_itl] *= self.flatGradient.itlRatio
