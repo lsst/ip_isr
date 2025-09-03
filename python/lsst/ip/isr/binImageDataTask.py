@@ -38,13 +38,13 @@ class BinImageDataConnections(
     inputData = cT.Input(
         name="{inputName}",
         doc="Input image data to bin.",
-        storageClass="Exposure",
+        storageClass="ExposureF",
         dimensions=["instrument", "exposure", "detector"],
     )
     outputData = cT.Output(
         name="{outputName}",
         doc="Binned image data.",
-        storageClass="Exposure",
+        storageClass="ExposureF",
         dimensions=["instrument", "exposure", "detector"],
     )
 
