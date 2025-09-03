@@ -19,42 +19,40 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["BinExposureTask",
-           "BinExposureConfig",
-           "binExposure"]
+__all__ = ["BinImageDataTask", "BinImageDataConfig", "binImageData"]
 
+import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
+import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 import lsst.pipe.base.connectionTypes as cT
-import lsst.pex.config as pexConfig
-import lsst.afw.math as afwMath
 from lsst.utils.timer import timeMethod
-import lsst.afw.image as afwImage
 
 
-class BinExposureConnections(
+class BinImageDataConnections(
     pipeBase.PipelineTaskConnections,
     dimensions=("instrument", "exposure", "detector"),
-    defaultTemplates={"inputName": "postISRCCD", "outputName": "postISRCCDBin"}
+    defaultTemplates={"inputName": "postISRCCD", "outputName": "postISRCCDBin"},
 ):
 
-    inputExposure = cT.Input(
+    inputData = cT.Input(
         name="{inputName}",
-        doc="Input exposure to bin.",
-        storageClass="Exposure",
+        doc="Input image data to bin.",
+        storageClass="ExposureF",
         dimensions=["instrument", "exposure", "detector"],
     )
-    binnedExposure = cT.Output(
+    outputData = cT.Output(
         name="{outputName}",
-        doc="Binned exsposure.",
-        storageClass="Exposure",
+        doc="Binned image data.",
+        storageClass="ExposureF",
         dimensions=["instrument", "exposure", "detector"],
     )
 
     def __init__(self, *, config=None):
         """Customize the connections and storageClass for a specific
         instance. This enables both to be dynamically set at runtime,
-        allowing BinExposureTask to work with different types of
-        Exposures such as postISRCCD, calexp, deepCoadd_calexp, etc.
+        allowing BinImageDataTask to work with different types of
+        image and image-like data.
 
         Parameters
         ----------
@@ -62,54 +60,55 @@ class BinExposureConnections(
             A config for `BinExposureTask`.
         """
         super().__init__(config=config)
-        if config and config.exposureDimensions != self.inputExposure.dimensions:
+        if config and config.inputDimensions != self.inputData.dimensions:
             self.dimensions.clear()
-            self.dimensions.update(config.exposureDimensions)
-            self.inputExposure = cT.Input(
-                name=self.inputExposure.name,
-                doc=self.inputExposure.doc,
-                storageClass=self.inputExposure.storageClass,
-                dimensions=frozenset(config.exposureDimensions),
+            self.dimensions.update(config.inputDimensions)
+            self.inputData = cT.Input(
+                name=self.inputData.name,
+                doc=self.inputData.doc,
+                storageClass=self.inputData.storageClass,
+                dimensions=frozenset(config.inputDimensions),
             )
-            self.binnedExposure = cT.Output(
-                name=self.binnedExposure.name,
-                doc=self.binnedExposure.doc,
-                storageClass=self.binnedExposure.storageClass,
-                dimensions=frozenset(config.exposureDimensions),
+            self.outputData = cT.Output(
+                name=self.outputData.name,
+                doc=self.outputData.doc,
+                storageClass=self.outputData.storageClass,
+                dimensions=frozenset(config.inputDimensions),
             )
-        if config and config.exposureStorageClass != self.inputExposure.storageClass:
-            self.inputExposure = cT.Input(
-                name=self.inputExposure.name,
-                doc=self.inputExposure.doc,
-                storageClass=config.exposureStorageClass,
-                dimensions=self.inputExposure.dimensions,
+        if config and config.inputStorageClass != self.inputData.storageClass:
+            self.inputData = cT.Input(
+                name=self.inputData.name,
+                doc=self.inputData.doc,
+                storageClass=config.inputStorageClass,
+                dimensions=self.inputData.dimensions,
             )
-            self.binnedExposure = cT.Output(
-                name=self.binnedExposure.name,
-                doc=self.binnedExposure.doc,
-                storageClass=config.exposureStorageClass,
-                dimensions=self.binnedExposure.dimensions,
+            self.outputData = cT.Output(
+                name=self.outputData.name,
+                doc=self.outputData.doc,
+                storageClass=config.inputStorageClass,
+                dimensions=self.outputData.dimensions,
             )
 
 
-class BinExposureConfig(
-    pipeBase.PipelineTaskConfig,
-    pipelineConnections=BinExposureConnections
+class BinImageDataConfig(
+    pipeBase.PipelineTaskConfig, pipelineConnections=BinImageDataConnections
 ):
-    """Config for BinExposureTask"""
-    exposureDimensions = pexConfig.ListField(
+    """Config for BinImageDataTask"""
+
+    inputDimensions = pexConfig.ListField(
         # Sort to ensure default order is consistent between runs
-        default=sorted(BinExposureConnections.dimensions),
+        default=sorted(BinImageDataConnections.dimensions),
         dtype=str,
-        doc="Override for the dimensions of the input and binned exposures.",
+        doc="Override for the dimensions of the input and output data.",
     )
-    exposureStorageClass = pexConfig.Field(
-        default='ExposureF',
+    inputStorageClass = pexConfig.Field(
+        default="ExposureF",
         dtype=str,
         doc=(
-            "Override the storageClass of the input and binned exposures. "
-            "Must be of type lsst.afw.Image.Exposure, or one of its subtypes."
-        )
+            "Override the storageClass of the input and output data. "
+            "Must be of type `Image`, `MaskedImage`, or `Exposure`, "
+            "or one of their subtypes."
+        ),
     )
     binFactor = pexConfig.Field(
         dtype=int,
@@ -119,26 +118,26 @@ class BinExposureConfig(
     )
 
 
-class BinExposureTask(pipeBase.PipelineTask):
-    """Perform an nxn binning of an Exposure dataset type.
+class BinImageDataTask(pipeBase.PipelineTask):
+    """Perform an nxn binning of an image or image-like dataset.
 
     The binning factor is the same in both spatial dimensions (i.e.,
-    an nxn binning is performed). Each of the input Exposure's image
-    arrays are binned by the same factor.
+    an nxn binning is performed). In the case of MaskedImages and Exposures,
+    each of the input image planes are binned by the same factor.
     """
-    # TODO: DM-46501: Add tasks to nxn bin Image and MaskedImage classes
-    ConfigClass = BinExposureConfig
-    _DefaultName = "binExposure"
+
+    ConfigClass = BinImageDataConfig
+    _DefaultName = "binImageData"
 
     @timeMethod
-    def run(self, inputExposure, binFactor=None):
-        """Perform an nxn binning of an Exposure.
+    def run(self, inputData, binFactor=None):
+        """Perform an nxn binning of image and image-like data.
 
         Parameters:
         -----------
-        inputExposure : `lsst.afw.image.Exposure` or one of its
-                        sub-types.
-            Exposure to spatially bin
+        inputData : `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage` or
+                    `lsst.afw.image.Exposure` or one of their sub-types.
+            Data to spatially bin
         binFactor : `int`, optional.
             nxn binning factor. If not provided then self.config.binFactor
             is used.
@@ -148,35 +147,37 @@ class BinExposureTask(pipeBase.PipelineTask):
         result : `lsst.pipe.base.Struct`
             Results as a struct with attributes:
 
-            ``binnedExposure``
-               Binned exposure (`lsst.afw.image.Exposure` or one of its
-               sub-types. The type matches that of the inputExposure).
+            ``outputData``
+               Binned data (`lsst.afw.image.Image` or
+               `lsst.afw.image.MaskedImage` or `lsst.afw.image.Exposure`
+               or one of their sub-types. The type matches that of the input.).
         """
         if not binFactor:
             binFactor = self.config.binFactor
-        return pipeBase.Struct(
-            binnedExposure=binExposure(inputExposure, binFactor)
-        )
+        return pipeBase.Struct(outputData=binImageData(inputData, binFactor))
 
 
-def binExposure(inputExposure, binFactor=8):
-    """Bin an exposure to reduce its spatial dimensions.
+def binImageData(inputData, binFactor=8):
+    """Bin image and image-like data to reduce its spatial dimensions.
 
-    Performs an nxn binning of the input exposure, reducing both spatial
-    dimensions of each of the input exposure's image data by the provided
+    Performs an nxn binning of the input data, reducing both spatial
+    dimensions of each of the input image data by the provided
     factor.
 
     Parameters:
     -----------
-    inputExposure: `lsst.afw.image.Exposure` or one of its sub-types.
-        Input exposure data to bin.
-    binFactor: `int`
+    inputData:  `lsst.afw.image.Image` or `lsst.afw.image.MaskedImage` or
+                `lsst.afw.image.Exposure` or one of their sub-types.
+        Input data to bin.
+    binFactor:  `int`
         Binning factor to apply to each input exposure's image data.
         Default 8.
 
     Returns:
     --------
-    binnedExposure: `lsst.afw.image.Exposure` or one of its sub-types.
+    binnedImage or binnedExposure: `lsst.afw.image.Image` or
+        `lsst.afw.image.MaskedImage` or `lsst.afw.image.Exposure` or one of
+        their sub-types.
         Binned version of input image.
 
     Raises
@@ -189,13 +190,25 @@ def binExposure(inputExposure, binFactor=8):
 
     if not isinstance(binFactor, int):
         raise TypeError("binFactor must be of type int")
-    if not isinstance(inputExposure, afwImage.Exposure):
-        raise TypeError("inputExp must be of type lsst.afw.image.Exposure or one of its sub-tyoes.")
 
-    binned = inputExposure.getMaskedImage()
-    binned = afwMath.binImage(binned, binFactor)
-    binnedExposure = afwImage.makeExposure(binned)
+    if isinstance(inputData, afwImage.Exposure):
+        inputImage = inputData.getMaskedImage()
+        isExposure = True
+    elif isinstance(inputData, (afwImage.Image, afwImage.MaskedImage)):
+        inputImage = inputData
+        isExposure = False
+    else:
+        message = (
+            "inputData must be of type `lsst.afw.image.Image`, `lsst.afw.MaskedImage`, "
+            "or `lsst.afw.image.Exposure`, or one of their sub-types."
+        )
+        raise TypeError(message)
 
-    binnedExposure.setInfo(inputExposure.getInfo())
+    binnedImage = afwMath.binImage(inputImage, binFactor)
 
-    return binnedExposure
+    if isExposure:
+        binnedExposure = afwImage.makeExposure(binnedImage)
+        binnedExposure.setInfo(inputData.getInfo())
+        return binnedExposure
+    else:
+        return binnedImage
