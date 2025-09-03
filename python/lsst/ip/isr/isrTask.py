@@ -1850,11 +1850,11 @@ class IsrTask(pipeBase.PipelineTask):
             outputBin1Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor1,
-            ).output
+            ).outputData
             outputBin2Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor2,
-            ).output
+            ).outputData
 
         self.debugView(ccdExposure, "postISRCCD")
 
