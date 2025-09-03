@@ -359,7 +359,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                                         'rawDeltas', 'photoChargeDeltas'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
-        self._validateCovarianceMatrizSizes()
+        self._validateCovarianceMatrixSizes()
 
     def setAmpValuesPartialDataset(
             self,
@@ -1418,7 +1418,7 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         return covModel
 
-    def _validateCovarianceMatrizSizes(self):
+    def _validateCovarianceMatrixSizes(self):
         """Ensure  covMatrixSideFullCovFit <= covMatrixSide."""
         if self.covMatrixSideFullCovFit > self.covMatrixSide:
             self.log.warning("covMatrixSideFullCovFit > covMatrixSide "
