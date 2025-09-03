@@ -47,7 +47,7 @@ from . import linearize
 from .defects import Defects
 
 from .assembleCcdTask import AssembleCcdTask
-from .binExposureTask import BinExposureTask
+from .binImageDataTask import BinImageDataTask
 from .crosstalk import CrosstalkTask, CrosstalkCalib
 from .fringe import FringeTask
 from .isr import maskNans
@@ -952,7 +952,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False,
     )
     binning = pexConfig.ConfigurableField(
-        target=BinExposureTask,
+        target=BinImageDataTask,
         doc="Task to bin the exposure.",
     )
     binFactor1 = pexConfig.Field(
@@ -1850,11 +1850,11 @@ class IsrTask(pipeBase.PipelineTask):
             outputBin1Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor1,
-            ).binnedExposure
+            ).outputData
             outputBin2Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor2,
-            ).binnedExposure
+            ).outputData
 
         self.debugView(ccdExposure, "postISRCCD")
 
@@ -2831,7 +2831,7 @@ class IsrTask(pipeBase.PipelineTask):
     @deprecated(
         reason=(
             "makeBinnedImages is no longer used. "
-            "Please subtask lsst.ip.isr.BinExposureTask instead."
+            "Please subtask lsst.ip.isr.BinImageDataTask instead."
         ),
         version="v28", category=FutureWarning
     )
