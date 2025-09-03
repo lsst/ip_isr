@@ -58,6 +58,7 @@ import logging
 import math
 import numpy
 import scipy.signal
+import pyfftw
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -1816,3 +1817,175 @@ def compareCameraKeywords(
             calibName,
             ",".join(missingKeywords),
         )
+
+
+def symmetrize(inputArray):
+    """ Copy array over 4 quadrants prior to convolution.
+
+    Parameters
+    ----------
+    inputarray : `numpy.array`
+        Input array to symmetrize.
+
+    Returns
+    -------
+    aSym : `numpy.array`
+        Symmetrized array.
+    """
+    targetShape = list(inputArray.shape)
+    r1, r2 = inputArray.shape[-1], inputArray.shape[-2]
+    targetShape[-1] = 2*r1-1
+    targetShape[-2] = 2*r2-1
+    aSym = numpy.ndarray(tuple(targetShape))
+    aSym[..., r2-1:, r1-1:] = inputArray
+    aSym[..., r2-1:, r1-1::-1] = inputArray
+    aSym[..., r2-1::-1, r1-1::-1] = inputArray
+    aSym[..., r2-1::-1, r1-1:] = inputArray
+
+    return aSym
+
+
+class CustomFFTConvolution(object):
+    """
+    A class that performs image convolutions in Fourier space, using pyfftw.
+    The constructor takes images as arguments and creates the FFTW plans.
+    The convolutions are performed by the __call__ routine.
+    This is faster than scipy.signal.fftconvolve, and it saves some transforms
+    by allowing the same image to be convolved with several kernels.
+    pyfftw does not accommodate float32 images, so everything
+    should be double precision.
+
+    Code adaped from :
+    https://stackoverflow.com/questions/14786920/convolution-of-two-three-dimensional-arrays-with-padding-on-one-side-too-slow
+    Code posted by Henry Gomersal
+    """
+    def __init__(self, im, kernel, threads=1):
+        # Compute the minimum size of the convolution result.
+        shape = (numpy.array(im.shape) + numpy.array(kernel.shape)) - 1
+
+        # Find the next larger "fast size" for FFT computation.
+        # This can provide a significant speedup.
+        shape = numpy.array([pyfftw.next_fast_len(s) for s in shape])
+
+        # Create FFTW building objects for the image and kernel.
+        self.fftImageObj = pyfftw.builders.rfftn(im, s=shape, threads=threads)
+        self.fftKernelObj = pyfftw.builders.rfftn(kernel, s=shape, threads=threads)
+        self.ifftObj = pyfftw.builders.irfftn(
+            self.fftImageObj.get_output_array(),
+            s=shape,
+            threads=threads,
+        )
+
+    def __call__(self, im, kernels):
+        """
+        Perform the convolution and trim the result to the
+        size of the input image. If kernels is a list, then
+        the routine returns a list of corresponding
+        convolutions.
+        """
+        # Handle both a list of kernels and a single kernel.
+        ks = [kernels] if type(kernels) is not list else kernels
+        convolutions = []
+        for k in ks:
+            # Transform the image and the kernel using FFT.
+            tim = self.fftImageObj(im)
+            tk = self.fftKernelObj(k)
+
+            # Multiply in Fourier space and perform the inverse FFT.
+            convolution = self.ifftObj(tim * tk)
+            # Trim the result to match the input image size, following
+            # the 'same' policy of scipy.signal.fftconvolve.
+            oy = k.shape[0] // 2
+            ox = k.shape[1] // 2
+            convolutions.append(convolution[oy:oy + im.shape[0], ox:ox + im.shape[1]].copy())
+        # Return a single convolution if kernels was
+        # not a list, otherwise return the list.
+        return convolutions[0] if type(kernels) is not list else convolutions
+
+
+def electrostaticBrighterFatterCorrection(exposure, ebf, applyGain, gains=None):
+    """
+    Evaluates the correction of CCD images affected by the
+    brighter-fatter effect, as described in
+    https://arxiv.org/abs/2301.03274. Requires as input the result of
+    an electrostatic fit to flat covariance data (or any other
+    determination of pixel boundary shifts under the influence of a
+    single electron).
+
+    The filename refers to an input tuple that contains the
+    boundary shifts for one electron. This file is produced by an
+    electrostatic fit to data extracted from flat-field statistics,
+    implemented in https://gitlab.in2p3.fr/astier/bfptc/tools/fit_cov.py.
+    """
+    # Use the symmetrize function to fill the four quadrants for each kernel
+    kN = symmetrize(ebf.aN)
+    kE = symmetrize(ebf.aE)
+
+    # Tweak the edges so that the sum rule applies.
+    kN[:, 0] = -kN[:, -1]
+    kE[0, :] = -kE[-1, :]
+    # TODO: Add to log: print("INFO: BF
+    # kernel sum rules : kN %f, kE %f" % (kN.sum(), kE.sum()))
+
+    # We use the normalization of Guyonnet et al. (2015),
+    # which is compatible with the way the input file is produced.
+    # The factor 1/2 is due to the fact that the charge distribution at the end
+    # is twice the average, and the second 1/2 is due to
+    # charge interpolation.
+    kN *= 0.25
+    kE *= 0.25
+
+    # Indeed, i and j in the tuple refer to serial and parallel directions.
+    # In most Python code, the image reads im[j, i], so we transpose:
+    kN = kN.T
+    kE = kE.T
+
+    # Get the image to perform the correction
+    image = exposure.getMaskedImage().getImage()
+
+    # The image needs to be units of electrons/holes
+    with gainContext(exposure, image, applyGain, gains):
+        # Computes the correction and returns the "delta_image",
+        # which should be subtracted from "im" in order to undo the BF effect.
+        # The input image should be expressed in electrons
+        im = image.copy().getArray()
+        convolver = CustomFFTConvolution(im, kN)
+        convolutions = convolver(im, [kN, kE])
+
+        # The convolutions contain the boundary shifts (in pixel size units)
+        # for [horizontal, vertical] boundaries.
+        # We now compute the charge to move around.
+        delta = numpy.zeros_like(im)
+        boundaryCharge = numpy.zeros_like(im)
+
+        # Horizontal boundaries (parallel direction).
+        # We could use a more elaborate interpolator for estimating the
+        # charge on the boundary.
+        boundaryCharge[:-1, :] = im[1:, :] + im[:-1, :]
+        # boundaryCharge[1:-2,:] = (9./8.)*(I[2:-1,:]+I[1:-2,:] -
+        # (1./8.)*(I[0:-3,:]+I[3,:])
+
+        # The charge to move around is the
+        # product of the boundary shift (in pixel size units) times the
+        # charge on the boundary (in charge per pixel unit).
+        dq = boundaryCharge * convolutions[0]
+        delta += dq
+
+        # What is gained by a pixel is lost by its neighbor (the right one).
+        delta[1:, :] -= dq[:-1, :]
+
+        # Vertical boundaries.
+        boundaryCharge = numpy.zeros_like(im)  # Reset to zero.
+        boundaryCharge[:, :-1] = im[:, 1:] + im[:, :-1]
+        dq = boundaryCharge * convolutions[1]
+        delta += dq
+
+        # What is gained by a pixel is lost by its neighbor.
+        delta[:, 1:] -= dq[:, :-1]
+
+        # TODO: One might check that delta.sum() ~ 0 (charge conservation).
+
+        # Apply the correction to the original image
+        exposure.image.array -= delta
+
+    return exposure
