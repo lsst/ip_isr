@@ -126,7 +126,7 @@ class BinExposureTask(pipeBase.PipelineTask):
     an nxn binning is performed). Each of the input Exposure's image
     arrays are binned by the same factor.
     """
-    # TODO: DM-46501: Add tasks to nxn bin Image and MaskedImage classes
+    # TODO: DM-46501: Add tasks to nxn bin Image and MaskedImage classes.
     ConfigClass = BinExposureConfig
     _DefaultName = "binExposure"
 
