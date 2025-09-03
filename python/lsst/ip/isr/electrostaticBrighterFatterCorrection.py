@@ -27,10 +27,8 @@ __all__ = ['ElectrostaticBrighterFatterCalibration']
 
 import numpy as np
 from astropy.table import Table
-import lsst.afw.math as afwMath
+
 from . import IsrCalib
-from numpy.polynomial.legendre import  leggauss
-import pyfftw
 
 
 class ElectrostaticBrighterFatterCalibration(IsrCalib):
@@ -65,63 +63,126 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
     `means` and `variances` for `rawMeans` and `rawVariances`
     from the PTC dataset.
 
-    expIdMask : `dict`, [`str`,`numpy.ndarray`]
-        Dictionary keyed by amp names containing the mask produced after
-        outlier rejection.
-    rawMeans : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the unmasked average of the
-        means of the exposures in each flat pair.
-    rawVariances : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the variance of the
-        difference image of the exposures in each flat pair.
-        Corresponds to rawVars of PTC.
-    rawXcorrs : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing an array of measured
-        covariances per mean flux.
-        Corresponds to covariances of PTC.
-    badAmps : `list`
+    inputRange : `int`
+        The size of the input aMatrix shape in each dimension.
+    fitRange : `int`
+        The size of the input aMatrix shape in each dimension that is
+        used for fitting the electrostatic model. Must be less than or
+        equal to inputRange.
+    badAmps : `list`, [`str`]
         List of bad amplifiers names.
-    shape : `tuple`
-        Tuple of the shape of the BFK kernels.
     gain : `dict`, [`str`,`float`]
-        Dictionary keyed by amp names containing the fitted gains.
-    noise : `dict`, [`str`,`float`]
-        Dictionary keyed by amp names containing the fitted noise.
-    meanXcorrs : `dict`, [`str`,`numpy.ndarray`]
-        Dictionary keyed by amp names containing the averaged
-        cross-correlations.
-    valid : `dict`, [`str`,`bool`]
-        Dictionary keyed by amp names containing validity of data.
-    ampKernels : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the BF kernels.
-    detKernels : `dict`
-        Dictionary keyed by detector names containing the BF kernels.
+        Dictionary keyed by amp names containing the gains inherited
+        from the inputPTC.
+    aMatrix : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the aMatrix inherited
+        from the inputPTC
+    aMatrixSigma : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the estimated uncertainty
+        used to weight the residuals in the electrostatic fit.
+    aMatrixModel : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the modeled aMatrix
+        based on the electrostatic fit parameters.
+    aMatrixSum : `dict`, [`str`,`float`]
+        Dictionary keyed by amp names containing the sum of the aMatrix.
+    aMatrixModelSum : `dict`, [`str`,`float`]
+        Dictionary keyed by amp names containing the sum of the aMatrixModel.
+    modelNormalization : `dict`, [`str`,`numpy.ndarray`]
+        Dictionary keyed by amp names containing a two element array of the
+        multiplicative and additive normalization to the aMatrixModel.
+    fitMask : `dict`, [`str`,`numpy.ndarray`]
+        Dictionary keyed by amp names containing the mask indicated which
+        elements of the input aMatrix were used to fit the electrostatic
+        model. It will have shape (inputRange, inputRange).
+    fitParamNames : `list`, [`str`]
+        List of all the parameter names in the electrostatic fit.
+    freeFitParamNames : `list`, [`str`]
+        List of the parameter names that were allowed to vary during
+        the electrostatic fit.
+    fitParams : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing each named parameter
+        and its final fitted value.
+    fitParamErrors : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing each named parameter
+        and its estimated fitting error.
+    fitChi2 : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing the computed chi squared
+        between the data and the final model.
+    fitReducedChi2 : `dict`, [`str`, `float`]
+        Dictionary keyed by amp names containing the computed reduced
+        chi squared between the data and the final model.
+    fitParamCovMatrix : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the estimated covariance
+        matrix between all fit parameters.
+    ath : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing something...
+    athMinusBeta : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing something...
+    aN : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the computed `North`
+        component of the pixel boundary shift.
+    aS : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the computed `South`
+        component of the pixel boundary shift.
+    aE : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the computed `East`
+        component of the pixel boundary shift.
+    aW : `dict`, [`str`, `numpy.ndarray`]
+        Dictionary keyed by amp names containing the computed `West`
+        component of the pixel boundary shift.
     """
-    _OBSTYPE = 'bf'
+    _OBSTYPE = 'ebf'
     _SCHEMA = 'Brighter-fatter electrostatic correction model'
     _VERSION = 1.0
 
-    def __init__(self, camera=None, size=None, **kwargs):
+    def __init__(self, camera=None, inputRange=1, fitRange=None, **kwargs):
         """
         Filename  refers to an input tuple that contains the
         boundary shifts for one electron. This file is produced by an
         electrostatic fit to data extracted from flat-field statistics,
         implemented in https://gitlab.in2p3.fr/astier/bfptc/tools/fit_cov.py
         """
-        self.distortionMatrix = dict()
-        self.size = size
-        self.camera = camera
-
-        # The solution contains one quadrant of distortion matrix, and we need 4 for convolutions.
-        self.kN = np.zeros((2*size+1, 2*size+1))
-        self.kE = np.zeros((2*size+1, 2*size+1))
+        self.inputRange = inputRange
+        if fitRange is None:
+            self.fitRange = inputRange
+        else:
+            self.fitRange = fitRange
+        self.badAmps = list()
+        self.gain = dict()
+        self.aMatrix = dict()
+        self.aMatrixSigma = dict()
+        self.aMatrixModel = dict()
+        self.aMatrixSum = dict()
+        self.aMatrixModelSum = dict()
+        self.modelNormalization = dict()
+        self.fitMask = dict()
+        self.fitParamNames = list()
+        self.freeFitParamNames = list()
+        self.fitParams = dict()
+        self.fitParamErrors = dict()
+        self.fitChi2 = dict()
+        self.fitReducedChi2 = dict()
+        self.fitParamCovMatrix = dict()
+        self.ath = dict()
+        self.athMinusBeta = dict()
+        self.aN = dict()
+        self.aS = dict()
+        self.aE = dict()
+        self.aW = dict()
 
         super().__init__(**kwargs)
 
         if camera:
             self.initFromCamera(camera, detectorId=kwargs.get('detectorId', None))
 
-        self.requiredAttributes.update(['distortionMatrix', 'size', 'kN', 'kE'])
+        self.requiredAttributes.update([
+            'inputRange', 'fitRange', 'badAmps', 'gain', 'aMatrix',
+            'aMatrixSigma', 'aMatrixModel', 'aMatrixSum', 'aMatrixModelSum',
+            'modelNormalization', 'fitMask', 'fitParamNames',
+            'freeFitParamNames', 'fitParams', 'fitParamErrors', 'fitChi2',
+            'fitReducedChi2', 'fitParamCovMatrix', 'ath', 'athMinusBeta',
+            'aN', 'aS', 'aE', 'aW',
+        ])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update calibration metadata.
@@ -137,9 +198,8 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         kwargs :
             Other keyword parameters to set in the metadata.
         """
-        kwargs['LEVEL'] = self.level
-        kwargs['KERNEL_DX'] = self.shape[0]
-        kwargs['KERNEL_DY'] = self.shape[1]
+        kwargs['INPUT_RANGE'] = self.inputRange
+        kwargs['FIT_RANGE'] = self.fitRange
 
         super().updateMetadata(setDate=setDate, **kwargs)
 
@@ -172,33 +232,7 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
             self._detectorName = detector.getName()
             self._detectorSerial = detector.getSerial()
 
-        if self.level == 'AMP':
-            if detectorId is None:
-                raise RuntimeError("A detectorId must be supplied if level='AMP'.")
-
-            self.badAmps = []
-
-            for amp in detector:
-                ampName = amp.getName()
-                self.expIdMask[ampName] = []
-                self.rawMeans[ampName] = []
-                self.rawVariances[ampName] = []
-                self.rawXcorrs[ampName] = []
-                self.gain[ampName] = amp.getGain()
-                self.noise[ampName] = amp.getReadNoise()
-                self.meanXcorrs[ampName] = []
-                self.ampKernels[ampName] = []
-                self.valid[ampName] = []
-        elif self.level == 'DETECTOR':
-            if detectorId is None:
-                for det in camera:
-                    detName = det.getName()
-                    self.detKernels[detName] = []
-            else:
-                self.detKernels[self._detectorName] = []
-
         return self
-
 
     @classmethod
     def fromDict(cls, dictionary):
@@ -224,58 +258,73 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         calib = cls()
 
         if calib._OBSTYPE != (found := dictionary['metadata']['OBSTYPE']):
-            raise RuntimeError(f"Incorrect brighter-fatter kernel supplied.  Expected {calib._OBSTYPE}, "
+            raise RuntimeError(f"Incorrect brighter-fatter calibration supplied.  Expected {calib._OBSTYPE}, "
                                f"found {found}")
         calib.setMetadata(dictionary['metadata'])
         calib.calibInfoFromDict(dictionary)
 
-        calib.level = dictionary['metadata'].get('LEVEL', 'AMP')
-        calib.shape = (dictionary['metadata'].get('KERNEL_DX', 0),
-                       dictionary['metadata'].get('KERNEL_DY', 0))
+        inputRange = dictionary['inputRange']
+        fitRange = dictionary['fitRange']
+        calib.inputRange = inputRange
+        calib.fitRange = fitRange
+        calib.badAmps = dictionary['badAmps']
+        calib.fitParamNames = dictionary['fitParamNames']
+        calib.freeFitParamNames = dictionary['freeFitParamNames']
 
-        calibVersion = dictionary['metadata']['bfk_VERSION']
-        if calibVersion == 1.0:
-            calib.log.debug("Old Version of brighter-fatter kernel found. Current version: "
-                            f"{calib._VERSION}. The new attribute 'expIdMask' will be "
-                            "populated with 'True' values, and the new attributes 'rawMeans' "
-                            "and 'rawVariances' will be populated with the masked 'means' "
-                            "and 'variances' values."
-                            )
-            # use 'means', because 'expIdMask' does not exist.
-            calib.expIdMask = {amp: np.repeat(True, len(dictionary['means'][amp])) for amp in
-                               dictionary['means']}
-            calib.rawMeans = {amp: np.array(dictionary['means'][amp]) for amp in dictionary['means']}
-            calib.rawVariances = {amp: np.array(dictionary['variances'][amp]) for amp in
-                                  dictionary['variances']}
-        elif calibVersion == 1.1:
-            calib.expIdMask = {amp: np.array(dictionary['expIdMask'][amp]) for amp in dictionary['expIdMask']}
-            calib.rawMeans = {amp: np.array(dictionary['rawMeans'][amp]) for amp in dictionary['rawMeans']}
-            calib.rawVariances = {amp: np.array(dictionary['rawVariances'][amp]) for amp in
-                                  dictionary['rawVariances']}
-        else:
-            raise RuntimeError(f"Unknown version for brighter-fatter kernel: {calibVersion}")
-
-        # Lengths for reshape:
-        _, smallLength, nObs = calib.getLengths()
-        smallShapeSide = int(np.sqrt(smallLength))
-
-        calib.rawXcorrs = {amp: np.array(dictionary['rawXcorrs'][amp]).reshape((nObs,
-                                                                                smallShapeSide,
-                                                                                smallShapeSide))
-                           for amp in dictionary['rawXcorrs']}
-
-        calib.gain = dictionary['gain']
-        calib.noise = dictionary['noise']
-
-        calib.meanXcorrs = {amp: np.array(dictionary['meanXcorrs'][amp]).reshape(calib.shape)
-                            for amp in dictionary['rawXcorrs']}
-        calib.ampKernels = {amp: np.array(dictionary['ampKernels'][amp]).reshape(calib.shape)
-                            for amp in dictionary['ampKernels']}
-        calib.valid = {amp: bool(value) for amp, value in dictionary['valid'].items()}
-        calib.badAmps = [amp for amp, valid in dictionary['valid'].items() if valid is False]
-
-        calib.detKernels = {det: np.array(dictionary['detKernels'][det]).reshape(calib.shape)
-                            for det in dictionary['detKernels']}
+        for ampName in dictionary['ampNames']:
+            calib.ampNames.append(ampName)
+            calib.gain[ampName] = float(dictionary['gain'][ampName])
+            calib.aMatrix[ampName] = np.array(
+                dictionary['aMatrix'][ampName],
+                dtype=np.float64,
+            ).reshape(inputRange, inputRange)
+            calib.aMatrixSigma[ampName] = np.array(
+                dictionary['aMatrixSigma'][ampName],
+                dtype=np.float64,
+            ).reshape(inputRange, inputRange)
+            calib.aMatrixModel[ampName] = np.array(
+                dictionary['aMatrixSigma'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
+            calib.aMatrixSum[ampName] = float(dictionary['aMatrixSum'][ampName])
+            calib.aMatrixModelSum[ampName] = float(dictionary['aMatrixModelSum'][ampName])
+            calib.modelNormalization[ampName] = np.array(
+                dictionary['modelNormalization'][ampName],
+                dtype=np.float64,
+            )
+            calib.fitMask[ampName] = np.array(dictionary['fitMask'][ampName])
+            calib.fitParams[ampName] = {n: float(v) for n, v in dictionary['fitParams'][ampName]}
+            calib.fitParamErrors[ampName] = {n: float(v) for n, v in dictionary['fitParamErrors'][ampName]}
+            calib.fitChi2[ampName] = float(dictionary['fitChi2'][ampName])
+            calib.fitReducedChi2[ampName] = float(dictionary['fitReducedChi2'][ampName])
+            calib.fitParamCovMatrix[ampName] = np.array(
+                dictionary['fitParamCovMatrix'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
+            calib.ath[ampName] = np.array(
+                dictionary['ath'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
+            calib.athMinusBeta[ampName] = np.array(
+                dictionary['athMinusBeta'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
+            calib.aN[ampName] = np.array(
+                dictionary['aN'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
+            calib.aS[ampName] = np.array(
+                dictionary['aS'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
+            calib.aE[ampName] = np.array(
+                dictionary['aE'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
+            calib.aW[ampName] = np.array(
+                dictionary['aW'][ampName],
+                dtype=np.float64,
+            ).reshape(fitRange, fitRange)
 
         calib.updateMetadata()
         return calib
@@ -293,44 +342,43 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         """
         self.updateMetadata()
 
-        outDict = {}
+        outDict = dict()
         metadata = self.getMetadata()
         outDict['metadata'] = metadata
 
-        # Lengths for ravel:
-        kernelLength, smallLength, nObs = self.getLengths()
+        def _dictOfArraysToDictOfLists(dictOfArrays):
+            dictOfLists = dict()
+            for key, value in dictOfArrays.items():
+                dictOfLists[key] = value.ravel().tolist()
 
-        outDict['expIdMask'] = {amp: np.array(self.expIdMask[amp]).tolist() for amp in self.expIdMask}
-        outDict['rawMeans'] = {amp: np.array(self.rawMeans[amp]).tolist() for amp in self.rawMeans}
-        outDict['rawVariances'] = {amp: np.array(self.rawVariances[amp]).tolist() for amp in
-                                   self.rawVariances}
+            return dictOfLists
 
-        for amp in self.rawXcorrs.keys():
-            # Check to see if we need to repack the data.
-            correlationShape = np.array(self.rawXcorrs[amp]).shape
-            if nObs != correlationShape[0]:
-                if correlationShape[0] == np.sum(self.expIdMask[amp]):
-                    # Repack data.
-                    self.repackCorrelations(amp, correlationShape)
-                else:
-                    raise ValueError("Could not coerce rawXcorrs into appropriate shape "
-                                     "(have %d correlations, but expect to see %d.",
-                                     correlationShape[0], np.sum(self.expIdMask[amp]))
-
-        outDict['rawXcorrs'] = {amp: np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist()
-                                for amp in self.rawXcorrs}
+        outDict['ampNames'] = self.ampNames
+        outDict['inputRange'] = self.inputRange
+        outDict['fitRange'] = self.fitRange
         outDict['badAmps'] = self.badAmps
+        outDict['fitParamNames'] = self.fitParamNames
+        outDict['freeFitParamNames'] = self.freeFitParamNames
         outDict['gain'] = self.gain
-        outDict['noise'] = self.noise
+        outDict['aMatrix'] = _dictOfArraysToDictOfLists(self.aMatrix)
+        outDict['aMatrixSigma'] = _dictOfArraysToDictOfLists(self.aMatrixSigma)
+        outDict['aMatrixModel'] = _dictOfArraysToDictOfLists(self.aMatrixModel)
+        outDict['aMatrixSum'] = self.aMatrixSum
+        outDict['aMatrixModelSum'] = self.aMatrixModelSum
+        outDict['aMatrixModel'] = _dictOfArraysToDictOfLists(self.aMatrixModel)
+        outDict['modelNormalization'] = _dictOfArraysToDictOfLists(self.modelNormalization)
+        outDict['fitMask'] = _dictOfArraysToDictOfLists(self.fitMask)
+        outDict['fitParams'] = self.fitParams
+        outDict['fitParamErrors'] = self.fitParamErrors
+        outDict['fitChi2'] = self.fitChi2
+        outDict['fitReducedChi2'] = self.fitReducedChi2
+        outDict['ath'] = _dictOfArraysToDictOfLists(self.ath)
+        outDict['athMinusBeta'] = _dictOfArraysToDictOfLists(self.athMinusBeta)
+        outDict['aN'] = _dictOfArraysToDictOfLists(self.aN)
+        outDict['aS'] = _dictOfArraysToDictOfLists(self.aS)
+        outDict['sE'] = _dictOfArraysToDictOfLists(self.aE)
+        outDict['sW'] = _dictOfArraysToDictOfLists(self.aW)
 
-        outDict['meanXcorrs'] = {amp: self.meanXcorrs[amp].reshape(kernelLength).tolist()
-                                 for amp in self.meanXcorrs}
-        outDict['ampKernels'] = {amp: self.ampKernels[amp].reshape(kernelLength).tolist()
-                                 for amp in self.ampKernels}
-        outDict['valid'] = self.valid
-
-        outDict['detKernels'] = {det: self.detKernels[det].reshape(kernelLength).tolist()
-                                 for det in self.detKernels}
         return outDict
 
     @classmethod
@@ -355,61 +403,68 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         ampTable = tableList[0]
 
         metadata = ampTable.meta
+        calibVersion = metadata['ebf_VERSION']
+
+        # Initialize inDict with all expected keys
+        # and empty values of the corresponding type
         inDict = dict()
         inDict['metadata'] = metadata
+        inDict['metadata'] = None
+        inDict['ampNames'] = []
+        inDict['inputRange'] = None
+        inDict['fitRange'] = None
+        inDict['badAmps'] = []
+        inDict['fitParamNames'] = []
+        inDict['freeFitParamNames'] = []
+        inDict['gain'] = dict()
+        inDict['aMatrix'] = dict()
+        inDict['aMatrixSigma'] = dict()
+        inDict['aMatrixModel'] = dict()
+        inDict['aMatrixSum'] = dict()
+        inDict['aMatrixModelSum'] = dict()
+        inDict['modelNormalization'] = dict()
+        inDict['fitMask'] = dict()
+        inDict['fitParams'] = dict()
+        inDict['fitParamErrors'] = dict()
+        inDict['fitChi2'] = dict()
+        inDict['fitReducedChi2'] = dict()
+        inDict['fitParamCovMatrix'] = dict()
+        inDict['ath'] = dict()
+        inDict['athMinusBeta'] = dict()
+        inDict['aN'] = dict()
+        inDict['aS'] = dict()
+        inDict['aE'] = dict()
+        inDict['aW'] = dict()
 
-        amps = ampTable['AMPLIFIER']
-
-        # Determine version for expected values.  The ``fromDict``
-        # method can unpack either, but the appropriate fields need to
-        # be supplied.
-        calibVersion = metadata['bfk_VERSION']
-
-        if calibVersion == 1.0:
-            # We expect to find ``means`` and ``variances`` for this
-            # case, and will construct an ``expIdMask`` from these
-            # parameters in the ``fromDict`` method.
-            rawMeanList = ampTable['MEANS']
-            rawVarianceList = ampTable['VARIANCES']
-
-            inDict['means'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
-            inDict['variances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
-        elif calibVersion == 1.1:
-            # This will have ``rawMeans`` and ``rawVariances``, which
-            # are filtered via the ``expIdMask`` fields.
-            expIdMaskList = ampTable['EXP_ID_MASK']
-            rawMeanList = ampTable['RAW_MEANS']
-            rawVarianceList = ampTable['RAW_VARIANCES']
-
-            inDict['expIdMask'] = {amp: mask for amp, mask in zip(amps, expIdMaskList)}
-            inDict['rawMeans'] = {amp: mean for amp, mean in zip(amps, rawMeanList)}
-            inDict['rawVariances'] = {amp: var for amp, var in zip(amps, rawVarianceList)}
-        else:
-            raise RuntimeError(f"Unknown version for brighter-fatter kernel: {calibVersion}")
-
-        rawXcorrs = ampTable['RAW_XCORRS']
-        gainList = ampTable['GAIN']
-        noiseList = ampTable['NOISE']
-
-        meanXcorrs = ampTable['MEAN_XCORRS']
-        ampKernels = ampTable['KERNEL']
-        validList = ampTable['VALID']
-
-        inDict['rawXcorrs'] = {amp: kernel for amp, kernel in zip(amps, rawXcorrs)}
-        inDict['gain'] = {amp: gain for amp, gain in zip(amps, gainList)}
-        inDict['noise'] = {amp: noise for amp, noise in zip(amps, noiseList)}
-        inDict['meanXcorrs'] = {amp: kernel for amp, kernel in zip(amps, meanXcorrs)}
-        inDict['ampKernels'] = {amp: kernel for amp, kernel in zip(amps, ampKernels)}
-        inDict['valid'] = {amp: bool(valid) for amp, valid in zip(amps, validList)}
-
-        inDict['badAmps'] = [amp for amp, valid in inDict['valid'].items() if valid is False]
-
-        if len(tableList) > 1:
-            detTable = tableList[1]
-            inDict['detKernels'] = {det: kernel for det, kernel
-                                    in zip(detTable['DETECTOR'], detTable['KERNEL'])}
-        else:
-            inDict['detKernels'] = {}
+        if not calibVersion == 1.0:
+            cls().log.warning("Unkown version found for "
+                              f"ElectrostaticBrighterFatterCalibration: {calibVersion}. ")
+        for record in ampTable:
+            ampName = record['AMPLIFIER_NAME']
+            inDict['ampNames'].append(ampName)
+            inDict['inputRange'] = record['INPUT_RANGE'][0]
+            inDict['fitRange'] = record['FIT_RANGE']
+            inDict['badAmps'] = record['BAD_AMPS']
+            inDict['gain'][ampName] = record['GAIN']
+            inDict['aMatrix'][ampName] = record['A_MATRIX']
+            inDict['aMatrixSigma'][ampName] = record['A_MATRIX_SIGMA']
+            inDict['aMatrixModel'][ampName] = record['A_MATRIX_MODEL']
+            inDict['aMatrixSum'][ampName] = record['A_MATRIX_SUM']
+            inDict['aMatrixModelSum'][ampName] = record['A_MATRIX_MODEL_SUM']
+            inDict['modelNormalization'][ampName] = record['MODEL_NORMALIZATION']
+            inDict['fitMask'][ampName] = record['FIT_MASK']
+            inDict['fitParams'][ampName] = record['FIT_PARAMS']
+            inDict['fitParamErrors'][ampName] = record['FIT_PARAM_ERRORS']
+            inDict['fitChi2'][ampName] = record['FIT_CHI2']
+            inDict['fitReducedChi2'][ampName] = record['FIT_REDUCED_CHI2']
+            inDict['fitParamCovMatrix'][ampName] = record['FIT_PARAM_COV_MATRIX']
+            inDict['ath'][ampName] = record['ATH']
+            inDict['athMinusBeta'][ampName] = record['ATH_MINUS_BETA']
+            inDict['aN'][ampName] = record['A_N']
+            inDict['aS'][ampName] = record['A_S']
+            inDict['aE'][ampName] = record['A_E']
+            inDict['aW'][ampName] = record['A_W']
+            # Check for newer versions, but there are none...
 
         return cls.fromDict(inDict)
 
@@ -430,1073 +485,78 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         tableList = []
         self.updateMetadata()
 
-        # Lengths
-        kernelLength, smallLength, nObs = self.getLengths()
+        catalogList = []
+        for ampName in self.ampNames:
+            ampDict = {
+                'AMPLIFIER': ampName,
+                'INPUT_RANGE': self.inputRange,
+                'FIT_RANGE': self.fitRange,
+                'BAD_AMPS': self.badAmps,
+                'GAIN': self.gain.get(ampName),
+                'A_MATRIX': (
+                    self.aMatrix.get(ampName).ravel() if ampName in self.aMatrix else None
+                ),
+                'A_MATRIX_SIGMA': (
+                    self.aMatrixSigma.get(ampName).ravel() if ampName in self.aMatrixSigma else None
+                ),
+                'A_MATRIX_MODEL': (
+                    self.aMatrixModel.get(ampName).ravel() if ampName in self.aMatrixModel else None
+                ),
+                'A_MATRIX_SUM': self.aMatrixSum.get(ampName),
+                'A_MATRIX_MODEL_SUM': self.aMatrixModelSum.get(ampName),
+                'MODEL_NORMALIZATION': (
+                    self.modelNormalization.get(ampName).ravel()
+                    if ampName in self.modelNormalization else None
+                ),
+                'FIT_MASK': (
+                    self.fitMask.get(ampName).ravel() if ampName in self.fitMask else None
+                ),
+                'FIT_PARAM_NAMES': (
+                    self.fitParamNames.ravel() if ampName in self.fitParamNames else None
+                ),
+                'FREE_FIT_PARAM_NAMES': (
+                    self.freeFitParamNames.ravel() if ampName in self.freeFitParamNames else None
+                ),
+                'FIT_PARAMS': (
+                    self.fitParams.get(ampName).ravel() if ampName in self.fitParams else None
+                ),
+                'FIT_PARAM_ERRORS': (
+                    self.fitParamErrors.get(ampName).ravel() if ampName in self.fitParamErrors else None
+                ),
+                'FIT_CHI2': self.fitChi2.get(ampName),
+                'FIT_REDUCED_CHI2': self.fitReducedChi2.get(ampName),
+                'FIT_PARAM_COV_MATRIX': (
+                    self.fitParamCovMatrix.get(ampName).ravel()
+                    if ampName in self.fitParamCovMatrix else None
+                ),
+                'ATH': (
+                    self.ath.get(ampName).ravel() if ampName in self.ath else None
+                ),
+                'ATH_MINUS_BETA': (
+                    self.athMinusBeta.get(ampName).ravel() if ampName in self.athMinusBeta else None
+                ),
+                'A_N': (
+                    self.aN.get(ampName).ravel() if ampName in self.aN else None
+                ),
+                'A_S': (
+                    self.aS.get(ampName).ravel() if ampName in self.aS else None
+                ),
+                'A_E': (
+                    self.aE.get(ampName).ravel() if ampName in self.aE else None
+                ),
+                'A_W': (
+                    self.aW.get(ampName).ravel() if ampName in self.aW else None
+                ),
+            }
 
-        ampList = []
-        expIdMaskList = []
-        rawMeanList = []
-        rawVarianceList = []
-        rawXcorrs = []
-        gainList = []
-        noiseList = []
+            catalogList.append(ampDict)
 
-        meanXcorrsList = []
-        kernelList = []
-        validList = []
+        catalog = Table(catalogList)
 
-        if self.level == 'AMP':
-            for amp in self.rawMeans.keys():
-                ampList.append(amp)
-                expIdMaskList.append(self.expIdMask[amp])
-                rawMeanList.append(self.rawMeans[amp])
-                rawVarianceList.append(self.rawVariances[amp])
-
-                correlationShape = np.array(self.rawXcorrs[amp]).shape
-                if nObs != correlationShape[0]:
-                    if correlationShape[0] == np.sum(self.expIdMask[amp]):
-                        # Repack data.
-                        self.repackCorrelations(amp, correlationShape)
-                    else:
-                        raise ValueError("Could not coerce rawXcorrs into appropriate shape "
-                                         "(have %d correlations, but expect to see %d.",
-                                         correlationShape[0], np.sum(self.expIdMask[amp]))
-
-                rawXcorrs.append(np.array(self.rawXcorrs[amp]).reshape(nObs*smallLength).tolist())
-                gainList.append(self.gain[amp])
-                noiseList.append(self.noise[amp])
-
-                meanXcorrsList.append(self.meanXcorrs[amp].reshape(kernelLength).tolist())
-                kernelList.append(self.ampKernels[amp].reshape(kernelLength).tolist())
-                validList.append(int(self.valid[amp] and not (amp in self.badAmps)))
-
-        ampTable = Table({'AMPLIFIER': ampList,
-                          'EXP_ID_MASK': expIdMaskList,
-                          'RAW_MEANS': rawMeanList,
-                          'RAW_VARIANCES': rawVarianceList,
-                          'RAW_XCORRS': rawXcorrs,
-                          'GAIN': gainList,
-                          'NOISE': noiseList,
-                          'MEAN_XCORRS': meanXcorrsList,
-                          'KERNEL': kernelList,
-                          'VALID': validList,
-                          })
-
-        ampTable.meta = self.getMetadata().toDict()
-        tableList.append(ampTable)
-
-        if len(self.detKernels):
-            detList = []
-            kernelList = []
-            for det in self.detKernels.keys():
-                detList.append(det)
-                kernelList.append(self.detKernels[det].reshape(kernelLength).tolist())
-
-            detTable = Table({'DETECTOR': detList,
-                              'KERNEL': kernelList})
-            detTable.meta = self.getMetadata().toDict()
-            tableList.append(detTable)
+        inMeta = self.getMetadata().toDict()
+        outMeta = {k: v for k, v in inMeta.items() if v is not None}
+        outMeta.update({k: "" for k, v in inMeta.items() if v is None})
+        catalog.meta = outMeta
+        tableList.append(catalog)
 
         return tableList
-
-    def repackCorrelations(self, amp, correlationShape):
-        """If the correlations were masked, they need to be repacked into the
-        correct shape.
-
-        Parameters
-        ----------
-        amp : `str`
-            Amplifier needing repacked.
-        correlationShape : `tuple` [`int`], (3, )
-            Shape the correlations are expected to take.
-        """
-        repackedCorrelations = []
-        idx = 0
-        for maskValue in self.expIdMask[amp]:
-            if maskValue:
-                repackedCorrelations.append(self.rawXcorrs[amp][idx])
-                idx += 1
-            else:
-                repackedCorrelations.append(np.full((correlationShape[1], correlationShape[2]), np.nan))
-        self.rawXcorrs[amp] = repackedCorrelations
-
-    # Implementation methods
-    def makeDetectorKernelFromAmpwiseKernels(self, detectorName, ampsToExclude=[]):
-        """Average the amplifier level kernels to create a detector level
-        kernel.  There is no change in index ordering/orientation from
-        this averaging.
-
-        Parameters
-        ----------
-        detectorName : `str`
-            Detector for which the averaged kernel will be used.
-        ampsToExclude : `list` [`str`], optional
-            Amps that should not be included in the average.
-        """
-        inKernels = np.array([self.ampKernels[amp] for amp in
-                              self.ampKernels if (self.valid[amp] and amp not in ampsToExclude)])
-        avgKernel = np.zeros_like(inKernels[0])
-        sctrl = afwMath.StatisticsControl()
-        sctrl.setNumSigmaClip(5.0)
-        for i in range(np.shape(avgKernel)[0]):
-            for j in range(np.shape(avgKernel)[1]):
-                avgKernel[i, j] = afwMath.makeStatistics(inKernels[:, i, j],
-                                                         afwMath.MEANCLIP, sctrl).getValue()
-
-        self.detKernels[detectorName] = avgKernel
-
-    def replaceDetectorKernelWithAmpKernel(self, ampName, detectorName):
-        self.detKernel[detectorName] = self.ampKernel[ampName]
-
-
-class ElectrostaticFit() :
-    """
-    class to handle the electrostatic fit of area coefficients
-    The actual electrostatic calculations are done in integ_et.py
-    """
-    def __init__(self,meas_a, sig_meas_a, input_range=0, output_range = None) :
-        """
-        """
-        self.meas_a = meas_a
-        siga = sig_meas_a
-        self.fit_range = self.meas_a.shape[0]
-
-        if input_range != 0 and input_range < self.fit_range:
-            print("INFO : truncating input data at %d"%input_range)
-            self.fit_range = input_range
-        self.sqrt_w = 1/siga
-        self.output_range= self.fit_range
-        if output_range is not None:
-            self.output_range= output_range
-        self.fitting_offset = False
-        self.params = FitParameters([('z_q',1), ('zsh',1),('zsv',1),('a',1),('b',1),('thickness',1), ('pixsize',1), ('alpha',1), ('beta',1) ])
-
-    def set_params(self, dic) :
-        for name,val in dic.items() :
-            self.params[name] = val
-
-    def get_params(self) :
-        """
-        return a  copy of the free params vector
-        """
-        return self.params.free + 0.
-
-    def get_a(self):
-        fr = self.fit_range
-        return self.meas_a[0:fr,0:fr]
-
-    def model(self, free_params = None) :
-        m = self.raw_model(free_params)
-        #alpha,beta = self.normalize_model(m)
-        alpha = self.params['alpha'].full[0]
-        beta = self.params['beta'].full[0]
-        return alpha*m + beta
-
-    def raw_model(self,free_params = None) :
-        if free_params is not None :
-            # assign what the minimizer is asking for:
-            self.params.free = free_params
-
-        # need all the parameters as a dictionnary:
-        dic = convert_parameters_to_dict(self.params)
-        del dic['alpha']
-        del dic['beta']
-
-        # push them into the electrostatic calculator
-        c = ElectrostaticCcdGeom(**dic)
-        fr = self.fit_range
-
-        # compute the observables :
-        # BEWARE: if you change the routine called here, you should
-        # you chould change it as well in boundary_shift.__init__()
-        if hasattr(self,'npair') :
-            m = c.EvalAreaChangeSidesFast2(fr,npair=self.npair)
-        else:
-            m = c.EvalAreaChangeSidesFast2(fr)
-
-        # I am almost sure it is useless to compute (just above)
-        # more than we use (just below).
-        m = m [:fr,:fr]
-        return m
-
-    def normalize_model(self, m) :
-        """
-        The overall normalization is a linear parameter.
-        We just hide from the minimizer by computing the optimal value given
-        the other parameters.
-        """
-        # fit normalization and possibly a large distance offset to data :
-        fr = m.shape[0]
-        sqrtw= self.sqrt_w[ :fr, :fr]
-        w = sqrtw**2
-        y = self.meas_a[ :fr, :fr]
-        if (self.fitting_offset) :
-            sxx=(w*m*m).sum()
-            sx=(w*m).sum()
-            s1=(w).sum()
-            sxy=(w*m*y).sum()
-            sy=(w*y).sum()
-            d= sxx*s1-sx*sx
-            a =  (s1*sxy-sx*sy)/d
-            b = (-sx*sxy+sxx*sy)/d
-            return a*m+b
-        else :
-            # just scale
-            a = (w*y*m).sum()/(w*m*m).sum()
-            b = 0
-        return a,b
-
-    def wres_array(self,params=None) :
-        fr = self.fit_range
-        m = self.model(params)
-        w= self.sqrt_w[0:fr,0:fr]
-        y = self.meas_a[0:fr,0:fr]
-        # these are two 2-d arrays to be mutiplied term to term:
-        start = (w*(m-y))
-        # and the result has the same size as both of them.
-        return start
-
-    def formatResults(self, conversion_weights=None) :
-        """
-        If provided, conversion_weights is expected to be a list of pairs of (depth, probability)
-        the routine computes the model corresponding to this probablity distribution.
-        If conversion_depth is not provided , then [(0, 1.)] is used as the distribution.
-        """
-        z_end = self.params["thickness"].full[0]
-        zsh = self.params["zsh"].full[0]
-        zsv = self.params["zsv"].full[0]
-        if conversion_weights is None: # full thinkness
-            conversion_weights = (np.array([0.]),np.array([1.]))
-        res = None
-        (d,p) = conversion_weights
-        # zero depths lower than the end of drift
-        too_low = (z_end-d<zsh)|(z_end-d<zsv)
-        p[too_low] = 0
-        p /= p.sum() # normalize to 1.
-        for (depth, prob) in zip(d,p) :
-            if prob == 0 : continue
-            if res is None:
-                res = prob*BoundaryShifts(el_fit=self, z_end-depth)
-            else :
-                res = res + prob*BoundaryShifts(el_fit=self, z_end-depth)
-
-        # produce the output tuple.
-        formattedResult = np.recarray(res.aN.size, dtype=[('i',np.int32), ('j',np.int32),
-                                          ('aN', np.float64),
-                                          ('aW', np.float64),
-                                          ('aS', np.float64),
-                                          ('aE', np.float64),
-                                          ('ath', np.float64),
-                                          ('ath_wo_off', np.float64),
-                                          ('ameas', np.float64),
-                                          ('sig_ameas', np.float64),
-                                          ('used', np.int32)])
-
-        ameas_shape = self.meas_a.shape
-        # ndenumerate : iterates on coordinates (tuple) and values of an array
-        for k,((i,j),v) in  enumerate(np.ndenumerate(res.aN)):
-            row=formattedResult[k]
-            row.i = i
-            row.j = j
-            row.aN = res.aN[i,j]
-            row.aS = res.aS[i,j]
-            row.aE = res.aE[i,j]
-            row.aW = res.aW[i,j]
-            row.ath = res.ath[i,j]
-            row.ath_wo_off = res.ath_wo_off[i,j]
-            if i<ameas_shape[0] and j<ameas_shape[1] :
-                row.ameas = self.meas_a[i,j]
-                row.sig_ameas = 1./self.sqrt_w[i,j] if self.sqrt_w[i,j]>0 else -1
-            else :
-                row.ameas = 0
-                row.sig_ameas = -1
-            if i<self.fit_range and j<self.fit_range :
-                row.used = 1
-            else : row.used =0
-
-        return formattedResult
-
-
-
-class BoundaryShifts :
-
-    def __init__(self, el_fit, z_end):
-        assert z_end>0
-        #dict = { key: el_fit.params[key].full[0]+0 for key in list(el_fit.params._pars.struct.slices.keys())}
-        dict = convert_parameters_to_dict(el_fit.params)
-        del dict['alpha']
-        del dict['beta']
-        c = ElectrostaticCcdGeom(**dict)
-        ii,jj = np.meshgrid( list(range(el_fit.output_range)), list(range(el_fit.output_range)))
-        ii = ii.flatten()
-        jj = jj.flatten()
-        self.aN = np.ndarray((el_fit.output_range,el_fit.output_range))
-        self.aS = np.zeros_like(self.aN)
-        self.aE = np.zeros_like(self.aN)
-        self.aW = np.zeros_like(self.aN)
-        self.ath = np.zeros_like(self.aN)
-        alpha = el_fit.params['alpha'].full[0]
-        beta = el_fit.params['beta'].full[0]
-        # alpha*raw_model+beta is the description of the measurements
-        # We should not apply beta to the outcome, because beta is meant to
-        # accomodate some long-range contamination (non-electrostatic)
-        # of the covariance measurements.
-        if True :
-            for (i,j) in zip(ii,jj) :
-                self.aN[i,j] = -alpha*c.Integ_Ey_fast(i,j,1, z_end = z_end)
-                self.aS[i,j] = -alpha*c.Integ_Ey_fast(i,j,-1, z_end = z_end)
-                self.aW[i,j] = -alpha*c.Integ_Ex_fast(i,j,-1, z_end = z_end)
-                self.aE[i,j] = -alpha*c.Integ_Ex_fast(i,j,1, z_end = z_end)
-            self.ath = alpha*c.EvalAreaChangeSidesFast(el_fit.output_range, z_end=z_end)+beta
-        else :
-            imax,jmax = el_fit.output_range,el_fit.output_range
-            self.aN = -alpha*c.Integ_Ey_fast2(imax,jmax,1, z_end = z_end)
-            self.aS = -alpha*c.Integ_Ey_fast2(imax,jmax,-1, z_end = z_end)
-            self.aW = -alpha*c.Integ_Ex_fast2(imax,jmax,-1, z_end = z_end)
-            self.aE = -alpha*c.Integ_Ex_fast2(imax,jmax,1, z_end = z_end)
-            self.ath = alpha*c.EvalAreaChangeSidesFast2(el_fit.output_range, z_end=z_end)+beta
-        self.ath_wo_off = self.ath-beta
-
-    def __rmul__(self, factor) :
-        """
-        """
-        res = copy.deepcopy(self)
-        res.aN *= factor
-        res.aS *= factor
-        res.aE *= factor
-        res.aW *= factor
-        res.ath *= factor
-        res.ath_wo_off *= factor
-        return res
-
-    def __add__(self, other) :
-        """
-        """
-        res = copy.deepcopy(self)
-        res.aN += other.aN
-        res.aS += other.aS
-        res.aE += other.aE
-        res.aW += other.aW
-        res.ath += other.ath
-        res.ath_wo_off += other.ath_wo_off
-        return res
-
-    def wres(self,params) :
-        """
-        This is the routine for leastsq.
-        returns a 1-d array of weighted residuals.
-        implements constraints as residuals that increase rapidly
-        when constraints are violated.
-        This technique allows us to use leastsq which is much
-        better than anything else I tried.
-        """
-        wres = self.wres_array(params).flatten()
-        # constraints :
-        n_constraints = 5
-        nt = wres.size
-        ret = np.ndarray((nt+n_constraints))
-        ret[:nt] = wres
-        # z_q >0
-        z_q = self.params['z_q'].full[0]
-        ret[nt] = np.exp(-(z_q-0.1)*300)
-        nt += 1
-        # zsh > z_q
-        zsh = self.params['zsh'].full[0]
-        ret[nt] =  np.exp((z_q-zsh)*300)
-        nt +=1
-        # zsv > z_q
-        zsv = self.params['zsv'].full[0]
-        ret[nt] =  np.exp((z_q-zsv)*300)
-        nt +=1
-        # 0.35 pixsize > a, same for b
-        a = np.abs(self.params['a'].full[0])
-        b = np.abs(self.params['b'].full[0])
-        pixsize = self.params['pixsize'].full[0]
-        ret[nt] =  np.exp((a-0.35*pixsize)*300)
-        nt +=1
-        ret[nt] =  np.exp((b-0.35*pixsize)*300)
-        nt +=1
-
-        print('chi2 %g'%(ret**2).sum(), ' params ', params)
-        return ret
-
-    def getChi2(self, params=None) :
-        chi2 = ((self.wres(params))**2).sum()
-        if params is not None : print(params, chi2)
-        return chi2
-
-
-def ECoulomb(X,X_q) :
-    """
-    X = where, X_q = charge location.
-    both should be numpy arrays.
-    if X is multi-d, the routine assumes that the
-    physical coordinates (x,y,z) are patrolled by
-    the last index
-    """
-    d = X-X_q
-    r3 = np.power((d**2).sum(axis=-1), 1.5)
-    # anything more clever ?
-    # of course d/r3 does not work
-    return (d.T / r3.T).T
-
-
-
-class ElectrostaticCcdGeom() :
-    def __init__(self, z_q, zsh, zsv, a, b, thickness, pixsize) :
-        """
-        parameters :  (all in microns)
-        z_q : altitude of the burried channel (microns)
-        zsh : vertex altitude for horizontal boundaries
-        zsv : vertex altitude for vertical boundaries
-        a, b : size of the rectangular charge source
-        thickness : thickness
-        pixsize : pixel size
-        """
-        # z of the charge (distance to clock rails)
-        self.z_q = z_q
-        # height of vertex for horizontal boundaries
-        self.zsh = zsh
-        # for vertical boundaries
-        self.zsv = zsv
-        self.b = np.fabs(b)
-        self.a = np.fabs(a)
-        # overall thickness
-        self.t = np.fabs(float(thickness))
-        # pixel size
-        self.pix = float(pixsize)
-        #
-        self.nstepz = 100
-        self.nstepxy = 20
-        # yields a ~ 1% precision of the field at z~10
-        # if compared to the uniform sheet model (Exyz
-        self.charge_split=3
-        #
-        self.setup_weights(self.nstepxy)
-
-    # memorize the values at the class level since leggauss is not fast
-    integ_weights = None
-    xyoffsets = None
-
-    def setup_weights(self, nstepxy) :
-        if self.__class__.integ_weights is not None and \
-           len(self.__class__.integ_weights) == nstepxy:
-            self.integ_weights = self.__class__.integ_weights
-            self.xyoffsets = self.__class__.xyoffsets
-        else :
-            if True:
-                x,w =  leggauss(nstepxy)
-                self.integ_weights = w*0.5
-                self.xyoffsets = (x+1)*0.5*self.pix # abcissa refer to [-1,1], we want [0,self.pix]
-            else :  # first incarnation of the code: equal steps and weights
-                self.xyoffsets = (np.linspace(0,nstepxy-1,nstepxy)+0.5)*self.pix/nstepxy
-                self.integ_weights = np.ones(nstepxy)/nstepxy
-            self.__class__.xyoffsets = self.xyoffsets
-            self.__class__.integ_weights = self.integ_weights
-
-
-    def ECoulombChargeSheet(self,X, X_q) :
-        """
-        X = where (the last index should address x,y,z.
-        X_q = charge location
-        Both Should be numpy arrays.
-        if X is multi-d, the routine assumes
-        that the physical coordinates (x,y,z) are patrolled by the last index.
-        Returns the electric field from a unitely charged horizontal rectangle
-        centered at X_q of size 2a * 2b.
-        The returned electric field assumes 4*pi*epsilon=1.
-        """
-        # use Durand page 244 tome 1
-        # four corners :
-        X1 = X_q + np.array([ self.a, self.b,0])
-        X2 = X_q + np.array([-self.a, self.b,0])
-        X3 = X_q + np.array([-self.a,-self.b,0])
-        X4 = X_q + np.array([ self.a,-self.b,0])
-
-        # distances to the four corners
-        d1 = np.sqrt(((X-X1)**2).sum(axis=-1))
-        d2 = np.sqrt(((X-X2)**2).sum(axis=-1))
-        d3 = np.sqrt(((X-X3)**2).sum(axis=-1))
-        d4 = np.sqrt(((X-X4)**2).sum(axis=-1))
-        # reserve the returned array
-        ret = np.ndarray(X.shape)
-        x = X[...,0]-X_q[0]
-        y = X[...,1]-X_q[1]
-        if False :  # old debug
-            deno = (d3+y+self.b)*(d1+y-self.b)
-            ind = (deno==0)
-            if ind.sum() != 0:
-                ind = np.where(ind)[0][0]
-                print('singular deno, b=%f'%self.b, 'd1=%f d3=%f y=%f '%(d1[ind], d3[ind], y[ind]))
-                print(' X ',X[ind], 'num ',((d4+y+self.b)*(d2+y-self.b))[ind])
-        # Ex
-        # note : if a or b goes to 0, the log is 0 and the denominator (last
-        # line) is zero as well. So some expansion would be required
-        ao = y+self.b
-        bo = y-self.b
-        co = x+self.a
-        do = x-self.a
-        # Ex (eq 105)
-        ret[...,0] = np.log((d4+ao)*(d2+bo)
-                            /(d3+ao)/(d1+bo))
-        # Ey (eq 106)
-        ret[...,1] = np.log((d2+co)*(d4+do)
-                            /(d3+co)/(d1+do))
-        # point source approximation
-        # ret[...,2] = (4*self.a*self.b)*ECoulomb(X,X_q)[...,2]
-        # full expression for ez : p 244
-        # ez (eq 111 is only valid if the x and y are "inside")
-        # there is a discussion of the general case around Fig VI-18.
-        z = X[...,2]-X_q[2]
-        # it ressembles equation 111 but I flipped two signs
-        ret[...,2] = (np.arctan(do*bo/z/d1) - np.arctan(bo*co/z/d2)
-        + np.arctan(co*ao/z/d3) - np.arctan(ao*do/z/d4))
-        # seems OK both "inside" and "outside"
-        return ret/(4*self.a*self.b)
-
-    # An attempt to use jax to speed up this function was unsuccessful.
-    # Getting the code to just work was painful, and in the end, the
-    # fit no longer worked because jax uses single precision, and
-    # double precision is needed when computing the derivatives.
-    # Eventually, just jaxing "integral" somehow worked, but it is
-    # then 10 times slower than python on a GPU free laptop.
-
-    def IntegrateAlongZ(self, X, Ex_or_Ey, zstart, zend, npair=11) :
-        """
-        Integrate transverse E Field along Z at point X (2 coordinates, last
-        index).  The coordinate of the field is given by Ex_or_Ey (0,
-        or 1).  at point X from the point charge The computation uses
-        the dipole series trick. The number of dipoles is an optional
-        argument. Odd numbers are better for what we are doing here.
-
-        """
-        # The integral of the field (x_or_y/r^3 dz from z1 to z2) reads
-        # x_or_y/rho**2*(z2/r2-z1/r1) with rho2 = x**2+y**2
-        # x_or_y/rho2 does not change when going through image sources
-        # so we use them as arguments, dz1 and dz2 z{begin,end}--Xq[2]
-        # just for test: if zstart==zend, then return the field value
-        if zstart != zend  :
-            def integral(rho2, x_or_y, dz1, dz2) :
-                r1 = np.sqrt(rho2+dz1**2)
-                r2 = np.sqrt(rho2+dz2**2)
-                return x_or_y*(dz2/r2- dz1/r1)/rho2
-        else :  # see the comment above: return the value, not the integral.
-            def integral(rho2, x_or_y, dz1, dz2) :
-                """
-                x_or_y/r**3
-                """
-                r = np.sqrt(rho2+dz1**2)
-                vals =  x_or_y/r**3
-                return vals
-
-        # reserve the result array
-        result = np.zeros(X.shape[:-1])
-        assert (Ex_or_Ey ==0) or (Ex_or_Ey ==1),"IntegrateAlongZ : Ex_or_Ey should be 0 or 1"
-        zqp = self.z_q
-        zqm = -zqp
-
-        # for the first dipole, generate a set of point charges to emulate
-        # an extended distribution (size 2a*2b)
-        xstep = 2*self.a/self.charge_split
-        ystep = 2*self.b/self.charge_split
-        xqpos =  -self.a+(np.linspace(0,self.charge_split-1, self.charge_split)+0.5)*xstep
-        yqpos =  -self.b+(np.linspace(0,self.charge_split-1, self.charge_split)+0.5)*ystep
-        # print('xqpos, yqpos', xqpos, yqpos)
-        for xq in xqpos:
-            for yq in yqpos :
-                dx = X[...,0]-xq
-                dy = X[...,1]-yq
-                dX = [dx,dy]
-                rho2 = dx**2+dy**2
-                result += integral(rho2, dX[Ex_or_Ey], zstart-zqp, zend-zqp)
-                # image charge, switch sign of z and q
-                result -= integral(rho2, dX[Ex_or_Ey], zstart-zqm, zend-zqm)
-        result /= self.charge_split*self.charge_split
-
-
-        # next dipoles : no more extended charge
-        # The (x,y) charge coordinates are 0, and common to all images:
-        rho2 = X[...,0]**2+X[...,1]**2
-        x_or_y = X[...,Ex_or_Ey]
-        for i in range(1, npair) :
-            if (i%2):
-                ztmp = 2*self.t-zqm
-                zqm = 2*self.t-zqp
-                zqp = ztmp
-            else :
-                ztmp = -zqm
-                zqm = -zqp
-                zqp = ztmp
-            result += integral(rho2, x_or_y, zstart-zqp, zend-zqp)
-            result -= integral(rho2, x_or_y, zstart-zqm, zend-zqm)
-
-        # 55 = 8.85418781e-12 (F/m) *1e-6 (microns/m)  / 1.602e-19 (Coulomb/electron)
-        # eps_r_Si = 12, so eps = 55*12 = 660 el/V/um
-        # This routine hence returns the field sourced by -1 electron
-        result *= 1/(4*np.pi*660)
-        return result
-
-
-
-
-    def Exyz(self, X, npair=11) :
-        """
-        Field at point X from the point charge
-        if X is multi-dimensional, x,y,z should be represented
-        by the last index ([0:3]).
-        The computation uses the dipole series trick. The number of dipoles is an
-        optional argument. Odd numbers are better for what we are
-        doing here.
-        """
-        # put the center of the aggressor pixel at x,y, = 0,0
-        # this assumption is relied on in Eval_Eth and Eval_Etv
-        qpos1=np.array([0,0,self.z_q])
-        # split the calculation in 2 parts: approximation when far from the source, image method when near.
-        rho = np.sqrt(X[...,0]**2+X[...,1]**2)
-        index_close = rho/self.t<2 # this is the separating value.
-        X_close = X[index_close]
-        # image charge w.r.t. the parallel clock lines
-        qpos2=np.array([qpos1[0], qpos1[1], -qpos1[2]])
-        # first dipole
-        E_close = self.ECoulombChargeSheet(X_close, qpos1) - self.ECoulombChargeSheet(X_close, qpos2)
-        # next dipoles
-        for i in range(1, npair) :
-            if (i%2):
-                qpos1[2] = 2*self.t-qpos1[2]
-                qpos2[2] = 2*self.t-qpos2[2]
-                E_close += ECoulomb(X_close,qpos2)- ECoulomb(X_close,qpos1)
-            else :
-                qpos1[2] = -qpos1[2]
-                qpos2[2] = -qpos2[2]
-                E_close += ECoulomb(X_close,qpos1)- ECoulomb(X_close,qpos2)
-        X_far = X[~index_close]
-        rho_far = rho[~index_close]
-        # Jon Pumplin, Am. Jour. Phys. 37,7 (1969), eq 7
-        # When changing coordinate system (shift along z), cos -> sin.
-        # And since this only applies far from the source, the latter
-        # can be regarded as point-like.
-        # I checked the continuity over the separation point.
-        fact = -np.sin(np.pi*self.z_q/self.t) * np.sin(np.pi*X_far[...,2]/self.t)*np.exp(-np.pi*rho_far/self.t)*np.sqrt(8/rho_far/self.t)*(-np.pi/self.t-0.5/rho_far)
-        E_far = np.zeros_like(X_far)
-        E_far[...,0] = X_far[...,0]/rho_far*fact
-        E_far[...,1] = X_far[...,1]/rho_far*fact
-        # aggregate the results
-        E = np.zeros_like(X)
-        E[index_close] = E_close
-        E[~index_close] = E_far
-        # epsilon0 = 55 el/V/micron
-        # 55 = 8.85418781e-12 (F/m) *1e-6 (microns/m)  / 1.602e-19 (Coulomb/electron)
-        # eps_r_Si = 12, so eps = 55*12 = 660 el/V/um
-        # This routine hence returns the field sourced by -1 electron
-        E *= 1/(4*3.1415927*660)
-        return E
-
-    def Integ_Ex_fast(self, i,j,left_or_right, z_end=None, npair=11):
-        """
-        return the integral of Ex along z from self.zsh to zend.
-        """
-        z_end = self.t if (z_end==None) else z_end
-        assert z_end > self.zsv
-        xystep = self.pix/(self.nstepxy)
-        yy = (j-0.5)*self.pix + (np.linspace(0,self.nstepxy-1,self.nstepxy)+0.5)*xystep
-        xx = np.ones(yy.shape)*(i+0.5*left_or_right)*self.pix
-        X = np.array([xx,yy]).T
-        # by definition of zsh, we  integrate from zsv to z_end,
-        # and divide by the pixel size to be consistent with Eval_ET{v,h}
-        return left_or_right*self.IntegrateAlongZ(X, 0, self.zsv, z_end, npair=npair).mean()/self.pix
-
-
-    def Integ_Ey_fast(self, i, j, top_or_bottom, z_end=None, npair=11):
-        """
-        return the integral of Ey along z from self.zsh to zend,
-        integrated of x
-        """
-        z_end = self.t if (z_end==None) else z_end
-        assert z_end > self.zsh
-        xystep = self.pix/(self.nstepxy)
-        xx = (i-0.5)*self.pix + (np.linspace(0,self.nstepxy-1,self.nstepxy)+0.5)*xystep
-        yy = np.ones(xx.shape)*(j+0.5*top_or_bottom)*self.pix
-        X = np.array([xx,yy]).T
-        # by definition of zsh, we  integrate from zsh to z_end,
-        # and divide by the pixel size to be consistent with Eval_ET{v,h}
-        return top_or_bottom*self.IntegrateAlongZ(X, 1, self.zsh, z_end, npair=npair).mean()/self.pix
-
-    def Integ_Ex_fast2(self, imax,jmax,left_or_right, z_end=None, npair=11):
-        """
-        Computes the integrals of Ex along z from self.zsh to zend.
-        The returned array is 2d [0:imax, 0:jmax].
-        Fast version of Integ_Ex_fast
-        """
-        z_end = self.t if (z_end==None) else z_end
-        assert z_end > self.zsv
-        ii,jj=np.indices((imax,jmax))
-        yy = (jj-0.5)[:,:,np.newaxis]*self.pix + self.xyoffsets[np.newaxis, np.newaxis, :]
-        xx = (ii+0.5*left_or_right)*self.pix
-        xx = np.broadcast_to(xx[...,None], yy.shape)
-        X = np.stack([xx,yy],axis=-1)
-        # by definition of zsh, we  integrate from zsv to z_end,
-        # and divide by the pixel size to be consistent with Eval_ET{v,h}
-        w = np.broadcast_to(self.integ_weights,yy.shape)
-        integral = (self.IntegrateAlongZ(X, 0, self.zsv, z_end, npair=npair)*w).sum(axis=2)
-        return left_or_right* integral/self.pix
-
-
-    def Integ_Ey_fast2(self, imax, jmax, top_or_bottom, z_end=None, npair=11):
-        """
-        Computes the integral of Ey along z from self.zsh to zend.
-        The returned array is 2d [0:imax, 0:jmax].
-        Fast version of Integ_Ey_fast
-        """
-        z_end = self.t if (z_end==None) else z_end
-        assert z_end > self.zsh
-        ii,jj=np.indices((imax,jmax))
-        xx = (ii-0.5)[:,:,np.newaxis]*self.pix \
-        + self.xyoffsets[np.newaxis, np.newaxis, :]
-        yy = (jj+0.5*top_or_bottom)*self.pix
-        yy = np.broadcast_to(yy[...,None], xx.shape)
-        X = np.stack([xx,yy],axis=-1)
-        # by definition of zsh, we  integrate from zsh to z_end,
-        # and divide by the pixel size to be consistent with Eval_ET{v,h}
-        # integrate
-        w = np.broadcast_to(self.integ_weights,yy.shape) # add leading dimensions
-        integral = (self.IntegrateAlongZ(X, 1, self.zsh, z_end, npair=npair)*w).sum(axis=2)
-        return top_or_bottom*integral/self.pix
-
-
-    def Eval_ETh(self, i,j, top_or_bottom, z_end=None):
-        """
-        Returns the field transverse to the horizontal pixel boundary.
-        return a 2d array of shifts at evenly spaced points in x and z.
-        normalized in units of pixel size, for a unit charge.
-        The returned array has 3 indices:
-        [along the pixel side, along the drift,E-field coordinate].
-        The resutl is multiplied by the z- and x- steps, so that the
-        sum is the averge over x, divided by the pixel size.
-        """
-        assert np.abs(top_or_bottom) == 1
-        z_end = self.t if (z_end==None) else z_end
-        # by definition of zsh, we  integrate from zsh to z_end:
-        zstep = (z_end-self.zsh)/(self.nstepz)
-        xystep = self.pix/(self.nstepxy)
-        z = self.zsh+(np.linspace(0, self.nstepz-1, num = self.nstepz)+0.5)*zstep
-        x = (i-0.5)*self.pix + (np.linspace(0,self.nstepxy-1,self.nstepxy)+0.5)*xystep
-        [xx,zz] = np.meshgrid(x,z)
-        yy = np.ones(xx.shape)*(j+0.5*top_or_bottom)*self.pix
-        X=np.array([xx, yy, zz]).T
-        return self.Exyz(X)*zstep*xystep
-
-
-    def average_shift_h(self, i,j, top_or_bottom, z_end=None):
-        """
-        Integrate the field transverse to the horizontal pixel boundary
-        """
-        sum = self.Eval_ETh(i,j,top_or_bottom,z_end)[...,1].sum() # select Ey
-        # we want the integral over z and the average over x,
-        # divided by the pixel size, with a sign that defines
-        # if in moves inside or outside. Here is it:
-        return sum*(top_or_bottom/(self.pix**2))
-
-    def corner_shift_h(self, i,j, top_or_bottom, z_end=None):
-        E = self.Eval_ETh(i,j,top_or_bottom, z_end)[...,1]
-        # integrate over z
-        #(multiplication by the step done in the calling routine)
-        intz = E.sum(axis=1)
-        x = range(intz.shape[0])
-        p = np.polyfit(x, intz, 1)
-        return p[0]*-0.5+p[1], p[0]*(x[-1]+0.5)+p[1]
-
-    def Eval_ETv(self, i,j, left_or_right, z_end=None):
-        """
-        Returns the field transverse to the vertical pixel boundary.
-        return a 3d array of shifts at evenly spaced points in y and z.
-        Ex,y,z is indexed by the last index.
-        If you are only interested in the boundary shift, use average_shift_{h,v}
-        """
-        assert np.abs(left_or_right) == 1
-        z_end = self.t if (z_end==None) else z_end
-        # the source charge is at x,y=0
-        zstep = (z_end-self.zsv)/(self.nstepz)
-        xystep = self.pix/(self.nstepxy)
-        z = self.zsv+(np.linspace(0,self.nstepz-1,self.nstepz)+0.5)*zstep
-        y = (j-0.5)*self.pix + (np.linspace(0,self.nstepxy-1,self.nstepxy)+0.5)*xystep
-        [yy,zz] = np.meshgrid(y,z)
-        xx = np.ones(yy.shape)*(i+0.5*left_or_right)*self.pix
-        X=np.array([xx, yy, zz]).T
-        return self.Exyz(X)*zstep*xystep
-
-
-    def average_shift_v(self, i,j, left_or_right, z_end=None):
-        """
-        Average shift of the vertical boundary of pixel (i j).
-        """
-        sum = self.Eval_ETv(i,j,left_or_right, z_end)[...,0].sum() # select Ex
-        # we want the integral over z and the average over x,
-        # divided by the pixel size, with a sign that defines
-        # if in moves inside or outside. Here is it:
-        return sum*(left_or_right/(self.pix**2))
-
-    def dx_dy(self, imax, z_end=None):
-        """
-        corner shifts calculations.  The returned array are larger by 1
-        than imax, because there are more corners than pixels
-        """
-        last_i = imax
-        shifts_h = np.ndarray((last_i, last_i))
-        shifts_v = np.ndarray((last_i, last_i))
-        for i in range(last_i):
-            for j in range(last_i):
-                shifts_h[i,j] = self.average_shift_h(i+0.5,j,+1, z_end)
-                shifts_v[i,j] = self.average_shift_v(i,j+0.5,+1, z_end)
-        # parametrize the corner shifts of imax pixels: imax+1
-        # corners in each direction
-        dx  = np.zeros((imax+1,imax+1))
-        dy  = dx + 0.
-        dx[1:, 1:] =  shifts_v
-        dx[0, 1:] = -shifts_v[0,:] # leftmost  column
-        dx[:, 0] = dx[:,1] # bottom row
-        dy[1:,1:] = shifts_h
-        dy[1:,0] = -shifts_h[:,0] # bottom row
-        dy[0, :] = dy[1,:] # leftmost column
-        return dx,dy
-
-
-    def EvalAreaChangeCorners(self, imax, z_end=None):
-        """
-        pixel area alterations computed through corner shifts
-        """
-        dx,dy = dx_dy(imax,zend)
-        area_change = dx[1:,1:]-dx[:-1,1:]+dx[1:,:-1] - dx[:-1,:-1]
-        area_change += dy[1:,1:]-dy[1:,:-1]+dy[:-1,1:]- dy[:-1,:-1]
-        return -0.5*area_change
-
-
-        area_change_h = shifts_h # dy top right corner
-        area_change_h[1:,:] = shift_h[1:,:] # dy top left corner
-        area_change_h[1:,:] = shift_h[1:,:] # dy down right
-
-        area_change[0, :] -= shifts_v[0:,:]
-
-        area_change[:, 0] -= shifts_h[:,0]
-        area_change[1:,:] += shifts_v[:-1, :]
-        area_change[:,1:] += shifts_h[:, :-1]
-        return area_change
-
-
-
-    def EvalAreaChangeSides(self, imax, z_end=None):
-        """
-        Same as EvalAreaChange, but twice as fast because symetries
-        are accounted for
-        """
-        last_i = imax
-        shifts_h = np.ndarray((last_i, last_i))
-        shifts_v = np.ndarray((last_i, last_i))
-        for i in range(last_i):
-            for j in range(last_i):
-                shifts_h[i,j] = self.average_shift_h(i,j,+1, z_end)
-                shifts_v[i,j] = self.average_shift_v(i,j,+1, z_end)
-        area_change = -shifts_h-shifts_v
-        area_change[0, :] -= shifts_v[0,:]
-        area_change[:, 0] -= shifts_h[:,0]
-        area_change[1:,:] += shifts_v[:-1, :]
-        area_change[:,1:] += shifts_h[:, :-1]
-        return area_change
-
-    def EvalAreaChangeSidesFast(self, imax, z_end=None, npair=11):
-        """
-        Same as EvalAreaChangeSides, but uses direct integration
-        """
-        last_i = imax
-        shifts_h = np.ndarray((last_i, last_i))
-        shifts_v = np.ndarray((last_i, last_i))
-        for i in range(last_i):
-            for j in range(last_i):
-                shifts_h[i,j] = self.Integ_Ey_fast(i,j, 1, z_end, npair=npair)
-                shifts_v[i,j] = self.Integ_Ex_fast(i,j, 1, z_end, npair=npair)
-        area_change = -shifts_h-shifts_v
-        area_change[0, :] -= shifts_v[0,:]
-        area_change[:, 0] -= shifts_h[:,0]
-        area_change[1:,:] += shifts_v[:-1, :]
-        area_change[:,1:] += shifts_h[:, :-1]
-        return area_change
-
-    def EvalAreaChangeSidesFast2(self, imax, z_end=None, npair=11):
-        """
-        Same as EvalAreaChangeSides, but uses direct integration.
-        it evaluates the divergence of the discrete boundary
-        displacement field.
-        This routine groups the calls to the field computing routines and is
-        much faster than EvalAreaChangeSidesFast.
-        """
-        last_i = imax
-        shifts_h = np.ndarray((last_i, last_i+1))
-        shifts_v = np.zeros_like(shifts_h.T)
-        shifts_h[:,1:] = self.Integ_Ey_fast2(imax,imax, 1, z_end, npair=npair)
-        shifts_v[1:,:] = self.Integ_Ex_fast2(imax,imax, 1, z_end, npair=npair)
-        # special case for [0,j] and [i,0] (they have two opposite values)
-        shifts_h[:,0] = -shifts_h[:,1]
-        shifts_v[0,:] = -shifts_v[1,:]
-        # the divergence
-        area_change = -(shifts_v[1:,:]-shifts_v[:-1, :]+\
-            shifts_h[:,1:]-shifts_h[:,:-1])
-        return area_change
-
-
-
-    def EvalAreaChange(self,i, j, z_end=None) :
-        """
-        i,j: integer offsets
-        z_end : t by default, else lower values (to allow for red photons)
-        """
-        z_end = self.t if (z_end==None) else z_end
-        return -(self.average_shift_h(i,j,-1, z_end)+self.average_shift_h(i,j,+1, z_end)+
-        self.average_shift_v(i,j,-1, z_end)+self.average_shift_v(i,j,+1, z_end))
-
-
-
-# code adaped from :
-# https://stackoverflow.com/questions/14786920/convolution-of-two-three-dimensional-arrays-with-padding-on-one-side-too-slow
-# code posted by Henry Gomersal
-class CustomFFTConvolution(object):
-    """
-    A class that performs image convolutions in Fourier space, using pyfftw.
-    The constructor takes images as arguments, and creates the
-    plans in fftw3 parlance. The convolutions are done by the __call_ routine.
-    This is faster than scipy.signal.fftconvole, and it saves some transforms
-    by allowing to convolve the same image with several kernels.
-    pyfftw does not accomodate float32 images, so everything
-    should be double precision.
-    """
-    def __init__(self, A, B, threads=1):
-        # minimum size of the convolution
-        shape = (np.array(A.shape) + np.array(B.shape))-1
-        # immediate larger "fast size". Can be a huge gain.
-        shape = np.array([pyfftw.next_fast_len(s) for s in shape])
-        # fftw cooks up plans:
-        self.fft_plan_im = pyfftw.builders.rfftn(
-                    A, s=shape, threads=threads)
-        self.fft_plan_kern = pyfftw.builders.rfftn(
-                    B, s=shape, threads=threads)
-        self.ifft_plan = pyfftw.builders.irfftn(
-                    self.fft_plan_im.get_output_array(), s=shape,
-                    threads=threads)
-
-    def __call__(self, im, kernels):
-        """
-        Carries out the convolution and trims the result to the size of im.
-        if kernels is a list, then the routine returns
-        the list of corresponding convolutions.
-        """
-        # accomodate both a list of kernels and a single kernel
-        l = [kernels] if type(kernels) != list else kernels
-        convs = []
-        for kern in l:
-            # transform the image and the kernel
-            tim = self.fft_plan_im(im)
-            tkern = self.fft_plan_kern(kern)
-
-            conv = self.ifft_plan(tim*tkern)
-            # now trim the result
-            # follow the 'same' policy of scipy.signal.fftconvolve
-            oy = kern.shape[0]//2
-            ox = kern.shape[1]//2
-            convs.append(conv[oy:oy+im.shape[0], ox:ox+im.shape[1]].copy())
-        return convs[0] if type(kernels) != list else convs
-
-
-class ElectrostaticBrighterFatterCorrection:
-    """
-    Evaluates the correction of CCD images affected by the
-    brighter-fatter effect, along what is described in
-    https://arxiv.org/abs/2301.03274. Requires as input the result of
-    an electrostatic fit to flat covariance data (or any other
-    determination of pixel boundary shifts under the influcence of a
-    single electron)
-    """
-    # by discussing with Pierre Astier, last version of the files are
-    # located here at s3df: /sdf/home/a/astier/place/run7/E2016/R??_S??/avalues.npy
-    def __init__(self, bfCalib):
-        """
-        Filename  refers to an input tuple that contains the
-        boundary shifts for one electron. This file is produced by an
-        electrostatic fit to data extracted from flat-field statistics,
-        implemented in https://gitlab.in2p3.fr/astier/bfptc/tools/fit_cov.py
-        """
-        r = bfCalib.maxFitRange
-        # the input file contains one quadrant and we need 4 for convolutions.
-        self.kN = np.zeros((2*r+1,2*r+1))
-        self.kE = np.zeros_like(self.kN)
-        # self.kW = np.zeros_like(self.kN)
-        # self.kS = np.zeros_like(self.kN)
-
-        # fill the 4 quadrants
-        # i refers to serial direction, j to parallel
-        self.kN[r + n.i, r + n.j] = bfCalib.aN
-        self.kN[r - n.i, r + n.j] = bfCalib.aN
-        self.kN[r + n.i, r - n.j] = bfCalib.aS
-        self.kN[r - n.i, r - n.j] = bfCalib.aS
-        self.kE[r + n.i, r + n.j] = bfCalib.aE
-        self.kE[r + n.i, r - n.j] = bfCalib.aE
-        self.kE[r - n.i, r + n.j] = bfCalib.aW
-        self.kE[r - n.i, r - n.j] = bfCalib.aW
-        # tweak the edges so that the sum rule applies.
-        self.kN[:, 0] = -self.kN[:,-1]
-        self.kE[0, :] = -self.kE[-1,:]
-        print("INFO: BF kernel sum rules : kN %f, kE %f"%(self.kN.sum(), self.kE.sum()))
-
-        # We use the normalization of Guyonnet et al (2015)
-        # (compatible with the way the input file is produced).
-        # 1/2 is due to the fact that the charge distribution at the end
-        # is twice of the average, and the second 1/2 is due to
-        # charge interpolation.
-        self.kN *= 0.25
-        self.kE *= 0.25
-        # indeed, i and j in the tuple refer to serial and parallel directions
-        # in most of the python codes, the imeage reads im[j,i], so :
-        self.kN = self.kN.T
-        self.kE = self.kE.T
-
-
-    def DeltaImageFFT(self, im):
-        """
-        Computes the correction and returns the "delta_image",
-        to be subtracted from "im" in order to *undo* the BF effect.
-        im should be expressed in *electrons*, and hence can contain
-        several segments corresponding to different video channels.
-        The returned image is also expressed in electrons.
-        im is unchanged.
-        """
-        im = im.astype('float64') # mandatory for fftw
-        conv_obj = CustomFFTConvolution(im, self.kN)
-        convs = conv_obj(im, [self.kN, self.kE])
-        # convs contains the boundary shifts (in pixels size units)
-        # for [horizontal, vertical] boundaries.
-        # we now compute the charge to move around
-        delta = np.zeros_like(im)
-        boundary_charge = np.zeros_like(im)
-
-        # horizontal boundaries (// direction)
-        # we could use a more elaborate interpolator for estimating the
-        # charge on the boundary
-        boundary_charge[:-1,:] = im[1:,:]+im[:-1,:]
-        # boundary_charge[1:-2,:] = (9./8.)*(I[2:-1,:]+I[1:-2,:] -
-        # (1./8.)*(I[0:-3,:]+I[3:,:])
-
-        # the charge to move around is the
-        # product of the boundary shift (in pixel size unit) times the
-        # charge on the boundary (in charge per pixel unit)
-        dq = boundary_charge*convs[0]
-        delta += dq
-        # what is gained by a pixel is lost by its neighbor (the righ one!)
-        delta[1:,:] -= dq[:-1,:]
-
-        # vertical boundaries
-        boundary_charge = np.zeros_like(im) #  reset to zero
-        # same comment as above
-        boundary_charge[:,:-1] = im[:,1:]+im[:,:-1]
-        dq = boundary_charge*convs[1]
-        delta += dq
-        # what is gained by a pixel is lost by its neighbor
-        delta[:,1:] -=  dq[:,:-1]
-        # one might check that delta.sum() ~ 0 (charge conservation)
-        return delta
