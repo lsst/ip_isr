@@ -47,7 +47,7 @@ from . import linearize
 from .defects import Defects
 
 from .assembleCcdTask import AssembleCcdTask
-from .binImageDataTask import BinImageDataTask
+from .binExposureTask import BinExposureTask
 from .crosstalk import CrosstalkTask, CrosstalkCalib
 from .fringe import FringeTask
 from .isr import maskNans
@@ -952,7 +952,7 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         default=False,
     )
     binning = pexConfig.ConfigurableField(
-        target=BinImageDataTask,
+        target=BinExposureTask,
         doc="Task to bin the exposure.",
     )
     binFactor1 = pexConfig.Field(
@@ -1850,11 +1850,11 @@ class IsrTask(pipeBase.PipelineTask):
             outputBin1Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor1,
-            ).outputData
+            ).binnedExposure
             outputBin2Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor2,
-            ).outputData
+            ).binnedExposure
 
         self.debugView(ccdExposure, "postISRCCD")
 

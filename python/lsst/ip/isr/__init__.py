@@ -48,6 +48,6 @@ from .isrStatistics import *
 from .transmissionCurve import *
 from .ampOffset import *
 from .overscanAmpConfig import *
-from .binImageDataTask import *
+from .binExposureTask import *
 from .flatGradient import *
 from .shutterMotion import *
