@@ -19,7 +19,7 @@ from lsst.meas.algorithms.detection import SourceDetectionTask
 import lsst.afw.detection as afwDetection
 
 from .ampOffset import AmpOffsetTask
-from .binExposureTask import BinExposureTask
+from .binImageDataTask import BinImageDataTask
 from .overscan import SerialOverscanCorrectionTask, ParallelOverscanCorrectionTask
 from .overscanAmpConfig import OverscanCameraConfig
 from .assembleCcdTask import AssembleCcdTask
@@ -637,7 +637,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=False,
     )
     binning = pexConfig.ConfigurableField(
-        target=BinExposureTask,
+        target=BinImageDataTask,
         doc="Task to bin the exposure.",
     )
     binFactor1 = pexConfig.Field(
@@ -1772,7 +1772,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
     @deprecated(
         reason=(
             "makeBinnedImages is no longer used. "
-            "Please subtask lsst.ip.isr.BinExposureTask instead."
+            "Please subtask lsst.ip.isr.BinImageDataTask instead."
         ),
         version="v28", category=FutureWarning
     )
@@ -2336,11 +2336,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             outputBin1Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor1,
-            ).binnedExposure
+            ).outputData
             outputBin2Exposure = self.binning.run(
                 ccdExposure,
                 binFactor=self.config.binFactor2,
-            ).binnedExposure
+            ).outputData
 
         return pipeBase.Struct(
             exposure=ccdExposure,
