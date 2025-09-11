@@ -20,9 +20,17 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
-__all__ = ["Linearizer",
-           "LinearizeBase", "LinearizeLookupTable", "LinearizeSquared",
-           "LinearizeProportional", "LinearizePolynomial", "LinearizeSpline", "LinearizeNone"]
+__all__ = [
+    "Linearizer",
+    "LinearizeBase",
+    "LinearizeLookupTable",
+    "LinearizeSquared",
+    "LinearizeProportional",
+    "LinearizePolynomial",
+    "LinearizeSpline",
+    "LinearizeDoubleSpline",
+    "LinearizeNone",
+]
 
 import abc
 import numpy as np
@@ -499,6 +507,7 @@ class Linearizer(IsrCalib):
                   LinearizePolynomial,
                   LinearizeProportional,
                   LinearizeSpline,
+                  LinearizeDoubleSpline,
                   LinearizeNone]:
             if t.LinearityType == linearityTypeName:
                 return t
@@ -921,6 +930,78 @@ class LinearizeSpline(LinearizeBase):
             interp = Akima1DInterpolator(centers, values, method="akima")
             # Clip to avoid extrapolation and hitting the top end.
             ampArr -= interp(np.clip(ampArr, centers[0], centers[-1] - 0.1))
+
+        return True, 0
+
+
+class LinearizeDoubleSpline(LinearizeBase):
+    """Correct non-linearity with a spline model.
+
+    corrImage1 = uncorrImage - Spline1(coeffs, uncorrImage)
+    corrImage = corrImage1 - Spline2(coeffs, corrImage1)
+
+    Notes
+    -----
+
+    The spline fit calculates a correction as a function of the
+    expected linear flux term.  Because of this, the correction needs
+    to be subtracted from the observed flux.
+
+    """
+    LinearityType = "DoubleSpline"
+
+    def __call__(self, image, **kwargs):
+        """Correct for non-linearity.
+
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+
+            ``coeffs``
+                Coefficient vector (`list` or `np.ndarray`).
+            ``log``
+                Logger to handle messages (`logging.Logger`).
+            ``gain``
+                Gain value to apply.
+
+        Returns
+        -------
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
+        """
+        coeffs = kwargs['coeffs']
+        gain = kwargs.get('gain', 1.0)
+
+        # The coeffs have [nNodes1, nNodes2, nodes1, values1, nodes2, values2]
+
+        nNodes1 = int(coeffs[0])
+
+        splineCoeff1 = coeffs[2: 2 + 2*nNodes1]
+        centers1, values1 = np.split(splineCoeff1, 2)
+        splineCoeff2 = coeffs[2 + 2*nNodes1:]
+        centers2, values2 = np.split(splineCoeff2, 2)
+
+        values1 = values1 * gain
+        values2 = values2 * gain
+
+        # Double-spline will always be anchored at zero.
+
+        ampArr = image.array
+
+        if np.any(~np.isfinite(values1)) or np.any(~np.isfinite(values2)):
+            # This cannot be used.
+            ampArr[:] = np.nan
+        else:
+            interp1 = Akima1DInterpolator(centers1, values1, method="akima")
+            interp2 = Akima1DInterpolator(centers2, values2, method="akima")
+            # Clip to avoid extrapolation and hitting the top end.
+            ampArr -= interp1(np.clip(ampArr, centers1[0], centers1[-1] - 0.01))
+            ampArr -= interp2(np.clip(ampArr, centers2[0], centers2[-1] - 0.01))
 
         return True, 0
 
