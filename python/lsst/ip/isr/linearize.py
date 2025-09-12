@@ -980,10 +980,11 @@ class LinearizeDoubleSpline(LinearizeBase):
         # The coeffs have [nNodes1, nNodes2, nodes1, values1, nodes2, values2]
 
         nNodes1 = int(coeffs[0])
+        nNodes2 = int(coeffs[1])
 
         splineCoeff1 = coeffs[2: 2 + 2*nNodes1]
         centers1, values1 = np.split(splineCoeff1, 2)
-        splineCoeff2 = coeffs[2 + 2*nNodes1:]
+        splineCoeff2 = coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
         centers2, values2 = np.split(splineCoeff2, 2)
 
         values1 = values1 * gain
