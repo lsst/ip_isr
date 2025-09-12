@@ -97,9 +97,10 @@ def referenceImage(image, detector, linearityType, inputData, table=None):
             array -= np.array(delta).reshape(array.shape)
         elif linearityType == 'DoubleSpline':
             nNodes1 = int(inputData[0])
+            nNodes2 = int(inputData[1])
 
             centers1, values1 = np.split(inputData[2: 2 + 2*nNodes1], 2)
-            centers2, values2 = np.split(inputData[2 + 2*nNodes1:], 2)
+            centers2, values2 = np.split(inputData[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2], 2)
             interp1 = afwMath.makeInterpolate(centers1.tolist(), values1.tolist(),
                                               afwMath.stringToInterpStyle('AKIMA_SPLINE'))
             interp2 = afwMath.makeInterpolate(centers2.tolist(), values2.tolist(),
@@ -149,12 +150,13 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         # Double spline coefficients.
         self.doubleSplineCoeffs = np.asarray(
             [
-                5,
-                6,
-                0.0, 2000., 3000., 4000., 5000.,
-                0.0, 0.01, 0.02, 0.03, 0.04,
-                0.0, 1000, 2000, 3000, 4000, 5000,
-                0.0, 1.0, 4.0, 9.0, 16.0, 25.0,
+                5,  # Number of nodes in first spline.
+                6,  # Number of nodes in second spline.
+                0.0, 2000., 3000., 4000., 5000.,  # Nodes for first spline.
+                0.0, 0.01, 0.02, 0.03, 0.04,  # Values for first spline.
+                0.0, 1000, 2000, 3000, 4000, 5000,  # Nodes for second spline.
+                0.0, 1.0, 4.0, 9.0, 16.0, 25.0,  # Values for second spline.
+                0.0, 0.0,  # Extra filler.
             ],
         )
 
