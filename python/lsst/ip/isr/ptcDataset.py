@@ -121,7 +121,8 @@ class PhotonTransferCurveDataset(IsrCalib):
         difference image of the exposures in each flat pair (units: adu^2).
     rawDeltas : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the scaled unmasked delta of
-        the means of the exposures in each flat pair (units: adu).
+        the means of the exposures in each flat pair (mean2 - mean1)
+        (units: adu).
     rowMeanVariance : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the variance of the
         means of the rows of the difference image of the exposures
@@ -239,7 +240,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         for linearity calibration.
     photoChargeDeltas : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the delta for the integrated
-        photocharge.
+        photocharge (photocharge2 - photocharge1).
     auxValues : `dict`, [`str`, `np.ndarray`]
         Dictionary of per-detector auxiliary header values that can be used
         for PTC, linearity computation.
