@@ -128,15 +128,19 @@ class Linearizer(IsrCalib):
     inputNormalization : `dict` [`str`, `np.ndarray`], optional
         Input normalization that was applied to the abscissa for
         each pair from the PTC used for the linearization fit.
+    absoluteReferenceAmplifier : `str`, optional
+        Amplifier used for the reference for absolute linearization
+        (DoubleSpline) mode.
 
     Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
     Version 1.5 adds ``fitResidualsUnmasked``, ``inputAbscissa``,
         ``inputOrdinate``, ``inputMask``, ``inputGroupingIndex``,
         ``fitResidualsModel``, and ``inputNormalization``.
+    Version 1.6 adds ``absoluteReferenceAmplifier``.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.5
+    _VERSION = 1.6
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -161,6 +165,7 @@ class Linearizer(IsrCalib):
         self.linearFit = dict()
         self.linearityTurnoff = dict()
         self.linearityMaxSignal = dict()
+        self.absoluteReferenceAmplifier = ""
         self.tableData = None
         if table is not None:
             if len(table.shape) != 2:
@@ -182,7 +187,7 @@ class Linearizer(IsrCalib):
                                         'units', 'linearityTurnoff', 'linearityMaxSignal',
                                         'fitResidualsUnmasked', 'inputAbscissa', 'inputOrdinate',
                                         'inputMask', 'inputGroupingIndex', 'fitResidualsModel',
-                                        'inputNormalization'])
+                                        'inputNormalization', 'absoluteReferenceAmplifier'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -304,6 +309,10 @@ class Linearizer(IsrCalib):
             if calib.tableData:
                 calib.tableData = np.array(calib.tableData)
 
+            calib.absoluteReferenceAmplifier = dictionary.get(
+                'absoluteReferenceAmplifier', calib.absoluteReferenceAmplifier,
+            )
+
         return calib
 
     def toDict(self):
@@ -346,6 +355,8 @@ class Linearizer(IsrCalib):
             }
         if self.tableData is not None:
             outDict['tableData'] = self.tableData.tolist()
+
+        outDict['absoluteReferenceAmplifier'] = self.absoluteReferenceAmplifier
 
         return outDict
 
@@ -439,6 +450,11 @@ class Linearizer(IsrCalib):
             tableData = tableList[1]
             inDict['tableData'] = [record['LOOKUP_VALUES'] for record in tableData]
 
+        if 'ABS_REF_AMP' in coeffTable.columns:
+            inDict['absoluteReferenceAmplifier'] = str(coeffTable['ABS_REF_AMP'][0])
+        else:
+            inDict['absoluteReferenceAmplifier'] = ''
+
         return cls().fromDict(inDict)
 
     def toTable(self):
@@ -479,6 +495,7 @@ class Linearizer(IsrCalib):
                           'LIN_FIT': self.linearFit[ampName],
                           'LINEARITY_TURNOFF': self.linearityTurnoff[ampName],
                           'LINEARITY_MAX_SIGNAL': self.linearityMaxSignal[ampName],
+                          'ABS_REF_AMP': self.absoluteReferenceAmplifier,
                           } for ampName in self.ampNames])
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
