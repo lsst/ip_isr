@@ -999,35 +999,43 @@ class LinearizeDoubleSpline(LinearizeBase):
         nNodes1 = int(coeffs[0])
         nNodes2 = int(coeffs[1])
 
+        ampArr = image.array
+
         if nNodes1 > 0:
             splineCoeff1 = coeffs[2: 2 + 2*nNodes1]
             centers1, values1 = np.split(splineCoeff1, 2)
+
+            if np.any(~np.isfinite(values1)):
+                # Bad linearizer.
+                ampArr[:] = np.nan
+                return True, 0
+
             if gain != 1.0:
                 centers1 = centers1 * gain
                 values1 = values1 * gain
         if nNodes2 > 0:
             splineCoeff2 = coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
             centers2, values2 = np.split(splineCoeff2, 2)
+
+            if np.any(~np.isfinite(values2)):
+                # Bad linearizer.
+                ampArr[:] = np.nan
+                return True, 0
+
             if gain != 1.0:
                 centers2 = centers2 * gain
                 values2 = values2 * gain
 
         # Note the double-spline will always be anchored at zero.
 
-        ampArr = image.array
-
-        if np.any(~np.isfinite(values1)) or np.any(~np.isfinite(values2)):
-            # This cannot be used.
-            ampArr[:] = np.nan
-        else:
-            if nNodes1 > 0:
-                interp1 = Akima1DInterpolator(centers1, values1, method="akima")
-                # Clip to avoid extrapolation and hitting the top end.
-                ampArr -= interp1(np.clip(ampArr, centers1[0], centers1[-1] - 0.01))
-            if nNodes2 > 0:
-                interp2 = Akima1DInterpolator(centers2, values2, method="akima")
-                # Clip to avoid extrapolation and hitting the top end.
-                ampArr -= interp2(np.clip(ampArr, centers2[0], centers2[-1] - 0.01))
+        if nNodes1 > 0:
+            interp1 = Akima1DInterpolator(centers1, values1, method="akima")
+            # Clip to avoid extrapolation and hitting the top end.
+            ampArr -= interp1(np.clip(ampArr, centers1[0], centers1[-1] - 0.01))
+        if nNodes2 > 0:
+            interp2 = Akima1DInterpolator(centers2, values2, method="akima")
+            # Clip to avoid extrapolation and hitting the top end.
+            ampArr -= interp2(np.clip(ampArr, centers2[0], centers2[-1] - 0.01))
 
         return True, 0
 
