@@ -66,7 +66,15 @@ class VignetteTask(Task):
     ConfigClass = VignetteConfig
     _DefaultName = "isrVignette"
 
-    def run(self, exposure=None, doUpdateMask=True, maskPlane="NO_DATA", vignetteValue=None, log=None):
+    def run(
+        self,
+        exposure=None,
+        doUpdateMask=True,
+        maskPlane="NO_DATA",
+        vignetteValue=None,
+        log=None,
+        doUpdatePolygon=True,
+    ):
         """Generate circular vignette pattern.
 
         Parameters
@@ -82,6 +90,8 @@ class VignetteTask(Task):
             region.  If `None`, image pixel values are not replaced.
         log : `logging.Logger`, optional
             Log object to write to.
+        doUpdatePolygon : `bool`, optional
+            If true, the valid polygon will be updated.
 
         Returns
         -------
@@ -98,15 +108,21 @@ class VignetteTask(Task):
 
         # Exposure was provided, so attach the validPolygon associated with the
         # vignetted region.
-        setValidPolygonCcdIntersect(exposure, fpPolygon, log=log)
+        validPolygon = setValidPolygonCcdIntersect(exposure, fpPolygon, log=log, setPolygon=doUpdatePolygon)
 
         if doUpdateMask:
-            polygon = exposure.getInfo().getValidPolygon()
-            maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=vignetteValue, log=log)
+            maskVignettedRegion(
+                exposure,
+                validPolygon,
+                maskPlane="NO_DATA",
+                vignetteValue=vignetteValue,
+                log=log,
+            )
+
         return fpPolygon
 
 
-def setValidPolygonCcdIntersect(ccdExposure, fpPolygon, log=None):
+def setValidPolygonCcdIntersect(ccdExposure, fpPolygon, log=None, setPolygon=True):
     """Set valid polygon on ccdExposure associated with focal plane polygon.
 
     The ccd exposure's valid polygon is the intersection of fpPolygon,
@@ -121,6 +137,13 @@ def setValidPolygonCcdIntersect(ccdExposure, fpPolygon, log=None):
         Polygon in focal plane coordinates.
     log : `logging.Logger`, optional
         Log object to write to.
+    setPolygon : `bool`, optional
+        Actually set the polygon, or just return it?
+
+    Returns
+    -------
+    validPolygon : `lsst.afw.geom.Polygon`
+        Valid polygon with the intersection.
     """
     # Get ccd corners in focal plane coordinates
     ccd = ccdExposure.getDetector()
@@ -135,10 +158,14 @@ def setValidPolygonCcdIntersect(ccdExposure, fpPolygon, log=None):
         # Transform back to pixel positions and build new polygon
         ccdPoints = ccd.transform(intersect, cameraGeom.FOCAL_PLANE, cameraGeom.PIXELS)
         validPolygon = afwGeom.Polygon(ccdPoints)
-        ccdExposure.getInfo().setValidPolygon(validPolygon)
+        if setPolygon:
+            ccdExposure.getInfo().setValidPolygon(validPolygon)
     else:
         if log is not None:
             log.info("Ccd exposure does not overlap with focal plane polygon.  Not setting validPolygon.")
+        validPolygon = None
+
+    return validPolygon
 
 
 def maskVignettedRegion(exposure, polygon, maskPlane="NO_DATA", vignetteValue=None, log=None):
