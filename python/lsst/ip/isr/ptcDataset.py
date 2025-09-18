@@ -396,6 +396,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             photoChargeDelta=np.nan,
             ampOffset=np.nan,
             expIdMask=False,
+            expIdRolloffMask=False,
             nPixelCovariance=-1,
             covariance=None,
             covSqrtWeights=None,
@@ -442,6 +443,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         expIdMask : `bool`, optional
             Flag setting if this exposure pair should be used (True)
             or not used (False).
+        expIdRolloffMask : `bool`, optional
+            Flag setting if this exposure pair should be used (True)
+            or not used for rolloff search (False).
         nPixelCovariance : `int`, optional
             Number of pixels that went into the covariance measurement.
         covariance : `np.ndarray` or None, optional
@@ -483,6 +487,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.photoChargeDeltas[ampName] = np.array([photoChargeDelta])
         self.ampOffsets[ampName] = np.array([ampOffset])
         self.expIdMask[ampName] = np.array([expIdMask])
+        self.expIdRolloffMask[ampName] = np.array([expIdRolloffMask])
         self.nPixelCovariances[ampName] = nPixelCovariance
         self.covariances[ampName] = np.array([covariance])
         self.covariancesSqrtWeights[ampName] = np.array([covSqrtWeights])
