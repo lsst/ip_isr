@@ -927,7 +927,8 @@ class LinearizeSpline(LinearizeBase):
         splineCoeff = kwargs['coeffs']
         gain = kwargs.get('gain', 1.0)
         centers, values = np.split(splineCoeff, 2)
-        values = values*gain
+        centers *= gain
+        values *= gain
         # If the spline is not anchored at zero, remove the offset
         # found at the lowest flux available, and add an anchor at
         # flux=0.0 if there's no entry at that point.
