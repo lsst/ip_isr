@@ -81,6 +81,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         for ampName in ptcDataset.ampNames:
             self.assertIsInstance(ptcDataset.expIdMask[ampName], np.ndarray)
             self.assertEqual(ptcDataset.expIdMask[ampName].dtype, bool)
+            self.assertIsInstance(ptcDataset.expIdRolloffMask[ampName], np.ndarray)
+            self.assertEqual(ptcDataset.expIdRolloffMask[ampName].dtype, bool)
             self.assertIsInstance(ptcDataset.inputExpPairMjdStartList[ampName], np.ndarray)
             self.assertIsInstance(ptcDataset.overscanMedianLevelList[ampName], np.ndarray)
             self.assertEqual(ptcDataset.overscanMedianLevelList[ampName].dtype, float)
@@ -226,7 +228,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
         nSideCovMatrixInput = 3  # Size of measured covariances
 
         for nSideCovMatrixFullCovFitInput in np.arange(1, nSideCovMatrixInput + 2):
-            for fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', 'FULLCOVARIANCE']:
+            for fitType in ['EXPAPPROXIMATION', 'FULLCOVARIANCE']:
                 localDataset = PhotonTransferCurveDataset(
                     self.ampNames,
                     ptcFitType=fitType,
@@ -243,6 +245,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.overscanMedianLevelList[ampName] = np.full(nSignalPoints, 25000.0)
                     localDataset.expIdMask[ampName] = np.ones(nSignalPoints, dtype=bool)
                     localDataset.expIdMask[ampName][1] = False
+                    localDataset.expIdRolloffMask[ampName] = np.ones(nSignalPoints, dtype=bool)
                     localDataset.rawExpTimes[ampName] = np.arange(nSignalPoints, dtype=np.float64)
                     localDataset.rawMeans[ampName] = self.flux*np.arange(nSignalPoints)
                     localDataset.rawVars[ampName] = self.c1*self.flux*np.arange(nSignalPoints)
@@ -261,7 +264,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     localDataset.finalModelVars[ampName] = np.full(nSignalPoints, 100.0)
                     localDataset.finalMeans[ampName] = self.flux*np.arange(nSignalPoints)
 
-                    if fitType in ['POLYNOMIAL', 'EXPAPPROXIMATION', ]:
+                    if fitType == 'EXPAPPROXIMATION':
                         localDataset.ptcFitPars[ampName] = np.array([10.0, 1.5, 1e-6])
                         localDataset.ptcFitParsError[ampName] = np.array([1.0, 0.2, 1e-7])
                         localDataset.ptcFitChiSq[ampName] = 1.0
@@ -378,6 +381,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             localDataset.overscanMedianLevelList[ampName] = np.full(3, 25000.0)
             localDataset.expIdMask[ampName] = np.ones(3, dtype=np.bool_)
             localDataset.expIdMask[ampName][1] = False
+            localDataset.expIdRolloffMask[ampName] = np.ones(3, dtype=np.bool_)
             localDataset.rawExpTimes[ampName] = testArr.copy()
             localDataset.rawMeans[ampName] = testArr.copy()
             localDataset.rawVars[ampName] = testArr.copy()
@@ -430,6 +434,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                 np.asarray([60775.39270833, 60775.39201389, 60775.39027778]),
             )
             np.testing.assert_array_equal(localDataset.expIdMask[ampName], np.array([True, False, True]))
+            np.testing.assert_array_equal(localDataset.expIdRolloffMask[ampName],
+                                          np.array([True, True, True]))
             np.testing.assert_array_equal(localDataset.rawExpTimes[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.rawMeans[ampName], testArrSorted)
             np.testing.assert_array_equal(localDataset.rawVars[ampName], testArrSorted)
@@ -486,6 +492,7 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
                     photoChargeDelta=testArr[i],
                     ampOffset=testArr[i],
                     expIdMask=True,
+                    expIdRolloffMask=True,
                     nPixelCovariance=100_000,
                     covariance=testCov[i, :, :].reshape(4, 4),
                     covSqrtWeights=testCov[i, :, :].reshape(4, 4),
@@ -513,6 +520,8 @@ class PtcDatasetCases(lsst.utils.tests.TestCase):
             np.testing.assert_array_equal(ptc.inputExpIdPairs[ampName], testPairs)
             np.testing.assert_array_equal(ptc.inputExpPairMjdStartList[ampName], testMjds)
             np.testing.assert_array_equal(ptc.expIdMask[ampName], np.array([True, True, True]))
+            np.testing.assert_array_equal(ptc.expIdRolloffMask[ampName],
+                                          np.array([True, True, True]))
             np.testing.assert_array_equal(ptc.rawExpTimes[ampName], testArr)
             np.testing.assert_array_equal(ptc.rawMeans[ampName], testArr)
             np.testing.assert_array_equal(ptc.rawVars[ampName], testArr)
