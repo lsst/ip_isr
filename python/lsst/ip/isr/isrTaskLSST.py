@@ -2,6 +2,8 @@ __all__ = ["IsrTaskLSST", "IsrTaskLSSTConfig"]
 
 import numpy
 import math
+import os
+from astropy.table import Table
 
 from . import isrFunctions
 from . import isrQa
@@ -1811,6 +1813,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         detector = ccdExposure.getDetector()
 
+        fname = os.path.join(
+            "/sdf/data/rubin/user/erykoff/noodling/dnl/luts",
+            f"{detector.getName()}ADCEdges.parquet",
+        )
+        self.log.info("Reading DNL LUT %s", fname)
+        dnlLUT = Table.read(fname)
+
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
 
         if self.config.doBootstrap and ptc is not None:
@@ -1947,8 +1956,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # Differential non-linearity correction.
         # Units: adu
-        if self.config.doDiffNonLinearCorrection:
-            self.diffNonLinearCorrection(ccdExposure, dnlLUT)
+        # if self.config.doDiffNonLinearCorrection:
+        self.diffNonLinearCorrection(ccdExposure, dnlLUT)
 
         # Dither the integer counts.
         # Input units: integerized adu
