@@ -742,10 +742,37 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             if configValue and inputs[calibrationFile] is None:
                 raise RuntimeError("Must supply ", calibrationFile)
 
-    def diffNonLinearCorrection(self, ccdExposure, dnlLUT, **kwargs):
+    def diffNonLinearCorrection(self, exposure, dnlLUT, **kwargs):
         # TODO DM 36636
         # isrFunctions.diffNonLinearCorrection
-        pass
+        if exposure.info.id is not None:
+            seed = exposure.info.id & 0xFFFFFFFF
+        else:
+            seed = 0
+            self.log.warning("No exposure ID found; using fallback random seed.")
+
+        self.log.info("Seeding dithering random number generator with %d.", seed)
+        rng = numpy.random.RandomState(seed=seed)
+
+        for amp in exposure.getDetector():
+            use = dnlLUT["amp"] == amp.getName()
+
+            bbox = amp.getRawBBox()
+
+            dnlIndex = dnlLUT["bin_idx"][use]
+            dnlSum = numpy.cumsum(dnlLUT["edges"][use] - dnlIndex)
+
+            ind = numpy.searchsorted(dnlIndex, exposure[bbox].image.array.ravel())
+            ind = numpy.clip(ind, 0, len(dnlIndex) - 2)
+
+            low = dnlSum[ind]
+            high = 1 + dnlSum[ind + 1]
+
+            exposure[bbox].image.array[:, :] += rng.uniform(
+                low=low,
+                high=high,
+                size=low.size,
+            ).reshape(exposure[bbox].image.array.shape)
 
     def maskFullAmplifiers(self, ccdExposure, detector, defects, gains=None):
         """
