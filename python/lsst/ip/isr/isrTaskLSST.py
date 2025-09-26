@@ -1989,7 +1989,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Dither the integer counts.
         # Input units: integerized adu
         # Output units: floating-point adu
-        self.ditherCounts(ccdExposure, overscanDetectorConfig)
+        self.log.info("Skipping dithering!")
+        # self.ditherCounts(ccdExposure, overscanDetectorConfig)
 
         # Serial overscan correction.
         # Input units: adu
