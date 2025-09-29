@@ -156,7 +156,7 @@ class IsrMockLSSTConfig(IsrMockConfig):
     doAddLowSignalNonlinearity = pexConfig.Field(
         dtype=bool,
         default=False,
-        doc="Add low signal non-linearity to overscan and data regions? (Not supported yet.",
+        doc="Add low signal non-linearity to overscan and data regions? (Not supported yet.)",
     )
     highSignalNonlinearityThreshold = pexConfig.Field(
         dtype=float,
@@ -693,6 +693,7 @@ class IsrMockLSST(IsrMock):
                 values[centers < self.config.highSignalNonlinearityThreshold] = 0.0
 
                 # The linearizer is units of adu, so convert to electron
+                centers *= self.config.gainDict[amp.getName()]
                 values *= self.config.gainDict[amp.getName()]
 
                 # Note that the linearity spline is in "overscan subtracted"
