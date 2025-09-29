@@ -406,6 +406,77 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
+    def test_isrBootstrapAndRegularFlat(self):
+        """Test that bootstrap and "regular" flat processing are equivalent."""
+        # This is a test for DM-52684, for the linearizer units.
+
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+        # We set the sky/flat level to a range where the "high signal"
+        # non-linearity has kicked in.
+        mock_config.skyLevel = 40000.0
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        # First config is with linearizer in bootstrap mode.
+
+        isr_config_bootstrap = self.get_isr_config_minimal_corrections()
+        isr_config_bootstrap.doBootstrap = True
+        isr_config_bootstrap.doApplyGains = False
+        isr_config_bootstrap.doLinearize = True
+        isr_config_bootstrap.doBias = False
+        isr_config_bootstrap.doDark = False
+        isr_config_bootstrap.doFlat = False
+        isr_config_bootstrap.maskNegativeVariance = False
+        isr_config_bootstrap.doCrosstalk = True
+
+        isr_task_bootstrap = IsrTaskLSST(config=isr_config_bootstrap)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task_bootstrap.run(
+                input_exp.clone(),
+                crosstalk=self.crosstalk,
+                linearizer=self.linearizer,
+            )
+
+        exp_bootstrap = result.exposure
+
+        # Apply the gains (after the linearization); this is
+        # similar to processing in PTC building.
+        for amp in self.detector:
+            exp_bootstrap[amp.getBBox()].image.array *= self.ptc.gain[amp.getName()]
+
+        # Run again with non-bootstrap mode.
+        isr_config = self.get_isr_config_minimal_corrections()
+        isr_config.doBootstrap = False
+        isr_config.doApplyGains = True
+        isr_config.doLinearize = True
+        isr_config.doBias = False
+        isr_config.doDark = False
+        isr_config.doFlat = False
+        isr_config.maskNegativeVariance = False
+        isr_config.doCrosstalk = True
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                crosstalk=self.crosstalk,
+                linearizer=self.linearizer,
+                ptc=self.ptc,
+            )
+
+        exp = result.exposure
+
+        good_pixels = self.get_non_defect_pixels(result.exposure.mask)
+
+        delta = exp.image.array - exp_bootstrap.image.array
+
+        self.assertFloatsAlmostEqual(delta[good_pixels], 0.0, atol=1e-2)
+
     def test_isrBias(self):
         """Test processing of a bias frame."""
         mock_config = self.get_mock_config_no_signal()
