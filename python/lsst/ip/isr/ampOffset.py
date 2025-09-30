@@ -232,6 +232,14 @@ class AmpOffsetTask(Task):
             # set to an approximate value here (which should be sufficient).
             _ = self.detection.run(table=table, exposure=exp, sigma=2)
 
+        # Set up amp offset inputs.
+        im = exp.image
+        im.array[(exp.mask.array & bitMask) > 0] = np.nan
+
+        # Obtain association and offset matrices.
+        A, sides = self.getAmpAssociations(amps)
+        B, interfaceOffsetDict = self.getAmpOffsets(im, amps, A, sides)
+
         # Safety check: do any pixels remain for amp offset estimation?
         if (exp.mask.array & bitMask).all():
             log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.info
@@ -241,14 +249,6 @@ class AmpOffsetTask(Task):
             )
             pedestals = np.zeros(len(amps))
         else:
-            # Set up amp offset inputs.
-            im = exp.image
-            im.array[(exp.mask.array & bitMask) > 0] = np.nan
-
-            # Obtain association and offset matrices.
-            A, sides = self.getAmpAssociations(amps)
-            B, interfaceOffsetDict = self.getAmpOffsets(im, amps, A, sides)
-
             # If least-squares minimization fails, convert NaNs to zeroes,
             # ensuring that no values are erroneously added/subtracted.
             pedestals = np.nan_to_num(np.linalg.lstsq(A, B, rcond=None)[0])
@@ -605,6 +605,10 @@ class AmpOffsetTask(Task):
             threshold.
         """
         interfaceId = f"{ampNameA}-{ampNameB}"
+        if np.all(np.isnan(edgeA)) or np.all(np.isnan(edgeB)):
+            self.log.warning(f"Amp interface {interfaceId} is fully masked; setting amp offset to zero.")
+            return interfaceId, 0.0, 0.0, 0.0, True, False
+
         sctrl = StatisticsControl()
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
