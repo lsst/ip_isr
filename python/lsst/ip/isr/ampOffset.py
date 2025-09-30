@@ -27,6 +27,7 @@ import numpy as np
 from lsst.afw.math import MEANCLIP, StatisticsControl, makeStatistics
 from lsst.afw.table import SourceTable
 from lsst.meas.algorithms import SourceDetectionTask, SubtractBackgroundTask
+from lsst.meas.algorithms.subtractBackground import TooManyMaskedPixelsError
 from lsst.pex.config import Config, ConfigurableField, Field
 from lsst.pipe.base import Struct, Task
 
@@ -198,9 +199,19 @@ class AmpOffsetTask(Task):
             # amp offset signature. Here it's set to the shorter dimension of
             # the amplifier by default (`backgroundFractionSample` = 1), which
             # seems reasonable.
-            bg = self.background.fitBackground(maskedImage, nx=int(nX), ny=int(nY))
-            bgImage = bg.getImageF(self.background.config.algorithm, self.background.config.undersampleStyle)
-            maskedImage -= bgImage
+            try:
+                bg = self.background.fitBackground(maskedImage, nx=int(nX), ny=int(nY))
+            except TooManyMaskedPixelsError:
+                self.log.warning(
+                    "Background estimation failed due to too many masked pixels; "
+                    "proceeding without background subtraction."
+                )
+            else:
+                bgImage = bg.getImageF(
+                    self.background.config.algorithm,
+                    self.background.config.undersampleStyle,
+                )
+                maskedImage -= bgImage
 
         # Detect sources and update cloned exposure mask planes in-place.
         if self.config.doDetection:
