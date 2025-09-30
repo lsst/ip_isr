@@ -238,8 +238,8 @@ class AmpOffsetTask(Task):
         im.array[(exp.mask.array & bitMask) > 0] = np.nan
 
         # Obtain association and offset matrices.
-        A, sides = self.getAmpAssociations(amps)
-        B, interfaceOffsetDict = self.getAmpOffsets(im, amps, A, sides)
+        associations, sides = self.getAmpAssociations(amps)
+        ampOffsets, interfaceOffsetDict = self.getAmpOffsets(im, amps, associations, sides)
 
         # Safety check: do any pixels remain for amp offset estimation?
         if (exp.mask.array & bitMask).all():
@@ -252,7 +252,7 @@ class AmpOffsetTask(Task):
         else:
             # If least-squares minimization fails, convert NaNs to zeroes,
             # ensuring that no values are erroneously added/subtracted.
-            pedestals = np.nan_to_num(np.linalg.lstsq(A, B, rcond=None)[0])
+            pedestals = np.nan_to_num(np.linalg.lstsq(associations, ampOffsets, rcond=None)[0])
 
         metadata = exposure.getMetadata()  # Exposure metadata.
         self.metadata["AMPOFFSET_PEDESTALS"] = {}  # Task metadata.
@@ -426,14 +426,14 @@ class AmpOffsetTask(Task):
 
         Returns
         -------
-        ampsOffsets : `numpy.ndarray`
+        ampOffsets : `numpy.ndarray`
             1D float array containing the calculated amp offsets for all
-            amplifiers.
+            amplifiers (optionally weighted by interface length).
         interfaceOffsetDict : `dict` [`str`, `float`]
             Dictionary mapping interface IDs to their corresponding raw
             (uncapped) offset values.
         """
-        ampsOffsets = np.zeros(len(amps))
+        ampOffsets = np.zeros(len(amps))
         ampsEdges = self.getAmpEdges(im, amps, sides)
         ampsNames = [amp.getName() for amp in amps]
         interfaceOffsetLookup = {}
@@ -469,7 +469,7 @@ class AmpOffsetTask(Task):
                     interfaceOffsetLookup[f"{ampId:02d}:{ampNeighbor:02d}"] = interfaceOffset
                 else:
                     interfaceOffset = -interfaceOffsetLookup[f"{ampNeighbor:02d}:{ampId:02d}"]
-                ampsOffsets[ampId] += interfaceWeight * interfaceOffset
+                ampOffsets[ampId] += interfaceWeight * interfaceOffset
         if interfaceOffsetOriginals:
             self.log.debug(
                 "Raw (uncapped) amp offset values for all interfaces: %s",
@@ -521,7 +521,7 @@ class AmpOffsetTask(Task):
         # Pair each interface ID with its corresponding original offset.
         interfaceOffsetDict = dict(zip(interfaceIds, interfaceOffsetOriginals))
 
-        return ampsOffsets, interfaceOffsetDict
+        return ampOffsets, interfaceOffsetDict
 
     def getAmpEdges(self, im, amps, ampSides):
         """Calculate the amp edges for all amplifiers.
