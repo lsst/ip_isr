@@ -127,6 +127,15 @@ class AmpOffsetConfig(Config):
         default=False,
     )
 
+    def validate(self):
+        super().validate()
+        if self.ampEdgeWindowFrac > 1:
+            raise RuntimeError(
+                f"The amp edge window fraction ('ampEdgeWindowFrac') is set to {self.ampEdgeWindowFrac}. "
+                "Values greater than 1 lead to post-convolution complications in getInterfaceOffset. "
+                "Please modify this value to be 1 or less."
+            )
+
 
 class AmpOffsetTask(Task):
     """Calculate and apply amp offset corrections to an exposure."""
@@ -235,14 +244,6 @@ class AmpOffsetTask(Task):
             # Set up amp offset inputs.
             im = exp.image
             im.array[(exp.mask.array & bitMask) > 0] = np.nan
-
-            if self.config.ampEdgeWindowFrac > 1:
-                raise RuntimeError(
-                    f"The specified fraction (`ampEdgeWindowFrac`={self.config.ampEdgeWindowFrac}) of the "
-                    "edge length exceeds 1. This leads to complications downstream, after convolution in "
-                    "the `getInterfaceOffset()` method. Please modify the `ampEdgeWindowFrac` value in the "
-                    "config to be 1 or less and rerun."
-                )
 
             # Obtain association and offset matrices.
             A, sides = self.getAmpAssociations(amps)
