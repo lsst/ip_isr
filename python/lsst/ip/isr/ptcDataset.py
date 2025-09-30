@@ -29,7 +29,6 @@ import numbers
 import numpy as np
 import math
 from astropy.table import Table
-import numpy.polynomial.polynomial as poly
 from scipy.signal import fftconvolve
 
 from lsst.ip.isr import IsrCalib
@@ -74,18 +73,14 @@ class PhotonTransferCurveDataset(IsrCalib):
     is by definition always the same length as inputExpIdPairs, rawExpTimes,
     rawMeans and rawVars, and is a list of bools, which are incrementally set
     to False as points are discarded from the fits.
-    PTC fit parameters for polynomials are stored in a list in ascending order
-    of polynomial term, i.e. par[0]*x^0 + par[1]*x + par[2]*x^2 etc
-    with the length of the list corresponding to the order of the polynomial
-    plus one.
 
     Parameters
     ----------
     ampNames : `list`
         List with the names of the amplifiers of the detector at hand.
     ptcFitType : `str`, optional
-        Type of model fitted to the PTC: "POLYNOMIAL", "EXPAPPROXIMATION",
-        or "FULLCOVARIANCE".
+        Type of model fitted to the PTC: "EXPAPPROXIMATION",
+        or "FULLCOVARIANCE" or "FULLCOVARIANCE_NO_B".
     covMatrixSide : `int`, optional
         Maximum lag of measured covariances (size of square covariance
         matrices).
@@ -175,15 +170,14 @@ class PhotonTransferCurveDataset(IsrCalib):
         Dictionary keyed by amp names containing amp-to-amp offsets
         (units: adu).
     ptcFitPars : `dict`, [`str`, `np.ndarray`]
-        Dictionary keyed by amp names containing the fitted parameters of the
-        PTC model for ptcFitType in ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        Dictionary keyed by amp names containing the raveled array fitted
+        parameters of the PTC model.
     ptcFitParsError : `dict`, [`str`, `np.ndarray`]
-        Dictionary keyed by amp names containing the errors on the fitted
-        parameters of the PTC model for ptcFitType in
-        ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        Dictionary keyed by amp names containing the raveled array errors
+        on the fitted parameters of the PTC model for ptcFitType.
     ptcFitChiSq : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the reduced chi squared
-        of the fit for ptcFitType in ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        of the fit.
     ptcTurnoff : `dict` [`str, `float`]
         Flux value (in adu) where the variance of the PTC curve starts
         decreasing consistently.
@@ -1400,31 +1394,22 @@ class PhotonTransferCurveDataset(IsrCalib):
         Computes the covModel for all mu, and it returns
         cov[N, M, M], where the variance model is cov[:,0,0].
         Both mu and cov are in ADUs and ADUs squared. This
-        routine evaulates the n-degree polynomial model (defined
-        by polynomialFitDegree) if self.ptcFitType == POLYNOMIAL,
-        the approximation in Eq. 16 of Astier+19 (1905.08677)
+        routine evaulates the approximation in Eq. 16 of
+        Astier+19 (1905.08677)
         if self.ptcFitType == EXPAPPROXIMATION, and Eq. 20 of
-        Astier+19 if self.ptcFitType == FULLCOVARIANCE.
+        Astier+19 if self.ptcFitType == FULLCOVARIANCE(_NO_B).
 
-        The POLYNOMIAL model and the EXPAPPROXIMATION model
-        (Eq. 16 of Astier+19) are only approximations for the
-        variance (cov[0,0]), so the function returns covModel
-        of shape (N,), representing an array of [C_{00}]
-        if self.ptcFitType == EXPAPPROXIMATION or
-        self.ptcFitType == POLYNOMAIL.
+        The EXPAPPROXIMATION model (Eq. 16 of Astier+19) is
+        only an approximation for the variance (cov[0,0]),
+        so the function returns covModel of shape (N,),
+        representing an array of [C_{00}]
+        if self.ptcFitType == EXPAPPROXIMATION.
         """
 
         ampNames = self.ampNames
         covModel = {ampName: np.array([]) for ampName in ampNames}
 
-        if self.ptcFitType == "POLYNOMIAL":
-            pars = self.ptcFitPars
-
-            for ampName in ampNames:
-                c00 = poly.polyval(mu, [*pars[ampName]])
-                covModel[ampName] = c00
-
-        elif self.ptcFitType == "EXPAPPROXIMATION":
+        if self.ptcFitType == "EXPAPPROXIMATION":
             pars = self.ptcFitPars
 
             for ampName in ampNames:
