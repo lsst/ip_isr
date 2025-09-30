@@ -24,6 +24,7 @@ __all__ = ["AmpOffsetConfig", "AmpOffsetTask"]
 import warnings
 
 import numpy as np
+
 from lsst.afw.math import MEANCLIP, StatisticsControl, makeStatistics
 from lsst.afw.table import SourceTable
 from lsst.meas.algorithms import SourceDetectionTask, SubtractBackgroundTask
