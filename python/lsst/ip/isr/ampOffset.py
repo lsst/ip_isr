@@ -169,7 +169,7 @@ class AmpOffsetTask(Task):
         bitMask = exp.mask.getPlaneBitMask(self.background.config.ignoredPixelMask)
         amps = exp.getDetector().getAmplifiers()
 
-        # Check that all amps have the same gemotry.
+        # Check that all amps have the same geometry.
         ampDims = [amp.getBBox().getDimensions() for amp in amps]
         if not all(dim == ampDims[0] for dim in ampDims):
             raise RuntimeError("All amps should have the same geometry.")
@@ -544,8 +544,8 @@ class AmpOffsetTask(Task):
             associated with a side. The outer dictionary has integer keys
             representing amplifier IDs, and the inner dictionary has integer
             keys representing side IDs for each amplifier and values that are
-            1D arrays of floats representing the 1D medianified strips from the
-            amp image, referred to as "amp edge":
+            1D arrays of floats representing the median values of strips from
+            the amp image, referred to as an "amp edge":
             {ampID: {sideID: numpy.ndarray}, ...}
         """
         ampEdgeOuter = self.config.ampEdgeInset + self.config.ampEdgeWidth
@@ -567,7 +567,7 @@ class AmpOffsetTask(Task):
                 # Catch warnings to prevent all-NaN slice RuntimeWarning.
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", r"All-NaN (slice|axis) encountered")
-                    ampEdges[ampId][ampSide] = np.nanmedian(strip, axis=ampSide % 2)  # 1D medianified strip
+                    ampEdges[ampId][ampSide] = np.nanmedian(strip, axis=ampSide % 2)  # 1D median strip
         return ampEdges
 
     def getInterfaceOffset(self, ampNameA, ampNameB, edgeA, edgeB):
