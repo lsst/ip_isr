@@ -273,7 +273,7 @@ class AmpOffsetTask(Task):
                 float(pedestal),
                 f"Pedestal level calculated for amp {ampName}",
             )
-            if self.config.doApplyAmpOffset:
+            if self.config.doApplyAmpOffset and pedestal != 0.0:
                 ampIm = exposure.image[amp.getBBox()].array
                 ampIm -= pedestal
             # Add the amp pedestal to the "Task" metadata as well.
