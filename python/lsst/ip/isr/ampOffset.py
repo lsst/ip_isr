@@ -586,6 +586,9 @@ class AmpOffsetTask(Task):
 
         Returns
         -------
+        interfaceId : str
+            Identifier for the interface between amps A and B, formatted as
+            "A-B", where A and B are the respective amp names.
         interfaceOffset : float
             The calculated amp offset value for the given interface between
             amps A and B.
