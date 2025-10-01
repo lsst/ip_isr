@@ -24,9 +24,11 @@ __all__ = ["AmpOffsetConfig", "AmpOffsetTask"]
 import warnings
 
 import numpy as np
+
 from lsst.afw.math import MEANCLIP, StatisticsControl, makeStatistics
 from lsst.afw.table import SourceTable
 from lsst.meas.algorithms import SourceDetectionTask, SubtractBackgroundTask
+from lsst.meas.algorithms.subtractBackground import TooManyMaskedPixelsError
 from lsst.pex.config import Config, ConfigurableField, Field
 from lsst.pipe.base import Struct, Task
 
@@ -126,6 +128,15 @@ class AmpOffsetConfig(Config):
         default=False,
     )
 
+    def validate(self):
+        super().validate()
+        if self.ampEdgeWindowFrac > 1:
+            raise RuntimeError(
+                f"The amp edge window fraction ('ampEdgeWindowFrac') is set to {self.ampEdgeWindowFrac}. "
+                "Values greater than 1 lead to post-convolution complications in getInterfaceOffset. "
+                "Please modify this value to be 1 or less."
+            )
+
 
 class AmpOffsetTask(Task):
     """Calculate and apply amp offset corrections to an exposure."""
@@ -158,7 +169,7 @@ class AmpOffsetTask(Task):
         bitMask = exp.mask.getPlaneBitMask(self.background.config.ignoredPixelMask)
         amps = exp.getDetector().getAmplifiers()
 
-        # Check that all amps have the same gemotry.
+        # Check that all amps have the same geometry.
         ampDims = [amp.getBBox().getDimensions() for amp in amps]
         if not all(dim == ampDims[0] for dim in ampDims):
             raise RuntimeError("All amps should have the same geometry.")
@@ -198,9 +209,19 @@ class AmpOffsetTask(Task):
             # amp offset signature. Here it's set to the shorter dimension of
             # the amplifier by default (`backgroundFractionSample` = 1), which
             # seems reasonable.
-            bg = self.background.fitBackground(maskedImage, nx=int(nX), ny=int(nY))
-            bgImage = bg.getImageF(self.background.config.algorithm, self.background.config.undersampleStyle)
-            maskedImage -= bgImage
+            try:
+                bg = self.background.fitBackground(maskedImage, nx=int(nX), ny=int(nY))
+            except TooManyMaskedPixelsError:
+                self.log.warning(
+                    "Background estimation failed due to too many masked pixels; "
+                    "proceeding without background subtraction."
+                )
+            else:
+                bgImage = bg.getImageF(
+                    self.background.config.algorithm,
+                    self.background.config.undersampleStyle,
+                )
+                maskedImage -= bgImage
 
         # Detect sources and update cloned exposure mask planes in-place.
         if self.config.doDetection:
@@ -212,6 +233,14 @@ class AmpOffsetTask(Task):
             # set to an approximate value here (which should be sufficient).
             _ = self.detection.run(table=table, exposure=exp, sigma=2)
 
+        # Set up amp offset inputs.
+        im = exp.image
+        im.array[(exp.mask.array & bitMask) > 0] = np.nan
+
+        # Obtain association and offset matrices.
+        associations, sides = self.getAmpAssociations(amps)
+        ampOffsets, interfaceOffsetDict = self.getAmpOffsets(im, amps, associations, sides)
+
         # Safety check: do any pixels remain for amp offset estimation?
         if (exp.mask.array & bitMask).all():
             log_fn = self.log.warning if self.config.doApplyAmpOffset else self.log.info
@@ -221,25 +250,9 @@ class AmpOffsetTask(Task):
             )
             pedestals = np.zeros(len(amps))
         else:
-            # Set up amp offset inputs.
-            im = exp.image
-            im.array[(exp.mask.array & bitMask) > 0] = np.nan
-
-            if self.config.ampEdgeWindowFrac > 1:
-                raise RuntimeError(
-                    f"The specified fraction (`ampEdgeWindowFrac`={self.config.ampEdgeWindowFrac}) of the "
-                    "edge length exceeds 1. This leads to complications downstream, after convolution in "
-                    "the `getInterfaceOffset()` method. Please modify the `ampEdgeWindowFrac` value in the "
-                    "config to be 1 or less and rerun."
-                )
-
-            # Obtain association and offset matrices.
-            A, sides = self.getAmpAssociations(amps)
-            B, interfaceOffsetDict = self.getAmpOffsets(im, amps, A, sides)
-
             # If least-squares minimization fails, convert NaNs to zeroes,
             # ensuring that no values are erroneously added/subtracted.
-            pedestals = np.nan_to_num(np.linalg.lstsq(A, B, rcond=None)[0])
+            pedestals = np.nan_to_num(np.linalg.lstsq(associations, ampOffsets, rcond=None)[0])
 
         metadata = exposure.getMetadata()  # Exposure metadata.
         self.metadata["AMPOFFSET_PEDESTALS"] = {}  # Task metadata.
@@ -260,7 +273,7 @@ class AmpOffsetTask(Task):
                 float(pedestal),
                 f"Pedestal level calculated for amp {ampName}",
             )
-            if self.config.doApplyAmpOffset:
+            if self.config.doApplyAmpOffset and pedestal != 0.0:
                 ampIm = exposure.image[amp.getBBox()].array
                 ampIm -= pedestal
             # Add the amp pedestal to the "Task" metadata as well.
@@ -413,14 +426,14 @@ class AmpOffsetTask(Task):
 
         Returns
         -------
-        ampsOffsets : `numpy.ndarray`
+        ampOffsets : `numpy.ndarray`
             1D float array containing the calculated amp offsets for all
-            amplifiers.
+            amplifiers (optionally weighted by interface length).
         interfaceOffsetDict : `dict` [`str`, `float`]
             Dictionary mapping interface IDs to their corresponding raw
             (uncapped) offset values.
         """
-        ampsOffsets = np.zeros(len(amps))
+        ampOffsets = np.zeros(len(amps))
         ampsEdges = self.getAmpEdges(im, amps, sides)
         ampsNames = [amp.getName() for amp in amps]
         interfaceOffsetLookup = {}
@@ -456,7 +469,7 @@ class AmpOffsetTask(Task):
                     interfaceOffsetLookup[f"{ampId:02d}:{ampNeighbor:02d}"] = interfaceOffset
                 else:
                     interfaceOffset = -interfaceOffsetLookup[f"{ampNeighbor:02d}:{ampId:02d}"]
-                ampsOffsets[ampId] += interfaceWeight * interfaceOffset
+                ampOffsets[ampId] += interfaceWeight * interfaceOffset
         if interfaceOffsetOriginals:
             self.log.debug(
                 "Raw (uncapped) amp offset values for all interfaces: %s",
@@ -508,7 +521,7 @@ class AmpOffsetTask(Task):
         # Pair each interface ID with its corresponding original offset.
         interfaceOffsetDict = dict(zip(interfaceIds, interfaceOffsetOriginals))
 
-        return ampsOffsets, interfaceOffsetDict
+        return ampOffsets, interfaceOffsetDict
 
     def getAmpEdges(self, im, amps, ampSides):
         """Calculate the amp edges for all amplifiers.
@@ -531,8 +544,8 @@ class AmpOffsetTask(Task):
             associated with a side. The outer dictionary has integer keys
             representing amplifier IDs, and the inner dictionary has integer
             keys representing side IDs for each amplifier and values that are
-            1D arrays of floats representing the 1D medianified strips from the
-            amp image, referred to as "amp edge":
+            1D arrays of floats representing the median values of strips from
+            the amp image, referred to as an "amp edge":
             {ampID: {sideID: numpy.ndarray}, ...}
         """
         ampEdgeOuter = self.config.ampEdgeInset + self.config.ampEdgeWidth
@@ -554,7 +567,7 @@ class AmpOffsetTask(Task):
                 # Catch warnings to prevent all-NaN slice RuntimeWarning.
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", r"All-NaN (slice|axis) encountered")
-                    ampEdges[ampId][ampSide] = np.nanmedian(strip, axis=ampSide % 2)  # 1D medianified strip
+                    ampEdges[ampId][ampSide] = np.nanmedian(strip, axis=ampSide % 2)  # 1D median strip
         return ampEdges
 
     def getInterfaceOffset(self, ampNameA, ampNameB, edgeA, edgeB):
@@ -574,6 +587,9 @@ class AmpOffsetTask(Task):
 
         Returns
         -------
+        interfaceId : str
+            Identifier for the interface between amps A and B, formatted as
+            "A-B", where A and B are the respective amp names.
         interfaceOffset : float
             The calculated amp offset value for the given interface between
             amps A and B.
@@ -590,6 +606,10 @@ class AmpOffsetTask(Task):
             threshold.
         """
         interfaceId = f"{ampNameA}-{ampNameB}"
+        if np.all(np.isnan(edgeA)) or np.all(np.isnan(edgeB)):
+            self.log.warning(f"Amp interface {interfaceId} is fully masked; setting amp offset to zero.")
+            return interfaceId, 0.0, 0.0, 0.0, True, False
+
         sctrl = StatisticsControl()
         # NOTE: Taking the difference with the order below fixes the sign flip
         # in the B matrix.
