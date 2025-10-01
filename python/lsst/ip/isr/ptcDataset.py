@@ -25,10 +25,12 @@ Define dataset class for MeasurePhotonTransferCurve task
 
 __all__ = ['PhotonTransferCurveDataset']
 
+import warnings
 import numbers
 import numpy as np
 import math
 from astropy.table import Table
+import numpy.polynomial.polynomial as poly
 from scipy.signal import fftconvolve
 
 from lsst.ip.isr import IsrCalib
@@ -272,7 +274,8 @@ class PhotonTransferCurveDataset(IsrCalib):
     Version 2.4 adds the `nPixelCovariances` attribute.
     Version 2.5 adds the `rawDeltas` and `photoChargeDeltas` attributes.
     Version 2.6 adds the `expIdRolloffMask`, `ptcRolloff`, `ptcRolloffError`,
-        `ptcRolloffTau`, and `ptcRolloffTauError` attributes.
+        `ptcRolloffTau`, and `ptcRolloffTauError` attributes. Also
+        deprecates the POLYNOMIAL fit type.
     """
 
     _OBSTYPE = 'PTC'
@@ -1394,7 +1397,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         Computes the covModel for all mu, and it returns
         cov[N, M, M], where the variance model is cov[:,0,0].
         Both mu and cov are in ADUs and ADUs squared. This
-        routine evaulates the approximation in Eq. 16 of
+        routine evaluates the approximation in Eq. 16 of
         Astier+19 (1905.08677)
         if self.ptcFitType == EXPAPPROXIMATION, and Eq. 20 of
         Astier+19 if self.ptcFitType == FULLCOVARIANCE(_NO_B).
@@ -1409,7 +1412,19 @@ class PhotonTransferCurveDataset(IsrCalib):
         ampNames = self.ampNames
         covModel = {ampName: np.array([]) for ampName in ampNames}
 
-        if self.ptcFitType == "EXPAPPROXIMATION":
+        if self.ptcFitType == "POLYNOMIAL":
+            warnings.warn("The `POLYNOMIAL` fit type is deprecated; it will "
+                          "be removed from the Rubin Observatory Science "
+                          "Pipelines after v30.",
+                          category=FutureWarning)
+            # TODO: DM-52720 - remove deprecated POLYNOMIAL fit
+            # and legacy turnoff
+            pars = self.ptcFitPars
+
+            for ampName in ampNames:
+                c00 = poly.polyval(mu, [*pars[ampName]])
+                covModel[ampName] = c00
+        elif self.ptcFitType == "EXPAPPROXIMATION":
             pars = self.ptcFitPars
 
             for ampName in ampNames:
