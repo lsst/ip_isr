@@ -114,7 +114,7 @@ class VignetteTask(Task):
             maskVignettedRegion(
                 exposure,
                 validPolygon,
-                maskPlane="NO_DATA",
+                maskPlane=maskPlane,
                 vignetteValue=vignetteValue,
                 log=log,
             )
