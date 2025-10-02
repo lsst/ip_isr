@@ -943,6 +943,8 @@ class LinearizeSpline(LinearizeBase):
         if np.any(~np.isfinite(values)):
             # This cannot be used; turns everything into nans.
             ampArr[:] = np.nan
+
+            return False, 0
         else:
             interp = Akima1DInterpolator(centers, values, method="akima")
             # Clip to avoid extrapolation and hitting the top end.
@@ -1008,7 +1010,7 @@ class LinearizeDoubleSpline(LinearizeBase):
             if np.any(~np.isfinite(values1)):
                 # Bad linearizer.
                 ampArr[:] = np.nan
-                return True, 0
+                return False, 0
 
             if gain != 1.0:
                 centers1 = centers1 * gain
@@ -1020,7 +1022,7 @@ class LinearizeDoubleSpline(LinearizeBase):
             if np.any(~np.isfinite(values2)):
                 # Bad linearizer.
                 ampArr[:] = np.nan
-                return True, 0
+                return False, 0
 
             if gain != 1.0:
                 centers2 = centers2 * gain
