@@ -20,9 +20,17 @@
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
 
-__all__ = ["Linearizer",
-           "LinearizeBase", "LinearizeLookupTable", "LinearizeSquared",
-           "LinearizeProportional", "LinearizePolynomial", "LinearizeSpline", "LinearizeNone"]
+__all__ = [
+    "Linearizer",
+    "LinearizeBase",
+    "LinearizeLookupTable",
+    "LinearizeSquared",
+    "LinearizeProportional",
+    "LinearizePolynomial",
+    "LinearizeSpline",
+    "LinearizeDoubleSpline",
+    "LinearizeNone",
+]
 
 import abc
 import numpy as np
@@ -120,15 +128,19 @@ class Linearizer(IsrCalib):
     inputNormalization : `dict` [`str`, `np.ndarray`], optional
         Input normalization that was applied to the abscissa for
         each pair from the PTC used for the linearization fit.
+    absoluteReferenceAmplifier : `str`, optional
+        Amplifier used for the reference for absolute linearization
+        (DoubleSpline) mode.
 
     Version 1.4 adds ``linearityTurnoff`` and ``linearityMaxSignal``.
     Version 1.5 adds ``fitResidualsUnmasked``, ``inputAbscissa``,
         ``inputOrdinate``, ``inputMask``, ``inputGroupingIndex``,
         ``fitResidualsModel``, and ``inputNormalization``.
+    Version 1.6 adds ``absoluteReferenceAmplifier``.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.5
+    _VERSION = 1.6
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -153,6 +165,7 @@ class Linearizer(IsrCalib):
         self.linearFit = dict()
         self.linearityTurnoff = dict()
         self.linearityMaxSignal = dict()
+        self.absoluteReferenceAmplifier = ""
         self.tableData = None
         if table is not None:
             if len(table.shape) != 2:
@@ -174,7 +187,7 @@ class Linearizer(IsrCalib):
                                         'units', 'linearityTurnoff', 'linearityMaxSignal',
                                         'fitResidualsUnmasked', 'inputAbscissa', 'inputOrdinate',
                                         'inputMask', 'inputGroupingIndex', 'fitResidualsModel',
-                                        'inputNormalization'])
+                                        'inputNormalization', 'absoluteReferenceAmplifier'])
 
     def updateMetadata(self, setDate=False, **kwargs):
         """Update metadata keywords with new values.
@@ -296,6 +309,10 @@ class Linearizer(IsrCalib):
             if calib.tableData:
                 calib.tableData = np.array(calib.tableData)
 
+            calib.absoluteReferenceAmplifier = dictionary.get(
+                'absoluteReferenceAmplifier', calib.absoluteReferenceAmplifier,
+            )
+
         return calib
 
     def toDict(self):
@@ -338,6 +355,8 @@ class Linearizer(IsrCalib):
             }
         if self.tableData is not None:
             outDict['tableData'] = self.tableData.tolist()
+
+        outDict['absoluteReferenceAmplifier'] = self.absoluteReferenceAmplifier
 
         return outDict
 
@@ -431,6 +450,11 @@ class Linearizer(IsrCalib):
             tableData = tableList[1]
             inDict['tableData'] = [record['LOOKUP_VALUES'] for record in tableData]
 
+        if 'ABS_REF_AMP' in coeffTable.columns:
+            inDict['absoluteReferenceAmplifier'] = str(coeffTable['ABS_REF_AMP'][0])
+        else:
+            inDict['absoluteReferenceAmplifier'] = ''
+
         return cls().fromDict(inDict)
 
     def toTable(self):
@@ -471,6 +495,7 @@ class Linearizer(IsrCalib):
                           'LIN_FIT': self.linearFit[ampName],
                           'LINEARITY_TURNOFF': self.linearityTurnoff[ampName],
                           'LINEARITY_MAX_SIGNAL': self.linearityMaxSignal[ampName],
+                          'ABS_REF_AMP': self.absoluteReferenceAmplifier,
                           } for ampName in self.ampNames])
         catalog.meta = self.getMetadata().toDict()
         tableList.append(catalog)
@@ -499,6 +524,7 @@ class Linearizer(IsrCalib):
                   LinearizePolynomial,
                   LinearizeProportional,
                   LinearizeSpline,
+                  LinearizeDoubleSpline,
                   LinearizeNone]:
             if t.LinearityType == linearityTypeName:
                 return t
@@ -917,10 +943,101 @@ class LinearizeSpline(LinearizeBase):
         if np.any(~np.isfinite(values)):
             # This cannot be used; turns everything into nans.
             ampArr[:] = np.nan
+
+            return False, 0
         else:
             interp = Akima1DInterpolator(centers, values, method="akima")
             # Clip to avoid extrapolation and hitting the top end.
             ampArr -= interp(np.clip(ampArr, centers[0], centers[-1] - 0.1))
+
+        return True, 0
+
+
+class LinearizeDoubleSpline(LinearizeBase):
+    """Correct non-linearity with a spline model.
+
+    corrImage1 = uncorrImage - Spline1(coeffs, uncorrImage)
+    corrImage = corrImage1 - Spline2(coeffs, corrImage1)
+
+    Notes
+    -----
+
+    The spline fit calculates a correction as a function of the
+    expected linear flux term.  Because of this, the correction needs
+    to be subtracted from the observed flux.
+
+    """
+    LinearityType = "DoubleSpline"
+
+    def __call__(self, image, **kwargs):
+        """Correct for non-linearity.
+
+        Parameters
+        ----------
+        image : `lsst.afw.image.Image`
+            Image to be corrected
+        kwargs : `dict`
+            Dictionary of parameter keywords:
+
+            ``coeffs``
+                Coefficient vector (`list` or `np.ndarray`).
+            ``log``
+                Logger to handle messages (`logging.Logger`).
+            ``gain``
+                Gain value to apply.
+
+        Returns
+        -------
+        output : `tuple` [`bool`, `int`]
+            If true, a correction was applied successfully.  The
+            integer indicates the number of pixels that were
+            uncorrectable by being out of range.
+        """
+        coeffs = kwargs['coeffs']
+        gain = kwargs.get('gain', 1.0)
+
+        # The coeffs have [nNodes1, nNodes2, nodes1, values1, nodes2, values2]
+
+        nNodes1 = int(coeffs[0])
+        nNodes2 = int(coeffs[1])
+
+        ampArr = image.array
+
+        if nNodes1 > 0:
+            splineCoeff1 = coeffs[2: 2 + 2*nNodes1]
+            centers1, values1 = np.split(splineCoeff1, 2)
+
+            if np.any(~np.isfinite(values1)):
+                # Bad linearizer.
+                ampArr[:] = np.nan
+                return False, 0
+
+            if gain != 1.0:
+                centers1 = centers1 * gain
+                values1 = values1 * gain
+        if nNodes2 > 0:
+            splineCoeff2 = coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
+            centers2, values2 = np.split(splineCoeff2, 2)
+
+            if np.any(~np.isfinite(values2)):
+                # Bad linearizer.
+                ampArr[:] = np.nan
+                return False, 0
+
+            if gain != 1.0:
+                centers2 = centers2 * gain
+                values2 = values2 * gain
+
+        # Note the double-spline will always be anchored at zero.
+
+        if nNodes1 > 0:
+            interp1 = Akima1DInterpolator(centers1, values1, method="akima")
+            # Clip to avoid extrapolation and hitting the top end.
+            ampArr -= interp1(np.clip(ampArr, centers1[0], centers1[-1] - 0.01))
+        if nNodes2 > 0:
+            interp2 = Akima1DInterpolator(centers2, values2, method="akima")
+            # Clip to avoid extrapolation and hitting the top end.
+            ampArr -= interp2(np.clip(ampArr, centers2[0], centers2[-1] - 0.01))
 
         return True, 0
 

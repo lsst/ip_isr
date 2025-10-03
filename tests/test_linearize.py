@@ -95,6 +95,21 @@ def referenceImage(image, detector, linearityType, inputData, table=None):
             array = imageView.getArray()
             delta = interp.interpolate(array.flatten())
             array -= np.array(delta).reshape(array.shape)
+        elif linearityType == 'DoubleSpline':
+            nNodes1 = int(inputData[0])
+            nNodes2 = int(inputData[1])
+
+            centers1, values1 = np.split(inputData[2: 2 + 2*nNodes1], 2)
+            centers2, values2 = np.split(inputData[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2], 2)
+            interp1 = afwMath.makeInterpolate(centers1.tolist(), values1.tolist(),
+                                              afwMath.stringToInterpStyle('AKIMA_SPLINE'))
+            interp2 = afwMath.makeInterpolate(centers2.tolist(), values2.tolist(),
+                                              afwMath.stringToInterpStyle('AKIMA_SPLINE'))
+            array = imageView.getArray()
+            delta1 = interp1.interpolate(array.ravel())
+            array -= np.asarray(delta1).reshape(array.shape)
+            delta2 = interp2.interpolate(array.ravel())
+            array -= np.asarray(delta2).reshape(array.shape)
         else:
             raise RuntimeError(f"Unknown linearity: {linearityType}")
     return image, numOutOfRange
@@ -131,6 +146,20 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         # Spline coefficients: should match a 1e-6 Squared solution
         self.splineCoeffs = np.array([0.0, 1000, 2000, 3000, 4000, 5000,
                                       0.0, 1.0, 4.0, 9.0, 16.0, 25.0])
+
+        # Double spline coefficients.
+        self.doubleSplineCoeffs = np.asarray(
+            [
+                5,  # Number of nodes in first spline.
+                6,  # Number of nodes in second spline.
+                0.0, 2000., 3000., 4000., 5000.,  # Nodes for first spline.
+                0.0, 0.01, 0.02, 0.03, 0.04,  # Values for first spline.
+                0.0, 1000, 2000, 3000, 4000, 5000,  # Nodes for second spline.
+                0.0, 1.0, 4.0, 9.0, 16.0, 25.0,  # Values for second spline.
+                0.0, 0.0,  # Extra filler.
+            ],
+        )
+
         self.log = logging.getLogger("lsst.ip.isr.testLinearizer")
 
     def tearDown(self):
@@ -172,13 +201,14 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         for imageClass in (afwImage.ImageF, afwImage.ImageD):
             inImage = makeRampImage(bbox=self.bbox, start=-5, stop=2500, imageClass=imageClass)
 
-            for linearityType in ('Squared', 'LookupTable', 'Polynomial', 'Spline'):
+            for linearityType in ('Squared', 'LookupTable', 'Polynomial', 'Spline', 'DoubleSpline'):
                 detector = self.makeDetector(linearityType)
                 table = None
                 inputData = {'Squared': self.sqCoeffs,
                              'LookupTable': self.lookupIndices,
                              'Polynomial': self.polyCoeffs,
-                             'Spline': self.splineCoeffs}[linearityType]
+                             'Spline': self.splineCoeffs,
+                             'DoubleSpline': self.doubleSplineCoeffs}[linearityType]
                 if linearityType == 'LookupTable':
                     table = np.array(self.table, dtype=inImage.getArray().dtype)
                 linearizer = Linearizer(detector=detector, table=table)
@@ -289,6 +319,8 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                     ampInfo.setLinearityCoeffs(self.polyCoeffs[i, j])
                 elif linearityType == 'Spline':
                     ampInfo.setLinearityCoeffs(self.splineCoeffs)
+                elif linearityType == 'DoubleSpline':
+                    ampInfo.setLinearityCoeffs(self.doubleSplineCoeffs)
                 detBuilder.append(ampInfo)
 
         return detBuilder
@@ -331,6 +363,8 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                     linearizer.linearityCoeffs[ampName] = np.array(self.polyCoeffs[i, j])
                 elif linearityType == 'Spline':
                     linearizer.linearityCoeffs[ampName] = np.array(self.splineCoeffs)
+                elif linearityType == 'DoubleSpline':
+                    linearizer.linearityCoeffs[ampName] = np.asarray(self.doubleSplineCoeffs)
 
                 linearizer.linearityType[ampName] = linearityType
                 linearizer.linearityBBox[ampName] = ampBox
