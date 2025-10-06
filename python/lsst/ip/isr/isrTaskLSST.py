@@ -12,6 +12,7 @@ from deprecated.sphinx import deprecated
 import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
+from lsst.pipe.base import AlgorithmError
 import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
 from lsst.pipe.base import UnprocessableDataError
@@ -30,6 +31,25 @@ from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
 from .isrFunctions import isTrimmedExposure, compareCameraKeywords
+from .getDataBF import getDataBFVisit
+
+
+class BreakPFError(AlgorithmError):
+    """Raised for PF loop.
+    """
+
+    def __init__(
+        self,
+    ):
+        self._toto = 42
+        super().__init__(
+            f"STOP FOR PF."
+        )
+    @property
+    def metadata(self):
+        return {
+            "toto": self._toto,
+        }
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -544,6 +564,27 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=bool,
         doc="Correct science image following Astier23+",
         default=False,
+    )
+    # Brighter-Fatter correction following Astier23+.
+    doAstier23WavelengthDependant = pexConfig.Field(
+        dtype=bool,
+        doc="Correct science image following Astier23+ with wavelength dependancy in i, z, y",
+        default=False,
+    )
+    getThemAllData = pexConfig.Field(
+        dtype=bool,
+        doc="Get data for a collection and save it locally",
+        default=False,
+    )
+    getThemAllDataRepOut = pexConfig.Field(
+        dtype=str,
+        doc="Get data for a collection and save it locally",
+        default="./",
+    )
+    getThemAllDataCollectionIn = pexConfig.Field(
+        dtype=str,
+        doc="Get data for a collection and save it locally",
+        default="./",
     )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
@@ -1551,7 +1592,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # above.
             self.log.warning("PFF I AM DOING ASTIER 23")
             self.log.info("Applying brighter-fatter correction using model in Astier+23")
-            delta = isrFunctions.electrostaticModelBrighterFatterCorrection(bfExp, brighterFatterApplyGain, bfGains)
+            delta = isrFunctions.electrostaticModelBrighterFatterCorrection(bfExp, brighterFatterApplyGain, bfGains, wDependant=self.config.doAstier23WavelengthDependant)
             bfCorrIters = 1
             image = ccdExposure.getMaskedImage().getImage()
             image.getArray()[:] -= delta[:]
@@ -1828,6 +1869,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
             flat=None, camera=None, **kwargs
             ):
+        
+        if self.config.getThemAllData:
+            visitId = ccdExposure.getInfo().getVisitInfo().getId()
+            bandId = ccdExposure.filter.bandLabel
+            getDataBFVisit(
+                self.config.getThemAllDataCollectionIn,
+                self.config.getThemAllDataRepOut,
+                visitId,
+                bandId,
+                )
+            raise BreakPFError()
 
         detector = ccdExposure.getDetector()
 
