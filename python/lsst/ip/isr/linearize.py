@@ -927,7 +927,10 @@ class LinearizeSpline(LinearizeBase):
         splineCoeff = kwargs['coeffs']
         gain = kwargs.get('gain', 1.0)
         centers, values = np.split(splineCoeff, 2)
-        values = values*gain
+        # Note that we must do a copy here because the input array
+        # may not be volatile memory.
+        centers = gain * centers
+        values = gain * values
         # If the spline is not anchored at zero, remove the offset
         # found at the lowest flux available, and add an anchor at
         # flux=0.0 if there's no entry at that point.
@@ -940,7 +943,7 @@ class LinearizeSpline(LinearizeBase):
 
         ampArr = image.array
 
-        if np.any(~np.isfinite(values)):
+        if np.any(~np.isfinite(centers)) or np.any(~np.isfinite(values)):
             # This cannot be used; turns everything into nans.
             ampArr[:] = np.nan
 
@@ -1007,7 +1010,7 @@ class LinearizeDoubleSpline(LinearizeBase):
             splineCoeff1 = coeffs[2: 2 + 2*nNodes1]
             centers1, values1 = np.split(splineCoeff1, 2)
 
-            if np.any(~np.isfinite(values1)):
+            if np.any(~np.isfinite(centers1)) or np.any(~np.isfinite(values1)):
                 # Bad linearizer.
                 ampArr[:] = np.nan
                 return False, 0
@@ -1019,7 +1022,7 @@ class LinearizeDoubleSpline(LinearizeBase):
             splineCoeff2 = coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
             centers2, values2 = np.split(splineCoeff2, 2)
 
-            if np.any(~np.isfinite(values2)):
+            if np.any(~np.isfinite(centers2)) or np.any(~np.isfinite(values2)):
                 # Bad linearizer.
                 ampArr[:] = np.nan
                 return False, 0
