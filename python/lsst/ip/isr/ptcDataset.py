@@ -25,6 +25,7 @@ Define dataset class for MeasurePhotonTransferCurve task
 
 __all__ = ['PhotonTransferCurveDataset']
 
+import warnings
 import numbers
 import numpy as np
 import math
@@ -74,18 +75,14 @@ class PhotonTransferCurveDataset(IsrCalib):
     is by definition always the same length as inputExpIdPairs, rawExpTimes,
     rawMeans and rawVars, and is a list of bools, which are incrementally set
     to False as points are discarded from the fits.
-    PTC fit parameters for polynomials are stored in a list in ascending order
-    of polynomial term, i.e. par[0]*x^0 + par[1]*x + par[2]*x^2 etc
-    with the length of the list corresponding to the order of the polynomial
-    plus one.
 
     Parameters
     ----------
     ampNames : `list`
         List with the names of the amplifiers of the detector at hand.
     ptcFitType : `str`, optional
-        Type of model fitted to the PTC: "POLYNOMIAL", "EXPAPPROXIMATION",
-        or "FULLCOVARIANCE".
+        Type of model fitted to the PTC: "EXPAPPROXIMATION",
+        or "FULLCOVARIANCE" or "FULLCOVARIANCE_NO_B".
     covMatrixSide : `int`, optional
         Maximum lag of measured covariances (size of square covariance
         matrices).
@@ -111,6 +108,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         outlier rejection. The mask produced by the "FULLCOVARIANCE"
         option may differ from the one produced in the other two PTC
         fit types.
+    expIdRolloffMask : `dict`, [`str`, `np.ndarray`]
+        Dictionary keyed by amp names containing the mask produced after
+        outlier rejection and extended to fit the PTC rolloff.
     rawExpTimes : `dict`, [`str`, `np.ndarray`]
         Dictionary keyed by amp names containing the unmasked exposure times.
     rawMeans : `dict`, [`str`, `np.ndarray`]
@@ -172,21 +172,29 @@ class PhotonTransferCurveDataset(IsrCalib):
         Dictionary keyed by amp names containing amp-to-amp offsets
         (units: adu).
     ptcFitPars : `dict`, [`str`, `np.ndarray`]
-        Dictionary keyed by amp names containing the fitted parameters of the
-        PTC model for ptcFitType in ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        Dictionary keyed by amp names containing the raveled array fitted
+        parameters of the PTC model.
     ptcFitParsError : `dict`, [`str`, `np.ndarray`]
-        Dictionary keyed by amp names containing the errors on the fitted
-        parameters of the PTC model for ptcFitType in
-        ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        Dictionary keyed by amp names containing the raveled array errors
+        on the fitted parameters of the PTC model for ptcFitType.
     ptcFitChiSq : `dict`, [`str`, `float`]
         Dictionary keyed by amp names containing the reduced chi squared
-        of the fit for ptcFitType in ["POLYNOMIAL", "EXPAPPROXIMATION"].
+        of the fit.
     ptcTurnoff : `dict` [`str, `float`]
         Flux value (in adu) where the variance of the PTC curve starts
         decreasing consistently.
     ptcTurnoffSamplingError : `dict` [`str`, `float`]
         ``Sampling`` error on the ptcTurnoff, based on the flux sampling
         of the input PTC (units: adu).
+    ptcRolloff : `dict` [`str, `float`]
+        Flux value (in adu) where the variance of the PTC curve begins starts
+        to move away from the PTC model by some threshold.
+    ptcRolloffError : `dict` [`str`, `float`]
+        Covariance error from the fit to the PTC rolloff (units: adu).
+    ptcRolloff : `dict` [`str, `float`]
+        Curvature parameter of the PTC rolloff.
+    ptcRolloffError : `dict` [`str`, `float`]
+        Fitting error of the curvature parameter of the PTC rolloff.
     nPixelCovariances : `dict`, [`str`, `int`]
         Dictionary keyed by amp names containing the number of pixels
         that were used to measure the covariances.
@@ -265,6 +273,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         `overscanMedianSigma` attrbutes.
     Version 2.4 adds the `nPixelCovariances` attribute.
     Version 2.5 adds the `rawDeltas` and `photoChargeDeltas` attributes.
+    Version 2.6 adds the `expIdRolloffMask`, `ptcRolloff`, `ptcRolloffError`,
+        `ptcRolloffTau`, and `ptcRolloffTauError` attributes. Also
+        deprecates the POLYNOMIAL fit type.
     """
 
     _OBSTYPE = 'PTC'
@@ -283,7 +294,7 @@ class PhotonTransferCurveDataset(IsrCalib):
     #  * test_ptcDataset() in test_ptcDataset.py
     #  * test_ptcDatasetSort in test_ptcDataset.py
     #  * test_ptcDatasetAppend in test_ptcDataset.py
-    _VERSION = 2.5
+    _VERSION = 2.6
 
     def __init__(self, ampNames=[], ptcFitType=None, covMatrixSide=1,
                  covMatrixSideFullCovFit=None, **kwargs):
@@ -300,6 +311,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.inputExpIdPairs = {ampName: [] for ampName in ampNames}
         self.inputExpPairMjdStartList = {ampName: np.array([]) for ampName in ampNames}
         self.expIdMask = {ampName: np.array([], dtype=bool) for ampName in ampNames}
+        self.expIdRolloffMask = {ampName: np.array([], dtype=bool) for ampName in ampNames}
         self.rawExpTimes = {ampName: np.array([]) for ampName in ampNames}
         self.rawMeans = {ampName: np.array([]) for ampName in ampNames}
         self.rawVars = {ampName: np.array([]) for ampName in ampNames}
@@ -329,6 +341,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.ptcFitChiSq = {ampName: np.nan for ampName in ampNames}
         self.ptcTurnoff = {ampName: np.nan for ampName in ampNames}
         self.ptcTurnoffSamplingError = {ampName: np.nan for ampName in ampNames}
+        self.ptcRolloff = {ampName: np.nan for ampName in ampNames}
+        self.ptcRolloffError = {ampName: np.nan for ampName in ampNames}
+        self.ptcRolloffTau = {ampName: np.nan for ampName in ampNames}
+        self.ptcRolloffTauError = {ampName: np.nan for ampName in ampNames}
 
         self.nPixelCovariances = {ampName: -1 for ampName in ampNames}
         self.covariances = {ampName: np.array([]) for ampName in ampNames}
@@ -347,17 +363,18 @@ class PhotonTransferCurveDataset(IsrCalib):
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['badAmps', 'inputExpIdPairs', 'inputExpPairMjdStartList',
-                                        'expIdMask', 'rawExpTimes', 'rawMeans', 'rawVars',
-                                        'rowMeanVariance', 'gain', 'gainErr', 'gainList', 'noise',
-                                        'noiseErr', 'noiseList', 'overscanMedianLevelList',
+                                        'expIdMask', 'expIdRolloffMask', 'rawExpTimes', 'rawMeans',
+                                        'rawVars', 'rowMeanVariance', 'gain', 'gainErr', 'gainList',
+                                        'noise', 'noiseErr', 'noiseList', 'overscanMedianLevelList',
                                         'overscanMedian', 'overscanMedianSigma', 'ptcFitPars',
                                         'ptcFitParsError', 'ptcFitChiSq', 'ptcTurnoff', 'covariances',
                                         'covariancesModel', 'covariancesSqrtWeights', 'aMatrix',
                                         'bMatrix', 'noiseMatrix', 'finalVars', 'finalModelVars',
                                         'finalMeans', 'photoCharges', 'histVars', 'histChi2Dofs',
                                         'kspValues', 'auxValues', 'ptcTurnoffSamplingError',
-                                        'ampOffsets', 'gainUnadjusted', 'nPixelCovariances',
-                                        'rawDeltas', 'photoChargeDeltas'])
+                                        'ptcRolloff', 'ptcRolloffError', 'ptcRolloffTau',
+                                        'ptcRolloffTauError', 'ampOffsets', 'gainUnadjusted',
+                                        'nPixelCovariances', 'rawDeltas', 'photoChargeDeltas'])
 
         self.updateMetadata(setCalibInfo=True, setCalibId=True, **kwargs)
         self._validateCovarianceMatrizSizes()
@@ -376,6 +393,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             photoChargeDelta=np.nan,
             ampOffset=np.nan,
             expIdMask=False,
+            expIdRolloffMask=False,
             nPixelCovariance=-1,
             covariance=None,
             covSqrtWeights=None,
@@ -422,6 +440,9 @@ class PhotonTransferCurveDataset(IsrCalib):
         expIdMask : `bool`, optional
             Flag setting if this exposure pair should be used (True)
             or not used (False).
+        expIdRolloffMask : `bool`, optional
+            Flag setting if this exposure pair should be used (True)
+            or not used for rolloff search (False).
         nPixelCovariance : `int`, optional
             Number of pixels that went into the covariance measurement.
         covariance : `np.ndarray` or None, optional
@@ -463,6 +484,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.photoChargeDeltas[ampName] = np.array([photoChargeDelta])
         self.ampOffsets[ampName] = np.array([ampOffset])
         self.expIdMask[ampName] = np.array([expIdMask])
+        self.expIdRolloffMask[ampName] = np.array([expIdRolloffMask])
         self.nPixelCovariances[ampName] = nPixelCovariance
         self.covariances[ampName] = np.array([covariance])
         self.covariancesSqrtWeights[ampName] = np.array([covSqrtWeights])
@@ -483,6 +505,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         self.aMatrix[ampName] = nanMatrixFit
         self.bMatrix[ampName] = nanMatrixFit
         self.noiseMatrix[ampName] = nanMatrixFit
+
         # Filler values.
         self.finalVars[ampName] = np.array([np.nan])
         self.finalModelVars[ampName] = np.array([np.nan])
@@ -566,6 +589,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 dictionary['inputExpPairMjdStartList'][ampName],
             )
             calib.expIdMask[ampName] = np.array(dictionary['expIdMask'][ampName])
+            calib.expIdRolloffMask[ampName] = np.array(dictionary['expIdRolloffMask'][ampName])
             calib.rawExpTimes[ampName] = np.array(dictionary['rawExpTimes'][ampName], dtype=np.float64)
             calib.rawMeans[ampName] = np.array(dictionary['rawMeans'][ampName], dtype=np.float64)
             calib.rawVars[ampName] = np.array(dictionary['rawVars'][ampName], dtype=np.float64)
@@ -595,6 +619,10 @@ class PhotonTransferCurveDataset(IsrCalib):
             calib.ptcFitChiSq[ampName] = float(dictionary['ptcFitChiSq'][ampName])
             calib.ptcTurnoff[ampName] = float(dictionary['ptcTurnoff'][ampName])
             calib.ptcTurnoffSamplingError[ampName] = float(dictionary['ptcTurnoffSamplingError'][ampName])
+            calib.ptcRolloff[ampName] = float(dictionary['ptcRolloff'][ampName])
+            calib.ptcRolloffError[ampName] = float(dictionary['ptcRolloffError'][ampName])
+            calib.ptcRolloffTau[ampName] = float(dictionary['ptcRolloff'][ampName])
+            calib.ptcRolloffTauError[ampName] = float(dictionary['ptcRolloffError'][ampName])
             if nSignalPoints > 0:
                 # Regular dataset
                 calib.covariances[ampName] = np.array(dictionary['covariances'][ampName],
@@ -678,6 +706,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['inputExpIdPairs'] = self.inputExpIdPairs
         outDict['inputExpPairMjdStartList'] = _dictOfArraysToDictOfLists(self.inputExpPairMjdStartList)
         outDict['expIdMask'] = _dictOfArraysToDictOfLists(self.expIdMask)
+        outDict['expIdRolloffMask'] = _dictOfArraysToDictOfLists(self.expIdRolloffMask)
         outDict['rawExpTimes'] = _dictOfArraysToDictOfLists(self.rawExpTimes)
         outDict['rawMeans'] = _dictOfArraysToDictOfLists(self.rawMeans)
         outDict['rawVars'] = _dictOfArraysToDictOfLists(self.rawVars)
@@ -701,6 +730,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         outDict['ptcFitChiSq'] = self.ptcFitChiSq
         outDict['ptcTurnoff'] = self.ptcTurnoff
         outDict['ptcTurnoffSamplingError'] = self.ptcTurnoffSamplingError
+        outDict['ptcRolloff'] = self.ptcRolloff
+        outDict['ptcRolloffError'] = self.ptcRolloffError
+        outDict['ptcRolloffTau'] = self.ptcRolloff
+        outDict['ptcRolloffTauError'] = self.ptcRolloffTauError
         outDict['nPixelCovariances'] = self.nPixelCovariances
         outDict['covariances'] = _dictOfArraysToDictOfLists(self.covariances)
         outDict['covariancesModel'] = _dictOfArraysToDictOfLists(self.covariancesModel)
@@ -747,6 +780,7 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['inputExpIdPairs'] = dict()
         inDict['inputExpPairMjdStartList'] = dict()
         inDict['expIdMask'] = dict()
+        inDict['expIdRolloffMask'] = dict()
         inDict['rawExpTimes'] = dict()
         inDict['rawMeans'] = dict()
         inDict['rawVars'] = dict()
@@ -770,6 +804,10 @@ class PhotonTransferCurveDataset(IsrCalib):
         inDict['ptcFitChiSq'] = dict()
         inDict['ptcTurnoff'] = dict()
         inDict['ptcTurnoffSamplingError'] = dict()
+        inDict['ptcRolloff'] = dict()
+        inDict['ptcRolloffError'] = dict()
+        inDict['ptcRolloffTau'] = dict()
+        inDict['ptcRolloffTauError'] = dict()
         inDict['nPixelCovariances'] = dict()
         inDict['covariances'] = dict()
         inDict['covariancesModel'] = dict()
@@ -934,6 +972,21 @@ class PhotonTransferCurveDataset(IsrCalib):
             else:
                 inDict['rawDeltas'][ampName] = record['RAW_DELTAS']
                 inDict['photoChargeDeltas'][ampName] = record['PHOTO_CHARGE_DELTAS']
+            if calibVersion < 2.6:
+                inDict['ptcRolloff'][ampName] = np.nan
+                inDict['ptcRolloffError'][ampName] = np.nan
+                inDict['ptcRolloffTau'][ampName] = np.nan
+                inDict['ptcRolloffTauError'][ampName] = np.nan
+                inDict['expIdRolloffMask'][ampName] = np.full_like(
+                    inDict['expIdMask'][ampName],
+                    False,
+                )
+            else:
+                inDict['ptcRolloff'][ampName] = record['PTC_ROLLOFF']
+                inDict['ptcRolloffError'][ampName] = record['PTC_ROLLOFF_ERROR']
+                inDict['ptcRolloffTau'][ampName] = record['PTC_ROLLOFF_TAU']
+                inDict['ptcRolloffTauError'][ampName] = record['PTC_ROLLOFF_TAU_ERROR']
+                inDict['expIdRolloffMask'][ampName] = record['EXP_ID_ROLLOFF_MASK']
 
         inDict['auxValues'] = {}
         record = ptcTable[0]
@@ -977,6 +1030,7 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'INPUT_EXP_ID_PAIRS': self.inputExpIdPairs[ampName],
                 'INPUT_EXP_PAIR_MJD_START': self.inputExpPairMjdStartList[ampName],
                 'EXP_ID_MASK': self.expIdMask[ampName],
+                'EXP_ID_ROLLOFF_MASK': self.expIdRolloffMask[ampName],
                 'RAW_EXP_TIMES': self.rawExpTimes[ampName],
                 'RAW_MEANS': self.rawMeans[ampName],
                 'RAW_VARS': self.rawVars[ampName],
@@ -1000,6 +1054,10 @@ class PhotonTransferCurveDataset(IsrCalib):
                 'PTC_FIT_CHI_SQ': self.ptcFitChiSq[ampName],
                 'PTC_TURNOFF': self.ptcTurnoff[ampName],
                 'PTC_TURNOFF_SAMPLING_ERROR': self.ptcTurnoffSamplingError[ampName],
+                'PTC_ROLLOFF': self.ptcRolloff[ampName],
+                'PTC_ROLLOFF_ERROR': self.ptcRolloffError[ampName],
+                'PTC_ROLLOFF_TAU': self.ptcRolloffTau[ampName],
+                'PTC_ROLLOFF_TAU_ERROR': self.ptcRolloffTauError[ampName],
                 'A_MATRIX': self.aMatrix[ampName].ravel(),
                 'B_MATRIX': self.bMatrix[ampName].ravel(),
                 'NOISE_MATRIX': self.noiseMatrix[ampName].ravel(),
@@ -1092,6 +1150,8 @@ class PhotonTransferCurveDataset(IsrCalib):
             )
             self.expIdMask[ampName] = np.append(self.expIdMask[ampName],
                                                 partialPtc.expIdMask[ampName][0])
+            self.expIdRolloffMask[ampName] = np.append(self.expIdRolloffMask[ampName],
+                                                       partialPtc.expIdRolloffMask[ampName][0])
             self.rawExpTimes[ampName] = np.append(self.rawExpTimes[ampName],
                                                   partialPtc.rawExpTimes[ampName][0])
             self.rawMeans[ampName] = np.append(self.rawMeans[ampName],
@@ -1191,6 +1251,7 @@ class PhotonTransferCurveDataset(IsrCalib):
             self.inputExpPairMjdStartList[ampName] = self.inputExpPairMjdStartList[ampName][index]
 
             self.expIdMask[ampName] = self.expIdMask[ampName][index]
+            self.expIdRolloffMask[ampName] = self.expIdRolloffMask[ampName][index]
             self.rawExpTimes[ampName] = self.rawExpTimes[ampName][index]
             self.rawMeans[ampName] = self.rawMeans[ampName][index]
             self.rawVars[ampName] = self.rawVars[ampName][index]
@@ -1336,30 +1397,33 @@ class PhotonTransferCurveDataset(IsrCalib):
         Computes the covModel for all mu, and it returns
         cov[N, M, M], where the variance model is cov[:,0,0].
         Both mu and cov are in ADUs and ADUs squared. This
-        routine evaulates the n-degree polynomial model (defined
-        by polynomialFitDegree) if self.ptcFitType == POLYNOMIAL,
-        the approximation in Eq. 16 of Astier+19 (1905.08677)
+        routine evaluates the approximation in Eq. 16 of
+        Astier+19 (1905.08677)
         if self.ptcFitType == EXPAPPROXIMATION, and Eq. 20 of
-        Astier+19 if self.ptcFitType == FULLCOVARIANCE.
+        Astier+19 if self.ptcFitType == FULLCOVARIANCE(_NO_B).
 
-        The POLYNOMIAL model and the EXPAPPROXIMATION model
-        (Eq. 16 of Astier+19) are only approximations for the
-        variance (cov[0,0]), so the function returns covModel
-        of shape (N,), representing an array of [C_{00}]
-        if self.ptcFitType == EXPAPPROXIMATION or
-        self.ptcFitType == POLYNOMAIL.
+        The EXPAPPROXIMATION model (Eq. 16 of Astier+19) is
+        only an approximation for the variance (cov[0,0]),
+        so the function returns covModel of shape (N,),
+        representing an array of [C_{00}]
+        if self.ptcFitType == EXPAPPROXIMATION.
         """
 
         ampNames = self.ampNames
         covModel = {ampName: np.array([]) for ampName in ampNames}
 
         if self.ptcFitType == "POLYNOMIAL":
+            warnings.warn("The `POLYNOMIAL` fit type is deprecated; it will "
+                          "be removed from the Rubin Observatory Science "
+                          "Pipelines after v30.",
+                          category=FutureWarning)
+            # TODO: DM-52720 - remove deprecated POLYNOMIAL fit
+            # and legacy turnoff
             pars = self.ptcFitPars
 
             for ampName in ampNames:
                 c00 = poly.polyval(mu, [*pars[ampName]])
                 covModel[ampName] = c00
-
         elif self.ptcFitType == "EXPAPPROXIMATION":
             pars = self.ptcFitPars
 
