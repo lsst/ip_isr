@@ -2,6 +2,74 @@ import numpy as np
 import pyfftw
 
 
+def quadrant_to_full_centered(q: np.ndarray) -> np.ndarray:
+    """
+    Given an N×N quadrant `q` whose top-left element q[0,0] is the kernel's peak (center),
+    build the full (2N-1)×(2N-1) isotropic/symmetric kernel with that peak at the true center.
+    Works regardless of which physical quadrant `q` originally came from.
+    """
+    if q.ndim != 2 or q.shape[0] != q.shape[1]:
+        raise ValueError("q must be a square 2D array")
+
+    N = q.shape[0]
+
+    # Re-orient so q[0,0] ends up at the *center* of the final array.
+    # Place this reoriented patch as the TOP-LEFT block whose bottom-right is the center.
+    A = np.flipud(np.fliplr(q))                 # A[-1,-1] == q[0,0]
+
+    # Mirror across vertical centerline (exclude the center column to avoid duplicates)
+    top = np.concatenate([A, np.fliplr(A[:, :-1])], axis=1)   # shape: N × (2N-1)
+
+    # Mirror across horizontal centerline (exclude the center row)
+    full = np.concatenate([top, np.flipud(top[:-1, :])], axis=0)  # shape: (2N-1) × (2N-1)
+
+    return full
+
+def symmetrize(a):
+    # copy over 4 quadrants prior to convolution.
+    target_shape = list(a.shape)
+    r1,r2 = a.shape[-1],a.shape[-2]
+    target_shape[-1] = 2*r1-1
+    target_shape[-2] = 2*r2-1
+    asym = np.ndarray(tuple(target_shape))
+    asym[...,r2-1:   ,r1-1:   ]= a
+    asym[...,r2-1:   ,r1-1::-1]= a
+    asym[...,r2-1::-1,r1-1::-1]= a
+    asym[...,r2-1::-1,r1-1:   ]= a
+    return asym
+
+def get_avalues(filename, tag='ath'):
+    t = np.load(filename).view(np.recarray)
+    a = np.ndarray((max(t.i)+1, max(t.j)+1))
+    a[t.i,t.j] = t[tag]
+    return a
+    
+def compute_k(filename):
+    """
+    solves the "Poisson" equation delta_k = a
+    returns k and its laplacian
+    """
+    a = get_avalues(filename)
+    s0a = a.shape
+    # fill the 4 quadrants
+    a = symmetrize(a)
+    s = a.shape
+    #  add a zero all around (limiting condition for the potential)
+    k = np.zeros((s[0]+2, s[1]+2))
+    eta = 0.25 # no idea a priori, if it is too large, the recursion diverges
+    for count in range(10000):
+        delta_k = 4*k[1:-1,1:-1]-(k[2:,1:-1]+k[1:-1,2:]+k[:-2,1:-1]+k[1:-1,:-2])
+        diff = delta_k-a
+        # update
+        k[1:-1,1:-1] -= eta*diff
+        # print(count, (diff**2).sum(), (a**2).sum())
+        if np.abs(diff/a).max() < 1e-8 : break
+    print('converged after %d iterations'%count)
+    # return k[s0a[0]:,s0a[1]:], delta_k[s0a[0]-1:,s0a[1]-1:]
+    kernelBF = quadrant_to_full_centered(k[s0a[0]:,s0a[1]:])
+    return kernelBF, None
+
+
 # code adaped from :
 # https://stackoverflow.com/questions/14786920/convolution-of-two-three-dimensional-arrays-with-padding-on-one-side-too-slow
 # code posted by Henry Gomersal 

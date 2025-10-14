@@ -68,7 +68,7 @@ import lsst.afw.cameraGeom as camGeom
 
 from lsst.afw.geom import SpanSet, Stencil
 from lsst.meas.algorithms.detection import SourceDetectionTask
-from .astier23BFcorr import BFCorr
+from .astier23BFcorr import BFCorr, compute_k
 
 from contextlib import contextmanager
 
@@ -111,6 +111,20 @@ def electrostaticModelBrighterFatterCorrection(exposure, applyGain, gains=None, 
         # image.getArray()[:] -= delta[:]
     return delta
 
+def getKernelFromPtcFitFromAstier(exposure, kernel):
+
+    detectorName = exposure.detector.getName()
+    detectorBand = exposure.getFilter().bandLabel
+
+    #if detectorBand in {"i", "z", "y"} and wDependant:
+    #    avaluesNpy = f"avalues_{detectorBand}.npy"
+    #else:
+    avaluesNpy = f"avalues.npy"
+    fileName = f"/sdf/home/a/astier/place/run7/E2016/{detectorName}/{avaluesNpy}"
+
+    newKernel = compute_k(fileName)
+
+    return newKernel
 
 def transposeMaskedImage(maskedImage):
     """Make a transposed copy of a masked image.

@@ -571,6 +571,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Correct science image following Astier23+ with wavelength dependancy in i, z, y",
         default=False,
     )
+    ptcFitFromAstier = pexConfig.Field(
+        dtype=bool,
+        doc="Correct science image following Coulton18+ but used PTC fit from Pierre Astier.",
+        default=False,
+    )
     getThemAllData = pexConfig.Field(
         dtype=bool,
         doc="Get data for a collection and save it locally",
@@ -1569,6 +1574,22 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         if not self.config.doAstier23:
             self.log.warning("PFF I AM DOING COULTON 19")
+            if self.config.ptcFitFromAstier:
+                self.log.warning("PFF I AM USING PTC FROM ASTIER")
+                #import pickle
+                #import os
+                #import copy
+                #HOME = "/sdf/home/l/leget/rubin-user/lsst_dev/tickets/Astier23/w33/BFCoultonAstierPTC42"
+                #pklFile = open(os.path.join(HOME, 'compareKernel.pkl'), 'wb')
+                #oldKernel = copy.deepcopy(bfKernel)
+                bfKernel, _ = isrFunctions.getKernelFromPtcFitFromAstier(bfExp, bfKernel)
+                #dic = {
+                #    "oldKernel": oldKernel,
+                #    "newKernel": bfKernel,
+                #}
+                #pickle.dump(dic, pklFile)
+                #pklFile.close()
+
             bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
                                                             self.config.brighterFatterMaxIter,
                                                             self.config.brighterFatterThreshold,
