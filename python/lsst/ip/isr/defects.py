@@ -82,8 +82,12 @@ class Defects(IsrCalib):
 
     def __init__(self, defectList=None, metadata=None, *, normalize_on_init=True, **kwargs):
         self._defects = []
+        self._defectsUnnormalized = [()]
 
-        # _defects is a list of tuples of meas and reason (0 is no reason assigned)
+        # List of possible reasons for defects
+        self.reason = ['UNLABELED', 'HOT_PIXEL', 'COLD_PIXEL',
+                       'HOT_COLUMN', 'COLD_COLUMN', 'MANUAL_DEFECT',
+                       'EDGE', 'VAMPIRE_PIXEL']
 
         if defectList is not None:
             self._bulk_update = True
@@ -96,6 +100,7 @@ class Defects(IsrCalib):
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['_defects'])
+        self.requiredAttributes.update(['_defectsUnnormalized'])
 
     def _check_value(self, value):
         """Check that the supplied value is a `~lsst.meas.algorithms.Defect`
@@ -153,6 +158,7 @@ class Defects(IsrCalib):
         Two `Defects` are equal if their bounding boxes are equal and in
         the same order.  Metadata content is ignored.
         """
+        #need to be updated to add unnormalized case
         super().__eq__(other)
 
         if not isinstance(other, self.__class__):
@@ -218,13 +224,20 @@ class Defects(IsrCalib):
             self._bulk_update = False
             self._normalize()
 
-    def append(self, value):
+    def append(self, value, reason=None):
+        # todo: read the box and the reason separately, pass the reason to hasreason (change keyword name)
+        # change all methods that uses check_value
+
         self._defects.append(self._check_value(value))
         self._normalize()
+        if reason:
+            self._defectsUnnormalized.append((self._check_value(value), reason))
 
-    def insert(self, index, value):
+    def insert(self, index, value, reason=None):
         self._defects.insert(index, self._check_value(value))
         self._normalize()
+        if reason:
+            self._defectsUnnormalized.insert(index, self._check_value(value))
 
     def copy(self):
         """Copy the defects to a new list, creating new defects from the
@@ -277,6 +290,31 @@ class Defects(IsrCalib):
         for defect in self:
             bbox = defect.getBBox()
             lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
+
+    def maskPixelsReason(self, mask, reason):
+        """Set mask plane based on reason.
+
+        Parameters
+        ----------
+        maskedImage : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
+            Image to process.  Only the mask plane is updated.
+
+        """
+        if hasattr(mask, "getMask"):
+            mask = mask.getMask()
+
+        if self._defectsUnnormalized is not None:
+            for d in self._defectsUnnormalized:
+                bbox = d[0]
+                reason = d[1]
+                if reason in self.getReasonDict()[0]:
+                    bitmask = 2**self.getReasonDict()[0][reason]
+                    lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
+                else:
+                    raise RuntimeError(f"Reason {reason} not existent.")
+        else:
+            raise RuntimeError(f"No defects with reason provided.")
+
 
     def updateCounters(self, columns=None, hot=None, cold=None):
         """Update metadata with pixel and column counts.
@@ -423,17 +461,18 @@ class Defects(IsrCalib):
         nrows = len(self._defects)
         if nrows:
             for defect in self._defects:
-                box = defect.getBBox()
+                box = defect[0].getBBox()
                 xCol.append(box.getBeginX())
                 yCol.append(box.getBeginY())
                 widthCol.append(box.getWidth())
                 heightCol.append(box.getHeight())
-                reason.append(self._defects.)
+                reason.append(defect[1])
 
         outDict['x0'] = xCol
         outDict['y0'] = yCol
         outDict['width'] = widthCol
         outDict['height'] = heightCol
+        outDict['reason'] = reason
 
         return outDict
 
@@ -460,6 +499,8 @@ class Defects(IsrCalib):
             X extent of the box.
         height : `int`
             Y extent of the box.
+        reason : `str`
+            Reason for unnormalized defect.
         """
         tableList = []
         self.updateMetadata()
@@ -468,7 +509,6 @@ class Defects(IsrCalib):
         yCol = []
         widthCol = []
         heightCol = []
-        reason = []
 
         nrows = len(self._defects)
         if nrows:
@@ -480,6 +520,29 @@ class Defects(IsrCalib):
                 heightCol.append(box.getHeight())
 
         catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol})
+        inMeta = self.getMetadata().toDict()
+        outMeta = {k: v for k, v in inMeta.items() if v is not None}
+        catalog.meta = outMeta
+        tableList.append(catalog)
+
+        xCol = []
+        yCol = []
+        widthCol = []
+        heightCol = []
+        reason = []
+
+        nrows = len(self._defectsUnnormalized)
+        if nrows:
+            for defect in self._defectsUnnormalized:
+                box = defect[0].getBBox()
+                xCol.append(box.getBeginX())
+                yCol.append(box.getBeginY())
+                widthCol.append(box.getWidth())
+                heightCol.append(box.getHeight())
+                reason.append(defect[1])
+        catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol,
+                                       'reason': reason})
+
         inMeta = self.getMetadata().toDict()
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
         catalog.meta = outMeta
@@ -518,15 +581,12 @@ class Defects(IsrCalib):
 
         return values[:n]
 
-    def defineReason(defectList):
-        reason = []
-        for i in range(len(defectList)):
-            reason.append('COLD_PIX')
-        return reason
+    def getReasonDict(cls):
 
-    def setReason(cls, reason):
-        cls.getReason = reason
-        return cls
+        mapping = {reason: bit for bit, reason in enumerate(cls.reason)}
+        mapping_reverse = {bit: reason for bit, reason in enumerate(cls.reason)}
+
+        return mapping, mapping_reverse
 
     @classmethod
     def fromTable(cls, tableList, normalize_on_init=True):
@@ -561,7 +621,16 @@ class Defects(IsrCalib):
         The FITS standard regions can only read BOX, POINT, or ROTBOX with
         a zero degree rotation.
         """
-        table = tableList[0]
+        hasUnnormalized = False
+
+        if len(tableList) > 1:
+            table = tableList[0]
+            tableUnnormalized = tableList[1]
+            hasUnnormalized = True
+            defectUnnormalizedList = []
+        else:
+            table = tableList[0]
+
         defectList = []
 
         schema = table.columns
@@ -620,14 +689,16 @@ class Defects(IsrCalib):
 
             defectList.append(box)
 
-        import IPython
-        IPython.embed()
         defects = cls(defectList, normalize_on_init=normalize_on_init)
 
-        defectsReason = defineReason(defectList)
-        unNormalizedDefects = cls(defectList, normalize_on_init=False)
-        setReason(unNormalizedDefects, defectsReason)
-        # define dict assigning bit to reason so that we can interpret it like the masks.
+        if hasUnnormalized:
+            for record in tableUnnormalized:
+                box = lsst.geom.Box2I(lsst.geom.Point2I(record['x0'], record['y0']),
+                                      lsst.geom.Extent2I(record['width'], record['height']))
+                defectUnnormalizedList.append( (box, record['reason']) )
+
+            defects._defectsUnnormalized = defectUnnormalizedList
+
         newMeta = dict(table.meta)
         defects.updateMetadata(setCalibInfo=True, **newMeta)
 
