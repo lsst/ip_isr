@@ -525,28 +525,29 @@ class Defects(IsrCalib):
         catalog.meta = outMeta
         tableList.append(catalog)
 
-        xCol = []
-        yCol = []
-        widthCol = []
-        heightCol = []
-        reason = []
+        if self._defectsUnnormalized:
+            xCol = []
+            yCol = []
+            widthCol = []
+            heightCol = []
+            reason = []
 
-        nrows = len(self._defectsUnnormalized)
-        if nrows:
-            for defect in self._defectsUnnormalized:
-                box = defect[0].getBBox()
-                xCol.append(box.getBeginX())
-                yCol.append(box.getBeginY())
-                widthCol.append(box.getWidth())
-                heightCol.append(box.getHeight())
-                reason.append(defect[1])
-        catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol,
-                                       'reason': reason})
+            nrows = len(self._defectsUnnormalized)
+            if nrows and len(self._defectsUnnormalized[0]):
+                for defect in self._defectsUnnormalized:
+                    box = defect[0].getBBox()
+                    xCol.append(box.getBeginX())
+                    yCol.append(box.getBeginY())
+                    widthCol.append(box.getWidth())
+                    heightCol.append(box.getHeight())
+                    reason.append(defect[1])
+            catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol,
+                                        'reason': reason})
 
-        inMeta = self.getMetadata().toDict()
-        outMeta = {k: v for k, v in inMeta.items() if v is not None}
-        catalog.meta = outMeta
-        tableList.append(catalog)
+            inMeta = self.getMetadata().toDict()
+            outMeta = {k: v for k, v in inMeta.items() if v is not None}
+            catalog.meta = outMeta
+            tableList.append(catalog)
 
         return tableList
 
