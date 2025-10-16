@@ -65,6 +65,40 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         self.assertNotEqual(first.getMetadata(), second.getMetadata())
         del meta1["NEW"]
 
+    def test_defectsReason(self):
+        defects = Defects()
+
+        defects.append( algorithms.Defect(lsst.geom.Box2I(lsst.geom.Point2I(5, 6),
+                                         lsst.geom.Point2I(41, 50))), reason='HOT_PIXEL' )
+
+        defects.append( lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                       lsst.geom.Point2I(4, 5)), reason='EDGE')
+
+        self.assertEqual(len(defects), 2)
+
+        for d in defects:
+            self.assertIsInstance(d, algorithms.Defect)
+
+        meta = PropertyList()
+        meta["TESTHDR"] = "testing"
+        defects.setMetadata(meta)
+
+        table = defects.toFitsRegionTable()
+
+        defects2 = Defects.fromTable([table])
+
+        self.assertEqual(defects2, defects)
+
+        # via FITS
+        with lsst.utils.tests.getTempFilePath(".fits") as tmpFile:
+            defects.writeFits(tmpFile)
+            defects2 = Defects.readFits(tmpFile)
+
+        # via text file
+        with lsst.utils.tests.getTempFilePath(".ecsv") as tmpFile:
+            defects.writeText(tmpFile)
+            defects2 = Defects.readText(tmpFile)
+
     def test_defects(self):
         defects = Defects()
 
