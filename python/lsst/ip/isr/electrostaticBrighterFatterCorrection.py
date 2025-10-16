@@ -22,7 +22,7 @@
 """Brighter Fatter Kernel calibration definition."""
 
 
-__all__ = ['ElectrostaticBrighterFatterCalibration']
+__all__ = ['ElectrostaticBrighterFatter']
 
 
 import numpy as np
@@ -31,7 +31,7 @@ from astropy.table import Table
 from . import IsrCalib
 
 
-class ElectrostaticBrighterFatterCalibration(IsrCalib):
+class ElectrostaticBrighterFatter(IsrCalib):
     """Calibration of brighter-fatter kernels for an instrument.
 
     ampKernels are the kernels for each amplifier in a detector, as
@@ -74,62 +74,58 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
     gain : `dict`, [`str`,`float`]
         Dictionary keyed by amp names containing the gains inherited
         from the inputPTC.
-    aMatrix : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the aMatrix inherited
-        from the inputPTC
-    aMatrixSigma : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the estimated uncertainty
-        used to weight the residuals in the electrostatic fit.
-    aMatrixModel : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the modeled aMatrix
-        based on the electrostatic fit parameters.
-    aMatrixSum : `dict`, [`str`,`float`]
-        Dictionary keyed by amp names containing the sum of the aMatrix.
-    aMatrixModelSum : `dict`, [`str`,`float`]
-        Dictionary keyed by amp names containing the sum of the aMatrixModel.
-    modelNormalization : `dict`, [`str`,`numpy.ndarray`]
-        Dictionary keyed by amp names containing a two element array of the
-        multiplicative and additive normalization to the aMatrixModel.
-    fitMask : `dict`, [`str`,`numpy.ndarray`]
-        Dictionary keyed by amp names containing the mask indicated which
+    aMatrix : `numpy.ndarray`
+        The average aMatrix inherited from the inputPTC's good amplifiers.
+    aMatrixSigma : `numpy.ndarray`
+        The uncertainty matrix used to weight the fit.
+    aMatrixModel : `numpy.ndarray`
+        The modeled aMatrix based on the electrostatic fit parameters.
+    aMatrixSum : `float`
+        The sum of the symmetrized aMatrix.
+    aMatrixModelSum : `float`
+        The sum of the symmetrized aMatrixModel.
+    modelNormalization : `numpy.ndarray`
+        A two element array of the multiplicative and additive
+        normalization to the aMatrixModel.
+    fitMask : `numpy.ndarray`, [`bool`]
+        Array of shape like aMatrix containing the mask indicating which
         elements of the input aMatrix were used to fit the electrostatic
-        model. It will have shape (inputRange, inputRange).
+        model.
     fitParamNames : `list`, [`str`]
         List of all the parameter names in the electrostatic fit.
     freeFitParamNames : `list`, [`str`]
         List of the parameter names that were allowed to vary during
         the electrostatic fit.
     fitParams : `dict`, [`str`, `float`]
-        Dictionary keyed by amp names containing each named parameter
-        and its final fitted value.
+        Dictionary containing each named parameter and its final
+        fitted value.
     fitParamErrors : `dict`, [`str`, `float`]
-        Dictionary keyed by amp names containing each named parameter
-        and its estimated fitting error.
-    fitChi2 : `dict`, [`str`, `float`]
-        Dictionary keyed by amp names containing the computed chi squared
-        between the data and the final model.
-    fitReducedChi2 : `dict`, [`str`, `float`]
-        Dictionary keyed by amp names containing the computed reduced
-        chi squared between the data and the final model.
-    fitParamCovMatrix : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the estimated covariance
-        matrix between all fit parameters.
-    ath : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing something...
-    athMinusBeta : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing something...
-    aN : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the computed `North`
-        component of the pixel boundary shift.
-    aS : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the computed `South`
-        component of the pixel boundary shift.
-    aE : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the computed `East`
-        component of the pixel boundary shift.
-    aW : `dict`, [`str`, `numpy.ndarray`]
-        Dictionary keyed by amp names containing the computed `West`
-        component of the pixel boundary shift.
+        Dictionary containing each named parameter and its
+        estimated fitting error.
+    fitChi2 : `float`
+        The computed chi squared between the data and the
+        final model.
+    fitReducedChi2 : `float`
+        The computed reduced chi squared between the data
+        and the final model.
+    fitParamCovMatrix : `numpy.ndarray`]
+        The estimated covariance matrix between all fit parameters.
+    ath : `numpy.ndarray`
+        something...
+    athMinusBeta : `numpy.ndarray`
+        something...
+    aN : `numpy.ndarray`
+        Array of shape (fitRange, fitRange) containing the
+        computed `North` component of the pixel boundary shift.
+    aS : `numpy.ndarray`
+        Array of shape (fitRange, fitRange) containing the
+        computed `South` component of the pixel boundary shift.
+    aE : `numpy.ndarray`
+        Array of shape (fitRange, fitRange) containing the
+        computed `East` component of the pixel boundary shift.
+    aW : `numpy.ndarray`
+        Array of shape (fitRange, fitRange) containing the
+        computed `West` component of the pixel boundary shift.
     """
     _OBSTYPE = 'ebf'
     _SCHEMA = 'Brighter-fatter electrostatic correction model'
@@ -149,26 +145,26 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
             self.fitRange = fitRange
         self.badAmps = list()
         self.gain = dict()
-        self.aMatrix = dict()
-        self.aMatrixSigma = dict()
-        self.aMatrixModel = dict()
-        self.aMatrixSum = dict()
-        self.aMatrixModelSum = dict()
-        self.modelNormalization = dict()
-        self.fitMask = dict()
+        self.aMatrix = np.full((inputRange, inputRange), np.nan)
+        self.aMatrixSigma = np.full((inputRange, inputRange), np.nan)
+        self.aMatrixModel = np.full((fitRange, fitRange), np.nan)
+        self.aMatrixSum = np.nan
+        self.aMatrixModelSum = np.nan
+        self.modelNormalization = np.array([np.nan, np.nan])
+        self.fitMask = np.full((inputRange, inputRange), np.nan)
         self.fitParamNames = list()
         self.freeFitParamNames = list()
         self.fitParams = dict()
         self.fitParamErrors = dict()
-        self.fitChi2 = dict()
-        self.fitReducedChi2 = dict()
-        self.fitParamCovMatrix = dict()
-        self.ath = dict()
-        self.athMinusBeta = dict()
-        self.aN = dict()
-        self.aS = dict()
-        self.aE = dict()
-        self.aW = dict()
+        self.fitChi2 = np.nan
+        self.fitReducedChi2 = np.nan
+        self.fitParamCovMatrix = np.array([])
+        self.ath = np.full((fitRange, fitRange), np.nan)
+        self.athMinusBeta = np.full((fitRange, fitRange), np.nan)
+        self.aN = np.full((fitRange, fitRange), np.nan)
+        self.aS = np.full((fitRange, fitRange), np.nan)
+        self.aE = np.full((fitRange, fitRange), np.nan)
+        self.aW = np.full((fitRange, fitRange), np.nan)
 
         super().__init__(**kwargs)
 
@@ -263,6 +259,10 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         calib.setMetadata(dictionary['metadata'])
         calib.calibInfoFromDict(dictionary)
 
+        for ampName in dictionary['ampNames']:
+            calib.ampNames.append(ampName)
+            calib.gain[ampName] = float(dictionary['gain'][ampName])
+
         inputRange = dictionary['inputRange']
         fitRange = dictionary['fitRange']
         calib.inputRange = inputRange
@@ -271,60 +271,57 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         calib.fitParamNames = dictionary['fitParamNames']
         calib.freeFitParamNames = dictionary['freeFitParamNames']
 
-        for ampName in dictionary['ampNames']:
-            calib.ampNames.append(ampName)
-            calib.gain[ampName] = float(dictionary['gain'][ampName])
-            calib.aMatrix[ampName] = np.array(
-                dictionary['aMatrix'][ampName],
-                dtype=np.float64,
-            ).reshape(inputRange, inputRange)
-            calib.aMatrixSigma[ampName] = np.array(
-                dictionary['aMatrixSigma'][ampName],
-                dtype=np.float64,
-            ).reshape(inputRange, inputRange)
-            calib.aMatrixModel[ampName] = np.array(
-                dictionary['aMatrixSigma'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
-            calib.aMatrixSum[ampName] = float(dictionary['aMatrixSum'][ampName])
-            calib.aMatrixModelSum[ampName] = float(dictionary['aMatrixModelSum'][ampName])
-            calib.modelNormalization[ampName] = np.array(
-                dictionary['modelNormalization'][ampName],
-                dtype=np.float64,
-            )
-            calib.fitMask[ampName] = np.array(dictionary['fitMask'][ampName])
-            calib.fitParams[ampName] = {n: float(v) for n, v in dictionary['fitParams'][ampName]}
-            calib.fitParamErrors[ampName] = {n: float(v) for n, v in dictionary['fitParamErrors'][ampName]}
-            calib.fitChi2[ampName] = float(dictionary['fitChi2'][ampName])
-            calib.fitReducedChi2[ampName] = float(dictionary['fitReducedChi2'][ampName])
-            calib.fitParamCovMatrix[ampName] = np.array(
-                dictionary['fitParamCovMatrix'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
-            calib.ath[ampName] = np.array(
-                dictionary['ath'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
-            calib.athMinusBeta[ampName] = np.array(
-                dictionary['athMinusBeta'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
-            calib.aN[ampName] = np.array(
-                dictionary['aN'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
-            calib.aS[ampName] = np.array(
-                dictionary['aS'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
-            calib.aE[ampName] = np.array(
-                dictionary['aE'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
-            calib.aW[ampName] = np.array(
-                dictionary['aW'][ampName],
-                dtype=np.float64,
-            ).reshape(fitRange, fitRange)
+        calib.aMatrix[ampName] = np.array(
+            dictionary['aMatrix'][ampName],
+            dtype=np.float64,
+        ).reshape(inputRange, inputRange)
+        calib.aMatrixSigma[ampName] = np.array(
+            dictionary['aMatrixSigma'][ampName],
+            dtype=np.float64,
+        ).reshape(inputRange, inputRange)
+        calib.aMatrixModel[ampName] = np.array(
+            dictionary['aMatrixSigma'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
+        calib.aMatrixSum[ampName] = float(dictionary['aMatrixSum'][ampName])
+        calib.aMatrixModelSum[ampName] = float(dictionary['aMatrixModelSum'][ampName])
+        calib.modelNormalization[ampName] = np.array(
+            dictionary['modelNormalization'][ampName],
+            dtype=np.float64,
+        )
+        calib.fitMask[ampName] = np.array(dictionary['fitMask'][ampName])
+        calib.fitParams[ampName] = {n: float(v) for n, v in dictionary['fitParams'][ampName]}
+        calib.fitParamErrors[ampName] = {n: float(v) for n, v in dictionary['fitParamErrors'][ampName]}
+        calib.fitChi2[ampName] = float(dictionary['fitChi2'][ampName])
+        calib.fitReducedChi2[ampName] = float(dictionary['fitReducedChi2'][ampName])
+        calib.fitParamCovMatrix[ampName] = np.array(
+            dictionary['fitParamCovMatrix'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
+        calib.ath[ampName] = np.array(
+            dictionary['ath'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
+        calib.athMinusBeta[ampName] = np.array(
+            dictionary['athMinusBeta'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
+        calib.aN[ampName] = np.array(
+            dictionary['aN'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
+        calib.aS[ampName] = np.array(
+            dictionary['aS'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
+        calib.aE[ampName] = np.array(
+            dictionary['aE'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
+        calib.aW[ampName] = np.array(
+            dictionary['aW'][ampName],
+            dtype=np.float64,
+        ).reshape(fitRange, fitRange)
 
         calib.updateMetadata()
         return calib
@@ -346,13 +343,6 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         metadata = self.getMetadata()
         outDict['metadata'] = metadata
 
-        def _dictOfArraysToDictOfLists(dictOfArrays):
-            dictOfLists = dict()
-            for key, value in dictOfArrays.items():
-                dictOfLists[key] = value.ravel().tolist()
-
-            return dictOfLists
-
         outDict['ampNames'] = self.ampNames
         outDict['inputRange'] = self.inputRange
         outDict['fitRange'] = self.fitRange
@@ -360,24 +350,24 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         outDict['fitParamNames'] = self.fitParamNames
         outDict['freeFitParamNames'] = self.freeFitParamNames
         outDict['gain'] = self.gain
-        outDict['aMatrix'] = _dictOfArraysToDictOfLists(self.aMatrix)
-        outDict['aMatrixSigma'] = _dictOfArraysToDictOfLists(self.aMatrixSigma)
-        outDict['aMatrixModel'] = _dictOfArraysToDictOfLists(self.aMatrixModel)
+        outDict['aMatrix'] = self.aMatrix.ravel().tolist()
+        outDict['aMatrixSigma'] = self.aMatrixSigma.ravel().tolist()
+        outDict['aMatrixModel'] = self.aMatrixModel.ravel().tolist()
         outDict['aMatrixSum'] = self.aMatrixSum
         outDict['aMatrixModelSum'] = self.aMatrixModelSum
-        outDict['aMatrixModel'] = _dictOfArraysToDictOfLists(self.aMatrixModel)
-        outDict['modelNormalization'] = _dictOfArraysToDictOfLists(self.modelNormalization)
-        outDict['fitMask'] = _dictOfArraysToDictOfLists(self.fitMask)
-        outDict['fitParams'] = self.fitParams
-        outDict['fitParamErrors'] = self.fitParamErrors
+        outDict['aMatrixModel'] = self.aMatrixModel.ravel().tolist()
+        outDict['modelNormalization'] = self.modelNormalization.tolist()
+        outDict['fitMask'] = self.fitMask.ravel().tolist()
+        outDict['fitParams'] = self.fitParams.tolist()
+        outDict['fitParamErrors'] = self.fitParamErrors.tolist()
         outDict['fitChi2'] = self.fitChi2
         outDict['fitReducedChi2'] = self.fitReducedChi2
-        outDict['ath'] = _dictOfArraysToDictOfLists(self.ath)
-        outDict['athMinusBeta'] = _dictOfArraysToDictOfLists(self.athMinusBeta)
-        outDict['aN'] = _dictOfArraysToDictOfLists(self.aN)
-        outDict['aS'] = _dictOfArraysToDictOfLists(self.aS)
-        outDict['sE'] = _dictOfArraysToDictOfLists(self.aE)
-        outDict['sW'] = _dictOfArraysToDictOfLists(self.aW)
+        outDict['ath'] = self.ath.ravel().tolist()
+        outDict['athMinusBeta'] = self.athMinusBeta.ravel().tolist()
+        outDict['aN'] = self.aN.ravel().tolist()
+        outDict['aS'] = self.aS.ravel().tolist()
+        outDict['sE'] = self.aE.ravel().tolist()
+        outDict['sW'] = self.aW.ravel().tolist()
 
         return outDict
 
@@ -417,28 +407,28 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
         inDict['fitParamNames'] = []
         inDict['freeFitParamNames'] = []
         inDict['gain'] = dict()
-        inDict['aMatrix'] = dict()
-        inDict['aMatrixSigma'] = dict()
-        inDict['aMatrixModel'] = dict()
-        inDict['aMatrixSum'] = dict()
-        inDict['aMatrixModelSum'] = dict()
-        inDict['modelNormalization'] = dict()
-        inDict['fitMask'] = dict()
-        inDict['fitParams'] = dict()
-        inDict['fitParamErrors'] = dict()
-        inDict['fitChi2'] = dict()
-        inDict['fitReducedChi2'] = dict()
-        inDict['fitParamCovMatrix'] = dict()
-        inDict['ath'] = dict()
-        inDict['athMinusBeta'] = dict()
-        inDict['aN'] = dict()
-        inDict['aS'] = dict()
-        inDict['aE'] = dict()
-        inDict['aW'] = dict()
+        inDict['aMatrix'] = []
+        inDict['aMatrixSigma'] = []
+        inDict['aMatrixModel'] = []
+        inDict['aMatrixSum'] = None
+        inDict['aMatrixModelSum'] = None
+        inDict['modelNormalization'] = []
+        inDict['fitMask'] = []
+        inDict['fitParams'] = []
+        inDict['fitParamErrors'] = []
+        inDict['fitChi2'] = None
+        inDict['fitReducedChi2'] = None
+        inDict['fitParamCovMatrix'] = []
+        inDict['ath'] = []
+        inDict['athMinusBeta'] = []
+        inDict['aN'] = []
+        inDict['aS'] = []
+        inDict['aE'] = []
+        inDict['aW'] = []
 
         if not calibVersion == 1.0:
             cls().log.warning("Unkown version found for "
-                              f"ElectrostaticBrighterFatterCalibration: {calibVersion}. ")
+                              f"ElectrostaticBrighterFatter: {calibVersion}. ")
         for record in ampTable:
             ampName = record['AMPLIFIER_NAME']
             inDict['ampNames'].append(ampName)
@@ -446,24 +436,24 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
             inDict['fitRange'] = record['FIT_RANGE']
             inDict['badAmps'] = record['BAD_AMPS']
             inDict['gain'][ampName] = record['GAIN']
-            inDict['aMatrix'][ampName] = record['A_MATRIX']
-            inDict['aMatrixSigma'][ampName] = record['A_MATRIX_SIGMA']
-            inDict['aMatrixModel'][ampName] = record['A_MATRIX_MODEL']
-            inDict['aMatrixSum'][ampName] = record['A_MATRIX_SUM']
-            inDict['aMatrixModelSum'][ampName] = record['A_MATRIX_MODEL_SUM']
-            inDict['modelNormalization'][ampName] = record['MODEL_NORMALIZATION']
-            inDict['fitMask'][ampName] = record['FIT_MASK']
-            inDict['fitParams'][ampName] = record['FIT_PARAMS']
-            inDict['fitParamErrors'][ampName] = record['FIT_PARAM_ERRORS']
-            inDict['fitChi2'][ampName] = record['FIT_CHI2']
-            inDict['fitReducedChi2'][ampName] = record['FIT_REDUCED_CHI2']
-            inDict['fitParamCovMatrix'][ampName] = record['FIT_PARAM_COV_MATRIX']
-            inDict['ath'][ampName] = record['ATH']
-            inDict['athMinusBeta'][ampName] = record['ATH_MINUS_BETA']
-            inDict['aN'][ampName] = record['A_N']
-            inDict['aS'][ampName] = record['A_S']
-            inDict['aE'][ampName] = record['A_E']
-            inDict['aW'][ampName] = record['A_W']
+            inDict['aMatrix'] = record['A_MATRIX']
+            inDict['aMatrixSigma'] = record['A_MATRIX_SIGMA']
+            inDict['aMatrixModel'] = record['A_MATRIX_MODEL']
+            inDict['aMatrixSum'] = record['A_MATRIX_SUM']
+            inDict['aMatrixModelSum'] = record['A_MATRIX_MODEL_SUM']
+            inDict['modelNormalization'] = record['MODEL_NORMALIZATION']
+            inDict['fitMask'] = record['FIT_MASK']
+            inDict['fitParams'] = record['FIT_PARAMS']
+            inDict['fitParamErrors'] = record['FIT_PARAM_ERRORS']
+            inDict['fitChi2'] = record['FIT_CHI2']
+            inDict['fitReducedChi2'] = record['FIT_REDUCED_CHI2']
+            inDict['fitParamCovMatrix'] = record['FIT_PARAM_COV_MATRIX']
+            inDict['ath'] = record['ATH']
+            inDict['athMinusBeta'] = record['ATH_MINUS_BETA']
+            inDict['aN'] = record['A_N']
+            inDict['aS'] = record['A_S']
+            inDict['aE'] = record['A_E']
+            inDict['aW'] = record['A_W']
             # Check for newer versions, but there are none...
 
         return cls.fromDict(inDict)
@@ -493,60 +483,26 @@ class ElectrostaticBrighterFatterCalibration(IsrCalib):
                 'FIT_RANGE': self.fitRange,
                 'BAD_AMPS': self.badAmps,
                 'GAIN': self.gain.get(ampName),
-                'A_MATRIX': (
-                    self.aMatrix.get(ampName).ravel() if ampName in self.aMatrix else None
-                ),
-                'A_MATRIX_SIGMA': (
-                    self.aMatrixSigma.get(ampName).ravel() if ampName in self.aMatrixSigma else None
-                ),
-                'A_MATRIX_MODEL': (
-                    self.aMatrixModel.get(ampName).ravel() if ampName in self.aMatrixModel else None
-                ),
+                'A_MATRIX': self.aMatrix.ravel(),
+                'A_MATRIX_SIGMA': self.aMatrixSigma.ravel(),
+                'A_MATRIX_MODEL': self.aMatrixModel.ravel(),
                 'A_MATRIX_SUM': self.aMatrixSum.get(ampName),
-                'A_MATRIX_MODEL_SUM': self.aMatrixModelSum.get(ampName),
-                'MODEL_NORMALIZATION': (
-                    self.modelNormalization.get(ampName).ravel()
-                    if ampName in self.modelNormalization else None
-                ),
-                'FIT_MASK': (
-                    self.fitMask.get(ampName).ravel() if ampName in self.fitMask else None
-                ),
-                'FIT_PARAM_NAMES': (
-                    self.fitParamNames.ravel() if ampName in self.fitParamNames else None
-                ),
-                'FREE_FIT_PARAM_NAMES': (
-                    self.freeFitParamNames.ravel() if ampName in self.freeFitParamNames else None
-                ),
-                'FIT_PARAMS': (
-                    self.fitParams.get(ampName).ravel() if ampName in self.fitParams else None
-                ),
-                'FIT_PARAM_ERRORS': (
-                    self.fitParamErrors.get(ampName).ravel() if ampName in self.fitParamErrors else None
-                ),
-                'FIT_CHI2': self.fitChi2.get(ampName),
-                'FIT_REDUCED_CHI2': self.fitReducedChi2.get(ampName),
-                'FIT_PARAM_COV_MATRIX': (
-                    self.fitParamCovMatrix.get(ampName).ravel()
-                    if ampName in self.fitParamCovMatrix else None
-                ),
-                'ATH': (
-                    self.ath.get(ampName).ravel() if ampName in self.ath else None
-                ),
-                'ATH_MINUS_BETA': (
-                    self.athMinusBeta.get(ampName).ravel() if ampName in self.athMinusBeta else None
-                ),
-                'A_N': (
-                    self.aN.get(ampName).ravel() if ampName in self.aN else None
-                ),
-                'A_S': (
-                    self.aS.get(ampName).ravel() if ampName in self.aS else None
-                ),
-                'A_E': (
-                    self.aE.get(ampName).ravel() if ampName in self.aE else None
-                ),
-                'A_W': (
-                    self.aW.get(ampName).ravel() if ampName in self.aW else None
-                ),
+                'A_MATRIX_MODEL_SUM': self.aMatrixModelSum,
+                'MODEL_NORMALIZATION': self.modelNormalization.ravel(),
+                'FIT_MASK': self.fitMask.ravel(),
+                'FIT_PARAM_NAMES': self.fitParamNames.ravel(),
+                'FREE_FIT_PARAM_NAMES': self.freeFitParamNames.ravel(),
+                'FIT_PARAMS': self.fitParams.ravel(),
+                'FIT_PARAM_ERRORS': self.fitParamErrors.ravel(),
+                'FIT_CHI2': self.fitChi2,
+                'FIT_REDUCED_CHI2': self.fitReducedChi2,
+                'FIT_PARAM_COV_MATRIX': self.fitParamCovMatrix.ravel(),
+                'ATH': self.ath.ravel(),
+                'ATH_MINUS_BETA': self.athMinusBeta.ravel(),
+                'A_N': self.aN.ravel(),
+                'A_S': self.aS.ravel(),
+                'A_E': self.aE.ravel(),
+                'A_W': self.aW.ravel(),
             }
 
             catalogList.append(ampDict)

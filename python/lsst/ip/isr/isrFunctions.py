@@ -1917,6 +1917,7 @@ def electrostaticBrighterFatterCorrection(exposure, ebf, applyGain, gains=None):
     electrostatic fit to data extracted from flat-field statistics,
     implemented in https://gitlab.in2p3.fr/astier/bfptc/tools/fit_cov.py.
     """
+
     # Use the symmetrize function to fill the four quadrants for each kernel
     kN = symmetrize(ebf.aN)
     kE = symmetrize(ebf.aE)
@@ -1924,8 +1925,6 @@ def electrostaticBrighterFatterCorrection(exposure, ebf, applyGain, gains=None):
     # Tweak the edges so that the sum rule applies.
     kN[:, 0] = -kN[:, -1]
     kE[0, :] = -kE[-1, :]
-    # TODO: Add to log: print("INFO: BF
-    # kernel sum rules : kN %f, kE %f" % (kN.sum(), kE.sum()))
 
     # We use the normalization of Guyonnet et al. (2015),
     # which is compatible with the way the input file is produced.
