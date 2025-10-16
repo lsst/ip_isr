@@ -12,6 +12,7 @@ from deprecated.sphinx import deprecated
 import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
+from lsst.pipe.base import AlgorithmError
 import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
 from lsst.pipe.base import UnprocessableDataError
@@ -30,6 +31,25 @@ from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
 from .isrFunctions import isTrimmedExposure, compareCameraKeywords
+from .getDataBF import getDataBFVisit
+
+
+class BreakPFError(AlgorithmError):
+    """Raised for PF loop.
+    """
+
+    def __init__(
+        self,
+    ):
+        self._toto = 42
+        super().__init__(
+            f"STOP FOR PF."
+        )
+    @property
+    def metadata(self):
+        return {
+            "toto": self._toto,
+        }
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -538,6 +558,38 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         dtype=bool,
         doc="Apply the brighter-fatter correction?",
         default=True,
+    )
+    # Brighter-Fatter correction following Astier23+.
+    doAstier23 = pexConfig.Field(
+        dtype=bool,
+        doc="Correct science image following Astier23+",
+        default=False,
+    )
+    # Brighter-Fatter correction following Astier23+.
+    doAstier23WavelengthDependant = pexConfig.Field(
+        dtype=bool,
+        doc="Correct science image following Astier23+ with wavelength dependancy in i, z, y",
+        default=False,
+    )
+    ptcFitFromAstier = pexConfig.Field(
+        dtype=bool,
+        doc="Correct science image following Coulton18+ but used PTC fit from Pierre Astier.",
+        default=False,
+    )
+    getThemAllData = pexConfig.Field(
+        dtype=bool,
+        doc="Get data for a collection and save it locally",
+        default=False,
+    )
+    getThemAllDataRepOut = pexConfig.Field(
+        dtype=str,
+        doc="Get data for a collection and save it locally",
+        default="./",
+    )
+    getThemAllDataCollectionIn = pexConfig.Field(
+        dtype=str,
+        doc="Get data for a collection and save it locally",
+        default="./",
     )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
@@ -1519,23 +1571,53 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             useLegacyInterp=self.config.useLegacyInterp,
         )
         bfExp = interpExp.clone()
-        bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
-                                                          self.config.brighterFatterMaxIter,
-                                                          self.config.brighterFatterThreshold,
-                                                          brighterFatterApplyGain,
-                                                          bfGains)
-        bfCorrIters = bfResults[1]
-        if bfCorrIters == self.config.brighterFatterMaxIter:
-            self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
-                             bfResults[0])
-        else:
-            self.log.info("Finished brighter-fatter correction in %d iterations.",
-                          bfResults[1])
 
-        image = ccdExposure.getMaskedImage().getImage()
-        bfCorr = bfExp.getMaskedImage().getImage()
-        bfCorr -= interpExp.getMaskedImage().getImage()
-        image += bfCorr
+        if not self.config.doAstier23:
+            self.log.warning("PFF I AM DOING COULTON 19")
+            if self.config.ptcFitFromAstier:
+                self.log.warning("PFF I AM USING PTC FROM ASTIER")
+                #import pickle
+                #import os
+                #import copy
+                #HOME = "/sdf/home/l/leget/rubin-user/lsst_dev/tickets/Astier23/w33/BFCoultonAstierPTC42"
+                #pklFile = open(os.path.join(HOME, 'compareKernel.pkl'), 'wb')
+                #oldKernel = copy.deepcopy(bfKernel)
+                bfKernel, _ = isrFunctions.getKernelFromPtcFitFromAstier(bfExp, bfKernel)
+                #dic = {
+                #    "oldKernel": oldKernel,
+                #    "newKernel": bfKernel,
+                #}
+                #pickle.dump(dic, pklFile)
+                #pklFile.close()
+
+            bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
+                                                            self.config.brighterFatterMaxIter,
+                                                            self.config.brighterFatterThreshold,
+                                                            brighterFatterApplyGain,
+                                                            bfGains)
+            bfCorrIters = bfResults[1]
+            if bfCorrIters == self.config.brighterFatterMaxIter:
+                self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
+                                bfResults[0])
+            else:
+                self.log.info("Finished brighter-fatter correction in %d iterations.",
+                            bfResults[1])
+
+            image = ccdExposure.getMaskedImage().getImage()
+            bfCorr = bfExp.getMaskedImage().getImage()
+            bfCorr -= interpExp.getMaskedImage().getImage()
+            image += bfCorr
+        else:
+            # Use model in Astier+23
+            # bfExp is modified in place, like with the other methods
+            # above.
+            self.log.warning("PFF I AM DOING ASTIER 23")
+            self.log.info("Applying brighter-fatter correction using model in Astier+23")
+            delta = isrFunctions.electrostaticModelBrighterFatterCorrection(bfExp, brighterFatterApplyGain, bfGains, wDependant=self.config.doAstier23WavelengthDependant)
+            bfCorrIters = 1
+            image = ccdExposure.getMaskedImage().getImage()
+            image.getArray()[:] -= delta[:]
+
 
         # Applying the brighter-fatter correction applies a
         # convolution to the science image. At the edges this
@@ -1808,6 +1890,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
             flat=None, camera=None, **kwargs
             ):
+        
+        if self.config.getThemAllData:
+            visitId = ccdExposure.getInfo().getVisitInfo().getId()
+            bandId = ccdExposure.filter.bandLabel
+            getDataBFVisit(
+                self.config.getThemAllDataCollectionIn,
+                self.config.getThemAllDataRepOut,
+                visitId,
+                bandId,
+                )
+            raise BreakPFError()
 
         detector = ccdExposure.getDetector()
 
@@ -2193,6 +2286,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doBrighterFatter:
+            self.log.warning("PFF I AM DOING BF")
             self.log.info("Applying brighter-fatter correction.")
 
             bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
@@ -2226,7 +2320,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
             ccdExposure.metadata["LSST ISR BF APPLIED"] = True
             metadata["LSST ISR BF ITERS"] = bfCorrIters
-
+        else:
+            self.log.warning("PFF I AM NOT DOING BF")
         # Variance plane creation
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doVariance:
