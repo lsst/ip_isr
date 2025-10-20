@@ -4,6 +4,9 @@ from astropy.table import Table
 import treegp
 from tqdm import tqdm
 import os
+from smatch.matcher import Matcher
+import astropy.units as units
+from lsst.geom import SpherePoint, degrees
 
 import pickle
 
@@ -195,17 +198,31 @@ columns_name = [
     'slot_Shape_xx', 'slot_Shape_yy', 'slot_Shape_xy',
     'slot_PsfShape_xx', 'slot_PsfShape_xy', 'slot_PsfShape_yy',
     'coord_ra', 'coord_dec', 'slot_Centroid_x', 'slot_Centroid_y',
-    'psf_max_value', 'calib_psf_candidate',
+    'psf_max_value', 'calib_psf_candidate', 'slot_PsfFlux_mag',
 ]
 
 
 MODEL = "PSFEx"
 
+def getTractsTable(butler, table):
+
+    ra = np.array(table["coord_ra"].to(units.deg))
+    dec =  np.array(table["coord_dec"].to(units.deg))
+    skymap = butler.get('skyMap', skymap='lsst_cells_v1')
+    tracts = []
+    
+    for r, d in zip(ra, dec):
+        sp = SpherePoint(r, d, degrees)
+        tract = skymap.findTract(sp)
+        tracts.append(tract.getId())
+    tracts = list(set(tracts))
+    return tracts
 
 def getDataBFVisit(collection, repOut, visit, bandId):
 
     dic = {}
     butler = Butler("/repo/main", collections=collection)
+    butlerFGCM = Butler("/repo/main", collections="LSSTCam/runs/DRP/20250604_20250921/w_2025_39/DM-52645")
 
     dic.update({visit:{}})
 
@@ -214,6 +231,7 @@ def getDataBFVisit(collection, repOut, visit, bandId):
             finalized_src_table = butler.get("single_visit_star_unstandardized", visit=visit, instrument="LSSTCam", detector=DETECTOR, parameters={"columns": columns_name})
             
             table = finalized_src_table[finalized_src_table['calib_psf_candidate']]
+
             table['ixx_src'] = table['slot_Shape_xx']
             table['ixy_src'] = table['slot_Shape_xy']
             table['iyy_src'] = table['slot_Shape_yy']
@@ -230,35 +248,74 @@ def getDataBFVisit(collection, repOut, visit, bandId):
             table['e1_psf'] = (table['ixx_psf'] - table['iyy_psf']) / table['T_psf']
             table['e2_psf'] = 2*table['ixy_psf'] / table['T_psf']
 
-            Filter = ['calib_psf_candidate']
+            # match with FGCM:
 
-            #x = np.array(table['slot_Centroid_x'])
-            #y = np.array(table['slot_Centroid_y'])
-            #xFoV = np.zeros_like(x)
-            #yFoV = np.zeros_like(y)
+            tracts =  getTractsTable(butlerFGCM, table)
 
-            #xf, yf = pixel_to_focal(x, y, camera[DETECTOR])
-            #xFoV = xf
-            #yFoV = yf
-    
+            fgcm_standard_star_dict = {}
+            for tract in tracts:
+                fgcmTable = butlerFGCM.get("fgcm_standard_star", instrument="LSSTCam", skymap="lsst_cells_v1", tract=tract)
+                fgcm_standard_star_dict[tract] = fgcmTable
+
+            fgcm_standard_star_cat = []
+
+            for tract in fgcm_standard_star_dict:
+                astropy_fgcm = fgcm_standard_star_dict[tract]
+                table_fgcm = np.asarray(astropy_fgcm)
+                fgcm_standard_star_cat.append(table_fgcm)
+
+            fgcm_standard_star_cat = np.concatenate(fgcm_standard_star_cat)
+            fgcmCat = fgcm_standard_star_cat
+
+            raSrc = np.array(table['coord_ra'].to(units.degree))
+            decSrc = np.array(table['coord_dec'].to(units.degree))
+
+            with Matcher(raSrc, decSrc) as matcher:
+                idx, idxSrcCat, idxColorCat, d = matcher.query_radius(
+                    fgcm_standard_star_cat["ra"],
+                    fgcm_standard_star_cat["dec"],
+                    1. / 3600.0,
+                    return_indices=True,
+                )
+
+            u_fgcm = np.zeros_like(raSrc) * np.nan
+            g_fgcm = np.zeros_like(raSrc) * np.nan
+            r_fgcm = np.zeros_like(raSrc) * np.nan
+            i_fgcm = np.zeros_like(raSrc) * np.nan
+            z_fgcm = np.zeros_like(raSrc) * np.nan
+            y_fgcm = np.zeros_like(raSrc) * np.nan
+
+            for idSrc, idColor in zip(idxSrcCat, idxColorCat):
+                u_fgcm[idSrc] = fgcmCat[f'mag_u'][idColor]
+                g_fgcm[idSrc] = fgcmCat[f'mag_g'][idColor]
+                r_fgcm[idSrc] = fgcmCat[f'mag_r'][idColor]
+                i_fgcm[idSrc] = fgcmCat[f'mag_i'][idColor]
+                z_fgcm[idSrc] = fgcmCat[f'mag_z'][idColor]
+                y_fgcm[idSrc] = fgcmCat[f'mag_y'][idColor]
+
             dic[visit].update({
                 DETECTOR: {
-                    'T_src': np.array(table['T_src']),
-                    'e1_src': np.array(table['e1_src']),
-                    'e2_src': np.array(table['e2_src']),
+                    'ixx_src': np.array(table['ixx_src']),
+                    'iyy_src': np.array(table['iyy_src']),
+                    'ixy_src': np.array(table['ixy_src']),
+                    'ixx_psf': np.array(table['ixx_psf']),
+                    'iyy_psf': np.array(table['iyy_psf']),
+                    'ixy_psf': np.array(table['ixy_psf']),
                     'dT_T': np.array((table['T_src'] - table['T_psf']) / table['T_src']),
                     'de1': np.array(table['e1_src'] - table['e1_psf']),
                     'de2': np.array(table['e2_src'] - table['e2_psf']),
-                    'dixx': np.array((table['ixx_src'] - table['ixx_psf'])),
-                    'diyy': np.array((table['iyy_src'] - table['iyy_psf'])),
-                    'dixx_ixx': np.array((table['ixx_src'] - table['ixx_psf']) / table['ixx_src']),
-                    'diyy_iyy': np.array((table['iyy_src'] - table['iyy_psf']) / table['iyy_src']),
-                    'ra': np.array(table['coord_ra']),
-                    'dec': np.array(table['coord_dec']),
+                    'ra': np.array(table['coord_ra'].to(units.deg)),
+                    'dec': np.array(table['coord_dec'].to(units.deg)),
                     'x': np.array(table['slot_Centroid_x']),
                     'y': np.array(table['slot_Centroid_y']),
                     'detector': DETECTOR,
                     'psf_max_value': np.array(table['psf_max_value']),
+                    'u_fgcm': u_fgcm,
+                    'g_fgcm': g_fgcm,
+                    'r_fgcm': r_fgcm,
+                    'i_fgcm': i_fgcm,
+                    'z_fgcm': z_fgcm,
+                    'y_fgcm': y_fgcm,
                     'bandId': bandId,
                 }
             })
