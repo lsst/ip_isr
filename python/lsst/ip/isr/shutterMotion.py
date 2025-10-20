@@ -72,6 +72,28 @@ class ShutterMotionProfile(IsrCalib):
                                         "fit_name", "fit_start_time", "fit_pivot1",
                                         "fit_pivot2", "fit_jerk0", "fit_jerk1", "fit_jerk2",
                                         ])
+    def _getModelIndexByName(self, modelName="hallSensorFit"):
+        """Retrieve the index storing the model fit paramters.
+
+        Parameters
+        ----------
+        modelName : `str`
+            Fit model to use to calculate the midpoint.
+
+        Returns
+        -------
+        index : `int`
+            index to fit parameters.
+
+        Raises
+        ------
+        ValueError
+            Raised if the requested ``modelName`` is not found in the
+            calibration.
+        """
+
+        return self.fit_name.index(modelName)
+
 
     def calculateMidpoint(self, modelName="hallSensorFit"):
         """Calculate time of midpoint of travel for this profile.
@@ -100,16 +122,11 @@ class ShutterMotionProfile(IsrCalib):
 
         Raises
         ------
-        RuntimeError
+        ValueError
             Raised if the requested ``modelName`` is not found in the
             calibration.
         """
-        modelIndex = -1
-        for idx, name in enumerate(self.fit_name):
-            if name == modelName:
-                modelIndex = idx
-        if modelIndex == -1:
-            raise RuntimeError(f"Unknown model {modelName} requested.")
+        modelIndex = self._getModelIndexByName(modelName)
 
         # Alias to follow technote
         t0 = self.fit_start_time[modelIndex]
@@ -154,6 +171,88 @@ class ShutterMotionProfile(IsrCalib):
 
         # Restore t0 so these can be compared to raw timestamps.
         return tm_accel + t0, tm_position + t0
+
+    def shutterPosition(self, t,  modelName="hallSensorFit"):
+        """Calculate model position of the shutter as a function of time.
+
+        Derived from Shuang Liang's CTN-002 (https://ctn-002.lsst.io).
+        Equation numbers listed are from this document.  As the fits
+        have already been done, we can ignore the raw position/Hall
+        sensor data.
+
+        Parameters
+        ----------
+        t : `np.array`
+            normalized relative time [0-1].
+        modelName : `str`
+            Fit model to use to calculate the midpoint.
+
+        Returns
+        -------
+        shutter_position : `np.array`
+            The position of the shutter at time t.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the requested ``modelName`` is not found in the
+            calibration.
+        """
+        t = np.atleast_1d(t)
+
+        assert (np.min(t) >= 0)
+        assert (np.max(t) <= 1)
+
+        modelIndex = self._getModelIndexByName(modelName)
+
+        # TODO: duplicated code, needs to be refactored
+        # also we want to avoid having to recompute the constants repeatedly
+
+        # Alias to follow technote
+        t0 = self.fit_start_time[modelIndex]
+        t1 = self.fit_pivot1[modelIndex]
+        t2 = self.fit_pivot2[modelIndex]
+
+        # Equation (3.1)
+        j0 = self.fit_jerk0[modelIndex]
+        j1 = self.fit_jerk1[modelIndex]
+        j2 = self.fit_jerk2[modelIndex]
+
+        # Equation (3.2)
+        a1 = j0*t1
+
+        # Equation (3.4)
+        A1 = a1 - j1*t1
+        A2 = (j0 - j1) * t1 + (j1 -j2) * t2
+
+        # Equation (3.10)
+        V1 = 1/2 * (j0 - j1) * t1**2 - A1 * t1
+        V2 = 1/2 * (j1 - j2) * t2**2 + (A1 - A2) * t2 + V1
+
+        # Equation (3.12)
+        S1 = 1/6 * (j0 - j1) * t1**3 - 1/2 * A1 * t1**2 - V1 * t1
+        S2 = 1/6 * (j1 - j2) * t2**3 + 1/2 * (A1 - A2) * t2**2 + (V1 - V2) * t2 + S1
+
+        s = np.zeros_like(t)
+
+        # Equation (3.11)
+        w1 = (0 <= t) & (t < t1)
+        if np.sum(w1):
+            s[w1] = 1/6 * j0 * t[w1]**3 
+        w2 = (t1 <= t) & (t < t2)
+        if np.sum(w2):
+            s[w2] = 1/6 * j1 * t[w2]**3 + 1/2 * A1 * t[w2]**2 + V1 * t[w2] + S1
+        w3 = (t2 <= t) & (t <= 1)
+        if np.sum(w3):
+            s[w3] = 1/6 * j2 * t[w3]**3 + 1/2 * A2 * t[w3]**2 + V2 * t[w3] + S2
+        #if 0 <= t < t1:
+        #    s = 1/6 * j0 * t**3 
+        #elif t1 <= t < t2:
+        #    s = 1/6 * j1 * t**3 + 1/2 * A1 * t**2 + V1 * t + S1
+        #elif t2 <= t <= 1:
+        #    s = 1/6 * j2 * t**3 + 1/2 * A2 * t**2 + V2 * t + S2
+
+        return s
 
     @classmethod
     def fromDict(cls, dictionary):
