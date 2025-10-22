@@ -84,6 +84,14 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector"],
         isCalibration=True,
     )
+    gainCorrection = cT.PrerequisiteInput(
+        name="gain_correction",
+        doc="Gain correction dataset",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+        minimum=0,
+    )
     crosstalk = cT.PrerequisiteInput(
         name="crosstalk",
         doc="Input crosstalk object",
@@ -159,6 +167,8 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
 
         if config.doBootstrap or (doApplyGains and useLinearizerGains):
             del self.ptc
+        if not config.doCorrectGains:
+            del self.gainCorrection
         if config.doDiffNonLinearCorrection is not True:
             del self.dnlLUT
         if config.doBias is not True:
@@ -321,8 +331,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     # Gains.
     doCorrectGains = pexConfig.Field(
         dtype=bool,
-        doc="Apply temperature correction to the gains?",
-        default=False,
+        doc="Apply gain corrections from detector restarts?",
+        default=True,
     )
     doApplyGains = pexConfig.Field(
         dtype=bool,
@@ -1255,13 +1265,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return overscans
 
-    def correctGains(self, exposure, ptc, gains):
-        # TODO DM 36639
-        gains = []
-        readNoise = []
-
-        return gains, readNoise
-
     def maskNegativeVariance(self, exposure):
         """Identify and mask pixels with negative variance values.
 
@@ -1916,6 +1919,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             elif self.config.useGainsFrom == "PTC":
                 compareCameraKeywords(doRaise, keywords, exposureMetadata, ptc, "PTC",
                                       log=self.log)
+            # Note that doCorrectGains can be True without a gainCorrection.
+            if self.config.doCorrectGains and gainCorrection is not None:
+                compareCameraKeywords(
+                    doRaise,
+                    keywords,
+                    exposureMetadata,
+                    gainCorrection,
+                    "gain_correction",
+                    log=self.log,
+                )
         else:
             if self.config.doCorrectGains:
                 raise RuntimeError("doCorrectGains is True but no ptc provided.")
@@ -2095,11 +2108,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         self.checkAllBadAmps(badAmpDict, detector)
 
-        if self.config.doCorrectGains:
-            # TODO: DM-36639
-            # This requires the PTC (tbd) with the temperature dependence.
-            self.log.info("Apply temperature dependence to the gains.")
-            gains, readNoise = self.correctGains(ccdExposure, ptc, gains)
+        if self.config.doCorrectGains and gainCorrection is not None:
+            self.log.info("Correcting gains based on input GainCorrection.")
+            gainCorrection.correctGains(gains, exposure=ccdExposure)
 
         # Do gain normalization.
         # Input units: adu
