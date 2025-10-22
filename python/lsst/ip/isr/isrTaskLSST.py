@@ -1825,11 +1825,69 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return bin1, bin2
 
-    def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
-            ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
-            flat=None, camera=None, **kwargs
-            ):
+    def run(
+        self,
+        ccdExposure,
+        *,
+        dnlLUT=None,
+        bias=None,
+        deferredChargeCalib=None,
+        linearizer=None,
+        ptc=None,
+        gainCorrection=None,
+        crosstalk=None,
+        defects=None,
+        bfKernel=None,
+        dark=None,
+        flat=None,
+        camera=None,
+    ):
+        """Run the IsrTaskLSST task.
 
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.Exposure`
+            Exposure to run ISR.
+        dnlLUT : `None`, optional
+            DNL lookup table; placeholder, unused.
+        bias : `lsst.afw.image.Exposure`, optional
+            Bias frame.
+        deferredChargeCalib : `lsst.ip.isr.DeferredChargeCalib`, optional
+            Deferred charge calibration.
+        linearizer : `lsst.ip.isr.Linearizer`, optional
+            Linearizer calibration.
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+            PTC dataset.
+        gainCorrection : `lsst.ip.isr.GainCorrection`, optional
+            Gain correction dataset.
+        crosstalk : `lsst.ip.isr.CrosstalkCalib`, optional
+            Crosstalk calibration dataset.
+        defects : `lsst.ip.isr.Defects`, optional
+            Defects dataset.
+        bfKernel : `lsst.ip.isr.BrighterFatterKernel`, optional
+            Brighter-fatter kernel dataset.
+        dark : `lsst.afw.image.Exposure`, optional
+            Dark frame.
+        flat : `lsst.afw.image.Exposure`, optional
+            Flat-field frame.
+        camera : `lsst.afw.cameraGeom.Camera`, optional
+            Camera object.
+
+        Returns
+        -------
+        result : `lsst.pipe.base.Struct`
+            Struct with fields:
+                ``exposure``: `lsst.afw.image.Exposure`
+                    Calibrated exposure.
+                ``outputBin1Exposure``: `lsst.afw.image.Exposure`
+                    Binned exposure (bin1 config).
+                ``outputBin2Exposure``: `lsst.afw.image.Exposure`
+                    Binned exposure (bin2 config).
+                ``outputExposure``: `lsst.afw.image.Exposure`
+                    Calibrated exposure (same as ``exposure``).
+                ``outputStatistics``: `lsst.ip.isr.isrStatistics`
+                    Calibrated exposure statistics.
+        """
         detector = ccdExposure.getDetector()
 
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
