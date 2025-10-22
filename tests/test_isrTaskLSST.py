@@ -36,6 +36,7 @@ from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
 from lsst.ip.isr.crosstalk import CrosstalkCalib
 from lsst.ip.isr import PhotonTransferCurveDataset
 from lsst.ip.isr.vignette import maskVignettedRegion
+from lsst.ip.isr.gainCorrection import GainCorrection
 
 
 class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
@@ -982,9 +983,17 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doCorrectGains = True
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
+
+        ptc = copy.copy(self.ptc)
+        ptc.gain[ptc.ampNames[0]] *= 0.95
+
+        adjustments = np.ones(len(ptc.ampNames))
+        adjustments[0] /= 0.95
+        gainCorrection = GainCorrection(ampNames=ptc.ampNames, gainAdjustments=adjustments)
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -996,6 +1005,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
+                gainCorrection=gainCorrection,
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
