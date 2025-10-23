@@ -22,8 +22,8 @@
 __all__ = ["IsrMockLSSTConfig", "IsrMockLSST", "RawMockLSST",
            "CalibratedRawMockLSST", "ReferenceMockLSST",
            "BiasMockLSST", "DarkMockLSST", "FlatMockLSST", "FringeMockLSST",
-           "BfKernelMockLSST", "DefectMockLSST", "CrosstalkCoeffMockLSST",
-           "TransmissionMockLSST"]
+           "BfKernelMockLSST", "ElectrostaticBfMockLSST", "DefectMockLSST",
+           "CrosstalkCoeffMockLSST", "TransmissionMockLSST"]
 
 import numpy as np
 import galsim
@@ -40,6 +40,7 @@ from .defects import Defects
 from .assembleCcdTask import AssembleCcdTask
 from .linearize import Linearizer
 from .brighterFatterKernel import BrighterFatterKernel
+from .electrostaticBrighterFatter import ElectrostaticBrighterFatter
 from .deferredCharge import (
     SegmentSimulator,
     FloatingOutputAmplifier,
@@ -331,6 +332,135 @@ class IsrMockLSST(IsrMock):
                                   -5.60243416e+00, -3.83933101e+00, -1.64614462e+00,
                                   -8.44782871e-01, 3.54369868e-02, 5.31096720e-01,
                                    8.10171823e-01, 4.83499829e-01]]) * 1e-10
+        self.aN = np.array([[-9.672222587932733e-07,
+                             -1.854684055704316e-07,
+                             -6.907109379361769e-08,
+                             -3.434510010399494e-08,
+                             -1.9612893321972894e-08,
+                             -1.2070595598419123e-08,
+                             -7.76166581456265e-09,
+                             -5.1290591302737845e-09],
+                            [-1.6934304508907508e-07,
+                             -1.1294085770257732e-07,
+                             -5.556904377844212e-08,
+                             -3.0404816410630946e-08,
+                             -1.8115835808147195e-08,
+                             -1.1400565570822897e-08,
+                             -7.428030253054874e-09,
+                             -4.950482905137934e-09],
+                            [-2.642765928047855e-08,
+                             -4.2973020270862075e-08,
+                             -3.288284786525552e-08,
+                             -2.2008013659494064e-08,
+                             -1.4526432244373923e-08,
+                             -9.685865982318977e-09,
+                             -6.540042976345181e-09,
+                             -4.463016792299867e-09],
+                            [-7.890607506673887e-09,
+                             -1.7268817838939093e-08,
+                             -1.7571215335862644e-08,
+                             -1.4190808979745564e-08,
+                             -1.0525091813951477e-08,
+                             -7.557427069020145e-09,
+                             -5.3601997909453895e-09,
+                             -3.785262753932024e-09],
+                            [-3.19819383283163e-09,
+                             -7.907188860704256e-09,
+                             -9.431108045148581e-09,
+                             -8.734433800366836e-09,
+                             -7.177446016048238e-09,
+                             -5.548891364163135e-09,
+                             -4.151829718274712e-09,
+                             -3.050079142680274e-09],
+                            [-1.5264788341295506e-09,
+                             -4.007588259092475e-09,
+                             -5.237227746197923e-09,
+                             -5.325369481025145e-09,
+                             -4.74494467703471e-09,
+                             -3.915820474757527e-09,
+                             -3.084461007593805e-09,
+                             -2.3593738079733816e-09],
+                            [-8.028826757431073e-10,
+                             -2.1802562891610477e-09,
+                             -3.013496348411789e-09,
+                             -3.2665536558956744e-09,
+                             -3.0954503870565042e-09,
+                             -2.6975377326297753e-09,
+                             -2.225243828554418e-09,
+                             -1.7689041096437489e-09],
+                            [-4.494359608433485e-10,
+                             -1.2463111600402407e-09,
+                             -1.7870048664861338e-09,
+                             -2.0261729415646362e-09,
+                             -2.0119440116912244e-09,
+                             -1.8328866609412017e-09,
+                             -1.5737323964832772e-09,
+                             -1.2957141987086006e-09]])
+
+        self.aE = np.array([[-6.777496868082258e-07,
+                             -1.8380876162409285e-07,
+                             -2.8018297221057767e-08,
+                             -8.125248034789441e-09,
+                             -3.2554136393266677e-09,
+                             -1.5453475805766551e-09,
+                             -8.104328349953093e-10,
+                             -4.5288455522821904e-10],
+                            [-1.6775243392445585e-07,
+                             -1.0841387428867281e-07,
+                             -4.332756930914473e-08,
+                             -1.7516443134733466e-08,
+                             -8.003213920226987e-09,
+                             -4.046641342303334e-09,
+                             -2.1977447699714067e-09,
+                             -1.254855626337421e-09],
+                            [-6.621450619914244e-08,
+                             -5.399929099596603e-08,
+                             -3.2620205287142746e-08,
+                             -1.7612638233905413e-08,
+                             -9.483506120439713e-09,
+                             -5.269116790156857e-09,
+                             -3.0311506399280317e-09,
+                             -1.796806758939136e-09],
+                            [-3.355107919271619e-08,
+                             -2.983376538822224e-08,
+                             -2.17864147917854e-08,
+                             -1.4148255610378522e-08,
+                             -8.742901288356405e-09,
+                             -5.3404306089421096e-09,
+                             -3.2783561039512352e-09,
+                             -2.0341064582331245e-09],
+                            [-1.93141015569346e-08,
+                             -1.7872788139275774e-08,
+                             -1.4392557125221263e-08,
+                             -1.047378455931124e-08,
+                             -7.165833862418497e-09,
+                             -4.7471363350194744e-09,
+                             -3.1007044557148345e-09,
+                             -2.016814227704664e-09],
+                            [-1.1934920937896483e-08,
+                             -1.1282718164497807e-08,
+                             -9.6076688011492e-09,
+                             -7.516823026913443e-09,
+                             -5.532490546520142e-09,
+                             -3.911518551225112e-09,
+                             -2.6981370339016726e-09,
+                             -1.834970550556636e-09],
+                            [-7.691827379621282e-09,
+                             -7.364973173518246e-09,
+                             -6.493299542676226e-09,
+                             -5.331291165499783e-09,
+                             -4.136757781512933e-09,
+                             -3.077998169355289e-09,
+                             -2.2233267681078023e-09,
+                             -1.5738811344420306e-09],
+                            [-5.089815731398664e-09,
+                             -4.914168227172165e-09,
+                             -4.434118887867189e-09,
+                             -3.765280711029128e-09,
+                             -3.0379496001714635e-09,
+                             -2.3529138563027853e-09,
+                             -1.76598680955912e-09,
+                             -1.2947658524603495e-09]])
 
         # Spline trap coefficients and the ctiCalibDict are all taken from a
         # cti calibration measured from LSSTCam sensor R03_S12 during Run 5
@@ -908,6 +1038,24 @@ class IsrMockLSST(IsrMock):
 
         return bfKernelObject
 
+    def makeElectrostaticBf(self):
+        """Generate a simple simulated electrostatic
+        brighter-fatter calibration.
+
+        Returns
+        -------
+        kernel : `lsst.ip.isr.ElectrostaticBrighterFatter`
+            Simulated brighter-fatter kernel.
+        """
+        ebf = ElectrostaticBrighterFatter()
+        ebf.aN = self.aN
+        ebf.aS = self.aN
+        ebf.aE = self.aE
+        ebf.aW = self.aE  # Assume it is symmetric
+        ebf.gain = self.config.gainDict
+
+        return ebf
+
     def makeDeferredChargeCalib(self):
         """Generate a CTI calibration.
 
@@ -1365,6 +1513,21 @@ class FringeMockLSST(ReferenceMockLSST):
 
 class BfKernelMockLSST(IsrMockLSST):
     """Simulated brighter-fatter kernel.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doGenerateImage = False
+        self.config.doGenerateData = True
+
+        self.config.doBrighterFatter = True
+        self.config.doDefects = False
+        self.config.doCrosstalkCoeffs = False
+        self.config.doTransmissionCurve = False
+        self.config.doLinearizer = False
+
+class ElectrostaticBfMockLSST(IsrMockLSST):
+    """Simulated electrostatic brighter-fatter
+       calibration.
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

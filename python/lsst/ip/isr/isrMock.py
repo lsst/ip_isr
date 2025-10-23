@@ -22,8 +22,8 @@
 __all__ = ["IsrMockConfig", "IsrMock", "RawMock", "TrimmedRawMock", "RawDictMock",
            "CalibratedRawMock", "MasterMock",
            "BiasMock", "DarkMock", "FlatMock", "FringeMock", "UntrimmedFringeMock",
-           "BfKernelMock", "DefectMock", "CrosstalkCoeffMock", "TransmissionMock",
-           "MockDataContainer", "MockFringeContainer"]
+           "BfKernelMock", "ElectrostaticBfMock", "DefectMock", "CrosstalkCoeffMock",
+           "TransmissionMock", "MockDataContainer", "MockFringeContainer"]
 
 import copy
 import numpy as np
@@ -1027,6 +1027,18 @@ class BfKernelMock(IsrMock):
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
 
+class ElectrostaticBfMock(IsrMock):
+    """Simulated brighter-fatter kernel.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.config.doGenerateImage = False
+        self.config.doGenerateData = True
+        self.config.doBrighterFatter = True
+        self.config.doDefects = False
+        self.config.doCrosstalkCoeffs = False
+        self.config.doTransmissionCurve = False
+
 
 class DeferredChargeMock(IsrMock):
     """Simulated deferred charge calibration.
@@ -1154,6 +1166,9 @@ class MockDataContainer(object):
         elif dataType == 'bfKernel':
             self.expectData()
             return BfKernelMock(config=self.config).run()
+        elif dataType == 'ebf':
+            self.expectData()
+            return ElectrostaticBfMock(config=self.config).run()
         elif dataType == 'linearizer':
             return None
         elif dataType == 'crosstalkSources':
@@ -1223,6 +1238,8 @@ class MockFringeContainer(object):
             return DefectMock(config=self.config).run()
         elif dataType == 'bfKernel':
             return BfKernelMock(config=self.config).run()
+        elif dataType == 'ebf':
+            return ElectrostaticBfMock(config=self.config).run()
         elif dataType == 'linearizer':
             return None
         elif dataType == 'crosstalkSources':
