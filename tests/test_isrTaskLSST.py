@@ -59,6 +59,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.flat = isrMockLSST.FlatMockLSST().run()
         self.flat.metadata["FLATSRC"] = "DOME"
         self.bf_kernel = isrMockLSST.BfKernelMockLSST().run()
+        self.ebf = isrMockLSST.ElectrostaticBfMockLSST().run()
         self.cti = isrMockLSST.DeferredChargeMockLSST().run()
 
         # The crosstalk ratios in isrMockLSST are in electrons.
@@ -868,7 +869,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 atol=3*read_noise / np.sqrt(serial_overscan_area),
             )
 
-    def test_isrBrighterFatter(self):
+    def test_isrBrighterFatterKernel(self):
         """Test processing of a flat frame."""
         # Image with brighter-fatter correction
         mock_config = self.get_mock_config_no_signal()
@@ -902,6 +903,113 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 ptc=self.ptc,
                 linearizer=self.linearizer,
                 bfKernel=self.bf_kernel,
+            )
+        self._check_applied_keys(result.exposure.metadata, isr_config)
+
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.isTrimmed = False
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        mock_config.doAddSky = True
+        mock_config.doAddSource = True
+        mock_config.sourceFlux = [75000.0]
+        mock_config.doAddBrighterFatter = False
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_truth = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = True
+        isr_config.doBrighterFatter = False
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result_truth = isr_task.run(
+                input_truth.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=self.flat,
+                deferredChargeCalib=self.cti,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                bfKernel=self.bf_kernel,
+            )
+
+        # Measure the source size in the BF-corrected image.
+        # The injected source is a Gaussian with 3.0px
+        image = galsim.ImageF(result.exposure.image.array)
+        image_truth = galsim.ImageF(result_truth.exposure.image.array)
+        source_centroid = galsim.PositionD(mock_config.sourceX[0], mock_config.sourceY[0])
+        hsm_result = galsim.hsm.FindAdaptiveMom(image, guess_centroid=source_centroid, strict=False)
+        hsm_result_truth = galsim.hsm.FindAdaptiveMom(image_truth, guess_centroid=source_centroid,
+                                                      strict=False)
+        measured_sigma = hsm_result.moments_sigma
+        true_sigma = hsm_result_truth.moments_sigma
+        self.assertFloatsAlmostEqual(measured_sigma, true_sigma, rtol=3e-3)
+
+        # Check that the variance in an amp far away from the
+        # source is expected. The source is in amp 0; this will
+        # check the variation in neighboring amp 1
+        test_amp_bbox = result.exposure.detector.getAmplifiers()[1].getBBox()
+        n_pixels = test_amp_bbox.getArea()
+        stdev = np.std(result.exposure[test_amp_bbox].image.array)
+        stdev_truth = np.std(result_truth.exposure[test_amp_bbox].image.array)
+        self.assertFloatsAlmostEqual(stdev, stdev_truth, atol=3*stdev_truth/np.sqrt(n_pixels))
+
+        # Check that the variance in the amp with a defect is
+        # unchanged as a result of applying the BF correction after
+        # interpolating. The defect was added to amplifier 2.
+        test_amp_bbox = result.exposure.detector.getAmplifiers()[2].getBBox()
+        good_pixels = self.get_non_defect_pixels(result.exposure[test_amp_bbox].mask)
+        stdev = np.nanstd(result.exposure[test_amp_bbox].image.array[good_pixels])
+        stdev_truth = np.nanstd(result_truth.exposure[test_amp_bbox].image.array[good_pixels])
+        self.assertFloatsAlmostEqual(stdev, stdev_truth, atol=3*stdev_truth/np.sqrt(n_pixels))
+
+        # Check that BF has converged in the expected number of iterations.
+        metadata = result.exposure.metadata
+        key = "LSST ISR BF ITERS"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], 2)
+
+    def test_isrElectrostaticBrighterFatter(self):
+        """Test processing of a flat frame."""
+        # Image with brighter-fatter correction
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.isTrimmed = False
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        mock_config.doAddSky = True
+        mock_config.doAddSource = True
+        mock_config.sourceFlux = [75000.0]
+        mock_config.doAddBrighterFatter = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = True
+        isr_config.doBrighterFatter = True
+        isr_config.doElectrostaticBrighterFatter = True
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=self.flat,
+                deferredChargeCalib=self.cti,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                ebf=self.ebf,
             )
         self._check_applied_keys(result.exposure.metadata, isr_config)
 
