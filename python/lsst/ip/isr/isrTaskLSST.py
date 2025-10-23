@@ -1521,10 +1521,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             bfKernelOut = bfKernel.detKernels[detName]
             return bfKernelOut, bfGains
 
-    def applyElectrostaticBrighterFatterCorrection(self, ccdExposure, flat, dark, bfKernel,
-                                                    brighterFatterApplyGain, bfGains):
-        """Apply an electrostatic brighter fatter correction to the image using the
-        method defined in Astier et al. 2023.
+    def applyElectrostaticBrighterFatterCorrection(self, ccdExposure, flat, dark, ebf,
+                                                   brighterFatterApplyGain, bfGains):
+        """Apply an electrostatic brighter fatter correction to the image
+        using the method defined in Astier et al. 2023.
 
         Note that this correction requires that the image is in units
         electrons.
@@ -1561,7 +1561,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             useLegacyInterp=self.config.useLegacyInterp,
         )
         bfExp = interpExp.clone()
-        exposure, ebf, applyGain, gains=None
+
+        # exposure, ebf, applyGain, gains = None
         ccdExposure = isrFunctions.electrostaticBrighterFatterCorrection(
             bfExp,
             ebf,
@@ -2414,7 +2415,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Applying brighter-fatter correction.")
 
             # Use the original gains used to compute the BFE
-            bfGains = ebf.gains
+            bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
 
             # Needs to be done in electrons; applyBrighterFatterCorrection
             # will convert the image if necessary.
@@ -2447,9 +2448,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             ccdExposure.metadata["LSST ISR BF APPLIED"] = True
             metadata["LSST ISR BF ITERS"] = bfCorrIters
         elif self.config.doElectrostaticBrighterFatter:
-            self.log.info("Applying brighter-fatter correction.")
+            self.log.info("Applying electrostatic brighter-fatter "
+                          "correction.")
 
-            bfGains = self.getBrighterFatterKernel(detector, bfKernel)
+            bfGains = ebf.gain
 
             # Needs to be done in electrons; applyBrighterFatterCorrection
             # will convert the image if necessary.
