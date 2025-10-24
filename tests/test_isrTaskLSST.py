@@ -1043,7 +1043,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 defects=self.defects,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
-                bfKernel=self.bf_kernel,
+                ebf=self.ebf,
             )
 
         # Measure the source size in the BF-corrected image.
@@ -1075,12 +1075,6 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         stdev = np.nanstd(result.exposure[test_amp_bbox].image.array[good_pixels])
         stdev_truth = np.nanstd(result_truth.exposure[test_amp_bbox].image.array[good_pixels])
         self.assertFloatsAlmostEqual(stdev, stdev_truth, atol=3*stdev_truth/np.sqrt(n_pixels))
-
-        # Check that BF has converged in the expected number of iterations.
-        metadata = result.exposure.metadata
-        key = "LSST ISR BF ITERS"
-        self.assertIn(key, metadata)
-        self.assertEqual(metadata[key], 2)
 
     def test_isrSkyImage(self):
         """Test processing of a sky image."""

@@ -1666,7 +1666,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                        maskNameList=maskPlane,
                                        maskValue=maskPlane)
 
-        return ccdExposure, bfCorrIters
+        # Set the metadata here.
+        ccdExposure.metadata["LSST ISR BF ITERS"] = bfCorrIters
+
+        return ccdExposure
 
     def darkCorrection(self, exposure, darkExposure, invert=False):
         """Apply dark correction in place.
@@ -2062,13 +2065,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             compareCameraKeywords(doRaise, keywords, exposureMetadata, dark, "dark", log=self.log)
             self.compareUnits(bias.metadata, "dark")
         if self.config.doBrighterFatter:
-            if bfKernel is None:
-                raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
-            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bf", log=self.log)
-        elif self.config.doElectrostaticBrighterFatter:
-            if ebf is None:
-                raise RuntimeError("doElectrostaticBrighterFatter is True not no ebf provided.")
-            compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bf", log=self.log)
+            if self.config.doElectrostaticBrighterFatter:
+                if ebf is None:
+                    raise RuntimeError("doElectrostaticBrighterFatter is True not no ebf provided.")
+                compareCameraKeywords(doRaise, keywords, exposureMetadata, ebf, "bf", log=self.log)
+            else:
+                if bfKernel is None:
+                    raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
+                compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bf", log=self.log)
         if self.config.doFlat:
             if flat is None:
                 raise RuntimeError("doFlat is True but no flat provided.")
@@ -2412,10 +2416,20 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doBrighterFatter:
-            self.log.info("Applying brighter-fatter correction.")
+            if self.config.doElectrostaticBrighterFatter:
+                # Do the Astier et al. 2023 Brighter-Fatter correction
+                self.log.info("Applying electrostatic brighter-fatter "
+                          "correction.")
+                bfCalib = ebf
+                bfGains = ebf.gain
+                bfCorrFunction = self.applyElectrostaticBrighterFatterCorrection
+            else:
+                # Do the Coulton et al. Brighter-Fatter correction
+                self.log.info("Applying brighter-fatter correction.")
 
-            # Use the original gains used to compute the BFE
-            bfKernelOut, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
+                # Use the original gains used to compute the BFE
+                bfCalib, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
+                bfCorrFunction = self.applyBrighterFatterCorrection
 
             # Needs to be done in electrons; applyBrighterFatterCorrection
             # will convert the image if necessary.
@@ -2436,46 +2450,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                                  f"by {self.config.useGainsFrom}. Using the gains stored"
                                  "in the kernel.")
 
-            ccdExposure, bfCorrIters = self.applyBrighterFatterCorrection(
+            # Apply the BF correction
+            ccdExposure = bfCorrFunction(
                 ccdExposure,
                 flat,
                 dark,
-                bfKernelOut,
-                brighterFatterApplyGain,
-                bfGains,
-            )
-
-            ccdExposure.metadata["LSST ISR BF APPLIED"] = True
-            metadata["LSST ISR BF ITERS"] = bfCorrIters
-        elif self.config.doElectrostaticBrighterFatter:
-            self.log.info("Applying electrostatic brighter-fatter "
-                          "correction.")
-
-            bfGains = ebf.gain
-
-            # Needs to be done in electrons; applyBrighterFatterCorrection
-            # will convert the image if necessary.
-            if exposureMetadata["LSST ISR UNITS"] == "electron":
-                brighterFatterApplyGain = False
-            else:
-                brighterFatterApplyGain = True
-
-            if brighterFatterApplyGain and (ptc is not None) and (bfGains != gains):
-                # The supplied ptc should be the same as the ptc used to
-                # generate the bfKernel, in which case they will have the
-                # same stored amp-keyed dictionary of gains. If not, there
-                # is a mismatch in the calibrations being used. This should
-                # not be always be a fatal error, but ideally, everything
-                # should to be consistent.
-                self.log.warning("Need to apply gain for brighter-fatter, but the stored"
-                                 "gains in the kernel are not the same as the gains stored"
-                                 "in the PTC. Using the kernel gains.")
-
-            ccdExposure = self.applyElectrostaticBrighterFatterCorrection(
-                ccdExposure,
-                flat,
-                dark,
-                ebf,
+                bfCalib,
                 brighterFatterApplyGain,
                 bfGains,
             )
