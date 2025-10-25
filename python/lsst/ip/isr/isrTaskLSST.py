@@ -571,10 +571,16 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Apply the brighter-fatter correction?",
         default=True,
     )
-    doElectrostaticBrighterFatter = pexConfig.Field(
-        dtype=bool,
-        doc="Apply the electrostatic brighter-fatter correction?",
-        default=False,
+    brighterFatterCorrectionMethod = pexConfig.ChoiceField(
+        dtype=str,
+        doc="The method for brighter-fatter correction.",
+        default="COULTON18",
+        allowed={
+            "COULTON18": "Coulton et al. 2018 BF correction with kernel",
+            "COULTON18_FLUX_CONSERVING": "Coulton et al. 2018 BF correction "
+                                         "with kernel + Flux conserving corrections",
+            "ASTIER23": "Astier & Regenault 2023 electrostatic BF correction",
+        },
     )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
@@ -587,14 +593,16 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
     brighterFatterMaxIter = pexConfig.Field(
         dtype=int,
-        doc="Maximum number of iterations for the brighter-fatter correction.",
+        doc="Maximum number of iterations for the brighter-fatter correction for "
+        "the COULTON18* correction types",
         default=10,
     )
     brighterFatterThreshold = pexConfig.Field(
         dtype=float,
-        doc="Threshold used to stop iterating the brighter-fatter correction.  It is the "
-        "absolute value of the difference between the current corrected image and the one "
-        "from the previous iteration summed over all the pixels.",
+        doc="Threshold used to stop iterating the brighter-fatter correction for "
+        "the COULTON18* correction types.  It is the absolute value of the difference "
+        "between the current corrected image and the one from the previous iteration "
+        "summed over all the pixels.",
         default=1000,
     )
     brighterFatterMaskListToInterpolate = pexConfig.ListField(
@@ -710,9 +718,6 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             raise ValueError("Cannot do ITL edge bleed masking when doSaturation=False.")
         if self.doE2VEdgeBleedMask and not self.doSaturation:
             raise ValueError("Cannot do e2v edge bleed masking when doSaturation=False.")
-        if self.doBrighterFatter and self.doElectrostaticBrighterFatter:
-            raise ValueError("Cannot run task with doBrighterFatter=True and "
-                             "doElectrostaticBrighterFatter=True.")
 
     def setDefaults(self):
         super().setDefaults()
@@ -1590,6 +1595,93 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return ccdExposure
 
+    def applyFluxConservingBrighterFatterCorrection(self, ccdExposure, flat, dark, bfKernel,
+                                                    brighterFatterApplyGain, bfGains):
+        """Apply a brighter fatter correction to the image using the
+        method defined in Coulton et al. 2019 with flux-conserving
+        corrections.
+
+        Note that this correction requires that the image is in units
+        electrons.
+
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+        flat : `lsst.afw.image.Exposure`
+            Flat exposure the same size as ``exp``.
+        dark : `lsst.afw.image.Exposure`, optional
+            Dark exposure the same size as ``exp``.
+        bfKernel : `lsst.ip.isr.BrighterFatterKernel`
+            The brighter-fatter kernel.
+        brighterFatterApplyGain : `bool`
+            Apply the gain to convert the image to electrons?
+        bfGains : `dict`
+            The gains to use if brighterFatterApplyGain = True.
+
+        Yields
+        ------
+        exp : `lsst.afw.image.Exposure`
+            The flat and dark corrected exposure.
+        """
+        interpExp = ccdExposure.clone()
+
+        # We need to interpolate before we do B-F. Note that
+        # brighterFatterFwhmForInterpolation is currently unused.
+        isrFunctions.interpolateFromMask(
+            maskedImage=interpExp.getMaskedImage(),
+            fwhm=self.config.brighterFatterFwhmForInterpolation,
+            growSaturatedFootprints=self.config.growSaturationFootprintSize,
+            maskNameList=list(self.config.brighterFatterMaskListToInterpolate),
+            useLegacyInterp=self.config.useLegacyInterp,
+        )
+
+        bfExp = interpExp.clone()
+
+        bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
+            bfExp, bfKernel,
+            self.config.brighterFatterMaxIter,
+            self.config.brighterFatterThreshold,
+            brighterFatterApplyGain,
+            bfGains,
+        )
+
+        bfCorrIters = bfResults[1]
+        if bfCorrIters == self.config.brighterFatterMaxIter:
+            self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
+                             bfResults[0])
+        else:
+            self.log.info("Finished brighter-fatter correction in %d iterations.",
+                          bfResults[1])
+
+        image = ccdExposure.getMaskedImage().getImage()
+        bfCorr = bfExp.getMaskedImage().getImage()
+        bfCorr -= interpExp.getMaskedImage().getImage()
+        image += bfCorr
+
+        # Applying the brighter-fatter correction applies a
+        # convolution to the science image. At the edges this
+        # convolution may not have sufficient valid pixels to
+        # produce a valid correction. Mark pixels within the size
+        # of the brighter-fatter kernel as EDGE to warn of this
+        # fact.
+        self.log.info("Ensuring image edges are masked as EDGE to the brighter-fatter kernel size.")
+        self.maskEdges(ccdExposure, numEdgePixels=numpy.max(bfKernel.shape) // 2,
+                       maskPlane="EDGE")
+
+        if self.config.brighterFatterMaskGrowSize > 0:
+            self.log.info("Growing masks to account for brighter-fatter kernel convolution.")
+            for maskPlane in self.config.brighterFatterMaskListToInterpolate:
+                isrFunctions.growMasks(ccdExposure.getMask(),
+                                       radius=self.config.brighterFatterMaskGrowSize,
+                                       maskNameList=maskPlane,
+                                       maskValue=maskPlane)
+
+        # Set the metadata here.
+        ccdExposure.metadata["LSST ISR BF ITERS"] = bfCorrIters
+
+        return ccdExposure
+
     def applyBrighterFatterCorrection(self, ccdExposure, flat, dark, bfKernel, brighterFatterApplyGain,
                                       bfGains):
         """Apply a brighter fatter correction to the image using the
@@ -2065,14 +2157,17 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             compareCameraKeywords(doRaise, keywords, exposureMetadata, dark, "dark", log=self.log)
             self.compareUnits(bias.metadata, "dark")
         if self.config.doBrighterFatter:
-            if self.config.doElectrostaticBrighterFatter:
+            if self.config.brighterFatterCorrectionMethod == "ASTIER23":
                 if ebf is None:
                     raise RuntimeError("doElectrostaticBrighterFatter is True not no ebf provided.")
                 compareCameraKeywords(doRaise, keywords, exposureMetadata, ebf, "bf", log=self.log)
-            else:
+            elif self.config.brighterFatterCorrectionMethod in ["COULTON18", "COULTON18_FLUX_CONSERVING"]:
                 if bfKernel is None:
                     raise RuntimeError("doBrighterFatter is True not no bfKernel provided.")
                 compareCameraKeywords(doRaise, keywords, exposureMetadata, bfKernel, "bf", log=self.log)
+            else:
+                raise ValueError("%s is not a known brighter-fatter correction "
+                                 "method." % self.config.brighterFatterCorrectionMethod)
         if self.config.doFlat:
             if flat is None:
                 raise RuntimeError("doFlat is True but no flat provided.")
@@ -2416,20 +2511,29 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doBrighterFatter:
-            if self.config.doElectrostaticBrighterFatter:
+            if self.config.brighterFatterCorrectionMethod == "ASTIER23":
                 # Do the Astier et al. 2023 Brighter-Fatter correction
                 self.log.info("Applying electrostatic brighter-fatter "
-                          "correction.")
+                              "correction.")
                 bfCalib = ebf
                 bfGains = ebf.gain
                 bfCorrFunction = self.applyElectrostaticBrighterFatterCorrection
-            else:
-                # Do the Coulton et al. Brighter-Fatter correction
+            elif self.config.brighterFatterCorrectionMethod == "COULTON18":
+                # Do the Coulton et al. 2018 Brighter-Fatter correction
                 self.log.info("Applying brighter-fatter correction.")
 
                 # Use the original gains used to compute the BFE
                 bfCalib, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
                 bfCorrFunction = self.applyBrighterFatterCorrection
+            elif self.config.brighterFatterCorrectionMethod == "COULTON18_FLUX_CONSERVING":
+                # Do the Coulton et al. 2018 correction with flux conserving
+                # corrections
+                bfCalib, bfGains = self.getBrighterFatterKernel(detector, bfKernel)
+                bfCorrFunction = self.applyFluxConservingBrighterFatterCorrection
+            else:
+                # This is an unknown BF correction type
+                raise RuntimeError("Cannot perform brighter-fatter correction with unknown"
+                                   "correction type.")
 
             # Needs to be done in electrons; applyBrighterFatterCorrection
             # will convert the image if necessary.
@@ -2461,6 +2565,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             )
 
             ccdExposure.metadata["LSST ISR BF APPLIED"] = True
+            ccdExposure.metadata["LSST ISR BF CORR METHOD"] = self.config.brighterFatterCorrectionMethod
 
         # Variance plane creation
         # Output units: electron (adu if doBootstrap=True)

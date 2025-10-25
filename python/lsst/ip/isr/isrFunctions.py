@@ -1947,7 +1947,7 @@ def electrostaticBrighterFatterCorrection(exposure, ebf, applyGain, gains=None):
         # Computes the correction and returns the "delta_image",
         # which should be subtracted from "im" in order to undo the BF effect.
         # The input image should be expressed in electrons
-        im = image.copy().getArray()
+        im = image.getArray().copy()
         convolver = CustomFFTConvolution(im, kN)
         convolutions = convolver(im, [kN, kE])
 

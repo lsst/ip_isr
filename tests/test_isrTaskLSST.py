@@ -152,6 +152,14 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doBrighterFatter)
 
+        if isr_config.doBrighterFatter:
+            key = "LSST ISR BF CORR METHOD"
+            self.assertIn(key, metadata)
+            self.assertEqual(
+                metadata[key],
+                isr_config.brighterFatterCorrectionMethod,
+            )
+
         key = "LSST ISR FLAT APPLIED"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doFlat)
@@ -923,6 +931,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         isr_config.doFlat = True
         isr_config.doBrighterFatter = False
+        isr_config.brighterFatterCorrectionMethod = "COULTON18"
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -995,7 +1004,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         isr_config.doFlat = True
         isr_config.doBrighterFatter = True
-        isr_config.doElectrostaticBrighterFatter = True
+        isr_config.brighterFatterCorrectionMethod = "ASTIER23"
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
