@@ -232,6 +232,16 @@ class IsrMockConfig(pexConfig.Config):
         default=False,
         doc="Return a simulated brighter-fatter kernel.",
     )
+    brighterFatterCalibType = pexConfig.ChoiceField(
+        dtype=str,
+        doc="Type of calibration to generate if doGenerateData=True, otherwise ignored.",
+        allowed={
+            "KERNEL": "No default suspect values; only config overrides will be used.",
+            "ELECTROSTATIC": "Use the default from the camera model (old defaults).",
+        },
+        default="KERNEL",
+    )
+
     doDeferredCharge = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -310,6 +320,18 @@ class IsrMock(pipeBase.Task):
                                   [4., 16., 26., 16., 4.],
                                   [1., 4., 7., 4., 1.]]) / 273.0
 
+        self.aN = np.array([[1., 0.5, 0.0125, 0., 0.],
+                            [0.5, 0.010, 0., 0., 0.],
+                            [0.0125, 0., 0., 0., 0.],
+                            [0, 0., 0., 0., 0.]]) * -1e-7
+        self.aE = np.array([[1., 0.5, 0.0125, 0., 0.],
+                            [0.5, 0.010, 0., 0., 0.],
+                            [0.0125, 0., 0., 0., 0.],
+                            [0, 0., 0., 0., 0.]]) * -1e-7
+        self.aS = self.aN
+        self.aW = self.aE
+        self.aVector = (self.aN, self.aS, self.aE, self.aW)
+
     def run(self):
         """Generate a mock ISR product, and return it.
 
@@ -356,7 +378,13 @@ class IsrMock(pipeBase.Task):
                           self.config.doLinearizer])) != 1:
             raise RuntimeError("Only one data product can be generated at a time.")
         elif self.config.doBrighterFatter:
-            return self.makeBfKernel()
+            if self.config.brighterFatterCalibType == "KERNEL":
+                return self.makeBfKernel()
+            if self.config.brighterFatterCalibType == "ELECTROSTATIC":
+                return self.makeElectrostaticBf()
+            else:
+                raise ValueError("%s is an unknown Brighter-Fatter calibration type." %
+                                 self.config.brighterFatterCalibType)
         elif self.config.doDeferredCharge:
             return self.makeDeferredChargeCalib()
         elif self.config.doDefects:
@@ -379,6 +407,16 @@ class IsrMock(pipeBase.Task):
             Simulated brighter-fatter kernel.
         """
         return self.bfKernel
+
+    def makeElectrostaticBf(self):
+        """Generate a simple Gaussian brighter-fatter kernel.
+
+        Returns
+        -------
+        kernel : `numpy.ndarray`
+            Simulated brighter-fatter kernel.
+        """
+        return self.aVector
 
     def makeDeferredChargeCalib(self):
         """Generate a CTI calibration.
@@ -1026,6 +1064,7 @@ class BfKernelMock(IsrMock):
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
+
 
 class ElectrostaticBfMock(IsrMock):
     """Simulated brighter-fatter kernel.

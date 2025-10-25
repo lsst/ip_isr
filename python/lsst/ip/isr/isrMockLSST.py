@@ -1047,7 +1047,11 @@ class IsrMockLSST(IsrMock):
         kernel : `lsst.ip.isr.ElectrostaticBrighterFatter`
             Simulated brighter-fatter kernel.
         """
-        ebf = ElectrostaticBrighterFatter()
+        aN, aS, aE, aW = super().makeElectrostaticBf()
+        ebf = ElectrostaticBrighterFatter(
+            inputRange=self.aN.shape[0],
+            fitRange=self.aN.shape[0],
+        )
         ebf.aN = self.aN
         ebf.aS = self.aN
         ebf.aE = self.aE
@@ -1520,10 +1524,12 @@ class BfKernelMockLSST(IsrMockLSST):
         self.config.doGenerateData = True
 
         self.config.doBrighterFatter = True
+        self.config.brighterFatterCalibType = "KERNEL"
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
         self.config.doLinearizer = False
+
 
 class ElectrostaticBfMockLSST(IsrMockLSST):
     """Simulated electrostatic brighter-fatter
@@ -1535,6 +1541,7 @@ class ElectrostaticBfMockLSST(IsrMockLSST):
         self.config.doGenerateData = True
 
         self.config.doBrighterFatter = True
+        self.config.brighterFatterCalibType = "ELECTROSTATIC"
         self.config.doDefects = False
         self.config.doCrosstalkCoeffs = False
         self.config.doTransmissionCurve = False
