@@ -1903,7 +1903,7 @@ class CustomFFTConvolution(object):
         return convolutions[0] if type(kernels) is not list else convolutions
 
 
-def electrostaticBrighterFatterCorrection(exposure, ebf, applyGain, gains=None):
+def electrostaticBrighterFatterCorrection(exposure, electroBfDistortionMatrix, applyGain, gains=None):
     """
     Evaluates the correction of CCD images affected by the
     brighter-fatter effect, as described in
@@ -1919,8 +1919,8 @@ def electrostaticBrighterFatterCorrection(exposure, ebf, applyGain, gains=None):
     """
 
     # Use the symmetrize function to fill the four quadrants for each kernel
-    kN = symmetrize(ebf.aN)
-    kE = symmetrize(ebf.aE)
+    kN = symmetrize(electroBfDistortionMatrix.aN)
+    kE = symmetrize(electroBfDistortionMatrix.aE)
 
     # Tweak the edges so that the sum rule applies.
     kN[:, 0] = -kN[:, -1]

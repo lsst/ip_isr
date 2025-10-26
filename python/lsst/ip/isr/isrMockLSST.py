@@ -40,7 +40,7 @@ from .defects import Defects
 from .assembleCcdTask import AssembleCcdTask
 from .linearize import Linearizer
 from .brighterFatterKernel import BrighterFatterKernel
-from .electrostaticBrighterFatter import ElectrostaticBrighterFatter
+from .electrostaticBrighterFatter import ElectrostaticBrighterFatterDistortionMatrix
 from .deferredCharge import (
     SegmentSimulator,
     FloatingOutputAmplifier,
@@ -1044,21 +1044,21 @@ class IsrMockLSST(IsrMock):
 
         Returns
         -------
-        kernel : `lsst.ip.isr.ElectrostaticBrighterFatter`
+        kernel : `lsst.ip.isr.ElectrostaticBrighterFatterDistortionMatrix`
             Simulated brighter-fatter kernel.
         """
         aN, aS, aE, aW = super().makeElectrostaticBf()
-        ebf = ElectrostaticBrighterFatter(
+        electroBfDistortionMatrix = ElectrostaticBrighterFatterDistortionMatrix(
             inputRange=self.aN.shape[0],
             fitRange=self.aN.shape[0],
         )
-        ebf.aN = self.aN
-        ebf.aS = self.aN
-        ebf.aE = self.aE
-        ebf.aW = self.aE  # Assume it is symmetric
-        ebf.gain = self.config.gainDict
+        electroBfDistortionMatrix.aN = self.aN
+        electroBfDistortionMatrix.aS = self.aN
+        electroBfDistortionMatrix.aE = self.aE
+        electroBfDistortionMatrix.aW = self.aE  # Assume it is symmetric
+        electroBfDistortionMatrix.gain = self.config.gainDict
 
-        return ebf
+        return electroBfDistortionMatrix
 
     def makeDeferredChargeCalib(self):
         """Generate a CTI calibration.

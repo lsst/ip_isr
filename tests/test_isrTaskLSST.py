@@ -58,7 +58,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.flat = isrMockLSST.FlatMockLSST().run()
         self.flat.metadata["FLATSRC"] = "DOME"
         self.bf_kernel = isrMockLSST.BfKernelMockLSST().run()
-        self.ebf = isrMockLSST.ElectrostaticBfMockLSST().run()
+        self.electroBfDistortionMatrix = isrMockLSST.ElectrostaticBfMockLSST().run()
         self.cti = isrMockLSST.DeferredChargeMockLSST().run()
 
         # The crosstalk ratios in isrMockLSST are in electrons.
@@ -1012,7 +1012,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 defects=self.defects,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
-                ebf=self.ebf,
+                electroBfDistortionMatrix=self.electroBfDistortionMatrix,
             )
         self._check_applied_keys(result.exposure.metadata, isr_config)
 
@@ -1046,7 +1046,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 defects=self.defects,
                 ptc=self.ptc,
                 linearizer=self.linearizer,
-                ebf=self.ebf,
+                electroBfDistortionMatrix=self.electroBfDistortionMatrix,
             )
 
         # Measure the source size in the BF-corrected image.
