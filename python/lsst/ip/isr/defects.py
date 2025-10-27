@@ -158,7 +158,6 @@ class Defects(IsrCalib):
         Two `Defects` are equal if their bounding boxes are equal and in
         the same order.  Metadata content is ignored.
         """
-        #need to be updated to add unnormalized case
         super().__eq__(other)
 
         if not isinstance(other, self.__class__):
@@ -225,9 +224,6 @@ class Defects(IsrCalib):
             self._normalize()
 
     def append(self, value, reason=None):
-        # todo: read the box and the reason separately, pass the reason to hasreason (change keyword name)
-        # change all methods that uses check_value
-
         self._defects.append(self._check_value(value))
         self._normalize()
         if reason:
@@ -313,7 +309,7 @@ class Defects(IsrCalib):
                 else:
                     raise RuntimeError(f"Reason {reason} not existent.")
         else:
-            raise RuntimeError(f"No defects with reason provided.")
+            raise RuntimeError("No defects with reason provided.")
 
     def setMaskPlaneReason(self, mask):
         """Replace mask plane by mask plane per reason.
@@ -340,7 +336,7 @@ class Defects(IsrCalib):
                         bbox = d[0]
                         lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
         else:
-            raise RuntimeError(f"No defects with reason provided.")
+            raise RuntimeError("No defects with reason provided.")
 
     def updateCounters(self, columns=None, hot=None, cold=None):
         """Update metadata with pixel and column counts.
@@ -568,7 +564,7 @@ class Defects(IsrCalib):
                     heightCol.append(box.getHeight())
                     reason.append(defect[1])
             catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol,
-                                        'reason': reason})
+                                           'reason': reason})
 
             inMeta = self.getMetadata().toDict()
             outMeta = {k: v for k, v in inMeta.items() if v is not None}
@@ -608,10 +604,10 @@ class Defects(IsrCalib):
 
         return values[:n]
 
-    def getReasonDict(cls):
+    def getReasonDict(self):
 
-        mapping = {reason: bit for bit, reason in enumerate(cls.reason)}
-        mapping_reverse = {bit: reason for bit, reason in enumerate(cls.reason)}
+        mapping = {reason: bit for bit, reason in enumerate(self.reason)}
+        mapping_reverse = {bit: reason for bit, reason in enumerate(self.reason)}
 
         return mapping, mapping_reverse
 
@@ -722,7 +718,7 @@ class Defects(IsrCalib):
             for record in tableUnnormalized:
                 box = lsst.geom.Box2I(lsst.geom.Point2I(record['x0'], record['y0']),
                                       lsst.geom.Extent2I(record['width'], record['height']))
-                defectUnnormalizedList.append( (box, record['reason']) )
+                defectUnnormalizedList.append((box, record['reason']))
 
             defects._defectsUnnormalized = defectUnnormalizedList
 
