@@ -82,7 +82,7 @@ class Defects(IsrCalib):
 
     def __init__(self, defectList=None, metadata=None, *, normalize_on_init=True, **kwargs):
         self._defects = []
-        self._defectsUnnormalized = [()]
+        self._defectsUnnormalized = []
 
         # List of possible reasons for defects
         self.reason = ['UNLABELED', 'HOT_PIXEL', 'COLD_PIXEL',
@@ -292,11 +292,11 @@ class Defects(IsrCalib):
             lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
 
     def maskPixelsReason(self, mask, reason):
-        """Set mask plane based on reason.
+        """Mask pixels corresponding to a given reason.
 
         Parameters
         ----------
-        maskedImage : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
+        mask : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
             Image to process.  Only the mask plane is updated.
 
         """
@@ -315,6 +315,32 @@ class Defects(IsrCalib):
         else:
             raise RuntimeError(f"No defects with reason provided.")
 
+    def setMaskPlaneReason(self, mask):
+        """Replace mask plane by mask plane per reason.
+
+        Parameters
+        ----------
+        mask : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
+            Image to process.  Only the mask plane is updated.
+
+        """
+        if hasattr(mask, "getMask"):
+            mask = mask.getMask()
+
+        mask.clearMaskPlaneDict()
+        reasonMapping = self.getReasonDict()[0]
+        for reason in reasonMapping:
+            mask.addMaskPlane(reason)
+
+        if self._defectsUnnormalized is not None:
+            for reason in reasonMapping:
+                bitmask = mask.getPlaneBitMask(reason)
+                for d in self._defectsUnnormalized:
+                    if reason in d:
+                        bbox = d[0]
+                        lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
+        else:
+            raise RuntimeError(f"No defects with reason provided.")
 
     def updateCounters(self, columns=None, hot=None, cold=None):
         """Update metadata with pixel and column counts.
