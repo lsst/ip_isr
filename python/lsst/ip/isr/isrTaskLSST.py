@@ -154,7 +154,10 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
     def __init__(self, *, config=None):
         super().__init__(config=config)
 
-        if config.doBootstrap:
+        doApplyGains = config.doApplyGains
+        useLinearizerGains = config.useGainsFrom == "LINEARIZER"
+
+        if config.doBootstrap or (doApplyGains and useLinearizerGains):
             del self.ptc
         if config.doDiffNonLinearCorrection is not True:
             del self.dnlLUT
@@ -162,8 +165,9 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.bias
         if config.doDeferredCharge is not True:
             del self.deferredChargeCalib
-        if config.doLinearize is not True:
+        if (config.doLinearize or (doApplyGains and useLinearizerGains)) is not True:
             del self.linearizer
+
         if not config.doCrosstalk:
             del self.crosstalk
         if config.doDefect is not True:
@@ -327,7 +331,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     )
     useGainsFrom = pexConfig.ChoiceField(
         dtype=str,
-        doc="Where to retrieve the gains.",
+        doc="Where to retrieve the gains. Unused if doBootstrap is True.",
         allowed={
             "PTC": "Use the gains from the inputPtc calibration.",
             "LINEARIZER": "Use the gains from the linearizer calibration.",
@@ -666,7 +670,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         super().validate()
 
         if self.doBootstrap:
-            # Additional checks in bootstrap (no PTC/gains) mode.
+            # Additional checks in bootstrap (no gains) mode.
             if self.doApplyGains:
                 raise ValueError("Cannot run task with doBootstrap=True and doApplyGains=True.")
             if self.doCorrectGains:
@@ -734,6 +738,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         are available.
         """
 
+        doApplyGains = self.config.doApplyGains
+        useLinearizerGains = self.config.useGainsFrom == "LINEARIZER"
+        usePtcGains = not useLinearizerGains
+
         inputMap = {
             'dnlLUT': self.config.doDiffNonLinearCorrection,
             'bias': self.config.doBias,
@@ -741,11 +749,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             # Some tasks require gains in order to be
             # supplied regardless of whether
             # self.config.doApplyGains is True or False.
-            'linearizer': self.config.doLinearize or
-                          (self.config.doApplyGains and
-                           self.config.useGainsFrom == "LINEARIZER"),
-            'ptc': (self.config.doApplyGains and
-                   (self.config.useGainsFrom == "PTC")),
+            'linearizer': (self.config.doLinearize or (doApplyGains and useLinearizerGains)),
+            'ptc': self.config.doApplyGains and usePtcGains,
             'crosstalk': self.config.doCrosstalk,
             'defects': self.config.doDefect,
             'bfKernel': self.config.doBrighterFatter,
@@ -1830,19 +1835,14 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
 
         if self.config.doBootstrap:
-            if self.config.useGainsFrom == "LINEARIZER":
-                if linearizer is not None:
-                    self.log.warning("Task configured with doBootstrap=True and useGainsFrom == 'LINEARIZER'. Ignoring provided linearizer.")
-                    linearizer =None
-            elif self.config.useGainsFrom == "PTC":
-                if ptc is not None:
-                    self.log.warning("Task configured with doBootstrap=True and useGainsFrom == 'PTC'. Ignoring provided PTC.")
-                    ptc = None
-
-        if not self.config.doBootstrap:
+            if ptc is not None:
+                self.log.warning("Task configured with doBootstrap=True. Ignoring provided PTC.")
+                ptc = None
+        else:
             if self.config.useGainsFrom == "LINEARIZER":
                 if linearizer is None:
-                    raise RuntimeError("doBootstrap==False and useGainsFrom == 'LINEARIZER' but no linearizer provided.")
+                    raise RuntimeError("doBootstrap==False and useGainsFrom == 'LINEARIZER' but "
+                                       "no linearizer provided.")
             elif self.config.useGainsFrom == "PTC":
                 if ptc is None:
                     raise RuntimeError("doBootstrap==False and useGainsFrom == 'PTC' but no PTC provided.")
@@ -1852,7 +1852,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         doRaise = self.config.doRaiseOnCalibMismatch
         keywords = self.config.cameraKeywordsToCompare
         if not self.config.doBootstrap:
-            compareCameraKeywords(doRaise, keywords, exposureMetadata, ptc, "PTC", log=self.log)
+            if self.config.useGainsFrom == "LINEARIZER":
+                compareCameraKeywords(doRaise, keywords, exposureMetadata, linearizer,
+                                      "LINEARIZER", log=self.log)
+            elif self.config.useGainsFrom == "PTC":
+                compareCameraKeywords(doRaise, keywords, exposureMetadata, ptc, "PTC",
+                                      log=self.log)
         else:
             if self.config.doCorrectGains:
                 raise RuntimeError("doCorrectGains is True but no ptc provided.")
@@ -1884,11 +1889,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 "CTI",
                 log=self.log,
             )
-            deferredChargeCalibVersion = deferredChargeCalib.metadata["CTI_VERSION"]
-            if self.config.doBootstrap and deferredChargeCalibVersion < 1.3:
-                raise RuntimeError("doDeferredCharge is True and doBootstrap is True, which requires "
-                                   "a DeferredChargeCalib version >=1.3, which contains the input gains "
-                                   "used to generate the calibraiton.")
         if self.config.doDefect:
             if defects is None:
                 raise RuntimeError("doDefect is True but no defects provided.")
@@ -1947,34 +1947,18 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             for amp in detector:
                 ptc.gain[amp.getName()] = 1.0
                 ptc.noise[amp.getName()] = 0.0
+        elif self.config.useGainsFrom == "LINEARIZER":
+            self.log.info("Using gains from linearizer.")
+            # Create a dummy ptc object to hold the gains from the linearizer.
+            ptc = PhotonTransferCurveDataset([amp.getName() for amp in detector], "NOMINAL_PTC", 1)
+            for amp in detector:
+                ptc.gain[amp.getName()] = linearizer.inputGain[amp.getName()]
+                ptc.noise[amp.getName()] = 0.0
 
         exposureMetadata["LSST ISR BOOTSTRAP"] = self.config.doBootstrap
 
-        # Set which gains to use
-        gains = dict(ptc.gain)
-        if self.doApplyGain:
-
-            if self.config.useGainsFrom == "LINEARIZER":
-                if linearizer is None:
-                    raise RuntimeError("doApplyGains==True and useGainsFrom == 'LINEARIZER' but no linearizer provided.")
-            elif self.config.useGainsFrom == "PTC":
-                if ptc is None:
-                    raise RuntimeError("doApplyGains==True and useGainsFrom == 'PTC' but no PTC provided.")
-            else:
-            # Try common attributes/methods on the linearizer; fall back to PTC if unavailable.
-            if hasattr(linearizer, "gain"):
-            gains = dict(linearizer.gain)
-            elif hasattr(linearizer, "gains"):
-            gains = dict(linearizer.gains)
-            elif hasattr(linearizer, "getGain"):
-            gains = {amp.getName(): linearizer.getGain(amp.getName()) for amp in detector}
-            else:
-            self.log.warning("No gain mapping found on linearizer; falling back to PTC gains.")
-            gains = dict(ptc.gain)
-        else:
-            # Defensive fallback: default to PTC gains.
-            self.log.warning("Unknown useGainsFrom=%r; defaulting to PTC gains.", self.config.useGainsFrom)
-            gains = dict(ptc.gain)
+        # Choose the gains to use
+        gains = ptc.gain
 
         # And check if we have configured gains to override. This is
         # also a warning, since it should not be typical usage.
@@ -2021,7 +2005,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ccdExposure,
             )
 
-            if self.config.doBootstrap:
+            if self.config.doBootstrap or self.config.useGainsFrom == "LINEARIZER":
                 # Get the empirical read noise
                 for amp, serialOverscan in zip(detector, serialOverscans):
                     if serialOverscan is None:
@@ -2080,6 +2064,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Record gain and read noise in header.
         metadata = ccdExposure.metadata
         metadata["LSST ISR READNOISE UNITS"] = "electron"
+        metadata["LSST ISR GAIN SOURCE"] = self.config.useGainsFrom
         for amp in detector:
             # This includes any gain correction (if applied).
             metadata[f"LSST ISR GAIN {amp.getName()}"] = gains[amp.getName()]
@@ -2157,9 +2142,13 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doDeferredCharge:
             if self.config.doBootstrap:
                 self.log.info("Applying deferred charge correction with doBootstrap=True: "
-                              "will need to use deferredChargeCalib.inputGains to apply "
+                              "will need to use deferredChargeCalib.inputGain to apply "
                               "CTI correction in electron units.")
-                deferredChargeGains = deferredChargeCalib.inputGains
+                deferredChargeGains = deferredChargeCalib.inputGain
+                if numpy.all(numpy.isnan(list(deferredChargeGains.values()))):
+                    self.log.warning("All gains contained in the deferredChargeCalib are "
+                                     "NaN, approximating with gain of 1.0.")
+                    deferredChargeGains = gains
             else:
                 deferredChargeGains = gains
             self.deferredChargeCorrection.run(
@@ -2273,8 +2262,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 # not be always be a fatal error, but ideally, everything
                 # should to be consistent.
                 self.log.warning("Need to apply gain for brighter-fatter, but the stored"
-                                 "gains in the kernel are not the same as the gains stored"
-                                 "in the PTC. Using the kernel gains.")
+                                 "gains in the kernel are not the same as the gains used"
+                                 f"by {self.config.useGainsFrom}. Using the gains stored"
+                                 "in the kernel.")
 
             ccdExposure, bfCorrIters = self.applyBrighterFatterCorrection(
                 ccdExposure,

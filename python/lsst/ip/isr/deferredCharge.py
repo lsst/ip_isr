@@ -752,7 +752,7 @@ class DeferredChargeCalib(IsrCalib):
     signals : `dict` [`str`, `np.ndarray`]
         A dictionary, keyed by amplifier name, of the mean signal
         level for each input measurement.
-    inputGains : `dict` [`str`, `float`]
+    inputGain : `dict` [`str`, `float`]
         A dictionary, keyed by amplifier name of the input gain used
         to calculate the overscan statistics and produce this calib.
     serialEper : `dict` [`str`, `np.ndarray`, `float`]
@@ -788,7 +788,7 @@ class DeferredChargeCalib(IsrCalib):
         ``serialCtiTurnoff``, ``parallelCtiTurnoff``,
         ``serialCtiTurnoffSamplingErr``, ``parallelCtiTurnoffSamplingErr``
         attributes.
-    Version 1.3 adds the `inputGains` attribute.
+    Version 1.3 adds the `inputGain` attribute.
     """
     _OBSTYPE = 'CTI'
     _SCHEMA = 'Deferred Charge'
@@ -800,7 +800,7 @@ class DeferredChargeCalib(IsrCalib):
         self.globalCti = {}
         self.serialTraps = {}
         self.signals = {}
-        self.inputGains = {}
+        self.inputGain = {}
         self.serialEper = {}
         self.parallelEper = {}
         self.serialCtiTurnoff = {}
@@ -819,7 +819,7 @@ class DeferredChargeCalib(IsrCalib):
         self.updateMetadata(UNITS='electron')
 
         self.requiredAttributes.update(['driftScale', 'decayTime', 'globalCti', 'serialTraps',
-                                        'inputGains', 'signals', 'serialEper', 'parallelEper',
+                                        'inputGain', 'signals', 'serialEper', 'parallelEper',
                                         'serialCtiTurnoff', 'parallelCtiTurnoff',
                                         'serialCtiTurnoffSamplingErr',
                                         'parallelCtiTurnoffSamplingErr'])
@@ -868,7 +868,7 @@ class DeferredChargeCalib(IsrCalib):
 
         calib.setMetadata(dictionary['metadata'])
 
-        calib.inputGains = dictionary['inputGains']
+        calib.inputGain = dictionary['inputGain']
         calib.driftScale = dictionary['driftScale']
         calib.decayTime = dictionary['decayTime']
         calib.globalCti = dictionary['globalCti']
@@ -914,7 +914,7 @@ class DeferredChargeCalib(IsrCalib):
         outDict['decayTime'] = self.decayTime
         outDict['globalCti'] = self.globalCti
         outDict['signals'] = self.signals
-        outDict['inputGains'] = self.inputGains
+        outDict['inputGain'] = self.inputGain
         outDict['serialEper'] = self.serialEper
         outDict['parallelEper'] = self.parallelEper
         outDict['serialCtiTurnoff'] = self.serialCtiTurnoff
@@ -970,7 +970,6 @@ class DeferredChargeCalib(IsrCalib):
         driftScale = ampTable['DRIFT_SCALE']
         decayTime = ampTable['DECAY_TIME']
         globalCti = ampTable['GLOBAL_CTI']
-        inputGains = ampTable['INPUT_GAINS']
 
         inDict['driftScale'] = {amp: value for amp, value in zip(amps, driftScale)}
         inDict['decayTime'] = {amp: value for amp, value in zip(amps, decayTime)}
@@ -1011,9 +1010,10 @@ class DeferredChargeCalib(IsrCalib):
                 amp: value for amp, value in zip(amps, parallelCtiTurnoffSamplingErr)
             }
         if calibVersion < 1.3:
-            inDict['inputGains'] = {amp: np.nan for amp in amps}
+            inDict['inputGain'] = {amp: np.nan for amp in amps}
         else:
-            inDict['inputGains'] = {amp: value for amp, value in zip(amps, inputGains)}
+            inputGain = ampTable['INPUT_GAIN']
+            inDict['inputGain'] = {amp: value for amp, value in zip(amps, inputGain)}
 
         inDict['serialTraps'] = {}
         trapTable = tableList[1]
@@ -1093,7 +1093,7 @@ class DeferredChargeCalib(IsrCalib):
         decayTime = []
         globalCti = []
         signals = []
-        inputGains = []
+        inputGain = []
         serialEper = []
         parallelEper = []
         serialCtiTurnoff = []
@@ -1107,7 +1107,7 @@ class DeferredChargeCalib(IsrCalib):
             decayTime.append(self.decayTime[amp])
             globalCti.append(self.globalCti[amp])
             signals.append(self.signals[amp])
-            inputGains.append(self.inputGains[amp])
+            inputGain.append(self.inputGain[amp])
             serialEper.append(self.serialEper[amp])
             parallelEper.append(self.parallelEper[amp])
             serialCtiTurnoff.append(self.serialCtiTurnoff[amp])
@@ -1125,7 +1125,7 @@ class DeferredChargeCalib(IsrCalib):
             'DECAY_TIME': decayTime,
             'GLOBAL_CTI': globalCti,
             'SIGNALS': signals,
-            'INPUT_GAINS': inputGains,
+            'INPUT_GAIN': inputGain,
             'SERIAL_EPER': serialEper,
             'PARALLEL_EPER': parallelEper,
             'SERIAL_CTI_TURNOFF': serialCtiTurnoff,

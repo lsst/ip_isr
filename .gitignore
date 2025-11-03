@@ -25,4 +25,5 @@ bin/
 .idea/
 .vscode/
 python/*.dist-info/
+*~
 .ipynb_checkpoints/

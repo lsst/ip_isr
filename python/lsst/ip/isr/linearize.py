@@ -151,7 +151,7 @@ class Linearizer(IsrCalib):
         self.override = False
 
         self.ampNames = list()
-        self.inputGain = list()
+        self.inputGain = dict()
         self.linearityCoeffs = dict()
         self.linearityType = dict()
         self.linearityBBox = dict()
@@ -289,10 +289,9 @@ class Linearizer(IsrCalib):
                 amp = dictionary['amplifiers'][ampName]
                 calib.ampNames.append(ampName)
                 # If gain = None on isrFunction.gainContext(),
-                # the default amp geometry gains are used. But
-                # It would be more accurate to just use a gain
-                # of 1.0 as default.
-                calib.inputGain[ampName] = amp.get("inputGain", 1.0)
+                # the default amp geometry gains are used
+                # in IsrTask*
+                calib.inputGain[ampName] = amp.get('inputGain', np.nan)
                 calib.linearityCoeffs[ampName] = np.array(amp.get('linearityCoeffs', [0.0]))
                 calib.linearityType[ampName] = amp.get('linearityType', 'None')
                 calib.linearityBBox[ampName] = amp.get('linearityBBox', None)
@@ -344,7 +343,7 @@ class Linearizer(IsrCalib):
                    }
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {
-                'inputGains': self.inputGain[ampName],
+                'inputGain': self.inputGain[ampName],
                 'linearityType': self.linearityType[ampName],
                 'linearityCoeffs': self.linearityCoeffs[ampName].tolist(),
                 'linearityBBox': self.linearityBBox[ampName],
@@ -411,7 +410,7 @@ class Linearizer(IsrCalib):
 
         for record in coeffTable:
             ampName = record['AMPLIFIER_NAME']
-            inputGain = record['INPUT_GAIN'] if 'INPUT_GAIN' in record.columns else np.array([1.0])
+            inputGain = record['INPUT_GAIN'] if 'INPUT_GAIN' in record.columns else np.nan
             inputAbscissa = record['INP_ABSCISSA'] if 'INP_ABSCISSA' in record.columns else np.array([0.0])
             inputOrdinate = record['INP_ORDINATE'] if 'INP_ORDINATE' in record.columns else np.array([0.0])
             inputMask = record['INP_MASK'] if 'INP_MASK' in record.columns else np.array([False])

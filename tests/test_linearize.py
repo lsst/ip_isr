@@ -124,6 +124,7 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
         self.bbox = lsst.geom.Box2I(lsst.geom.Point2I(-31, 22), lsst.geom.Extent2I(100, 85))
         self.ampArrangement = (2, 3)
         self.numAmps = self.ampArrangement[0]*self.ampArrangement[1]
+
         # Squared Parameters
         self.sqCoeffs = np.array([[0, 5e-6, 2.5e-5], [1e-5, 1.1e-6, 2.1e-6]], dtype=float)
 
@@ -366,6 +367,7 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 elif linearityType == 'DoubleSpline':
                     linearizer.linearityCoeffs[ampName] = np.asarray(self.doubleSplineCoeffs)
 
+                linearizer.inputGain[ampName] = 1.0
                 linearizer.linearityType[ampName] = linearityType
                 linearizer.linearityBBox[ampName] = ampBox
                 linearizer.inputAbscissa[ampName] = np.array([])

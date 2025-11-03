@@ -397,7 +397,7 @@ class IsrStatisticsTask(pipeBase.Task):
                     ampStats = {}
                     readoutCorner = amp.getReadoutCorner()
 
-                    ampStats["INPUT_GAIN"] = gains[amp.getName()]
+                    ampStats["INPUT_GAIN"] = float(gains[amp.getName()])
 
                     # Full data region.
                     dataRegion = image[amp.getBBox()]
@@ -564,7 +564,7 @@ class IsrStatisticsTask(pipeBase.Task):
                 ampStats = {}
                 readoutCorner = amp.getReadoutCorner()
 
-                ampStats["INPUT_GAIN"] = gains[amp.getName()]
+                ampStats["INPUT_GAIN"] = float(gains[amp.getName()])
 
                 # Full data region.
                 dataRegion = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]

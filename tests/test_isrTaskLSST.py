@@ -1692,7 +1692,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         with self.assertRaises(RuntimeError) as cm:
             _ = isr_task.run(input_exp.clone())
-        self.assertIn("A PTC must be supplied", cm.exception.args[0])
+        self.assertIn("doBootstrap==False and useGainsFrom =="
+                      " 'PTC' but no PTC provided.",
+                      cm.exception.args[0])
 
     def test_suspectModes(self):
         """Test the different suspect modes."""
