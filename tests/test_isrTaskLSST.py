@@ -105,15 +105,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             values[centers < mock_config.highSignalNonlinearityThreshold] = 0.0
             self.linearizer.linearityCoeffs[amp_name] = np.concatenate((centers, values))
 
-    def _check_applied_keys(self, metadata, isr_config):
+    def _check_applied_keys(self, metadata, isr_config, expected_gain_correction=False):
         """Check if the APPLIED keys have been set properly.
 
         Parameters
         ----------
         metadata : `lsst.daf.base.PropertyList`
         isr_config : `lsst.ip.isr.IsrTaskLSSTConfig`
-
+        expected_gain_correction : `bool`, optional
+            Did we expect gain correction to be applied?
         """
+        key = "LSST ISR GAINCORRECTION APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], expected_gain_correction)
+
         key = "LSST ISR CROSSTALK APPLIED"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doCrosstalk)
@@ -1009,7 +1014,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
-        self._check_applied_keys(result.exposure.metadata, isr_config)
+        self._check_applied_keys(result.exposure.metadata, isr_config, expected_gain_correction=True)
 
         # Confirm that the output has the defect line as bad.
         sat_val = 2**result.exposure.mask.getMaskPlane("BAD")

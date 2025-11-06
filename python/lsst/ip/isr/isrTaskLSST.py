@@ -2001,6 +2001,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
+        exposureMetadata["LSST ISR GAINCORRECTION APPLIED"] = False
         exposureMetadata["LSST ISR CROSSTALK APPLIED"] = False
         exposureMetadata["LSST ISR OVERSCANLEVEL CHECKED"] = False
         exposureMetadata["LSST ISR NOISE CHECKED"] = False
@@ -2111,6 +2112,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         if self.config.doCorrectGains and gainCorrection is not None:
             self.log.info("Correcting gains based on input GainCorrection.")
             gainCorrection.correctGains(gains, exposure=ccdExposure)
+            exposureMetadata["LSST ISR GAINCORRECTION APPLIED"] = True
+        elif self.config.doCorrectGains:
+            self.log.info("Skipping gain correction because no GainCorrection available.")
 
         # Do gain normalization.
         # Input units: adu
