@@ -80,7 +80,7 @@ class Defects(IsrCalib):
     _SCHEMA = ''
     _VERSION = 2.0
 
-    def __init__(self, defectList=None, metadata=None, *, normalize_on_init=True, **kwargs):
+    def __init__(self, defectList=None, *, normalize_on_init=True, **kwargs):
         self._defects = []
         self._defectsUnnormalized = []
 
@@ -301,11 +301,12 @@ class Defects(IsrCalib):
 
         if self._defectsUnnormalized is not None:
             for d in self._defectsUnnormalized:
-                bbox = d[0]
-                reason = d[1]
+                bbox = d[0].getBBox()
+                reasonDefect = d[1]
                 if reason in self.getReasonDict()[0]:
-                    bitmask = 2**self.getReasonDict()[0][reason]
-                    lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
+                    if reasonDefect == reason:
+                        bitmask = 2**self.getReasonDict()[0][reason]
+                        lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
                 else:
                     raise RuntimeError(f"Reason {reason} not existent.")
         else:
@@ -333,7 +334,10 @@ class Defects(IsrCalib):
                 bitmask = mask.getPlaneBitMask(reason)
                 for d in self._defectsUnnormalized:
                     if reason in d:
-                        bbox = d[0]
+                        if isinstance(d[0], lsst.geom.Box2I):
+                            bbox = d[0]
+                        else:
+                            bbox = d[0].getBBox()
                         lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
         else:
             raise RuntimeError("No defects with reason provided.")
