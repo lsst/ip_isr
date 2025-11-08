@@ -312,35 +312,38 @@ class Defects(IsrCalib):
         else:
             raise RuntimeError("No defects with reason provided.")
 
-    def setMaskPlaneReason(self, mask):
-        """Replace mask plane by mask plane per reason.
+    # TODO: implement a subclass of Mask for defects
+    # to be able to clear mask planes cleanly.
+    # def setMaskPlaneReason(self, mask):
+    #     """Replace mask plane by mask plane per reason.
 
-        Parameters
-        ----------
-        mask : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
-            Image to process.  Only the mask plane is updated.
+    #     Parameters
+    #     ----------
+    #     mask : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
+    #         Image to process.  Only the mask plane is updated.
 
-        """
-        if hasattr(mask, "getMask"):
-            mask = mask.getMask()
+    #     """
+    #     if hasattr(mask, "getMask"):
+    #         mask = mask.getMask()
 
-        mask.clearMaskPlaneDict()
-        reasonMapping = self.getReasonDict()[0]
-        for reason in reasonMapping:
-            mask.addMaskPlane(reason)
+    #     mask.clearMaskPlaneDict()
+    #     reasonMapping = self.getReasonDict()[0]
+    #     for reason in reasonMapping:
+    #         mask.addMaskPlane(reason)
 
-        if self._defectsUnnormalized is not None:
-            for reason in reasonMapping:
-                bitmask = mask.getPlaneBitMask(reason)
-                for d in self._defectsUnnormalized:
-                    if reason in d:
-                        if isinstance(d[0], lsst.geom.Box2I):
-                            bbox = d[0]
-                        else:
-                            bbox = d[0].getBBox()
-                        lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
-        else:
-            raise RuntimeError("No defects with reason provided.")
+    #     if self._defectsUnnormalized is not None:
+    #         for reason in reasonMapping:
+    #             bitmask = mask.getPlaneBitMask(reason)
+    #             for d in self._defectsUnnormalized:
+    #                 if reason in d:
+    #                     if isinstance(d[0], lsst.geom.Box2I):
+    #                         bbox = d[0]
+    #                     else:
+    #                         bbox = d[0].getBBox()
+    #                     lsst.afw.geom.SpanSet(bbox).clippedTo
+    #                       (mask.getBBox()).setMask(mask, bitmask)
+    #     else:
+    #         raise RuntimeError("No defects with reason provided.")
 
     def updateCounters(self, columns=None, hot=None, cold=None):
         """Update metadata with pixel and column counts.
