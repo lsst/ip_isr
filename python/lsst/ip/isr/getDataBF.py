@@ -218,11 +218,12 @@ def getTractsTable(butler, table):
     tracts = list(set(tracts))
     return tracts
 
-def getDataBFVisit(collection, repOut, visit, bandId):
+def getDataBFVisit(collection, repOut, visit, bandId, matchFGCM=False):
 
     dic = {}
     butler = Butler("/repo/main", collections=collection)
-    butlerFGCM = Butler("/repo/main", collections="LSSTCam/runs/DRP/20250604_20250921/w_2025_39/DM-52645")
+    if matchFGCM:
+        butlerFGCM = Butler("/repo/main", collections="LSSTCam/runs/DRP/20250604_20250921/w_2025_39/DM-52645")
 
     dic.update({visit:{}})
 
@@ -249,49 +250,58 @@ def getDataBFVisit(collection, repOut, visit, bandId):
             table['e2_psf'] = 2*table['ixy_psf'] / table['T_psf']
 
             # match with FGCM:
+            if matchFGCM:
 
-            tracts =  getTractsTable(butlerFGCM, table)
+                tracts =  getTractsTable(butlerFGCM, table)
 
-            fgcm_standard_star_dict = {}
-            for tract in tracts:
-                fgcmTable = butlerFGCM.get("fgcm_standard_star", instrument="LSSTCam", skymap="lsst_cells_v1", tract=tract)
-                fgcm_standard_star_dict[tract] = fgcmTable
+                fgcm_standard_star_dict = {}
+                for tract in tracts:
+                    fgcmTable = butlerFGCM.get("fgcm_standard_star", instrument="LSSTCam", skymap="lsst_cells_v1", tract=tract)
+                    fgcm_standard_star_dict[tract] = fgcmTable
 
-            fgcm_standard_star_cat = []
+                fgcm_standard_star_cat = []
 
-            for tract in fgcm_standard_star_dict:
-                astropy_fgcm = fgcm_standard_star_dict[tract]
-                table_fgcm = np.asarray(astropy_fgcm)
-                fgcm_standard_star_cat.append(table_fgcm)
+                for tract in fgcm_standard_star_dict:
+                    astropy_fgcm = fgcm_standard_star_dict[tract]
+                    table_fgcm = np.asarray(astropy_fgcm)
+                    fgcm_standard_star_cat.append(table_fgcm)
 
-            fgcm_standard_star_cat = np.concatenate(fgcm_standard_star_cat)
-            fgcmCat = fgcm_standard_star_cat
+                fgcm_standard_star_cat = np.concatenate(fgcm_standard_star_cat)
+                fgcmCat = fgcm_standard_star_cat
 
-            raSrc = np.array(table['coord_ra'].to(units.degree))
-            decSrc = np.array(table['coord_dec'].to(units.degree))
+                raSrc = np.array(table['coord_ra'].to(units.degree))
+                decSrc = np.array(table['coord_dec'].to(units.degree))
 
-            with Matcher(raSrc, decSrc) as matcher:
-                idx, idxSrcCat, idxColorCat, d = matcher.query_radius(
-                    fgcm_standard_star_cat["ra"],
-                    fgcm_standard_star_cat["dec"],
-                    1. / 3600.0,
-                    return_indices=True,
-                )
+                with Matcher(raSrc, decSrc) as matcher:
+                    idx, idxSrcCat, idxColorCat, d = matcher.query_radius(
+                        fgcm_standard_star_cat["ra"],
+                        fgcm_standard_star_cat["dec"],
+                        1. / 3600.0,
+                        return_indices=True,
+                    )
 
-            u_fgcm = np.zeros_like(raSrc) * np.nan
-            g_fgcm = np.zeros_like(raSrc) * np.nan
-            r_fgcm = np.zeros_like(raSrc) * np.nan
-            i_fgcm = np.zeros_like(raSrc) * np.nan
-            z_fgcm = np.zeros_like(raSrc) * np.nan
-            y_fgcm = np.zeros_like(raSrc) * np.nan
+                u_fgcm = np.zeros_like(raSrc) * np.nan
+                g_fgcm = np.zeros_like(raSrc) * np.nan
+                r_fgcm = np.zeros_like(raSrc) * np.nan
+                i_fgcm = np.zeros_like(raSrc) * np.nan
+                z_fgcm = np.zeros_like(raSrc) * np.nan
+                y_fgcm = np.zeros_like(raSrc) * np.nan
 
-            for idSrc, idColor in zip(idxSrcCat, idxColorCat):
-                u_fgcm[idSrc] = fgcmCat[f'mag_u'][idColor]
-                g_fgcm[idSrc] = fgcmCat[f'mag_g'][idColor]
-                r_fgcm[idSrc] = fgcmCat[f'mag_r'][idColor]
-                i_fgcm[idSrc] = fgcmCat[f'mag_i'][idColor]
-                z_fgcm[idSrc] = fgcmCat[f'mag_z'][idColor]
-                y_fgcm[idSrc] = fgcmCat[f'mag_y'][idColor]
+                for idSrc, idColor in zip(idxSrcCat, idxColorCat):
+                    u_fgcm[idSrc] = fgcmCat[f'mag_u'][idColor]
+                    g_fgcm[idSrc] = fgcmCat[f'mag_g'][idColor]
+                    r_fgcm[idSrc] = fgcmCat[f'mag_r'][idColor]
+                    i_fgcm[idSrc] = fgcmCat[f'mag_i'][idColor]
+                    z_fgcm[idSrc] = fgcmCat[f'mag_z'][idColor]
+                    y_fgcm[idSrc] = fgcmCat[f'mag_y'][idColor]
+            else:
+                u_fgcm = None
+                g_fgcm = None
+                r_fgcm = None
+                i_fgcm = None
+                z_fgcm = None
+                y_fgcm = None
+
 
             dic[visit].update({
                 DETECTOR: {
