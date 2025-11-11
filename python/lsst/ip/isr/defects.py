@@ -312,7 +312,7 @@ class Defects(IsrCalib):
         else:
             raise RuntimeError("No defects with reason provided.")
 
-    # TODO: implement a subclass of Mask for defects
+    # DM-53236 TODO: implement a subclass of Mask for defects
     # to be able to clear mask planes cleanly.
     # def setMaskPlaneReason(self, mask):
     #     """Replace mask plane by mask plane per reason.
