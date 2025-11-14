@@ -84,6 +84,14 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector"],
         isCalibration=True,
     )
+    gainCorrection = cT.PrerequisiteInput(
+        name="gain_correction",
+        doc="Gain correction dataset",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "detector"],
+        isCalibration=True,
+        minimum=0,
+    )
     crosstalk = cT.PrerequisiteInput(
         name="crosstalk",
         doc="Input crosstalk object",
@@ -159,6 +167,8 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
 
         if config.doBootstrap or (doApplyGains and useLinearizerGains):
             del self.ptc
+        if not config.doCorrectGains:
+            del self.gainCorrection
         if config.doDiffNonLinearCorrection is not True:
             del self.dnlLUT
         if config.doBias is not True:
@@ -321,8 +331,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
     # Gains.
     doCorrectGains = pexConfig.Field(
         dtype=bool,
-        doc="Apply temperature correction to the gains?",
-        default=False,
+        doc="Apply gain corrections from detector restarts?",
+        default=True,
     )
     doApplyGains = pexConfig.Field(
         dtype=bool,
@@ -1255,13 +1265,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return overscans
 
-    def correctGains(self, exposure, ptc, gains):
-        # TODO DM 36639
-        gains = []
-        readNoise = []
-
-        return gains, readNoise
-
     def maskNegativeVariance(self, exposure):
         """Identify and mask pixels with negative variance values.
 
@@ -1825,11 +1828,69 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return bin1, bin2
 
-    def run(self, ccdExposure, *, dnlLUT=None, bias=None, deferredChargeCalib=None, linearizer=None,
-            ptc=None, crosstalk=None, defects=None, bfKernel=None, bfGains=None, dark=None,
-            flat=None, camera=None, **kwargs
-            ):
+    def run(
+        self,
+        ccdExposure,
+        *,
+        dnlLUT=None,
+        bias=None,
+        deferredChargeCalib=None,
+        linearizer=None,
+        ptc=None,
+        gainCorrection=None,
+        crosstalk=None,
+        defects=None,
+        bfKernel=None,
+        dark=None,
+        flat=None,
+        camera=None,
+    ):
+        """Run the IsrTaskLSST task.
 
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.Exposure`
+            Exposure to run ISR.
+        dnlLUT : `None`, optional
+            DNL lookup table; placeholder, unused.
+        bias : `lsst.afw.image.Exposure`, optional
+            Bias frame.
+        deferredChargeCalib : `lsst.ip.isr.DeferredChargeCalib`, optional
+            Deferred charge calibration.
+        linearizer : `lsst.ip.isr.Linearizer`, optional
+            Linearizer calibration.
+        ptc : `lsst.ip.isr.PhotonTransferCurveDataset`, optional
+            PTC dataset.
+        gainCorrection : `lsst.ip.isr.GainCorrection`, optional
+            Gain correction dataset.
+        crosstalk : `lsst.ip.isr.CrosstalkCalib`, optional
+            Crosstalk calibration dataset.
+        defects : `lsst.ip.isr.Defects`, optional
+            Defects dataset.
+        bfKernel : `lsst.ip.isr.BrighterFatterKernel`, optional
+            Brighter-fatter kernel dataset.
+        dark : `lsst.afw.image.Exposure`, optional
+            Dark frame.
+        flat : `lsst.afw.image.Exposure`, optional
+            Flat-field frame.
+        camera : `lsst.afw.cameraGeom.Camera`, optional
+            Camera object.
+
+        Returns
+        -------
+        result : `lsst.pipe.base.Struct`
+            Struct with fields:
+                ``exposure``: `lsst.afw.image.Exposure`
+                    Calibrated exposure.
+                ``outputBin1Exposure``: `lsst.afw.image.Exposure`
+                    Binned exposure (bin1 config).
+                ``outputBin2Exposure``: `lsst.afw.image.Exposure`
+                    Binned exposure (bin2 config).
+                ``outputExposure``: `lsst.afw.image.Exposure`
+                    Calibrated exposure (same as ``exposure``).
+                ``outputStatistics``: `lsst.ip.isr.isrStatistics`
+                    Calibrated exposure statistics.
+        """
         detector = ccdExposure.getDetector()
 
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
@@ -1858,6 +1919,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             elif self.config.useGainsFrom == "PTC":
                 compareCameraKeywords(doRaise, keywords, exposureMetadata, ptc, "PTC",
                                       log=self.log)
+            # Note that doCorrectGains can be True without a gainCorrection.
+            if self.config.doCorrectGains and gainCorrection is not None:
+                compareCameraKeywords(
+                    doRaise,
+                    keywords,
+                    exposureMetadata,
+                    gainCorrection,
+                    "gain_correction",
+                    log=self.log,
+                )
         else:
             if self.config.doCorrectGains:
                 raise RuntimeError("doCorrectGains is True but no ptc provided.")
@@ -1930,6 +2001,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         # We keep track of units: start in adu.
         exposureMetadata["LSST ISR UNITS"] = "adu"
+        exposureMetadata["LSST ISR GAINCORRECTION APPLIED"] = False
         exposureMetadata["LSST ISR CROSSTALK APPLIED"] = False
         exposureMetadata["LSST ISR OVERSCANLEVEL CHECKED"] = False
         exposureMetadata["LSST ISR NOISE CHECKED"] = False
@@ -2037,11 +2109,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         self.checkAllBadAmps(badAmpDict, detector)
 
-        if self.config.doCorrectGains:
-            # TODO: DM-36639
-            # This requires the PTC (tbd) with the temperature dependence.
-            self.log.info("Apply temperature dependence to the gains.")
-            gains, readNoise = self.correctGains(ccdExposure, ptc, gains)
+        if self.config.doCorrectGains and gainCorrection is not None:
+            self.log.info("Correcting gains based on input GainCorrection.")
+            gainCorrection.correctGains(gains, exposure=ccdExposure)
+            exposureMetadata["LSST ISR GAINCORRECTION APPLIED"] = True
+        elif self.config.doCorrectGains:
+            self.log.info("Skipping gain correction because no GainCorrection available.")
 
         # Do gain normalization.
         # Input units: adu

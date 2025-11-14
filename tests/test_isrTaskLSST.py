@@ -36,6 +36,7 @@ from lsst.ip.isr.isrTaskLSST import (IsrTaskLSST, IsrTaskLSSTConfig)
 from lsst.ip.isr.crosstalk import CrosstalkCalib
 from lsst.ip.isr import PhotonTransferCurveDataset
 from lsst.ip.isr.vignette import maskVignettedRegion
+from lsst.ip.isr.gainCorrection import GainCorrection
 
 
 class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
@@ -104,15 +105,20 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             values[centers < mock_config.highSignalNonlinearityThreshold] = 0.0
             self.linearizer.linearityCoeffs[amp_name] = np.concatenate((centers, values))
 
-    def _check_applied_keys(self, metadata, isr_config):
+    def _check_applied_keys(self, metadata, isr_config, expected_gain_correction=False):
         """Check if the APPLIED keys have been set properly.
 
         Parameters
         ----------
         metadata : `lsst.daf.base.PropertyList`
         isr_config : `lsst.ip.isr.IsrTaskLSSTConfig`
-
+        expected_gain_correction : `bool`, optional
+            Did we expect gain correction to be applied?
         """
+        key = "LSST ISR GAINCORRECTION APPLIED"
+        self.assertIn(key, metadata)
+        self.assertEqual(metadata[key], expected_gain_correction)
+
         key = "LSST ISR CROSSTALK APPLIED"
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doCrosstalk)
@@ -982,9 +988,17 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         input_exp = mock.run()
 
         isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doCorrectGains = True
         isr_config.doBias = True
         isr_config.doDark = True
         isr_config.doFlat = True
+
+        ptc = copy.copy(self.ptc)
+        ptc.gain[ptc.ampNames[0]] *= 0.95
+
+        adjustments = np.ones(len(ptc.ampNames))
+        adjustments[0] /= 0.95
+        gainCorrection = GainCorrection(ampNames=ptc.ampNames, gainAdjustments=adjustments)
 
         isr_task = IsrTaskLSST(config=isr_config)
         with self.assertNoLogs(level=logging.WARNING):
@@ -996,10 +1010,11 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 crosstalk=self.crosstalk,
                 defects=self.defects,
                 ptc=self.ptc,
+                gainCorrection=gainCorrection,
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
             )
-        self._check_applied_keys(result.exposure.metadata, isr_config)
+        self._check_applied_keys(result.exposure.metadata, isr_config, expected_gain_correction=True)
 
         # Confirm that the output has the defect line as bad.
         sat_val = 2**result.exposure.mask.getMaskPlane("BAD")
