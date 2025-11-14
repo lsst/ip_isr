@@ -41,6 +41,7 @@ from .isrMockLSST import *
 from .ptcDataset import *
 from .defects import *
 from .brighterFatterKernel import *
+from .electrostaticBrighterFatter import *
 from .photodiode import *
 from .photodiodeCorrection import *
 from .deferredCharge import *
