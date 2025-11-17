@@ -21,6 +21,8 @@
 
 import os
 import unittest
+import numpy
+import copy
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -64,6 +66,52 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         meta1["NEW"] = "additional header"
         self.assertNotEqual(first.getMetadata(), second.getMetadata())
         del meta1["NEW"]
+
+    def test_defectsReason(self):
+        defects = Defects()
+
+        defects.append(lsst.geom.Box2I(lsst.geom.Point2I(5, 6),
+                                       lsst.geom.Point2I(41, 50)), reason='HOT_PIXEL')
+
+        defects.append(lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
+                                       lsst.geom.Point2I(4, 5)), reason='EDGE')
+
+        self.assertEqual(len(defects), 2)
+
+        for d in defects:
+            self.assertIsInstance(d, algorithms.Defect)
+
+        meta = PropertyList()
+        meta["TESTHDR"] = "testing"
+        defects.setMetadata(meta)
+
+        # Test the defects are written and read via FITS correctly
+        with lsst.utils.tests.getTempFilePath(".fits") as tmpFile:
+            defects.writeFits(tmpFile)
+            defects2 = Defects.readFits(tmpFile)
+
+        self.assertTrue(defects.__eq__(defects2))
+
+        # Tests masking with reason is working properly
+        ccdImage = afwImage.MaskedImageF(250, 225)
+        # test 1. test mask according to a given reason
+        reason = 'HOT_PIXEL'
+        defects.maskPixelsReason(ccdImage.mask, reason)
+        self.assertEqual(numpy.sum(ccdImage.mask.array), 3330)
+        ccdImageMaskBefore = copy.copy(ccdImage.mask.array)
+        # test that masking with a reason not in the defects will result in
+        # the same mask
+        reason = 'VAMPIRE_PIXEL'
+        defects.maskPixelsReason(ccdImage.mask, reason)
+        self.assertEqual(numpy.sum(ccdImage.mask.array), numpy.sum(ccdImageMaskBefore))
+        # test that masking with an inexistent reason raises
+        reason = 'TEST_PIXEL'
+        with self.assertRaises(RuntimeError):
+            defects.maskPixelsReason(ccdImage.mask, reason)
+
+        # test 2. test mask plane with reasons is set properly
+        # defects.setMaskPlaneReason(ccdImage.mask)
+        # self.assertEqual(numpy.sum(ccdImage.mask.array), 5250)
 
     def test_defects(self):
         defects = Defects()
