@@ -546,6 +546,7 @@ class IsrCalib(abc.ABC):
                     keepTrying = False
 
         for table in tableList:
+            table.convert_bytestring_to_unicode()
             for k, v in table.meta.items():
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
