@@ -1919,8 +1919,27 @@ def electrostaticBrighterFatterCorrection(exposure, electroBfDistortionMatrix, a
     """
 
     # Use the symmetrize function to fill the four quadrants for each kernel
-    kN = symmetrize(electroBfDistortionMatrix.aN)
-    kE = symmetrize(electroBfDistortionMatrix.aE)
+    r = electroBfDistortionMatrix.fitRange - 1
+    aN = electroBfDistortionMatrix.aN
+    aS = electroBfDistortionMatrix.aS
+    aE = electroBfDistortionMatrix.aE
+    aW = electroBfDistortionMatrix.aW
+
+    # Initialize kN and kE arrays
+    kN = numpy.zeros((2 * r + 1, 2 * r + 1))
+    kE = numpy.zeros_like(kN)
+
+    # Fill in the 4 quadrants for kN
+    kN[r:, r:] = aN  # Quadrant 1 (bottom-right)
+    kN[:r+1, r:] = numpy.flipud(aN)  # Quadrant 2 (top-right)
+    kN[r:, :r+1] = numpy.fliplr(aS)  # Quadrant 3 (bottom-left)
+    kN[:r+1, :r+1] = numpy.flipud(numpy.fliplr(aS))  # Quadrant 4 (top-left)
+
+    # Fill in the 4 quadrants for kE
+    kE[r:, r:] = aE  # Quadrant 1 (bottom-right)
+    kE[:r+1, r:] = numpy.flipud(aW)  # Quadrant 2 (top-right)
+    kE[r:, :r+1] = numpy.fliplr(aE)  # Quadrant 3 (bottom-left)
+    kE[:r+1, :r+1] = numpy.flipud(numpy.fliplr(aW))  # Quadrant 4 (top-left)
 
     # Tweak the edges so that the sum rule applies.
     kN[:, 0] = -kN[:, -1]

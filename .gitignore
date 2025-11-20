@@ -26,4 +26,4 @@ bin/
 .vscode/
 python/*.dist-info/
 *~
-.ipynb_checkpoints/
+*.ipynb_checkpoints/
