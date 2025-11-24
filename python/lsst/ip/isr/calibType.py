@@ -553,7 +553,6 @@ class IsrCalib(abc.ABC):
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-
         if calibClass._OBSTYPE in ("PHOTODIODE", ):
             # Merge primary header, as these types store information
             # there.
