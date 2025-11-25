@@ -60,6 +60,8 @@ from .deferredCharge import DeferredChargeTask
 from .isrStatistics import IsrStatisticsTask
 from .ptcDataset import PhotonTransferCurveDataset
 from .isrFunctions import compareCameraKeywords
+from .brighterFatterKernel import (brighterFatterCorrection,
+                                   fluxConservingBrighterFatterCorrection)
 
 
 def crosstalkSourceLookup(datasetType, registry, quantumDataId, collections):
@@ -1636,7 +1638,7 @@ class IsrTask(pipeBase.PipelineTask):
             self.log.info("Applying brighter-fatter correction using kernel type %s / gains %s.",
                           type(bfKernel), type(bfGains))
             if self.config.doFluxConservingBrighterFatterCorrection:
-                bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
+                bfResults = fluxConservingBrighterFatterCorrection(
                     bfExp,
                     bfKernel,
                     self.config.brighterFatterMaxIter,
@@ -1645,7 +1647,7 @@ class IsrTask(pipeBase.PipelineTask):
                     bfGains
                 )
             else:
-                bfResults = isrFunctions.brighterFatterCorrection(
+                bfResults = brighterFatterCorrection(
                     bfExp,
                     bfKernel,
                     self.config.brighterFatterMaxIter,

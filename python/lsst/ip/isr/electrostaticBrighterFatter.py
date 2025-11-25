@@ -22,13 +22,18 @@
 """Brighter Fatter Kernel calibration definition."""
 
 
-__all__ = ['ElectrostaticBrighterFatterDistortionMatrix']
+__all__ = [
+    'ElectrostaticBrighterFatterDistortionMatrix',
+    'electrostaticBrighterFatterCorrection',
+]
 
 
+import pyfftw
 import numpy as np
 from astropy.table import Table
 
 from . import IsrCalib
+from .isrFunctions import gainContext
 
 
 class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
@@ -87,7 +92,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
     modelNormalization : `list`
         A two element array of the multiplicative and additive
         normalization to the aMatrixModel.
-    fitMask : `numpy.ndarray`, [`bool`]
+    usedPixels : `numpy.ndarray`, [`bool`]
         Array of shape like aMatrix containing the mask indicating which
         elements of the input aMatrix were used to fit the electrostatic
         model.
@@ -151,7 +156,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         self.aMatrixSum = np.nan
         self.aMatrixModelSum = np.nan
         self.modelNormalization = [np.nan, np.nan]
-        self.fitMask = np.full((inputRange, inputRange), np.nan)
+        self.usedPixels = np.full((inputRange, inputRange), np.nan)
         self.fitParamNames = list()
         self.freeFitParamNames = list()
         self.fitParams = dict()
@@ -174,7 +179,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         self.requiredAttributes.update([
             'inputRange', 'fitRange', 'badAmps', 'gain', 'aMatrix',
             'aMatrixSigma', 'aMatrixModel', 'aMatrixSum', 'aMatrixModelSum',
-            'modelNormalization', 'fitMask', 'fitParamNames',
+            'modelNormalization', 'usedPixels', 'fitParamNames',
             'freeFitParamNames', 'fitParams', 'fitParamErrors', 'fitChi2',
             'fitReducedChi2', 'fitParamCovMatrix', 'ath', 'athMinusBeta',
             'aN', 'aS', 'aE', 'aW', 'ampNames',
@@ -290,7 +295,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         calib.aMatrixSum = float(dictionary['aMatrixSum'])
         calib.aMatrixModelSum = float(dictionary['aMatrixModelSum'])
         calib.modelNormalization = dictionary['modelNormalization']
-        calib.fitMask = np.array(dictionary['fitMask'])
+        calib.usedPixels = np.array(dictionary['usedPixels'])
         calib.fitParams = dictionary['fitParams']
         calib.fitParamErrors = dictionary['fitParamErrors']
         calib.fitChi2 = float(dictionary['fitChi2'])
@@ -359,7 +364,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         outDict['aMatrixModel'] = self.aMatrixModel.ravel().tolist()
         outDict['modelNormalization'] = self.modelNormalization
         outDict['fitParamCovMatrix'] = self.fitParamCovMatrix.ravel().tolist()
-        outDict['fitMask'] = self.fitMask.ravel().tolist()
+        outDict['usedPixels'] = self.usedPixels.ravel().tolist()
         outDict['fitParams'] = self.fitParams
         outDict['fitParamErrors'] = self.fitParamErrors
         outDict['fitChi2'] = self.fitChi2
@@ -414,7 +419,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         inDict['aMatrixSum'] = record['A_MATRIX_SUM']
         inDict['aMatrixModelSum'] = record['A_MATRIX_MODEL_SUM']
         inDict['modelNormalization'] = record['MODEL_NORMALIZATION']
-        inDict['fitMask'] = record['FIT_MASK']
+        inDict['usedPixels'] = record['USED_PIXELS']
         inDict['fitParams'] = {str(n): v for n, v in zip(record['FIT_PARAM_NAMES'], record['FIT_PARAMS'])}
         inDict['fitParamErrors'] = {str(n): v for n, v in zip(record['FIT_PARAM_NAMES'],
                                                               record['FIT_PARAM_ERRORS'])}
@@ -465,7 +470,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
             'A_MATRIX_SUM': self.aMatrixSum,
             'A_MATRIX_MODEL_SUM': self.aMatrixModelSum,
             'MODEL_NORMALIZATION': self.modelNormalization,
-            'FIT_MASK': self.fitMask.ravel(),
+            'USED_PIXELS': self.usedPixels.ravel(),
             'FIT_PARAM_NAMES': self.fitParamNames,
             'FREE_FIT_PARAM_NAMES': self.freeFitParamNames,
             'FIT_PARAMS': list(self.fitParams.values()),
@@ -491,3 +496,167 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         tableList.append(catalog)
 
         return tableList
+
+
+class CustomFFTConvolution(object):
+    """
+    A class that performs image convolutions in Fourier space, using pyfftw.
+    The constructor takes images as arguments and creates the FFTW plans.
+    The convolutions are performed by the __call__ routine.
+    This is faster than scipy.signal.fftconvolve, and it saves some transforms
+    by allowing the same image to be convolved with several kernels.
+    pyfftw does not accommodate float32 images, so everything
+    should be double precision.
+
+    Code adaped from :
+    https://stackoverflow.com/questions/14786920/convolution-of-two-three-dimensional-arrays-with-padding-on-one-side-too-slow
+    Code posted by Henry Gomersal
+    """
+    def __init__(self, im, kernel, threads=1):
+        # Compute the minimum size of the convolution result.
+        shape = (np.array(im.shape) + np.array(kernel.shape)) - 1
+
+        # Find the next larger "fast size" for FFT computation.
+        # This can provide a significant speedup.
+        shape = np.array([pyfftw.next_fast_len(s) for s in shape])
+
+        # Create FFTW building objects for the image and kernel.
+        self.fftImageObj = pyfftw.builders.rfftn(im, s=shape, threads=threads)
+        self.fftKernelObj = pyfftw.builders.rfftn(kernel, s=shape, threads=threads)
+        self.ifftObj = pyfftw.builders.irfftn(
+            self.fftImageObj.get_output_array(),
+            s=shape,
+            threads=threads,
+        )
+
+    def __call__(self, im, kernels):
+        """
+        Perform the convolution and trim the result to the
+        size of the input image. If kernels is a list, then
+        the routine returns a list of corresponding
+        convolutions.
+        """
+        # Handle both a list of kernels and a single kernel.
+        ks = [kernels] if type(kernels) is not list else kernels
+        convolutions = []
+        for k in ks:
+            # Transform the image and the kernel using FFT.
+            tim = self.fftImageObj(im)
+            tk = self.fftKernelObj(k)
+
+            # Multiply in Fourier space and perform the inverse FFT.
+            convolution = self.ifftObj(tim * tk)
+            # Trim the result to match the input image size, following
+            # the 'same' policy of scipy.signal.fftconvolve.
+            oy = k.shape[0] // 2
+            ox = k.shape[1] // 2
+            convolutions.append(convolution[oy:oy + im.shape[0], ox:ox + im.shape[1]].copy())
+        # Return a single convolution if kernels was
+        # not a list, otherwise return the list.
+        return convolutions[0] if type(kernels) is not list else convolutions
+
+
+def electrostaticBrighterFatterCorrection(exposure, electroBfDistortionMatrix, applyGain, gains=None):
+    """
+    Evaluates the correction of CCD images affected by the
+    brighter-fatter effect, as described in
+    https://arxiv.org/abs/2301.03274. Requires as input the result of
+    an electrostatic fit to flat covariance data (or any other
+    determination of pixel boundary shifts under the influence of a
+    single electron).
+
+    The filename refers to an input tuple that contains the
+    boundary shifts for one electron. This file is produced by an
+    electrostatic fit to data extracted from flat-field statistics,
+    implemented in https://gitlab.in2p3.fr/astier/bfptc/tools/fit_cov.py.
+    """
+
+    # Use the symmetrize function to fill the four quadrants for each kernel
+    r = electroBfDistortionMatrix.fitRange - 1
+    aN = electroBfDistortionMatrix.aN
+    aS = electroBfDistortionMatrix.aS
+    aE = electroBfDistortionMatrix.aE
+    aW = electroBfDistortionMatrix.aW
+
+    # Initialize kN and kE arrays
+    kN = np.zeros((2 * r + 1, 2 * r + 1))
+    kE = np.zeros_like(kN)
+
+    # Fill in the 4 quadrants for kN
+    kN[r:, r:] = aN  # Quadrant 1 (bottom-right)
+    kN[:r+1, r:] = np.flipud(aN)  # Quadrant 2 (top-right)
+    kN[r:, :r+1] = np.fliplr(aS)  # Quadrant 3 (bottom-left)
+    kN[:r+1, :r+1] = np.flipud(np.fliplr(aS))  # Quadrant 4 (top-left)
+
+    # Fill in the 4 quadrants for kE
+    kE[r:, r:] = aE  # Quadrant 1 (bottom-right)
+    kE[:r+1, r:] = np.flipud(aW)  # Quadrant 2 (top-right)
+    kE[r:, :r+1] = np.fliplr(aE)  # Quadrant 3 (bottom-left)
+    kE[:r+1, :r+1] = np.flipud(np.fliplr(aW))  # Quadrant 4 (top-left)
+
+    # Tweak the edges so that the sum rule applies.
+    kN[:, 0] = -kN[:, -1]
+    kE[0, :] = -kE[-1, :]
+
+    # We use the normalization of Guyonnet et al. (2015),
+    # which is compatible with the way the input file is produced.
+    # The factor 1/2 is due to the fact that the charge distribution at the end
+    # is twice the average, and the second 1/2 is due to
+    # charge interpolation.
+    kN *= 0.25
+    kE *= 0.25
+
+    # Indeed, i and j in the tuple refer to serial and parallel directions.
+    # In most Python code, the image reads im[j, i], so we transpose:
+    kN = kN.T
+    kE = kE.T
+
+    # Get the image to perform the correction
+    image = exposure.getMaskedImage().getImage()
+
+    # The image needs to be units of electrons/holes
+    with gainContext(exposure, image, applyGain, gains):
+        # Computes the correction and returns the "delta_image",
+        # which should be subtracted from "im" in order to undo the BF effect.
+        # The input image should be expressed in electrons
+        im = image.getArray().copy()
+        convolver = CustomFFTConvolution(im, kN)
+        convolutions = convolver(im, [kN, kE])
+
+        # The convolutions contain the boundary shifts (in pixel size units)
+        # for [horizontal, vertical] boundaries.
+        # We now compute the charge to move around.
+        delta = np.zeros_like(im)
+        boundaryCharge = np.zeros_like(im)
+
+        # Horizontal boundaries (parallel direction).
+        # We could use a more elaborate interpolator for estimating the
+        # charge on the boundary.
+        boundaryCharge[:-1, :] = im[1:, :] + im[:-1, :]
+        # boundaryCharge[1:-2,:] = (9./8.)*(I[2:-1,:]+I[1:-2,:] -
+        # (1./8.)*(I[0:-3,:]+I[3,:])
+
+        # The charge to move around is the
+        # product of the boundary shift (in pixel size units) times the
+        # charge on the boundary (in charge per pixel unit).
+        dq = boundaryCharge * convolutions[0]
+        delta += dq
+
+        # What is gained by a pixel is lost by its neighbor (the right one).
+        delta[1:, :] -= dq[:-1, :]
+
+        # Vertical boundaries.
+        boundaryCharge = np.zeros_like(im)  # Reset to zero.
+        boundaryCharge[:, :-1] = im[:, 1:] + im[:, :-1]
+        dq = boundaryCharge * convolutions[1]
+        delta += dq
+
+        # What is gained by a pixel is lost by its neighbor.
+        delta[:, 1:] -= dq[:, :-1]
+
+        # TODO: One might check that delta.sum() ~ 0 (charge conservation).
+
+        # Apply the correction to the original image
+        exposure.image.array -= delta
+
+    return exposure

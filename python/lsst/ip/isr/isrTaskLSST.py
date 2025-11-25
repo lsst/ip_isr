@@ -30,6 +30,9 @@ from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
 from .isrFunctions import isTrimmedExposure, compareCameraKeywords
+from .brighterFatterKernel import (brighterFatterCorrection,
+                                   fluxConservingBrighterFatterCorrection)
+from .electrostaticBrighterFatter import electrostaticBrighterFatterCorrection
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -1575,8 +1578,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         )
         bfExp = interpExp.clone()
 
-        # exposure, electroBfDistortionMatrix, applyGain, gains = None
-        ccdExposure = isrFunctions.electrostaticBrighterFatterCorrection(
+        ccdExposure = electrostaticBrighterFatterCorrection(
             bfExp,
             electroBfDistortionMatrix,
             brighterFatterApplyGain,
@@ -1646,7 +1648,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         bfExp = interpExp.clone()
 
-        bfResults = isrFunctions.fluxConservingBrighterFatterCorrection(
+        bfResults = fluxConservingBrighterFatterCorrection(
             bfExp, bfKernel,
             self.config.brighterFatterMaxIter,
             self.config.brighterFatterThreshold,
@@ -1730,11 +1732,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             useLegacyInterp=self.config.useLegacyInterp,
         )
         bfExp = interpExp.clone()
-        bfResults = isrFunctions.brighterFatterCorrection(bfExp, bfKernel,
-                                                          self.config.brighterFatterMaxIter,
-                                                          self.config.brighterFatterThreshold,
-                                                          brighterFatterApplyGain,
-                                                          bfGains)
+        bfResults = brighterFatterCorrection(bfExp, bfKernel,
+                                             self.config.brighterFatterMaxIter,
+                                             self.config.brighterFatterThreshold,
+                                             brighterFatterApplyGain,
+                                             bfGains)
         bfCorrIters = bfResults[1]
         if bfCorrIters == self.config.brighterFatterMaxIter:
             self.log.warning("Brighter-fatter correction did not converge, final difference %f.",
