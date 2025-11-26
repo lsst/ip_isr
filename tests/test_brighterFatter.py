@@ -26,8 +26,9 @@ import numpy as np
 import lsst.utils.tests
 import lsst.afw.cameraGeom as cameraGeom
 import lsst.afw.image as afwImage
-import lsst.ip.isr.isrFunctions as isrFunctions
 from lsst.ip.isr import BrighterFatterKernel
+from lsst.ip.isr.brighterFatterKernel import (brighterFatterCorrection,
+                                              fluxConservingBrighterFatterCorrection)
 
 
 class BrighterFatterTestCases(lsst.utils.tests.TestCase):
@@ -82,10 +83,10 @@ class BrighterFatterTestCases(lsst.utils.tests.TestCase):
         self.bfk.makeDetectorKernelFromAmpwiseKernels(self.detector.getName())
         kernelToUse = self.bfk.detKernels[self.detector.getName()]
 
-        isrFunctions.brighterFatterCorrection(exp, kernelToUse, 5, 100, False)
+        brighterFatterCorrection(exp, kernelToUse, 5, 100, False)
         self.assertImagesEqual(ref_image, image)
 
-        isrFunctions.fluxConservingBrighterFatterCorrection(exp, kernelToUse, 5, 100, False)
+        fluxConservingBrighterFatterCorrection(exp, kernelToUse, 5, 100, False)
         self.assertImagesEqual(ref_image, image)
 
     def test_BrighterFatterIO(self):

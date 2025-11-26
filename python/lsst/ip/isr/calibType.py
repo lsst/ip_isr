@@ -545,12 +545,14 @@ class IsrCalib(abc.ABC):
                 except Exception:
                     keepTrying = False
 
+        calibClass = cls.determineCalibClass(tableList[0].meta, "readFits")
         for table in tableList:
+            if calibClass._OBSTYPE == "BF_DISTORTION_MATRIX":
+                table.convert_bytestring_to_unicode()
             for k, v in table.meta.items():
                 if isinstance(v, fits.card.Undefined):
                     table.meta[k] = None
 
-        calibClass = cls.determineCalibClass(tableList[0].meta, "readFits")
         if calibClass._OBSTYPE in ("PHOTODIODE", ):
             # Merge primary header, as these types store information
             # there.
