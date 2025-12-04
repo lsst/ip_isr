@@ -648,6 +648,12 @@ class Linearizer(IsrCalib):
             else:
                 gainValue = 1.0
 
+            # If the gain is NaN, then this is a no-op
+            if np.isnan(gainValue):
+                log.warning("Gain value for amp %s is NaN, skipping "
+                            "linearization.", ampName)
+                continue
+
             if linearizer is not None:
                 match isTrimmed:
                     case True:
