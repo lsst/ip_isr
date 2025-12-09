@@ -12,6 +12,7 @@ from deprecated.sphinx import deprecated
 import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 import lsst.pipe.base as pipeBase
+from lsst.pipe.base import AlgorithmError
 import lsst.afw.image as afwImage
 import lsst.pipe.base.connectionTypes as cT
 from lsst.pipe.base import UnprocessableDataError
@@ -33,6 +34,24 @@ from .isrFunctions import isTrimmedExposure, compareCameraKeywords
 from .brighterFatterKernel import (brighterFatterCorrection,
                                    fluxConservingBrighterFatterCorrection)
 from .electrostaticBrighterFatter import electrostaticBrighterFatterCorrection
+from .getData import getDataBFVisit
+
+class BreakPFError(AlgorithmError):
+    """Raised for PF loop.
+    """
+
+    def __init__(
+        self,
+    ):
+        self._toto = 42
+        super().__init__(
+            f"STOP FOR PF."
+        )
+    @property
+    def metadata(self):
+        return {
+            "toto": self._toto,
+        }
 
 
 class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
@@ -588,6 +607,21 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                                          "with kernel + Flux conserving corrections",
             "ASTIER23": "Astier & Regenault 2023 electrostatic BF correction",
         },
+    )
+    getThemAllData = pexConfig.Field(
+        dtype=bool,
+        doc="Get data for a collection and save it locally",
+        default=False,
+    )
+    getThemAllDataRepOut = pexConfig.Field(
+        dtype=str,
+        doc="Get data for a collection and save it locally",
+        default="./",
+    )
+    getThemAllDataCollectionIn = pexConfig.Field(
+        dtype=str,
+        doc="Get data for a collection and save it locally",
+        default="./",
     )
     brighterFatterLevel = pexConfig.ChoiceField(
         dtype=str,
@@ -2084,6 +2118,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 ``outputStatistics``: `lsst.ip.isr.isrStatistics`
                     Calibrated exposure statistics.
         """
+        if self.config.getThemAllData:
+            visitId = ccdExposure.getInfo().getVisitInfo().getId()
+            bandId = ccdExposure.filter.bandLabel
+            getDataBFVisit(
+                self.config.getThemAllDataCollectionIn,
+                self.config.getThemAllDataRepOut,
+                visitId,
+                bandId,
+                )
+            raise BreakPFError()
         detector = ccdExposure.getDetector()
 
         overscanDetectorConfig = self.config.overscanCamera.getOverscanDetectorConfig(detector)
