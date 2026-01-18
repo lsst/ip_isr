@@ -368,6 +368,7 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                     linearizer.linearityCoeffs[ampName] = np.asarray(self.doubleSplineCoeffs)
 
                 linearizer.inputGain[ampName] = 1.0
+                linearizer.inputTurnoff[ampName] = 100_000.0
                 linearizer.linearityType[ampName] = linearityType
                 linearizer.linearityBBox[ampName] = ampBox
                 linearizer.inputAbscissa[ampName] = np.array([])
