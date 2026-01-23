@@ -670,7 +670,8 @@ class ShutterMotionProfile(IsrCalib):
 
 
 class ShutterMotionProfileFull(IsrCalib):
-    """Full shutter motion profile.
+    """Class to hold both open and close profiles, as stored in the
+    exposure headers.
 
     Parameters
     ----------
@@ -679,7 +680,6 @@ class ShutterMotionProfileFull(IsrCalib):
     **kwargs :
         Additional parameters.
     """
-
     _OBSTYPE = "shutterMotionProfileFull"
     _SCHEMA = "ShutterMotionProfileFull"
     _VERSION = 1.0
@@ -715,9 +715,9 @@ class ShutterMotionProfileFull(IsrCalib):
 
         return calib
 
-    def calculateMidpoint(self):
-        f1, _ = self.profile_open.calculateMidpoint(skipPosition=True)
-        f2, _ = self.profile_close.calculateMidpoint(skipPosition=True)
+    def calculateMidpoints(self):
+        # This is at least a start for downstream calculations.
+        midpoint_open, _ = self.profile_open.calculateMidpoint(skipPosition=True)
+        midpoint_close, _ = self.profile_close.calculateMidpoint(skipPosition=True)
 
-        # This is almost certainly the wrong thing.
-        return f1 - f2
+        return midpoint_open, midpoint_close
