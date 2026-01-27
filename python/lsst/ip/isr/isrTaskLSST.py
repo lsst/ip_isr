@@ -2222,6 +2222,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             for amp in detector:
                 ptc.gain[amp.getName()] = 1.0
                 ptc.noise[amp.getName()] = 0.0
+                ptc.ptcTurnoff[amp.getName()] = numpy.inf
         elif self.config.useGainsFrom == "LINEARIZER":
             self.log.info("Using gains from linearizer.")
             # Create a dummy ptc object to hold the gains from the linearizer.
@@ -2229,6 +2230,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             for amp in detector:
                 ptc.gain[amp.getName()] = linearizer.inputGain[amp.getName()]
                 ptc.noise[amp.getName()] = 0.0
+                ptc.ptcTurnoff[amp.getName()] = linearizer.inputTurnoff[amp.getName()]
 
         exposureMetadata["LSST ISR BOOTSTRAP"] = self.config.doBootstrap
 
@@ -2340,14 +2342,18 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Record gain and read noise in header.
         metadata = ccdExposure.metadata
         metadata["LSST ISR READNOISE UNITS"] = "electron"
+        metadata["LSST ISR PTCTURNOFF UNITS"] = "electron"
         metadata["LSST ISR GAIN SOURCE"] = self.config.useGainsFrom
         for amp in detector:
             # This includes any gain correction (if applied).
             metadata[f"LSST ISR GAIN {amp.getName()}"] = gains[amp.getName()]
 
             # At this stage, the read noise is always in electrons.
-            noise = ptc.noise[amp.getName()]
-            metadata[f"LSST ISR READNOISE {amp.getName()}"] = noise
+            metadata[f"LSST ISR READNOISE {amp.getName()}"] = ptc.noise[amp.getName()]
+
+            # And the ptc turnoff will be in electrons.
+            turnoff = ptc.ptcTurnoff[amp.getName()] * gains[amp.getName()]
+            metadata[f"LSST ISR PTCTURNOFF {amp.getName()}"] = turnoff
 
         # Do crosstalk correction in the full region.
         # Output units: electron (adu if doBootstrap=True)
