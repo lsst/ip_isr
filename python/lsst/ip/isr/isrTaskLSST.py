@@ -137,6 +137,20 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector", "physical_filter"],
         isCalibration=True,
     )
+    flatBlue = cT.Input(
+        name="flat_blue",
+        doc="Input blue flat.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "detector", "physical_filter"],
+        isCalibration=True,
+    )
+    flatRed = cT.Input(
+        name="flat_red",
+        doc="Input red flat.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "detector", "physical_filter"],
+        isCalibration=True,
+    )
     outputExposure = cT.Output(
         name='postISRCCD',
         doc="Output ISR processed exposure.",
@@ -204,6 +218,11 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.dark
         if config.doFlat is not True:
             del self.flat
+            del self.flatBlue
+            del self.flatRed
+        if config.anaglyphWeightBlue < 0.0:
+            del self.flatBlue
+            del self.flatRed
 
         if config.doBinnedExposures is not True:
             del self.outputBin1Exposure
@@ -664,6 +683,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise.",
         default=1.0,
     )
+    anaglyphWeightBlue = pexConfig.Field(
+        dtype=float,
+        doc="Weighting for blue flat for anaglyph flats.",
+        default=-1.0,
+    )
 
     # Calculate image quality statistics?
     doStandardStatistics = pexConfig.Field(
@@ -767,6 +791,19 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     exposureMetadata[runKey] = runValue
                     exposureMetadata[idKey] = idValue
                     exposureMetadata[dateKey] = dateValue
+
+        if self.config.anaglyphWeightBlue >= 0.0:
+            flatBlue = inputs["flatBlue"]
+            flatRed = inputs["flatRed"]
+            weight = self.config.anaglyphWeightBlue
+
+            # Just replace the image part of the frame.
+            flat = inputs["flat"]
+            scaleBlue = 0.5 / weight
+            scaleRed = 0.5 / (1.0 - weight)
+            flat.image.array[:, :] = (flatBlue / scaleBlue + flatRed / scaleRed) / 2.
+
+            inputs["flat"] = flat
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
