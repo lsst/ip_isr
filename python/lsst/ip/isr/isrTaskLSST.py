@@ -798,10 +798,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             weight = self.config.anaglyphWeightBlue
 
             # Just replace the image part of the frame.
-            flat = inputs["flat"]
+            flat = inputs["flat"].clone()
             scaleBlue = 0.5 / weight
             scaleRed = 0.5 / (1.0 - weight)
-            flat.image.array[:, :] = (flatBlue / scaleBlue + flatRed / scaleRed) / 2.
+            flat.image.array[:, :] = (flatBlue.image.array / scaleBlue + flatRed.image.array / scaleRed) / 2.
 
             inputs["flat"] = flat
 
