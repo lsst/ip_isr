@@ -793,8 +793,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     exposureMetadata[dateKey] = dateValue
 
         if self.config.anaglyphWeightBlue >= 0.0:
-            flatBlue = inputs["flatBlue"]
-            flatRed = inputs["flatRed"]
+            flatBlue = inputs.pop("flatBlue")
+            flatRed = inputs.pop("flatRed")
             weight = self.config.anaglyphWeightBlue
 
             # Just replace the image part of the frame.
@@ -804,6 +804,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             flat.image.array[:, :] = (flatBlue.image.array / scaleBlue + flatRed.image.array / scaleRed) / 2.
 
             inputs["flat"] = flat
+
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
