@@ -85,6 +85,10 @@ class ShutterMotionProfile(IsrCalib):
         ----------
         modelName : `str`
             Fit model to use to calculate the midpoint.
+        skipPosition : `bool`
+            If true, only the acceleration based calculation will be
+            done.  If false, both the acceleration and position based
+            calculations are done.
 
         Returns
         -------
@@ -96,7 +100,7 @@ class ShutterMotionProfile(IsrCalib):
             The time of the midpoint from the start of motion in
             seconds, as derived from the point where the shutter
             position is midway between its starting and ending
-            locations.
+            locations.  This will be NaN if ``skipPosition`` is true.
 
         Raises
         ------
@@ -200,7 +204,7 @@ class ShutterMotionProfile(IsrCalib):
         calib.metadata['SIDE'] = exposure.metadata[f'SHUTTER {direction.upper()} SIDE']
 
         calib.fit_name.append("hallSensorFit")
-        # calib.metadata['']
+
         calib.fit_start_time.append(
             exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT MODELSTARTTIME']
         )
