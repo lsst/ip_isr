@@ -25,7 +25,8 @@ import unittest
 
 import lsst.utils.tests
 
-from lsst.ip.isr import ShutterMotionProfile
+from lsst.afw.image import ExposureF
+from lsst.ip.isr import ShutterMotionProfile, ShutterMotionProfileFull
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -82,6 +83,73 @@ class ShutterMotionV2TestCase(lsst.utils.tests.TestCase):
         mid_accel, mid_position = self.calib.calculateMidpoint(modelName="motorEncoderFit")
         self.assertFloatsAlmostEqual(mid_accel, 0.4503689163377142)
         self.assertFloatsAlmostEqual(mid_position, 0.45008433680071347)
+
+
+class ShutterMotionFullTestCase(lsst.utils.tests.TestCase):
+    def setUp(self):
+        # Get the profiles from the text files.
+        file_open = os.path.join(TESTDIR, "data",
+                                 "MC_O_20251203_000317_shutterMotionProfileOpen.json")
+        file_close = os.path.join(TESTDIR, "data",
+                                  "MC_O_20251203_000317_shutterMotionProfileClose.json")
+        self.profile_open = ShutterMotionProfile.readText(file_open)
+        self.profile_close = ShutterMotionProfile.readText(file_close)
+
+        # Simulate the image that would match these profiles, using
+        # the as-written header of this exposure.
+        self.exposure = ExposureF(1, 1)  # Image size doesn't matter.
+
+        # Fill the exposure header with the important information
+        self.exposure.metadata['SHUTTER OPEN STARTTIME TAI ISOT'] = '2025-12-04T08:46:56.592'
+        self.exposure.metadata['SHUTTER OPEN STARTTIME TAI MJD'] = 61013.365932771936
+        self.exposure.metadata['SHUTTER OPEN SIDE'] = 'MINUSX'
+        self.exposure.metadata['SHUTTER OPEN MODEL'] = 'ThreeJerksModelv1'
+        self.exposure.metadata['SHUTTER OPEN HALLSENSORFIT MODELSTARTTIME'] = 0.0005325114037250868
+        self.exposure.metadata['SHUTTER OPEN HALLSENSORFIT PIVOTPOINT1'] = 0.2249632907921461
+        self.exposure.metadata['SHUTTER OPEN HALLSENSORFIT PIVOTPOINT2'] = 0.6764472494529934
+        self.exposure.metadata['SHUTTER OPEN HALLSENSORFIT JERK0'] = 32998.841790483784
+        self.exposure.metadata['SHUTTER OPEN HALLSENSORFIT JERK1'] = -32961.436183162106
+        self.exposure.metadata['SHUTTER OPEN HALLSENSORFIT JERK2'] = 33455.024219797444
+        self.exposure.metadata['SHUTTER CLOSE STARTTIME TAI ISOT'] = '2025-12-04T08:47:06.593'
+        self.exposure.metadata['SHUTTER CLOSE STARTTIME TAI MJD'] = 61013.366048524156
+        self.exposure.metadata['SHUTTER CLOSE SIDE'] = 'PLUSX'
+        self.exposure.metadata['SHUTTER CLOSE MODEL'] = 'ThreeJerksModelv1'
+        self.exposure.metadata['SHUTTER CLOSE HALLSENSORFIT MODELSTARTTIME'] = 0.000900220338163209
+        self.exposure.metadata['SHUTTER CLOSE HALLSENSORFIT PIVOTPOINT1'] = 0.2239073050036253
+        self.exposure.metadata['SHUTTER CLOSE HALLSENSORFIT PIVOTPOINT2'] = 0.6804015164010819
+        self.exposure.metadata['SHUTTER CLOSE HALLSENSORFIT JERK0'] = 33134.34774228922
+        self.exposure.metadata['SHUTTER CLOSE HALLSENSORFIT JERK1'] = -32799.5059339621
+        self.exposure.metadata['SHUTTER CLOSE HALLSENSORFIT JERK2'] = 36183.41782883381
+
+    def testMidpointCalculations(self):
+        # A "full" profile should yield the same results as the json
+        # profiles.
+        profile_full = ShutterMotionProfileFull.fromExposure(self.exposure)
+
+        open_mid, close_mid = profile_full.calculateMidpoints()
+
+        open_acc, _ = self.profile_open.calculateMidpoint()
+        close_acc, _ = self.profile_close.calculateMidpoint()
+
+        self.assertFloatsAlmostEqual(open_mid, open_acc)
+        self.assertFloatsAlmostEqual(close_mid, close_acc)
+
+    def testEdgeCases(self):
+        # These are options that will not work with the exposure based
+        # profiles, as they only have the Hall sensor fit, and no
+        # position data.
+        profile_full = ShutterMotionProfileFull.fromExposure(self.exposure)
+        with self.assertRaises(KeyError):
+            profile_full.profile_open.calculateMidpoint(skipPosition=False)
+
+        with self.assertRaises(KeyError):
+            profile_full.profile_close.calculateMidpoint(skipPosition=False)
+
+        with self.assertRaises(RuntimeError):
+            profile_full.profile_open.calculateMidpoint(modelName="motorEncoderFit", skipPosition=True)
+
+        with self.assertRaises(RuntimeError):
+            profile_full.profile_close.calculateMidpoint(modelName="motorEncoderFit", skipPosition=True)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

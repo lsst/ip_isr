@@ -22,7 +22,7 @@
 Shutter motion profile storage class
 """
 
-__all__ = ["ShutterMotionProfile"]
+__all__ = ["ShutterMotionProfile", "ShutterMotionProfileFull"]
 
 from astropy.table import Table
 from scipy.optimize import newton
@@ -73,7 +73,7 @@ class ShutterMotionProfile(IsrCalib):
                                         "fit_pivot2", "fit_jerk0", "fit_jerk1", "fit_jerk2",
                                         ])
 
-    def calculateMidpoint(self, modelName="hallSensorFit"):
+    def calculateMidpoint(self, modelName="hallSensorFit", skipPosition=False):
         """Calculate time of midpoint of travel for this profile.
 
         Derived from Shuang Liang's CTN-002 (https://ctn-002.lsst.io).
@@ -85,6 +85,10 @@ class ShutterMotionProfile(IsrCalib):
         ----------
         modelName : `str`
             Fit model to use to calculate the midpoint.
+        skipPosition : `bool`
+            If true, only the acceleration based calculation will be
+            done.  If false, both the acceleration and position based
+            calculations are done.
 
         Returns
         -------
@@ -96,7 +100,7 @@ class ShutterMotionProfile(IsrCalib):
             The time of the midpoint from the start of motion in
             seconds, as derived from the point where the shutter
             position is midway between its starting and ending
-            locations.
+            locations.  This will be NaN if ``skipPosition`` is true.
 
         Raises
         ------
@@ -137,23 +141,80 @@ class ShutterMotionProfile(IsrCalib):
             self.log.warn(f"Midpoint calculation (from acceleration) failed to converge: {e}")
             tm_accel = np.nan
 
-        # Second estimate of midpoint, when s is halfway betweeen
-        # start and final position.  Equation (5.2).
-        V1 = t1**2 * (j0 - j1)/2. - t1*A1
-        S1 = t1**3 * (j0 - j1)/6. - t1**2 * A1/2. - t1*V1
-        Smid = 0.5*(self.metadata["startPosition"] + self.metadata["endPosition"])
-
-        def pos(t):
-            return j1*(t**3)/6. + A1*(t**2)/2. + V1*t + S1 - Smid
-
-        try:
-            tm_position = newton(pos, tm_accel)
-        except Exception as e:
-            self.log.warn(f"Midpoint calculation (from position) failed to converge: {e}")
+        if skipPosition:
             tm_position = np.nan
+        else:
+            # Second estimate of midpoint, when s is halfway betweeen
+            # start and final position.  Equation (5.2).
+            V1 = t1**2 * (j0 - j1)/2. - t1*A1
+            S1 = t1**3 * (j0 - j1)/6. - t1**2 * A1/2. - t1*V1
+            Smid = 0.5*(self.metadata["startPosition"] + self.metadata["endPosition"])
+
+            def pos(t):
+                return j1*(t**3)/6. + A1*(t**2)/2. + V1*t + S1 - Smid
+
+            try:
+                tm_position = newton(pos, tm_accel)
+            except Exception as e:
+                self.log.warn(f"Midpoint calculation (from position) failed to converge: {e}")
+                tm_position = np.nan
 
         # Restore t0 so these can be compared to raw timestamps.
         return tm_accel + t0, tm_position + t0
+
+    @classmethod
+    def fromExposure(cls, exposure, direction="open"):
+        """Construct a ShutterMotionProfile from an exposure.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposuref`
+            Exposure to read header information from.
+        direction : `str`, optional
+            Direction of shutter to construcxt.  Should be one of
+            "open" or "close".
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.ShutterMotionProfile`
+            Constructed profile.
+
+        """
+        if direction not in ('open', 'close'):
+            raise ValueError(f"Unknown shutter direction {direction} suppled.")
+
+        keywords = [f'SHUTTER {direction.upper()} STARTTIME TAI ISOT',
+                    f'SHUTTER {direction.upper()} STARTTIME TAI MJD',
+                    f'SHUTTER {direction.upper()} SIDE',
+                    f'SHUTTER {direction.upper()} MODEL',
+                    f'SHUTTER {direction.upper()} HALLSENSORFIT MODELSTARTTIME',
+                    f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT1',
+                    f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT2',
+                    f'SHUTTER {direction.upper()} HALLSENSORFIT JERK0',
+                    f'SHUTTER {direction.upper()} HALLSENSORFIT JERK1',
+                    f'SHUTTER {direction.upper()} HALLSENSORFIT JERK2']
+
+        for kw in keywords:
+            if kw not in exposure.metadata:
+                raise RuntimeError(f"Expected header keyword not found: {kw}.")
+
+        calib = cls()
+        calib.time_tai.append(exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI ISOT'])
+        calib.time_mjd.append(exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI MJD'])
+        calib.metadata['SIDE'] = exposure.metadata[f'SHUTTER {direction.upper()} SIDE']
+
+        calib.fit_name.append("hallSensorFit")
+
+        calib.fit_start_time.append(
+            exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT MODELSTARTTIME']
+        )
+        calib.fit_pivot1.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT1'])
+        calib.fit_pivot2.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT2'])
+        calib.fit_jerk0.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK0'])
+        calib.fit_jerk1.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK1'])
+        calib.fit_jerk2.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK2'])
+
+        return calib
 
     @classmethod
     def fromDict(cls, dictionary):
@@ -610,3 +671,57 @@ class ShutterMotionProfile(IsrCalib):
                                    "Jerk1": jerk1,
                                    "Jerk2": jerk2}
         return fitResults
+
+
+class ShutterMotionProfileFull(IsrCalib):
+    """Class to hold both open and close profiles, as stored in the
+    exposure headers.
+
+    Parameters
+    ----------
+    log : `logging.Logger`, optional
+        Log to write messages to. If `None` a default logger will be used.
+    **kwargs :
+        Additional parameters.
+    """
+    _OBSTYPE = "shutterMotionProfileFull"
+    _SCHEMA = "ShutterMotionProfileFull"
+    _VERSION = 1.0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.profile_open = None
+        self.profile_close = None
+
+        self.requiredAttributes.update(["profile_open", "profile_close"])
+
+    @classmethod
+    def fromExposure(cls, exposure):
+        """Construct a ShutterMotionProfileFull from an exposure.
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.Exposuref`
+            Exposure to read header information from.
+        direction : `str`, optional
+            Direction of shutter to construcxt.  Should be one of
+            "open" or "close".
+
+        Returns
+        -------
+        calib : `lsst.ip.isr.ShutterMotionProfile`
+            Constructed profile.
+        """
+        calib = cls()
+        calib.profile_open = ShutterMotionProfile.fromExposure(exposure, direction="open")
+        calib.profile_close = ShutterMotionProfile.fromExposure(exposure, direction="close")
+
+        return calib
+
+    def calculateMidpoints(self):
+        # This is at least a start for downstream calculations.
+        midpoint_open, _ = self.profile_open.calculateMidpoint(skipPosition=True)
+        midpoint_close, _ = self.profile_close.calculateMidpoint(skipPosition=True)
+
+        return midpoint_open, midpoint_close
