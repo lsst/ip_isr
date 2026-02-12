@@ -587,6 +587,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             "COULTON18_FLUX_CONSERVING": "Coulton et al. 2018 BF correction "
                                          "with kernel + Flux conserving corrections",
             "ASTIER23": "Astier & Regenault 2023 electrostatic BF correction",
+            "ASTIER23+COLORCORRECTION": "Astier & Regenault 2023 electrostatic BF "
+                                        "correction + color correction",
         },
     )
     brighterFatterLevel = pexConfig.ChoiceField(
@@ -1583,6 +1585,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             electroBfDistortionMatrix,
             brighterFatterApplyGain,
             bfGains,
+            applyColorCorrection=(
+                self.config.brighterFatterCorrectionMethod == \
+                "ASTIER23+COLORCORRECTION"
+            ),
         )
 
         # Applying the brighter-fatter correction applies a
@@ -2519,7 +2525,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doBrighterFatter:
-            if self.config.brighterFatterCorrectionMethod == "ASTIER23":
+            if "ASTIER23" in self.config.brighterFatterCorrectionMethod:
                 # Do the Astier et al. 2023 Brighter-Fatter correction
                 self.log.info("Applying electrostatic brighter-fatter "
                               "correction.")
