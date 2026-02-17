@@ -398,6 +398,8 @@ class IsrStatisticsTask(pipeBase.Task):
                     readoutCorner = amp.getReadoutCorner()
 
                     ampStats["INPUT_GAIN"] = float(gains[amp.getName()])
+                    turnoff = inputExp.metadata[f"LSST ISR PTCTURNOFF {amp.getName()}"]
+                    ampStats["INPUT_PTCTURNOFF"] = float(turnoff)
 
                     # Full data region.
                     dataRegion = image[amp.getBBox()]
@@ -565,6 +567,8 @@ class IsrStatisticsTask(pipeBase.Task):
                 readoutCorner = amp.getReadoutCorner()
 
                 ampStats["INPUT_GAIN"] = float(gains[amp.getName()])
+                turnoff = inputExp.metadata[f"LSST ISR PTCTURNOFF {amp.getName()}"]
+                ampStats["INPUT_PTCTURNOFF"] = float(turnoff)
 
                 # Full data region.
                 dataRegion = image[amp.getBBox() if isTrimmed else amp.getRawDataBBox()]

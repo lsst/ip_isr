@@ -87,6 +87,9 @@ class Linearizer(IsrCalib):
     inputGain : `dict` [`str`, `float`]
         Dictionary keyed by amplifirer name containing the input
         gain from the PTC used to construct this linearizer.
+    inputTurnoff : `dict` [`str`, `float`]
+        Dictionary keyed by amplifier name containing the input
+        turnoff from the PTC used to construct this linearizer.
     linearityCoeffs : `dict` [`str`, `np.ndarray`]
         Coefficients to use in correction.  Indexed by amplifier
         names.  The format of the array depends on the type of
@@ -141,10 +144,11 @@ class Linearizer(IsrCalib):
         ``fitResidualsModel``, and ``inputNormalization``.
     Version 1.6 adds ``absoluteReferenceAmplifier``.
     Version 1.7 adds ``inputGain``.
+    Version 1.8 adds ``inputTurnoff``.
     """
     _OBSTYPE = "LINEARIZER"
     _SCHEMA = 'Gen3 Linearizer'
-    _VERSION = 1.7
+    _VERSION = 1.8
 
     def __init__(self, table=None, **kwargs):
         self.hasLinearity = False
@@ -152,6 +156,7 @@ class Linearizer(IsrCalib):
 
         self.ampNames = list()
         self.inputGain = dict()
+        self.inputTurnoff = dict()
         self.linearityCoeffs = dict()
         self.linearityType = dict()
         self.linearityBBox = dict()
@@ -185,7 +190,7 @@ class Linearizer(IsrCalib):
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['hasLinearity', 'override',
-                                        'ampNames', 'inputGain',
+                                        'ampNames', 'inputGain', 'inputTurnoff',
                                         'linearityCoeffs', 'linearityType', 'linearityBBox',
                                         'fitParams', 'fitParamsErr', 'fitChiSq',
                                         'fitResiduals', 'fitResidualsSigmaMad', 'linearFit', 'tableData',
@@ -292,6 +297,7 @@ class Linearizer(IsrCalib):
                 # the default amp geometry gains are used
                 # in IsrTask*
                 calib.inputGain[ampName] = amp.get('inputGain', np.nan)
+                calib.inputTurnoff[ampName] = amp.get('inputTurnoff', np.inf)
                 calib.linearityCoeffs[ampName] = np.array(amp.get('linearityCoeffs', [0.0]))
                 calib.linearityType[ampName] = amp.get('linearityType', 'None')
                 calib.linearityBBox[ampName] = amp.get('linearityBBox', None)
@@ -344,6 +350,7 @@ class Linearizer(IsrCalib):
         for ampName in self.linearityType:
             outDict['amplifiers'][ampName] = {
                 'inputGain': self.inputGain[ampName],
+                'inputTurnoff': self.inputTurnoff[ampName],
                 'linearityType': self.linearityType[ampName],
                 'linearityCoeffs': self.linearityCoeffs[ampName].tolist(),
                 'linearityBBox': self.linearityBBox[ampName],
@@ -411,6 +418,7 @@ class Linearizer(IsrCalib):
         for record in coeffTable:
             ampName = record['AMPLIFIER_NAME']
             inputGain = record['INPUT_GAIN'] if 'INPUT_GAIN' in record.columns else np.nan
+            inputTurnoff = record['INPUT_TURNOFF'] if 'INPUT_TURNOFF' in record.columns else np.inf
             inputAbscissa = record['INP_ABSCISSA'] if 'INP_ABSCISSA' in record.columns else np.array([0.0])
             inputOrdinate = record['INP_ORDINATE'] if 'INP_ORDINATE' in record.columns else np.array([0.0])
             inputMask = record['INP_MASK'] if 'INP_MASK' in record.columns else np.array([False])
@@ -436,6 +444,7 @@ class Linearizer(IsrCalib):
 
             inDict['amplifiers'][ampName] = {
                 'inputGain': inputGain,
+                'inputTurnoff': inputTurnoff,
                 'linearityType': record['TYPE'],
                 'linearityCoeffs': record['COEFFS'],
                 'linearityBBox': Box2I(Point2I(record['BBOX_X0'], record['BBOX_Y0']),
@@ -486,6 +495,7 @@ class Linearizer(IsrCalib):
         self.updateMetadata()
         catalog = Table([{'AMPLIFIER_NAME': ampName,
                           'INPUT_GAIN': self.inputGain[ampName],
+                          'INPUT_TURNOFF': self.inputTurnoff[ampName],
                           'TYPE': self.linearityType[ampName],
                           'COEFFS': self.linearityCoeffs[ampName],
                           'BBOX_X0': self.linearityBBox[ampName].getMinX(),

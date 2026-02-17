@@ -244,6 +244,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], 1.0)
+            key = f"LSST ISR PTCTURNOFF {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], np.inf)
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
@@ -859,11 +862,13 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             # in electron.
             gain = result.exposure.metadata[f"LSST ISR GAIN {amp.getName()}"]
             read_noise = result.exposure.metadata[f"LSST ISR READNOISE {amp.getName()}"]
+            turnoff = result.exposure.metadata[f"LSST ISR PTCTURNOFF {amp.getName()}"]
 
             # Check that the gain and read noise are consistent with the
             # values stored in the PTC.
             self.assertEqual(gain, self.ptc.gain[amp.getName()])
             self.assertEqual(read_noise, self.ptc.noise[amp.getName()])
+            self.assertEqual(turnoff, self.ptc.ptcTurnoff[amp.getName()] * self.ptc.gain[amp.getName()])
 
             key = f"LSST ISR OVERSCAN RESIDUAL SERIAL STDEV {amp.getName()}"
             self.assertIn(key, metadata)
@@ -1184,6 +1189,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             key = f"LSST ISR SUSPECT LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.saturation_adu * gain)
+            key = f"LSST ISR PTCTURNOFF {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], self.ptc.ptcTurnoff[amp_name] * gain)
 
         # Test the variance plane in the case of electron units.
         # The expected variance starts with the image array.
@@ -1322,6 +1330,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], saturation_level * gain)
+            key = f"LSST ISR PTCTURNOFF {amp_name}"
+            self.assertIn(key, metadata)
+            self.assertEqual(metadata[key], self.ptc.ptcTurnoff[amp_name] * gain)
 
     def test_isrFlatVignette(self):
         """Test ISR when the flat has a validPolygon and vignetted region."""
