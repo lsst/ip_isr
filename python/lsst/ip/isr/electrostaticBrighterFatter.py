@@ -131,6 +131,10 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
     aW : `numpy.ndarray`
         Array of shape (fitRange, fitRange) containing the
         computed `West` component of the pixel boundary shift.
+    aMatrixModelByFilter : `dict` [`str`, `numpy.ndarray`]
+        Dict keyed by physical filter name containing the modeled aMatrix
+        arrays (shape (fitRange, fitRange)) per filter. Only populated
+        when color correction is enabled.
     aNByFilter : `dict` [`str`, `numpy.ndarray`]
         Dict keyed by physical filter name containing the North pixel
         boundary shift arrays (shape (fitRange, fitRange)) per filter.
@@ -148,9 +152,9 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         List of physical filter names for which per-filter data exists;
         these are the keys used in the ``*ByFilter`` attributes.
 
-    Version 1.1 adds the `athByFilter`, `athMinusBetaByFilter`,
-        `aNByFilter`, `aSByFilter`, `aEByFilter`, and `aWByFilter`
-        attributes.
+    Version 1.1 adds the `aMatrixModelByFilter`, `athByFilter`,
+        `athMinusBetaByFilter`, `aNByFilter`, `aSByFilter`,
+        `aEByFilter`, and `aWByFilter` attributes.
     """
     _OBSTYPE = 'BF_DISTORTION_MATRIX'
     _SCHEMA = 'ELectrostatic brighter-fatter pixel distortion model'
@@ -191,6 +195,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         self.aE = np.full((fitRange, fitRange), np.nan)
         self.aW = np.full((fitRange, fitRange), np.nan)
         self.availableFilters = availableFilters
+        self.aMatrixModelByFilter = {k: np.full((fitRange, fitRange), np.nan) for k in availableFilters}
         self.athByFilter = {k: None for k in availableFilters}
         self.athMinusBetaByFilter = {k: None for k in availableFilters}
         self.aNByFilter = {k: np.full((fitRange, fitRange), np.nan) for k in availableFilters}
@@ -210,8 +215,8 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
             'freeFitParamNames', 'fitParams', 'fitParamErrors', 'fitChi2',
             'fitReducedChi2', 'fitParamCovMatrix', 'ath', 'athMinusBeta',
             'aN', 'aS', 'aE', 'aW', 'ampNames', 'availableFilters',
-            'athByFilter', 'athMinusBetaByFilter', 'aNByFilter', 'aSByFilter',
-            'aEByFilter', 'aWByFilter',
+            'aMatrixModelByFilter', 'athByFilter', 'athMinusBetaByFilter',
+            'aNByFilter', 'aSByFilter', 'aEByFilter', 'aWByFilter',
         ])
 
     def updateMetadata(self, setDate=False, **kwargs):
@@ -358,31 +363,36 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
             dtype=np.float64,
         ).reshape(fitRange, fitRange)
 
+        filters = dictionary['availableFilters']
+        calib.availableFilters = dictionary['availableFilters']
+        calib.aMatrixModelByFilter = {
+            k: np.array(v, dtype=np.float64).reshape(fitRange, fitRange)
+            for k, v in zip(filters, dictionary['aMatrixModelByFilter'])
+        }
         calib.athByFilter = {
             k: np.array(v, dtype=np.float64).reshape(fitRange, fitRange)
-            for k, v in dictionary['athByFilter'].items()
+            for k, v in zip(filters, dictionary['athByFilter'])
         }
         calib.athMinusBetaByFilter = {
             k: np.array(v, dtype=np.float64).reshape(fitRange, fitRange)
-            for k, v in dictionary['athMinusBetaByFilter'].items()
+            for k, v in zip(filters, dictionary['athMinusBetaByFilter'])
         }
         calib.aNByFilter = {
             k: np.array(v, dtype=np.float64).reshape(fitRange, fitRange)
-            for k, v in dictionary['aNByFilter'].items()
+            for k, v in zip(filters, dictionary['aNByFilter'])
         }
         calib.aSByFilter = {
             k: np.array(v, dtype=np.float64).reshape(fitRange, fitRange)
-            for k, v in dictionary['aSByFilter'].items()
+            for k, v in zip(filters, dictionary['aSByFilter'])
         }
         calib.aEByFilter = {
             k: np.array(v, dtype=np.float64).reshape(fitRange, fitRange)
-            for k, v in dictionary['aEByFilter'].items()
+            for k, v in zip(filters, dictionary['aEByFilter'])
         }
         calib.aWByFilter = {
             k: np.array(v, dtype=np.float64).reshape(fitRange, fitRange)
-            for k, v in dictionary['aWByFilter'].items()
+            for k, v in zip(filters, dictionary['aWByFilter'])
         }
-        calib.availableFilters = dictionary['availableFilters']
 
         calib.updateMetadata()
         return calib
@@ -438,6 +448,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         outDict['aE'] = self.aE.ravel().tolist()
         outDict['aW'] = self.aW.ravel().tolist()
         outDict['availableFilters'] = self.availableFilters
+        outDict['aMatrixModelByFilter'] = _dictOfArraysToDictOfLists(self.aMatrixModelByFilter)
         outDict['aNByFilter'] = _dictOfArraysToDictOfLists(self.aNByFilter)
         outDict['aSByFilter'] = _dictOfArraysToDictOfLists(self.aSByFilter)
         outDict['aEByFilter'] = _dictOfArraysToDictOfLists(self.aEByFilter)
@@ -509,6 +520,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
         # Check for newer versions
         if calibVersion < 1.1:
             inDict['availableFilters'] = list()
+            inDict['aMatrixModelByFilter'] = dict()
             inDict['athByFilter'] = dict()
             inDict['athMinusBetaByFilter'] = dict()
             inDict['aNByFilter'] = dict()
@@ -517,6 +529,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
             inDict['aWByFilter'] = dict()
         else:
             inDict['availableFilters'] = record['AVAILABLE_FILTERS']
+            inDict['aMatrixModelByFilter'] = record['A_MATRIX_MODEL_BY_FILTER']
             inDict['athByFilter'] = record['ATH_BY_FILTER']
             inDict['athMinusBetaByFilter'] = record['ATH_MINUS_BETA_BY_FILTER']
             inDict['aNByFilter'] = record['A_N_BY_FILTER']
@@ -570,6 +583,7 @@ class ElectrostaticBrighterFatterDistortionMatrix(IsrCalib):
             'A_E': self.aE.ravel(),
             'A_W': self.aW.ravel(),
             'AVAILABLE_FILTERS': self.availableFilters,
+            'A_MATRIX_MODEL_BY_FILTER': list(self.aMatrixModelByFilter.values()),
             'ATH_BY_FILTER': list(self.athByFilter.values()),
             'ATH_MINUS_BETA_BY_FILTER': list(self.athMinusBetaByFilter.values()),
             'A_N_BY_FILTER': list(self.aNByFilter.values()),
@@ -616,7 +630,7 @@ class CustomFFTConvolution(object):
         self.fftImageObj = pyfftw.builders.rfftn(im, s=shape, threads=threads)
         self.fftKernelObj = pyfftw.builders.rfftn(kernel, s=shape, threads=threads)
         self.ifftObj = pyfftw.builders.irfftn(
-            self.fftImageObj.get_output_array(),
+            self.fftImageObj.output_array,
             s=shape,
             threads=threads,
         )
@@ -648,7 +662,7 @@ class CustomFFTConvolution(object):
         return convolutions[0] if type(kernels) is not list else convolutions
 
 
-def electrostaticBrighterFatterCorrection(exposure, electroBfDistortionMatrix, applyGain,
+def electrostaticBrighterFatterCorrection(exposure, log, electroBfDistortionMatrix, applyGain,
                                           gains=None, applyColorCorrection=False):
     """
     Evaluates the correction of CCD images affected by the
@@ -671,26 +685,26 @@ def electrostaticBrighterFatterCorrection(exposure, electroBfDistortionMatrix, a
     aE = electroBfDistortionMatrix.aE
     aW = electroBfDistortionMatrix.aW
 
-    # Find the physical_filter associated with the exposure
-    physical_filter = exposure.metadata["FILTER"]
+    # Find the physicalFilter associated with the exposure
+    physicalFilter = exposure.metadata["FILTER"]
 
     if applyColorCorrection:
-        if ((physical_filter is not None) and
-            (physical_filter in electroBfDistortionMatrix.availableFilters)):
+        if (physicalFilter is not None) and \
+           (physicalFilter in electroBfDistortionMatrix.availableFilters):
             # We have a pre-computed distortion matrix for
             # the exposure's filter
-            aN = electroBfDistortionMatrix.aNByFilter[physical_filter]
-            aS = electroBfDistortionMatrix.aSByFilter[physical_filter]
-            aE = electroBfDistortionMatrix.aEByFilter[physical_filter]
-            aW = electroBfDistortionMatrix.aWByFilter[physical_filter]
+            aN = electroBfDistortionMatrix.aNByFilter[physicalFilter]
+            aS = electroBfDistortionMatrix.aSByFilter[physicalFilter]
+            aE = electroBfDistortionMatrix.aEByFilter[physicalFilter]
+            aW = electroBfDistortionMatrix.aWByFilter[physicalFilter]
         else:
             # There is no pre-computed distortion matrix
             # for the exposure's filter
-            self.log.warning(f"Filter {exposure.metadata['FILTER']} not found in "
-                             "electroBfDistortionMatrix.availableFilters. "
-                             "Defaulting to the using the `generic` distortion "
-                             "matrix, computed assuming all photons are converted "
-                             "to electrons at the surface of the silicon detector.")
+            log.warning(f"Filter {exposure.metadata['FILTER']} not found in "
+                        "electroBfDistortionMatrix.availableFilters. "
+                        "Defaulting to the using the `generic` distortion "
+                        "matrix, computed assuming all photons are converted "
+                        "to electrons at the surface of the silicon detector.")
 
     # Initialize kN and kE arrays
     kN = np.zeros((2 * r + 1, 2 * r + 1))

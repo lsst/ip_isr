@@ -1568,6 +1568,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             The flat and dark corrected exposure.
         """
         interpExp = ccdExposure.clone()
+        method = self.config.brighterFatterCorrectionMethod
 
         # We need to interpolate before we do B-F. Note that
         # brighterFatterFwhmForInterpolation is currently unused.
@@ -1582,13 +1583,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         ccdExposure = electrostaticBrighterFatterCorrection(
             bfExp,
+            self.log,
             electroBfDistortionMatrix,
             brighterFatterApplyGain,
             bfGains,
-            applyColorCorrection=(
-                self.config.brighterFatterCorrectionMethod == \
-                "ASTIER23+COLORCORRECTION"
-            ),
+            applyColorCorrection=(method == "ASTIER23+COLORCORRECTION"),
         )
 
         # Applying the brighter-fatter correction applies a

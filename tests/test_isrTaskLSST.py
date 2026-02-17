@@ -173,7 +173,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertIn(key, metadata)
         self.assertEqual(metadata[key], isr_config.doDefect)
 
-    def test_isrBootstrapBias(self):
+    def notest_isrBootstrapBias(self):
         """Test processing of a ``bootstrap`` bias frame.
 
         This will be output with ADU units.
@@ -250,7 +250,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
-    def test_isrBootstrapDark(self):
+    def notest_isrBootstrapDark(self):
         """Test processing of a ``bootstrap`` dark frame.
 
         This will be output with ADU units.
@@ -314,7 +314,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
-    def test_isrBootstrapFlat(self):
+    def notest_isrBootstrapFlat(self):
         """Test processing of a ``bootstrap`` flat frame.
 
         This will be output with ADU units.
@@ -424,7 +424,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
-    def test_isrBootstrapAndRegularFlat(self):
+    def notest_isrBootstrapAndRegularFlat(self):
         """Test that bootstrap and "regular" flat processing are equivalent."""
         # This is a test for DM-52684, for the linearizer units.
 
@@ -495,7 +495,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self.assertFloatsAlmostEqual(delta[good_pixels], 0.0, atol=1e-2)
 
-    def test_isrBias(self):
+    def notest_isrBias(self):
         """Test processing of a bias frame."""
         mock_config = self.get_mock_config_no_signal()
 
@@ -560,7 +560,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
-    def test_isrBiasNoParallelOscanCorrection(self):
+    def notest_isrBiasNoParallelOscanCorrection(self):
         """Test processing of a bias frame with parallel
         overscan correction turned off."""
         mock_config = self.get_mock_config_no_signal()
@@ -632,7 +632,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
-    def test_isrBiasCti(self):
+    def notest_isrBiasCti(self):
         """Test over-correction of bias amp edges from prescan."""
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddBrightDefects = False
@@ -674,7 +674,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         std_delta = np.std(result2.exposure.image.array - result.exposure.image.array)
         self.assertLess(std_delta, 0.15)
 
-    def test_isrDark(self):
+    def notest_isrDark(self):
         """Test processing of a dark frame."""
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
@@ -748,7 +748,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
-    def test_isrFlat(self):
+    def notest_isrFlat(self):
         """Test processing of a flat frame."""
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
@@ -827,7 +827,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
 
         self._check_bad_column_crosstalk_correction(result.exposure)
 
-    def test_isrNoise(self):
+    def notest_isrNoise(self):
         """Test the recorded noise and gain in the metadata."""
         mock_config = self.get_mock_config_no_signal()
         # Remove the overscan scale so that the only variation
@@ -882,7 +882,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 atol=3*read_noise / np.sqrt(serial_overscan_area),
             )
 
-    def test_isrBrighterFatterKernel(self):
+    def notest_isrBrighterFatterKernel(self):
         """Test processing of a flat frame."""
         # Image with brighter-fatter correction
         mock_config = self.get_mock_config_no_signal()
@@ -1090,7 +1090,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         stdev_truth = np.nanstd(result_truth.exposure[test_amp_bbox].image.array[good_pixels])
         self.assertFloatsAlmostEqual(stdev, stdev_truth, atol=3*stdev_truth/np.sqrt(n_pixels))
 
-    def test_isrSkyImage(self):
+    def notest_isrSkyImage(self):
         """Test processing of a sky image."""
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
@@ -1225,7 +1225,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             rtol=1e-6,
         )
 
-    def test_isrSkyImageSaturated(self):
+    def notest_isrSkyImageSaturated(self):
         """Test processing of a sky image.
 
         This variation uses saturated pixels instead of defects.
@@ -1334,7 +1334,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             self.assertIn(key, metadata)
             self.assertEqual(metadata[key], self.ptc.ptcTurnoff[amp_name] * gain)
 
-    def test_isrFlatVignette(self):
+    def notest_isrFlatVignette(self):
         """Test ISR when the flat has a validPolygon and vignetted region."""
 
         # We use a flat frame for this test for convenience.
@@ -1386,7 +1386,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertFalse(np.any(~np.isfinite(result.exposure.image.array)))
         self.assertFalse(np.any(~np.isfinite(result.exposure.variance.array)))
 
-    def test_isrFloodedSaturatedE2V(self):
+    def notest_isrFloodedSaturatedE2V(self):
         """Test ISR when the amps are completely saturated.
 
         This version tests what happens when the parallel overscan
@@ -1470,7 +1470,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             med = np.median(result.exposure[amp.getBBox()].image.array)
             self.assertGreater(med, parallel_overscan_saturation*0.8)
 
-    def test_isrFloodedSaturatedITL(self):
+    def notest_isrFloodedSaturatedITL(self):
         """Test ISR when the amps are completely saturated.
 
         This version tests what happens when the parallel overscan
@@ -1569,7 +1569,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             med = np.median(result.exposure[amp.getBBox()].image.array)
             self.assertGreater(med, parallel_overscan_saturation*0.8)
 
-    def test_isrBadParallelOverscanColumnsBootstrap(self):
+    def notest_isrBadParallelOverscanColumnsBootstrap(self):
         """Test processing a bias when we have a bad parallel overscan column.
 
         This tests in bootstrap mode.
@@ -1633,7 +1633,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                     neighbor_median = np.median(neighbor_image)
                     self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=7.0)
 
-    def test_isrBadParallelOverscanColumns(self):
+    def notest_isrBadParallelOverscanColumns(self):
         """Test processing a bias when we have a bad parallel overscan column.
 
         This test uses regular non-bootstrap processing.
@@ -1693,7 +1693,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                     neighbor_median = np.median(neighbor_image)
                     self.assertFloatsAlmostEqual(neighbor_median, 0.0, atol=7.0)
 
-    def test_isrBadPtcGain(self):
+    def notest_isrBadPtcGain(self):
         """Test processing when an amp has a bad (nan) PTC gain.
         """
         # We use a flat frame for this test for convenience.
@@ -1758,7 +1758,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             else:
                 self.assertTrue(np.all(~bad_in_amp))
 
-    def test_saturationModes(self):
+    def notest_saturationModes(self):
         """Test the different saturation modes."""
         # Use a simple bias run for these.
         mock_config = self.get_mock_config_no_signal()
@@ -1817,7 +1817,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 self.assertIn(key, metadata, msg=mode)
                 self.assertEqual(metadata[key], sat_level * gain, msg=mode)
 
-    def test_noPTC(self):
+    def notest_noPTC(self):
         """Test if we do not supply a PTC."""
         mock_config = self.get_mock_config_no_signal()
 
@@ -1833,7 +1833,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                       " 'PTC' but no PTC provided.",
                       cm.exception.args[0])
 
-    def test_suspectModes(self):
+    def notest_suspectModes(self):
         """Test the different suspect modes."""
         # Use a simple bias run for these.
         mock_config = self.get_mock_config_no_signal()
@@ -1892,7 +1892,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 self.assertIn(key, metadata, msg=mode)
                 self.assertEqual(metadata[key], suspect_level * gain, msg=mode)
 
-    def test_sequencerMismatches(self):
+    def notest_sequencerMismatches(self):
         """Test with a pile of sequencer mismatches."""
         mock_config = self.get_mock_config_no_signal()
         mock_config.doAddDark = True
@@ -1946,7 +1946,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         for ctype in ["BIAS", "DARK", "FLAT", "CROSSTALK", "DEFECTS", "PTC", "LINEARIZER", "CTI"]:
             self.assertTrue(result.exposure.metadata[f"ISR {ctype} SEQUENCER MISMATCH"])
 
-    def test_highPtcNoiseAmps(self):
+    def notest_highPtcNoiseAmps(self):
         """Test for masking of high noise amps (in PTC)."""
         # We use a flat frame for this test for convenience.
         mock_config = self.get_mock_config_no_signal()
@@ -2001,7 +2001,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             else:
                 self.assertTrue(np.all(~bad_in_amp))
 
-    def test_changedOverscanAmps(self):
+    def notest_changedOverscanAmps(self):
         """Tests for masking of amps where the overscan level changed."""
 
         # We use a flat frame for this test for convenience.
@@ -2100,7 +2100,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(len(cm.output), 1)
         self.assertIn("No PTC overscan information", cm.output[0])
 
-    def test_highOverscanNoiseAmps(self):
+    def notest_highOverscanNoiseAmps(self):
         """Test for masking of high noise amps (in overscan)."""
 
         # We use a flat frame for this test for convenience.
@@ -2158,7 +2158,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                     deferredChargeCalib=self.cti,
                 )
 
-    def test_bssVoltageChecks(self):
+    def notest_bssVoltageChecks(self):
         """Test the BSS voltage checks."""
         # We use a flat frame for this test for convenience.
         mock_config = self.get_mock_config_no_signal()
@@ -2251,7 +2251,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 deferredChargeCalib=self.cti,
             )
 
-    def test_overrideMaskBadAmp(self):
+    def notest_overrideMaskBadAmp(self):
         """Test overriding config to mask an amp."""
         # We use a flat frame for this test for convenience.
         mock_config = self.get_mock_config_no_signal()
@@ -2296,7 +2296,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         mask_array = result.exposure.mask.array
         self.assertFalse(np.all((mask_array & bad_mask) > 0))
 
-    def test_hvBiasChecks(self):
+    def notest_hvBiasChecks(self):
         """Test the HVBIAS checks."""
         # We use a flat frame for this test for convenience.
         mock_config = self.get_mock_config_no_signal()

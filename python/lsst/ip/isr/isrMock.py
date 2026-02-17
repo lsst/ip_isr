@@ -672,6 +672,7 @@ class IsrMock(pipeBase.Task):
         metadata.add("SHEEP", 7.3, "number of sheep on farm")
         metadata.add("MONKEYS", 155, "monkeys per tree")
         metadata.add("VAMPIRES", 4, "How scary are vampires.")
+        metadata.add("FILTER", "r_57", "My favorite color.")
 
         # Add the current time
         now = datetime.now(timezone.utc)
