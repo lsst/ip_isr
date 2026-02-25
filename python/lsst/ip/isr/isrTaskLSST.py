@@ -1583,11 +1583,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         ccdExposure = electrostaticBrighterFatterCorrection(
             bfExp,
-            self.log,
             electroBfDistortionMatrix,
             brighterFatterApplyGain,
             bfGains,
             applyColorCorrection=(method == "ASTIER23+COLORCORRECTION"),
+            log=self.log,
         )
 
         # Applying the brighter-fatter correction applies a
@@ -2168,10 +2168,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             compareCameraKeywords(doRaise, keywords, exposureMetadata, dark, "dark", log=self.log)
             self.compareUnits(bias.metadata, "dark")
         if self.config.doBrighterFatter:
-            if self.config.brighterFatterCorrectionMethod == "ASTIER23":
+            if self.config.brighterFatterCorrectionMethod in ["ASTIER23", "ASTIER23+COLORCORRECTION"]:
                 if electroBfDistortionMatrix is None:
                     raise RuntimeError("Must supply an electroBfDistortionMatrix if BF "
-                                       "correction method is ASTIER23.")
+                                       "correction method is ASTIER23*.")
                 compareCameraKeywords(doRaise, keywords, exposureMetadata,
                                       electroBfDistortionMatrix, "bf", log=self.log)
             elif self.config.brighterFatterCorrectionMethod in ["COULTON18", "COULTON18_FLUX_CONSERVING"]:
