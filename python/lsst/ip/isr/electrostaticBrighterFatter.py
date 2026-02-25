@@ -663,7 +663,7 @@ class CustomFFTConvolution(object):
 
 
 def electrostaticBrighterFatterCorrection(exposure, log, electroBfDistortionMatrix, applyGain,
-                                          gains=None, applyColorCorrection=False):
+                                          gains=None, applyFilterCorrection=False):
     """
     Evaluates the correction of CCD images affected by the
     brighter-fatter effect, as described in
@@ -688,7 +688,7 @@ def electrostaticBrighterFatterCorrection(exposure, log, electroBfDistortionMatr
     # Find the physicalFilter associated with the exposure
     physicalFilter = exposure.metadata["FILTER"]
 
-    if applyColorCorrection:
+    if applyFilterCorrection:
         if (physicalFilter is not None) and \
            (physicalFilter in electroBfDistortionMatrix.availableFilters):
             # We have a pre-computed distortion matrix for

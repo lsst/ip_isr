@@ -587,7 +587,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             "COULTON18_FLUX_CONSERVING": "Coulton et al. 2018 BF correction "
                                          "with kernel + Flux conserving corrections",
             "ASTIER23": "Astier & Regenault 2023 electrostatic BF correction",
-            "ASTIER23+COLORCORRECTION": "Astier & Regenault 2023 electrostatic BF "
+            "ASTIER23+FILTERCORRECTION": "Astier & Regenault 2023 electrostatic BF "
                                         "correction + color correction",
         },
     )
@@ -1586,7 +1586,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             electroBfDistortionMatrix,
             brighterFatterApplyGain,
             bfGains,
-            applyColorCorrection=(method == "ASTIER23+COLORCORRECTION"),
+            applyFilterCorrection=(method == "ASTIER23+FILTERCORRECTION"),
             log=self.log,
         )
 
@@ -2168,7 +2168,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             compareCameraKeywords(doRaise, keywords, exposureMetadata, dark, "dark", log=self.log)
             self.compareUnits(bias.metadata, "dark")
         if self.config.doBrighterFatter:
-            if self.config.brighterFatterCorrectionMethod in ["ASTIER23", "ASTIER23+COLORCORRECTION"]:
+            if self.config.brighterFatterCorrectionMethod in ["ASTIER23", "ASTIER23+FILTERCORRECTION"]:
                 if electroBfDistortionMatrix is None:
                     raise RuntimeError("Must supply an electroBfDistortionMatrix if BF "
                                        "correction method is ASTIER23*.")
