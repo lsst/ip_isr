@@ -662,7 +662,7 @@ class CustomFFTConvolution(object):
         return convolutions[0] if type(kernels) is not list else convolutions
 
 
-def electrostaticBrighterFatterCorrection(exposure, log, electroBfDistortionMatrix, applyGain,
+def electrostaticBrighterFatterCorrection(log, exposure, electroBfDistortionMatrix, applyGain,
                                           gains=None, applyFilterCorrection=False):
     """
     Evaluates the correction of CCD images affected by the

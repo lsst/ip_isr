@@ -588,7 +588,7 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
                                          "with kernel + Flux conserving corrections",
             "ASTIER23": "Astier & Regenault 2023 electrostatic BF correction",
             "ASTIER23+FILTERCORRECTION": "Astier & Regenault 2023 electrostatic BF "
-                                        "correction + color correction",
+                                         "correction + color correction",
         },
     )
     brighterFatterLevel = pexConfig.ChoiceField(
@@ -1582,12 +1582,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bfExp = interpExp.clone()
 
         ccdExposure = electrostaticBrighterFatterCorrection(
+            self.log,
             bfExp,
             electroBfDistortionMatrix,
             brighterFatterApplyGain,
             bfGains,
             applyFilterCorrection=(method == "ASTIER23+FILTERCORRECTION"),
-            log=self.log,
         )
 
         # Applying the brighter-fatter correction applies a
