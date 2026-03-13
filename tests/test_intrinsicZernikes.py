@@ -90,31 +90,33 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
 
     def test_yaml_roundtrip(self):
         """Test round-tripping through YAML file."""
-        with tempfile.NamedTemporaryFile(suffix='.yaml', delete=False) as f:
-            filename = f.name
+        with tempfile.TemporaryDirectory() as tempdir:
+            import os
+            filename = os.path.join(tempdir, "intrinsic_zernikes.yaml")
 
-        try:
             self.calib.writeText(filename)
             newCalib = IntrinsicZernikes.readText(filename)
             self.assertEqual(newCalib, self.calib)
-        finally:
+
+    def test_ecsv_roundtrip(self):
+        """Test round-tripping through ECSV file."""
+        with tempfile.TemporaryDirectory() as tempdir:
             import os
-            if os.path.exists(filename):
-                os.remove(filename)
+            filename = os.path.join(tempdir, "intrinsic_zernikes.ecsv")
+
+            self.calib.writeText(filename)
+            newCalib = IntrinsicZernikes.readText(filename)
+            self.assertEqual(newCalib, self.calib)
 
     def test_fits_roundtrip(self):
         """Test round-tripping through FITS file."""
-        with tempfile.NamedTemporaryFile(suffix='.fits', delete=False) as f:
-            filename = f.name
+        with tempfile.TemporaryDirectory() as tempdir:
+            import os
+            filename = os.path.join(tempdir, "intrinsic_zernikes.fits")
 
-        try:
             self.calib.writeFits(filename)
             newCalib = IntrinsicZernikes.readFits(filename)
             self.assertEqual(newCalib, self.calib)
-        finally:
-            import os
-            if os.path.exists(filename):
-                os.remove(filename)
 
     def test_fromDict_wrong_obstype(self):
         """Test that fromDict raises error for wrong OBSTYPE."""
