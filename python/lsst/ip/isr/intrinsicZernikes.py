@@ -32,7 +32,42 @@ from lsst.ip.isr import IsrCalib
 
 
 class IntrinsicZernikes(IsrCalib):
-    """
+    """Intrinsic Zernike coefficients.
+
+    Stores a grid of Zernike wavefront-error coefficients sampled on a
+    regular grid of focal-plane field angles.  At query time the coefficients
+    are interpolated to an arbitrary field position.
+
+    Parameters
+    ----------
+    table : `astropy.table.Table`, optional
+        Source table.  Must contain columns:
+
+        ``"x"``
+            Field x positions with angular units (e.g. ``u.deg``).
+        ``"y"``
+            Field y positions with angular units (e.g. ``u.deg``).
+        ``"Z{j}"``
+            One column per Noll index *j*, with length units
+            (e.g. ``u.um``).
+
+        The grid must be regular: every combination of the unique x
+        and y values must appear exactly once.
+
+    Attributes
+    ----------
+    field_x : `numpy.ndarray`
+        Unique x field positions in degrees, shape ``(n_x,)``.
+    field_y : `numpy.ndarray`
+        Unique y field positions in degrees, shape ``(n_y,)``.
+    noll_indices : `numpy.ndarray`
+        Noll indices of the stored Zernike terms, shape ``(n_zernikes,)``.
+    values : `numpy.ndarray`
+        Zernike coefficients in microns, shape
+        ``(n_y, n_x, n_zernikes)``.
+    interpolator : `scipy.interpolate.RegularGridInterpolator` or `None`
+        Interpolator built from ``field_y``, ``field_x``, and
+        ``values``.  ``None`` until the calibration is populated.
     """
 
     _OBSTYPE = "INTRINSIC_ZERNIKES"
