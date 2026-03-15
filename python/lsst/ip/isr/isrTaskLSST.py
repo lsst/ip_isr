@@ -587,6 +587,8 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
             "COULTON18_FLUX_CONSERVING": "Coulton et al. 2018 BF correction "
                                          "with kernel + Flux conserving corrections",
             "ASTIER23": "Astier & Regenault 2023 electrostatic BF correction",
+            "ASTIER23+FILTERCORRECTION": "Astier & Regenault 2023 electrostatic BF "
+                                         "correction + color correction",
         },
     )
     brighterFatterLevel = pexConfig.ChoiceField(
@@ -1566,6 +1568,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             The flat and dark corrected exposure.
         """
         interpExp = ccdExposure.clone()
+        method = self.config.brighterFatterCorrectionMethod
 
         # We need to interpolate before we do B-F. Note that
         # brighterFatterFwhmForInterpolation is currently unused.
@@ -1579,10 +1582,12 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         bfExp = interpExp.clone()
 
         ccdExposure = electrostaticBrighterFatterCorrection(
+            self.log,
             bfExp,
             electroBfDistortionMatrix,
             brighterFatterApplyGain,
             bfGains,
+            applyFilterCorrection=(method == "ASTIER23+FILTERCORRECTION"),
         )
 
         # Applying the brighter-fatter correction applies a
@@ -2163,10 +2168,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             compareCameraKeywords(doRaise, keywords, exposureMetadata, dark, "dark", log=self.log)
             self.compareUnits(bias.metadata, "dark")
         if self.config.doBrighterFatter:
-            if self.config.brighterFatterCorrectionMethod == "ASTIER23":
+            if self.config.brighterFatterCorrectionMethod in ["ASTIER23", "ASTIER23+FILTERCORRECTION"]:
                 if electroBfDistortionMatrix is None:
                     raise RuntimeError("Must supply an electroBfDistortionMatrix if BF "
-                                       "correction method is ASTIER23.")
+                                       "correction method is ASTIER23*.")
                 compareCameraKeywords(doRaise, keywords, exposureMetadata,
                                       electroBfDistortionMatrix, "bf", log=self.log)
             elif self.config.brighterFatterCorrectionMethod in ["COULTON18", "COULTON18_FLUX_CONSERVING"]:
@@ -2525,7 +2530,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         # Brighter-Fatter
         # Output units: electron (adu if doBootstrap=True)
         if self.config.doBrighterFatter:
-            if self.config.brighterFatterCorrectionMethod == "ASTIER23":
+            if "ASTIER23" in self.config.brighterFatterCorrectionMethod:
                 # Do the Astier et al. 2023 Brighter-Fatter correction
                 self.log.info("Applying electrostatic brighter-fatter "
                               "correction.")
