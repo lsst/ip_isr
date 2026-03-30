@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Support for image defects"""
 
-__all__ = ("Defects",)
+__all__ = ("Defects", "DefectsReason",)
 
 import logging
 import itertools
@@ -84,11 +84,6 @@ class Defects(IsrCalib):
         self._defects = []
         self._defectsUnnormalized = []
 
-        # List of possible reasons for defects
-        self.reason = ['UNLABELED', 'HOT_PIXEL', 'COLD_PIXEL',
-                       'HOT_COLUMN', 'COLD_COLUMN', 'MANUAL_DEFECT',
-                       'EDGE', 'VAMPIRE_PIXEL']
-
         if defectList is not None:
             self._bulk_update = True
             for d in defectList:
@@ -134,6 +129,7 @@ class Defects(IsrCalib):
             raise ValueError(f"Defects must be of type Defect, BoxI, or PointI, not '{value!r}'")
         return value
 
+    # array like operation for defects
     def __len__(self):
         return len(self._defects)
 
@@ -223,17 +219,13 @@ class Defects(IsrCalib):
             self._bulk_update = False
             self._normalize()
 
-    def append(self, value, reason=None):
+    def append(self, value):
         self._defects.append(self._check_value(value))
         self._normalize()
-        if reason:
-            self._defectsUnnormalized.append((self._check_value(value), reason))
 
-    def insert(self, index, value, reason=None):
+    def insert(self, index, value):
         self._defects.insert(index, self._check_value(value))
         self._normalize()
-        if reason:
-            self._defectsUnnormalized.insert(index, self._check_value(value))
 
     def copy(self):
         """Copy the defects to a new list, creating new defects from the
@@ -286,64 +278,6 @@ class Defects(IsrCalib):
         for defect in self:
             bbox = defect.getBBox()
             lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
-
-    def maskPixelsReason(self, mask, reason):
-        """Mask pixels corresponding to a given reason.
-
-        Parameters
-        ----------
-        mask : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
-            Image to process.  Only the mask plane is updated.
-
-        """
-        if hasattr(mask, "getMask"):
-            mask = mask.getMask()
-
-        if self._defectsUnnormalized is not None:
-            for d in self._defectsUnnormalized:
-                bbox = d[0].getBBox()
-                reasonDefect = d[1]
-                if reason in self.getReasonDict()[0]:
-                    if reasonDefect == reason:
-                        bitmask = 2**self.getReasonDict()[0][reason]
-                        lsst.afw.geom.SpanSet(bbox).clippedTo(mask.getBBox()).setMask(mask, bitmask)
-                else:
-                    raise RuntimeError(f"Reason {reason} not existent.")
-        else:
-            raise RuntimeError("No defects with reason provided.")
-
-    # DM-53236 TODO: implement a subclass of Mask for defects
-    # to be able to clear mask planes cleanly.
-    # def setMaskPlaneReason(self, mask):
-    #     """Replace mask plane by mask plane per reason.
-
-    #     Parameters
-    #     ----------
-    #     mask : `lsst.afw.image.MaskedImage` or `lsst.afw.image.Mask`
-    #         Image to process.  Only the mask plane is updated.
-
-    #     """
-    #     if hasattr(mask, "getMask"):
-    #         mask = mask.getMask()
-
-    #     mask.clearMaskPlaneDict()
-    #     reasonMapping = self.getReasonDict()[0]
-    #     for reason in reasonMapping:
-    #         mask.addMaskPlane(reason)
-
-    #     if self._defectsUnnormalized is not None:
-    #         for reason in reasonMapping:
-    #             bitmask = mask.getPlaneBitMask(reason)
-    #             for d in self._defectsUnnormalized:
-    #                 if reason in d:
-    #                     if isinstance(d[0], lsst.geom.Box2I):
-    #                         bbox = d[0]
-    #                     else:
-    #                         bbox = d[0].getBBox()
-    #                     lsst.afw.geom.SpanSet(bbox).clippedTo
-    #                       (mask.getBBox()).setMask(mask, bitmask)
-    #     else:
-    #         raise RuntimeError("No defects with reason provided.")
 
     def updateCounters(self, columns=None, hot=None, cold=None):
         """Update metadata with pixel and column counts.
@@ -485,7 +419,6 @@ class Defects(IsrCalib):
         yCol = []
         widthCol = []
         heightCol = []
-        reason = []
 
         nrows = len(self._defects)
         if nrows:
@@ -495,13 +428,11 @@ class Defects(IsrCalib):
                 yCol.append(box.getBeginY())
                 widthCol.append(box.getWidth())
                 heightCol.append(box.getHeight())
-                reason.append(defect[1])
 
         outDict['x0'] = xCol
         outDict['y0'] = yCol
         outDict['width'] = widthCol
         outDict['height'] = heightCol
-        outDict['reason'] = reason
 
         return outDict
 
@@ -528,8 +459,6 @@ class Defects(IsrCalib):
             X extent of the box.
         height : `int`
             Y extent of the box.
-        reason : `str`
-            Reason for unnormalized defect.
         """
         tableList = []
         self.updateMetadata()
@@ -553,30 +482,6 @@ class Defects(IsrCalib):
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
         catalog.meta = outMeta
         tableList.append(catalog)
-
-        if self._defectsUnnormalized:
-            xCol = []
-            yCol = []
-            widthCol = []
-            heightCol = []
-            reason = []
-
-            nrows = len(self._defectsUnnormalized)
-            if nrows and len(self._defectsUnnormalized[0]):
-                for defect in self._defectsUnnormalized:
-                    box = defect[0].getBBox()
-                    xCol.append(box.getBeginX())
-                    yCol.append(box.getBeginY())
-                    widthCol.append(box.getWidth())
-                    heightCol.append(box.getHeight())
-                    reason.append(defect[1])
-            catalog = astropy.table.Table({'x0': xCol, 'y0': yCol, 'width': widthCol, 'height': heightCol,
-                                           'reason': reason})
-
-            inMeta = self.getMetadata().toDict()
-            outMeta = {k: v for k, v in inMeta.items() if v is not None}
-            catalog.meta = outMeta
-            tableList.append(catalog)
 
         return tableList
 
@@ -610,13 +515,6 @@ class Defects(IsrCalib):
                 return values[0]
 
         return values[:n]
-
-    def getReasonDict(self):
-
-        mapping = {reason: bit for bit, reason in enumerate(self.reason)}
-        mapping_reverse = {bit: reason for bit, reason in enumerate(self.reason)}
-
-        return mapping, mapping_reverse
 
     @classmethod
     def fromTable(cls, tableList, normalize_on_init=True):
@@ -725,7 +623,6 @@ class Defects(IsrCalib):
             for record in tableUnnormalized:
                 box = lsst.geom.Box2I(lsst.geom.Point2I(record['x0'], record['y0']),
                                       lsst.geom.Extent2I(record['width'], record['height']))
-                defectUnnormalizedList.append((box, record['reason']))
 
             defects._defectsUnnormalized = defectUnnormalizedList
 
@@ -827,3 +724,194 @@ class Defects(IsrCalib):
                                               lsst.afw.detection.Threshold.BITMASK)
         fpList = lsst.afw.detection.FootprintSet(mask, thresh).getFootprints()
         return cls.fromFootprintList(fpList)
+
+
+class DefectsReason(Defects):
+    """Handles the definition of the reason(s) for pixels in defects.
+
+    Parameters
+    ----------
+        exp : `lsst.afw.image.exposure.Exposure`
+            Exposure where defects are being found.
+    """
+
+    def __init__(self, exp):
+        # Image will be populated with defects reason bits.
+        self.defectsReasonImage = lsst.afw.image.ImageI(exp.getBBox())
+
+        # List of possible reasons for defects.
+        self.reasonList = ['UNLABELED', 'HOT_PIXEL', 'COLD_PIXEL',
+                           'HOT_COLUMN', 'COLD_COLUMN', 'MANUAL_DEFECT',
+                           'EDGE', 'VAMPIRE_PIXEL']
+
+    def setReasonValue(self, reasonDefect, fpSet):
+        """Set value of the defect reason image to the defect reason bit
+        at the location of the pixels in a defect.
+
+        Parameters
+        ----------
+        reasonDefect : `str`
+            Reason for the defect.
+        fpSet : `lsst.afw.detection._detection.FootprintSet`
+            Footprint set of the defects.
+        """
+
+        # Check the reason exists
+        if reasonDefect in self.reasonList:
+            # Get the bit corresponding to the reason
+            bitmask = 2**self.bitFromReason(reasonDefect)
+            # Set the defect reason image to the corresponding bit value
+            lsst.afw.geom.SpanSet(fpSet).setImage(self.defectsReasonImage, bitmask)
+        else:
+            raise RuntimeError(f"Reason {reasonDefect} not existent.")
+
+    def getReasonMappingDict(self, reasonList):
+        """Get the mappings between a reason and a bit and vice versa.
+
+        Parameters
+        ----------
+        reasonList : `List`
+            A list of reason.
+
+        Returns
+        -------
+        mapping : `str` `int`
+            Mapping between a reason and a bit.
+        mapping_reverse : `int` `str`
+            Mapping between a bit and a reason.
+        """
+
+        mapping = {reason: bit for bit, reason in enumerate(reasonList)}
+        mapping_reverse = {bit: reason for bit, reason in enumerate(reasonList)}
+
+        return mapping, mapping_reverse
+
+    def reasonFromBit(self, bit):
+        """Get the reason from a bit.
+
+        Parameters
+        ----------
+        bit : `int`
+            Reason bit.
+        """
+        return self.getReasonMappingDict(self.reasonList)[1][bit]
+
+    def bitFromReason(self, reason):
+        """Get the bit from a reason.
+
+        Parameters
+        ----------
+        reason : `str`
+            Reason for defect.
+        """
+        return self.getReasonMappingDict(self.reasonList)[0][reason]
+
+    def addReasonDictMetadata(self):
+        """Add the mappings between reason and bit and vice versa in the
+        metadata of the defect reason image.
+        """
+
+        # The reason image metadata have all the mapping for all the possible
+        # reasons wether they are in the image or not.
+        exposureMetadata = self.defectsReasonImage.metadata
+
+        # Add the reason to bit correspondance to
+        # the defect reason image metadata
+        exposureMetadata.update({f"DEFECT REASON {reason}": bit for reason, bit
+                                 in self.getReasonMappingDict(self.reasonList)[0].items()})
+        exposureMetadata.update({f"DEFECT REASON BIT {bit}": reason for reason, bit
+                                 in self.getReasonMappingDict(self.reasonList)[1].items()})
+
+    def interpret(self, value):
+        """Outputs the reasons corresponding to a value in a pixel of
+        the defect reason image.
+
+        Parameters
+        ----------
+        value : `int`
+            Value in a pixel of the defect reason image.
+
+        Returns
+        -------
+        reasonsString : `str`
+            The reasons corresponding to the value.
+        """
+        reasonsString = str()
+        # loop over possible reasons
+        for reason in self.reasonList:
+            reasonBit = np.bitwise_and(value, 2**self.bitFromReason(reason))
+            # if the resulting bit is different from 0 then append the reason
+            if reasonBit != 0:
+                if not reasonsString:
+                    # if the reason string is empty, we start it
+                    reasonsString = reason
+                else:
+                    # if it is not empty, we append the defects reason
+                    # after a comma
+                    reasonsString += "," + reason
+
+        return reasonsString
+
+    def getAsString(self, x, y):
+        """Outputs the reasons corresponding to a pixel location in
+        the defect reason image.
+
+        Parameters
+        ----------
+        x : `int`
+            x coordinate of a pixel in the defect reason image.
+        y : `int`
+            y coordinate of a pixel in the defect reason image.
+
+        Returns
+        -------
+        reasonsString : `str`
+            The reasons corresponding to the pixel location.
+        """
+        # Get the value at the x,y location of the exposure
+        xyValue = self.defectsReasonImage.image.array[y, x]
+
+        # Return the interpretation of that value
+        return self.interpret(xyValue)
+
+    def writeFits(self, path):
+        """Write  to a FITS file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Filename to write data to.
+        """
+        hdr = astropy.io.fits.Header()
+        hdr.update(self.defectsReasonImage.metadata)
+        hdu = astropy.io.fits.PrimaryHDU(
+            data=self.defectsReasonImage, header=hdr
+        )
+        hdl = astropy.io.fits.HDUList([hdu])
+        hdl.writeto(path)
+
+    @classmethod
+    def readFits(cls, path):
+        """Read a reason image from disk."
+
+        Parameters
+        ----------
+        path : `str`
+            The file to read
+
+        Returns
+        -------
+        reasonImage : `~lsst.ip.isr.DefectsReason`
+        """
+
+        fitsfile = astropy.io.fits.open(path)
+        md = fitsfile[0].header
+
+        reasonImage = fitsfile[0].data
+        # Get the list of reasons from the fits header
+        reasonList = []
+        for i in range(len(md)):
+            if isinstance(md[i], str):
+                reasonList.append(md[i])
+
+        return cls(reasonImage, reasonList)
