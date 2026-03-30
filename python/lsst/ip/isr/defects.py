@@ -80,9 +80,8 @@ class Defects(IsrCalib):
     _SCHEMA = ''
     _VERSION = 2.0
 
-    def __init__(self, defectList=None, *, normalize_on_init=True, **kwargs):
+    def __init__(self, defectList=None, metadata=None, *, normalize_on_init=True, **kwargs):
         self._defects = []
-        self._defectsUnnormalized = []
 
         if defectList is not None:
             self._bulk_update = True
@@ -95,7 +94,6 @@ class Defects(IsrCalib):
 
         super().__init__(**kwargs)
         self.requiredAttributes.update(['_defects'])
-        self.requiredAttributes.update(['_defectsUnnormalized'])
 
     def _check_value(self, value):
         """Check that the supplied value is a `~lsst.meas.algorithms.Defect`
@@ -129,7 +127,6 @@ class Defects(IsrCalib):
             raise ValueError(f"Defects must be of type Defect, BoxI, or PointI, not '{value!r}'")
         return value
 
-    # array like operation for defects
     def __len__(self):
         return len(self._defects)
 
@@ -423,7 +420,7 @@ class Defects(IsrCalib):
         nrows = len(self._defects)
         if nrows:
             for defect in self._defects:
-                box = defect[0].getBBox()
+                box = defect.getBBox()
                 xCol.append(box.getBeginX())
                 yCol.append(box.getBeginY())
                 widthCol.append(box.getWidth())
@@ -549,16 +546,7 @@ class Defects(IsrCalib):
         The FITS standard regions can only read BOX, POINT, or ROTBOX with
         a zero degree rotation.
         """
-        hasUnnormalized = False
-
-        if len(tableList) > 1:
-            table = tableList[0]
-            tableUnnormalized = tableList[1]
-            hasUnnormalized = True
-            defectUnnormalizedList = []
-        else:
-            table = tableList[0]
-
+        table = tableList[0]
         defectList = []
 
         schema = table.columns
@@ -618,14 +606,6 @@ class Defects(IsrCalib):
             defectList.append(box)
 
         defects = cls(defectList, normalize_on_init=normalize_on_init)
-
-        if hasUnnormalized:
-            for record in tableUnnormalized:
-                box = lsst.geom.Box2I(lsst.geom.Point2I(record['x0'], record['y0']),
-                                      lsst.geom.Extent2I(record['width'], record['height']))
-
-            defects._defectsUnnormalized = defectUnnormalizedList
-
         newMeta = dict(table.meta)
         defects.updateMetadata(setCalibInfo=True, **newMeta)
 
