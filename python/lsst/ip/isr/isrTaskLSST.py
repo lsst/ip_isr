@@ -828,7 +828,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             flatBluer = inputs.pop("flatBluer")
             flatBlue = inputs.pop("flatBlue")
             flatRed = inputs.pop("flatRed")
-            weight1 = self.congih.anaglyphWeightBluer
+            weight1 = self.config.anaglyphWeightBluer
             weight2 = self.config.anaglyphWeightBlue
 
             # Just replace the image part of the frame.
