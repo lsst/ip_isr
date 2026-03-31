@@ -137,6 +137,13 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector", "physical_filter"],
         isCalibration=True,
     )
+    flatBluer = cT.Input(
+        name="flat_bluer",
+        doc="Input bluer flat.",
+        storageClass="ExposureF",
+        dimensions=["instrument", "detector", "physical_filter"],
+        isCalibration=True,
+    )
     flatBlue = cT.Input(
         name="flat_blue",
         doc="Input blue flat.",
@@ -220,9 +227,13 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.flat
             del self.flatBlue
             del self.flatRed
+            del self.flatBluer
         if config.anaglyphWeightBlue < 0.0:
             del self.flatBlue
             del self.flatRed
+            del self.flatBluer
+        if config.anaglyphWeightBluer <= -1.0:
+            del self.flatBluer
 
         if config.doBinnedExposures is not True:
             del self.outputBin1Exposure
@@ -690,6 +701,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Weighting for blue flat for anaglyph flats.",
         default=-1.0,
     )
+    anaglyphWeightBluer = pexConfig.Field(
+        dtype=float,
+        doc="Weighting for bluer flat for anaglyph+ flats.",
+        default=-1.0,
+    )
 
     # Calculate image quality statistics?
     doStandardStatistics = pexConfig.Field(
@@ -794,7 +810,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     exposureMetadata[idKey] = idValue
                     exposureMetadata[dateKey] = dateValue
 
-        if self.config.anaglyphWeightBlue >= 0.0:
+        if self.config.anaglyphWeightBlue >= 0.0 and self.config.anaglyphWeightBluer <= -1.0:
+            # Two flats.
             flatBlue = inputs.pop("flatBlue")
             flatRed = inputs.pop("flatRed")
             weight = self.config.anaglyphWeightBlue
@@ -806,7 +823,25 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             flat.image.array[:, :] = (flatBlue.image.array / scaleBlue + flatRed.image.array / scaleRed) / 2.
 
             inputs["flat"] = flat
+        elif self.config.anaglyphWeightBlue >= 0.0 and self.config.anaglyphWeightBluer > -1.0:
+            # Three flats
+            flatBluer = inputs.pop("flatBluer")
+            flatBlue = inputs.pop("flatBlue")
+            flatRed = inputs.pop("flatRed")
+            weight1 = self.congih.anaglyphWeightBluer
+            weight2 = self.config.anaglyphWeightBlue
 
+            # Just replace the image part of the frame.
+            flat = inputs["flat"].clone()
+            scaleBluer = (1./3.) / weight1
+            scaleBlue = (1./3.) / weight2
+            scaleRed = (1./3.) / (1.0 - weight1 - weight2)
+
+            flat.image.array[:, :] = (
+                flatBluer.image.array / scaleBluer
+                + flatBlue.image.array / scaleBlue
+                + flatRed.image.array / scaleRed
+            ) / 3.
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
