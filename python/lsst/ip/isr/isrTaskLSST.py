@@ -843,6 +843,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 + flatRed.image.array / scaleRed
             ) / 3.
 
+            inputs["flat"] = flat
+
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
 
