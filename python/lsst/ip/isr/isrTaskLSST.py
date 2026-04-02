@@ -666,6 +666,12 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="If flatScalingType is 'USER' then scale flat by this amount; ignored otherwise.",
         default=1.0,
     )
+    noDataVariance = pexConfig.Field(
+        dtype=float,
+        doc="Value to fill for variance plane in NO_DATA regions (which are generally "
+            "inherited from the flat in fully vignetted regions.)",
+        default=1e10,
+    )
 
     # Calculate image quality statistics?
     doStandardStatistics = pexConfig.Field(
@@ -2613,7 +2619,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
                 noData = (ccdExposure.mask.array & ccdExposure.mask.getPlaneBitMask("NO_DATA")) > 0
                 ccdExposure.image.array[noData] = 0.0
-                ccdExposure.variance.array[noData] = 0.0
+                ccdExposure.variance.array[noData] = self.config.noDataVariance
 
             ccdExposure.metadata["LSST ISR FLAT APPLIED"] = True
             ccdExposure.metadata["LSST ISR FLAT SOURCE"] = flat.metadata.get("FLATSRC", "UNKNOWN")
