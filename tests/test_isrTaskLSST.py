@@ -1382,9 +1382,9 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         noDataExp = (result.exposure.mask.array & result.exposure.mask.getPlaneBitMask("NO_DATA")) > 0
         np.testing.assert_array_equal(noDataExp, noDataFlat)
         np.testing.assert_array_equal(result.exposure.image.array[noDataExp], 0.0)
-        np.testing.assert_array_equal(result.exposure.variance.array[noDataExp], 0.0)
+        np.testing.assert_array_equal(result.exposure.variance.array[noDataExp], isr_config.noDataVariance)
         self.assertFalse(np.any(~np.isfinite(result.exposure.image.array)))
-        self.assertFalse(np.any(~np.isfinite(result.exposure.variance.array)))
+        self.assertFalse(np.any(~np.isfinite(result.exposure.variance.array[~noDataExp])))
 
     def test_isrFloodedSaturatedE2V(self):
         """Test ISR when the amps are completely saturated.
