@@ -713,16 +713,22 @@ class DefectsReason(Defects):
     ----------
         exp : `lsst.afw.image.exposure.Exposure`
             Exposure where defects are being found.
+        reasonList: `str`
+            List of possible defects reasons.
     """
 
-    def __init__(self, exp):
+    def __init__(self, exp, reasonList=['UNLABELED', 'HOT_PIXEL', 'COLD_PIXEL',
+                                        'HOT_COLUMN', 'COLD_COLUMN', 'MANUAL_DEFECT',
+                                        'EDGE', 'VAMPIRE_PIXEL'], **kwargs):
         # Image will be populated with defects reason bits.
-        self.defectsReasonImage = lsst.afw.image.ImageI(exp.getBBox())
+        self.defectsReasonExposure = exp
 
         # List of possible reasons for defects.
-        self.reasonList = ['UNLABELED', 'HOT_PIXEL', 'COLD_PIXEL',
-                           'HOT_COLUMN', 'COLD_COLUMN', 'MANUAL_DEFECT',
-                           'EDGE', 'VAMPIRE_PIXEL']
+        self.reasonList = reasonList
+
+        self.addReasonDictMetadata()
+        super().__init__(**kwargs)
+        self.requiredAttributes.update(['defectsReasonExposure', 'reasonList'])
 
     def setReasonValue(self, reasonDefect, fpSet):
         """Set value of the defect reason image to the defect reason bit
@@ -741,9 +747,18 @@ class DefectsReason(Defects):
             # Get the bit corresponding to the reason
             bitmask = 2**self.bitFromReason(reasonDefect)
             # Set the defect reason image to the corresponding bit value
-            lsst.afw.geom.SpanSet(fpSet).setImage(self.defectsReasonImage, bitmask)
+
+            fpSetImageArray = fpSet.insertIntoImage().array
+
+            # the type of integers in the defect reason image array
+            # needs to be the same as in the footprint set image to apply
+            # the bitwise OR operation.
+            defectsReasonExposureArray = self.defectsReasonExposure.image.array.astype(fpSetImageArray.dtype)
+
+            defectsReasonExposureArray |= bitmask*fpSetImageArray
         else:
             raise RuntimeError(f"Reason {reasonDefect} not existent.")
+        return defectsReasonExposureArray
 
     def getReasonMappingDict(self, reasonList):
         """Get the mappings between a reason and a bit and vice versa.
@@ -793,7 +808,7 @@ class DefectsReason(Defects):
 
         # The reason image metadata have all the mapping for all the possible
         # reasons wether they are in the image or not.
-        exposureMetadata = self.defectsReasonImage.metadata
+        exposureMetadata = self.defectsReasonExposure.metadata
 
         # Add the reason to bit correspondance to
         # the defect reason image metadata
@@ -849,7 +864,7 @@ class DefectsReason(Defects):
             The reasons corresponding to the pixel location.
         """
         # Get the value at the x,y location of the exposure
-        xyValue = self.defectsReasonImage.image.array[y, x]
+        xyValue = self.defectsReasonExposure.image.array[y, x]
 
         # Return the interpretation of that value
         return self.interpret(xyValue)
@@ -859,16 +874,16 @@ class DefectsReason(Defects):
 
         Parameters
         ----------
-        filename : `str`
-            Filename to write data to.
+        path : `str`
+            Path to the file to write data to.
         """
         hdr = astropy.io.fits.Header()
-        hdr.update(self.defectsReasonImage.metadata)
+        hdr.update(self.defectsReasonExposure.metadata)
         hdu = astropy.io.fits.PrimaryHDU(
-            data=self.defectsReasonImage, header=hdr
+            data=self.defectsReasonExposure.image.array, header=hdr
         )
         hdl = astropy.io.fits.HDUList([hdu])
-        hdl.writeto(path)
+        hdl.writeto(path, overwrite=True)
 
     @classmethod
     def readFits(cls, path):
@@ -877,21 +892,25 @@ class DefectsReason(Defects):
         Parameters
         ----------
         path : `str`
-            The file to read
+            Path of the file to read
 
         Returns
         -------
-        reasonImage : `~lsst.ip.isr.DefectsReason`
+        defectsReason : `~lsst.ip.isr.DefectsReason`
         """
 
         fitsfile = astropy.io.fits.open(path)
         md = fitsfile[0].header
 
+        # Build the exposure
         reasonImage = fitsfile[0].data
+        exp = lsst.afw.image.ExposureI(width=reasonImage.shape[1], height=reasonImage.shape[0])
+        exp.image.array = reasonImage
+
         # Get the list of reasons from the fits header
         reasonList = []
         for i in range(len(md)):
             if isinstance(md[i], str):
                 reasonList.append(md[i])
 
-        return cls(reasonImage, reasonList)
+        return cls(exp=exp, reasonList=reasonList)
