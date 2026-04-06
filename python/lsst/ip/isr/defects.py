@@ -834,7 +834,7 @@ class DefectsReason(Defects):
         reasonsString = str()
         # loop over possible reasons
         for reason in self.reasonList:
-            reasonBit = np.bitwise_and(value, 2**self.bitFromReason(reason))
+            reasonBit = np.bitwise_and(int(value), 2**self.bitFromReason(reason))
             # if the resulting bit is different from 0 then append the reason
             if reasonBit != 0:
                 if not reasonsString:

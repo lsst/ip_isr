@@ -283,18 +283,18 @@ class DefectsReasonTestCase(lsst.utils.tests.TestCase):
         # Build defect reason image
         defectsReason = DefectsReason(inputExp)
 
-        # Update defectsReason image array to hot pixel defects
-        defectsReason.defectsReasonExposure.image.array = defectsReason.setReasonValue('HOT_PIXEL', fpSet)
+        # Update defectsReason image array to edge defects
+        defectsReason.defectsReasonExposure.image.array = defectsReason.setReasonValue('EDGE', fpSet)
 
-        # Count the number of elements set to hot pixels bit value
+        # Count the number of elements set to edge bit value
         counterDefectPixelBit = numpy.sum(defectsReason.defectsReasonExposure.image.array)
 
         # Check the defectsReason image array was filled as expected
-        self.assertEqual(counterDefectPixelBit, 2**defectsReason.bitFromReason('HOT_PIXEL')*width1*height1)
+        self.assertEqual(counterDefectPixelBit, 2**defectsReason.bitFromReason('EDGE')*width1*height1)
 
-        # Add another defects
-        x0 = 10
-        y0 = 50
+        # Add another defects within the previous edge defect footprint
+        x0 = 2
+        y0 = 1
         width2 = 2
         height2 = 3
         fpSet = self.makeFpSet(inputExp, x0, y0, width2, height2)
@@ -305,8 +305,13 @@ class DefectsReasonTestCase(lsst.utils.tests.TestCase):
 
         # Check the defectsReason image array was filled as expected
         self.assertEqual(counterDefectPixelBit,
-                         2**defectsReason.bitFromReason('HOT_PIXEL')*width1*height1
+                         2**defectsReason.bitFromReason('EDGE')*width1*height1
                          + 2**defectsReason.bitFromReason('VAMPIRE_PIXEL')*width2*height2)
+
+        # Check output string for different pixels or bit value
+        self.assertEqual(defectsReason.getAsString(3, 2), 'EDGE,VAMPIRE_PIXEL')
+        self.assertEqual(defectsReason.getAsString(4, 6), 'EDGE')
+        self.assertEqual(defectsReason.interpret(192), 'EDGE,VAMPIRE_PIXEL')
 
         # Check fits writing and reading works correctly
         defectsReason.writeFits(os.path.join(TESTDIR, "data", 'test_reason.fits'))
