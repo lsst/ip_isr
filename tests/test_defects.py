@@ -22,7 +22,6 @@
 import os
 import unittest
 import numpy
-import copy
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -30,6 +29,8 @@ import lsst.meas.algorithms as algorithms
 import lsst.utils.tests
 from lsst.daf.base import PropertyList
 from lsst.ip.isr import Defects
+from lsst.ip.isr import DefectsReason
+import lsst.afw.detection as afwDetection
 
 try:
     type(display)
@@ -66,52 +67,6 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         meta1["NEW"] = "additional header"
         self.assertNotEqual(first.getMetadata(), second.getMetadata())
         del meta1["NEW"]
-
-    def test_defectsReason(self):
-        defects = Defects()
-
-        defects.append(lsst.geom.Box2I(lsst.geom.Point2I(5, 6),
-                                       lsst.geom.Point2I(41, 50)), reason='HOT_PIXEL')
-
-        defects.append(lsst.geom.Box2I(lsst.geom.Point2I(0, 0),
-                                       lsst.geom.Point2I(4, 5)), reason='EDGE')
-
-        self.assertEqual(len(defects), 2)
-
-        for d in defects:
-            self.assertIsInstance(d, algorithms.Defect)
-
-        meta = PropertyList()
-        meta["TESTHDR"] = "testing"
-        defects.setMetadata(meta)
-
-        # Test the defects are written and read via FITS correctly
-        with lsst.utils.tests.getTempFilePath(".fits") as tmpFile:
-            defects.writeFits(tmpFile)
-            defects2 = Defects.readFits(tmpFile)
-
-        self.assertTrue(defects.__eq__(defects2))
-
-        # Tests masking with reason is working properly
-        ccdImage = afwImage.MaskedImageF(250, 225)
-        # test 1. test mask according to a given reason
-        reason = 'HOT_PIXEL'
-        defects.maskPixelsReason(ccdImage.mask, reason)
-        self.assertEqual(numpy.sum(ccdImage.mask.array), 3330)
-        ccdImageMaskBefore = copy.copy(ccdImage.mask.array)
-        # test that masking with a reason not in the defects will result in
-        # the same mask
-        reason = 'VAMPIRE_PIXEL'
-        defects.maskPixelsReason(ccdImage.mask, reason)
-        self.assertEqual(numpy.sum(ccdImage.mask.array), numpy.sum(ccdImageMaskBefore))
-        # test that masking with an inexistent reason raises
-        reason = 'TEST_PIXEL'
-        with self.assertRaises(RuntimeError):
-            defects.maskPixelsReason(ccdImage.mask, reason)
-
-        # test 2. test mask plane with reasons is set properly
-        # defects.setMaskPlaneReason(ccdImage.mask)
-        # self.assertEqual(numpy.sum(ccdImage.mask.array), 5250)
 
     def test_defects(self):
         defects = Defects()
@@ -294,6 +249,70 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(len(expectedDefects), len(boxesMeasured2))
         for expDef, measDef in zip(expectedDefects, boxesMeasured2):
             self.assertEqual(expDef, measDef)
+
+
+class DefectsReasonTestCase(lsst.utils.tests.TestCase):
+
+    def makeExposure(self, width, height):
+        exp = afwImage.ExposureF(width, height)
+        return exp
+
+    def makeFpSet(self, exp, x0, y0, width, height):
+        region = lsst.geom.Box2I(lsst.geom.Point2I(x0, y0),
+                                 lsst.geom.Extent2I(width, height))
+        spanSet = lsst.afw.geom.SpanSet(region)
+
+        fp = afwDetection.Footprint(spanSet)
+
+        fpSet = afwDetection.FootprintSet(exp.getBBox())
+        fpSet.setFootprints([fp])
+        return fpSet
+
+    def test_defectsReasons(self):
+
+        # Build an exposure where defects will be found
+        inputExp = self.makeExposure(100, 200)
+
+        # Build footprint set for a defect
+        x0 = 0
+        y0 = 0
+        width1 = 5
+        height1 = 7
+        fpSet = self.makeFpSet(inputExp, x0, y0, width1, height1)
+
+        # Build defect reason image
+        defectsReason = DefectsReason(inputExp)
+
+        # Update defectsReason image array to hot pixel defects
+        defectsReason.defectsReasonExposure.image.array = defectsReason.setReasonValue('HOT_PIXEL', fpSet)
+
+        # Count the number of elements set to hot pixels bit value
+        counterDefectPixelBit = numpy.sum(defectsReason.defectsReasonExposure.image.array)
+
+        # Check the defectsReason image array was filled as expected
+        self.assertEqual(counterDefectPixelBit, 2**defectsReason.bitFromReason('HOT_PIXEL')*width1*height1)
+
+        # Add another defects
+        x0 = 10
+        y0 = 50
+        width2 = 2
+        height2 = 3
+        fpSet = self.makeFpSet(inputExp, x0, y0, width2, height2)
+
+        # Update defectsReason image array to vampire pixel
+        defectsReason.defectsReasonExposure.image.array = defectsReason.setReasonValue('VAMPIRE_PIXEL', fpSet)
+        counterDefectPixelBit = numpy.sum(defectsReason.defectsReasonExposure.image.array)
+
+        # Check the defectsReason image array was filled as expected
+        self.assertEqual(counterDefectPixelBit,
+                         2**defectsReason.bitFromReason('HOT_PIXEL')*width1*height1
+                         + 2**defectsReason.bitFromReason('VAMPIRE_PIXEL')*width2*height2)
+
+        # Check fits writing and reading works correctly
+        defectsReason.writeFits(os.path.join(TESTDIR, "data", 'test_reason.fits'))
+        outputDefectsReason = defectsReason.readFits(os.path.join(TESTDIR, "data", 'test_reason.fits'))
+
+        self.assertEqual(outputDefectsReason, defectsReason)
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
