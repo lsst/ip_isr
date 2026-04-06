@@ -727,6 +727,7 @@ class DefectsReason(Defects):
         self.reasonList = reasonList
 
         self.addReasonDictMetadata()
+
         super().__init__(**kwargs)
         self.requiredAttributes.update(['defectsReasonExposure', 'reasonList'])
 
