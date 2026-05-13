@@ -1616,6 +1616,109 @@ class IsrTaskLSST(pipeBase.PipelineTask):
 
         return ccdExposure
 
+    def applyLAPPCorrection(self, ccdExposure):
+        """Apply LAPP correction.
+
+        Parameters
+        ----------
+        ccdExposure : `lsst.afw.image.Exposure`
+            Exposure to process.
+
+        Yields
+        ------
+        exp : `lsst.afw.image.Exposure`
+            The flat and dark corrected exposure.
+        """
+        # exposure = ccdExposure.clone()
+        # arr_post_isr_image=post_isr_image.getMaskedImage().getImage().getArray()
+        arr_post_isr_image = ccdExposure.clone().getMaskedImage().getImage().getArray()
+        detector_full_name = ccdExposure.getDetector().getName()
+
+        from scipy import stats
+        from scipy.interpolate import make_interp_spline
+        from scipy.interpolate import splrep, splev
+        import numpy as np
+ 
+        self.log.warning("PF LAPP CORRECTION STARTED")
+        ################METHOD 2 : derive a dynamic radial correction for each exposure
+        #read geometry arrays
+        with open('/sdf/data/rubin/user/tguillem/shared_data/geometry/radius_'+detector_full_name+'.npy', 'rb') as f:
+            arr_radius2 = np.load(f)
+                
+        #extra vignetting profile versus radius
+        vignetting_radius=[]
+        vignetting_value=[]
+        n_bins_x=len(arr_post_isr_image[0,:])
+        n_bins_y=len(arr_post_isr_image[:,0])
+        arr_2nd = np.copy(arr_post_isr_image)
+        arr_2nd[:,:]=0
+        for i_x in range(n_bins_x):
+            for i_y in range(n_bins_y):
+                radius=arr_radius2[i_y,i_x]
+                value=arr_post_isr_image[i_y,i_x]
+                vignetting_radius.append(radius)
+                vignetting_value.append(value)
+
+        #compute median versus radius
+        bin_means, bin_edges, binnumber = stats.binned_statistic(vignetting_radius, vignetting_value, statistic='median', range=[(0, 370)], bins=740)
+        bin_width = (bin_edges[1] - bin_edges[0])
+        bin_centers = bin_edges[1:] - bin_width/2
+
+        #renormalize bin_means (to start at 1 at r=0)
+        average_vignetting = []
+        for i in range(len(bin_means)):
+            if(np.isnan(bin_means[i])):
+                bin_means[i]=0
+
+        for i in range(len(bin_means)):
+            if(bin_means[i]>0.8):
+                average_vignetting.append(bin_means[i])
+            if(len(average_vignetting)>10):
+                break
+
+        average_vignetting_v = np.mean(average_vignetting[1:10])
+        arr_vignetting_value = np.array(vignetting_value)
+        arr_vignetting_value = 1/average_vignetting_v*arr_vignetting_value
+        bin_means = 1/average_vignetting_v*bin_means
+        
+        #find first and last points automatically
+        index_min=0
+        index_max=0
+        for i in range(len(bin_means)):
+            if(bin_means[i]>0.5):
+                index_min=i
+                break
+        for i in range(len(bin_means)):
+            j=len(bin_means)-1-i
+            if(bin_means[j]>0.5):
+                index_max=j
+                break
+
+        #spline
+        bspl_1 = make_interp_spline(bin_centers[index_min:index_max], bin_means[index_min:index_max],k=3)
+        xx_min=bin_centers[index_min]
+        xx_max=bin_centers[index_max]
+        #write array built from spline
+        arr_final_correction = np.copy(arr_post_isr_image)
+        arr_final_correction[:,:]=0
+        for i_x in range(n_bins_x):
+            for i_y in range(n_bins_y):
+                radius=arr_radius2[i_y,i_x]
+                value=bspl_1(radius)
+                #be careful with the first/last bins
+                if(radius<xx_min):
+                    value=bspl_1(xx_min)
+                if(radius>xx_max):
+                    value=bspl_1(xx_max)
+                arr_final_correction[i_y,i_x]=value
+
+        #just divide the arr_post_isr_image by the correction array
+        #arr_post_isr_image_corrected = np.copy(arr_post_isr_image)
+        #arr_post_isr_image_corrected /= arr_final_correction
+        ccdExposure.image.array /= arr_final_correction
+        self.log.warning("PF LAPP CORRECTION DONE")
+        return ccdExposure
+
     def applyFluxConservingBrighterFatterCorrection(self, ccdExposure, flat, dark, bfKernel,
                                                     brighterFatterApplyGain, bfGains):
         """Apply a brighter fatter correction to the image using the
@@ -2650,6 +2753,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             else:
                 self.log.info("Measuring amp offset corrections only, without applying them.")
             self.ampOffset.run(ccdExposure)
+
+        # Should help correct from ring background on the edge of the focal plane.
+        ccdExposure = self.applyLAPPCorrection(ccdExposure)
 
         # Calculate standard image quality statistics
         if self.config.doStandardStatistics:
