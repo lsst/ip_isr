@@ -25,6 +25,7 @@ Intrinsic Zernikes storage class.
 __all__ = ["IntrinsicZernikes"]
 
 import numpy as np
+from astropy import units as u
 from astropy.table import Table
 from scipy.interpolate import LinearNDInterpolator
 
@@ -34,9 +35,13 @@ from lsst.ip.isr import IsrCalib
 class IntrinsicZernikes(IsrCalib):
     """Intrinsic Zernike coefficients.
 
-    Stores a grid of Zernike wavefront-error coefficients sampled on a
-    regular grid of focal-plane field angles.  At query time the coefficients
-    are interpolated to an arbitrary field position.
+    Stores Zernike wavefront-error coefficients sampled at a set of
+    focal-plane field angles.  At query time the coefficients are
+    interpolated to an arbitrary field position.
+
+    Field angles are expressed in the Camera Coordinate System (CCS), also
+    known as the Engineering Diagram Coordinate System.  See
+    `LSE-349 <https://ls.st/LSE-349>`_ for the definition.
 
     Parameters
     ----------
@@ -44,29 +49,28 @@ class IntrinsicZernikes(IsrCalib):
         Source table.  Must contain columns:
 
         ``"x"``
-            Field x positions with angular units (e.g. ``u.deg``).
+            Field x positions (in CCS) with angular units (e.g. ``u.deg``).
         ``"y"``
-            Field y positions with angular units (e.g. ``u.deg``).
+            Field y positions (in CCS) with angular units (e.g. ``u.deg``).
         ``"Z{j}"``
             One column per Noll index *j*, with length units
             (e.g. ``u.um``).
 
-        The grid must be regular: every combination of the unique x
-        and y values must appear exactly once.
-
     Attributes
     ----------
     field_x : `numpy.ndarray`
-        Unique x field positions in degrees, shape ``(n_x,)``.
+        CCS x field positions in degrees for all sample points,
+        shape ``(n_points,)``.
     field_y : `numpy.ndarray`
-        Unique y field positions in degrees, shape ``(n_y,)``.
+        CCS y field positions in degrees for all sample points,
+        shape ``(n_points,)``.
     noll_indices : `numpy.ndarray`
         Noll indices of the stored Zernike terms, shape ``(n_zernikes,)``.
     values : `numpy.ndarray`
         Zernike coefficients in microns, shape
-        ``(n_y, n_x, n_zernikes)``.
-    interpolator : `scipy.interpolate.RegularGridInterpolator` or `None`
-        Interpolator built from ``field_y``, ``field_x``, and
+        ``(n_points, n_zernikes)``.
+    interpolator : `scipy.interpolate.LinearNDInterpolator` or `None`
+        Interpolator built from ``field_x``, ``field_y``, and
         ``values``.  ``None`` until the calibration is populated.
     """
 
@@ -100,7 +104,7 @@ class IntrinsicZernikes(IsrCalib):
 
     def _createInterpolator(self):
         self.interpolator = LinearNDInterpolator(
-            np.column_stack((self.field_y, self.field_x)),
+            np.column_stack((self.field_x, self.field_y)),
             self.values
         )
 
@@ -180,17 +184,10 @@ class IntrinsicZernikes(IsrCalib):
             The calibration defined in the tables.
         """
         table = tableList[0]
-        inDict = {}
-        inDict["metadata"] = table.meta
-        inDict["field_x"] = table["FIELD_X"][0]
-        inDict["field_y"] = table["FIELD_Y"][0]
-        inDict["noll_indices"] = table["NOLL_INDICES"][0]
-        inDict["values"] = table["VALUES"][0].reshape(
-            inDict["field_y"].size,
-            inDict["field_x"].size,
-            -1
-        )
-        return cls.fromDict(inDict)
+        calib = cls(table=table)
+        calib.setMetadata(table.meta)
+        calib.updateMetadata()
+        return calib
 
     def toTable(self):
         """Construct a list of tables containing the information in this
@@ -205,23 +202,23 @@ class IntrinsicZernikes(IsrCalib):
             List of tables containing the intrinsic zernikes calibration
             information.
         """
-        tableList = []
         self.updateMetadata()
 
-        table = Table({
-            "FIELD_X": [self.field_x],
-            "FIELD_Y": [self.field_y],
-            "NOLL_INDICES": [self.noll_indices],
-            "VALUES": [self.values.ravel()],
-        })
+        data = {
+            "x": self.field_x * u.deg,
+            "y": self.field_y * u.deg,
+        }
+        for i, j in enumerate(self.noll_indices):
+            data[f"Z{j}"] = self.values[:, i] * u.um
+
+        table = Table(data)
 
         inMeta = self.getMetadata().toDict()
         outMeta = {k: v for k, v in inMeta.items() if v is not None}
         outMeta.update({k: "" for k, v in inMeta.items() if v is None})
         table.meta = outMeta
 
-        tableList.append(table)
-        return tableList
+        return [table]
 
     def getIntrinsicZernikes(self, field_x, field_y, noll_indices=None):
         """
@@ -230,9 +227,9 @@ class IntrinsicZernikes(IsrCalib):
         Parameters
         ----------
         field_x : `array-like`
-            The x-field positions in degrees.
+            CCS x-field positions in degrees.
         field_y : `array-like`
-            The y-field positions in degrees.
+            CCS y-field positions in degrees.
         noll_indices : `list` [`int`], optional
             List of Noll indices to return. If None, return all.
 
@@ -245,7 +242,7 @@ class IntrinsicZernikes(IsrCalib):
         if noll_indices is None:
             noll_indices = self.noll_indices
 
-        point = np.array([field_y, field_x]).T
+        point = np.array([field_x, field_y]).T
         interpolated_values = self.interpolator(point)
 
         noll_indices = np.array(noll_indices)

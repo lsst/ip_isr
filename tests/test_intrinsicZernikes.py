@@ -36,29 +36,32 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
 
     def setUp(self):
         """Create test data for intrinsic Zernikes."""
-        self.field_x = np.array([-1.0, 0.0, 1.0])
-        self.field_y = np.array([-0.5, 0.0, 0.5])
-
         # Create test Zernike coefficients for Noll indices 4, 5, 6
         # (defocus, astigmatism)
         self.noll_indices = np.array([4, 5, 6])
 
-        # Create values: shape (n_y, n_x, n_zernikes)
+        # Build a regular 3x3 grid of sample points
+        x_unique = np.array([-1.0, 0.0, 1.0])
+        y_unique = np.array([-0.5, 0.0, 0.5])
+        x_grid, y_grid = np.meshgrid(x_unique, y_unique)
+        self.field_x = x_grid.ravel()
+        self.field_y = y_grid.ravel()
+
+        # Create values: shape (n_points, n_zernikes)
         rng = np.random.default_rng(seed=57721)
         self.values = rng.normal(
             scale=0.1,
-            size=(len(self.field_y), len(self.field_x), len(self.noll_indices))
+            size=(len(self.field_x), len(self.noll_indices))
         )  # microns
 
         # Create an astropy table in the format expected by __init__
-        x_grid, y_grid = np.meshgrid(self.field_x, self.field_y)
         self.inputTable = Table()
-        self.inputTable["x"] = (x_grid.ravel() * u.deg)
-        self.inputTable["y"] = (y_grid.ravel() * u.deg)
+        self.inputTable["x"] = self.field_x * u.deg
+        self.inputTable["y"] = self.field_y * u.deg
 
         # Add Zernike columns
         for i, noll in enumerate(self.noll_indices):
-            self.inputTable[f"Z{noll}"] = (self.values[:, :, i].ravel() * u.um)
+            self.inputTable[f"Z{noll}"] = self.values[:, i] * u.um
 
         # Create the calibration object
         self.calib = IntrinsicZernikes(table=self.inputTable)
@@ -139,7 +142,8 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         zernikes = self.calib.getIntrinsicZernikes(field_x_test, field_y_test)
 
         # In this case, we're on a grid point
-        self.assertFloatsEqual(zernikes, self.values[1, 1, :])
+        center_idx = np.flatnonzero((self.field_x == 0.0) & (self.field_y == 0.0))[0]
+        self.assertFloatsEqual(zernikes, self.values[center_idx, :])
 
         # Test with specific Noll indices
         zernikes_subset = self.calib.getIntrinsicZernikes(
