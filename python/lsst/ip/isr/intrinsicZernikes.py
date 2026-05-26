@@ -26,7 +26,7 @@ __all__ = ["IntrinsicZernikes"]
 
 import numpy as np
 from astropy.table import Table
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import LinearNDInterpolator
 
 from lsst.ip.isr import IsrCalib
 
@@ -84,8 +84,8 @@ class IntrinsicZernikes(IsrCalib):
         super().__init__(**kwargs)
 
         if table is not None:
-            self.field_x = np.unique(table["x"].to("deg").value)
-            self.field_y = np.unique(table["y"].to("deg").value)
+            self.field_x = table["x"].to("deg").value
+            self.field_y = table["y"].to("deg").value
             zcols = [col for col in table.colnames if col.startswith("Z")]
             self.noll_indices = np.array(sorted([int(col[1:]) for col in zcols]))
             zks = np.column_stack(
@@ -93,14 +93,14 @@ class IntrinsicZernikes(IsrCalib):
                     table[col].to("um").value for col in zcols
                 ]
             )
-            self.values = zks.reshape(self.field_y.size, self.field_x.size, -1)
+            self.values = zks
             self._createInterpolator()
 
         self.requiredAttributes.update(["field_x", "field_y", "values", "noll_indices"])
 
     def _createInterpolator(self):
-        self.interpolator = RegularGridInterpolator(
-            (self.field_y, self.field_x),
+        self.interpolator = LinearNDInterpolator(
+            np.column_stack((self.field_y, self.field_x)),
             self.values
         )
 
