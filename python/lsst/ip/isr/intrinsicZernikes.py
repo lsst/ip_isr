@@ -48,6 +48,13 @@ class IntrinsicZernikes(IsrCalib):
 
     See `LSE-349 <https://ls.st/LSE-349>`_ for the definitions.
 
+    The CCS sample points and values are stored on the un-suffixed
+    ``field_x``, ``field_y`` and ``values`` attributes (and serialized
+    under those same keys).  These names are kept unchanged from version
+    1, which only stored the CCS system, so that version 1 calibrations
+    round-trip unchanged.  The OCS system is stored alongside on the
+    ``*_ocs`` attributes/keys.
+
     Parameters
     ----------
     table_ccs : `astropy.table.Table`, optional
@@ -66,7 +73,7 @@ class IntrinsicZernikes(IsrCalib):
 
     Attributes
     ----------
-    field_x_ccs, field_y_ccs : `numpy.ndarray`
+    field_x, field_y : `numpy.ndarray`
         CCS x/y field positions in degrees for all sample points,
         shape ``(n_points_ccs,)``.
     field_x_ocs, field_y_ocs : `numpy.ndarray`
@@ -74,14 +81,15 @@ class IntrinsicZernikes(IsrCalib):
         shape ``(n_points_ocs,)``.
     noll_indices : `numpy.ndarray`
         Noll indices of the stored Zernike terms, shape ``(n_zernikes,)``.
-    values_ccs, values_ocs : `numpy.ndarray`
+    values, values_ocs : `numpy.ndarray`
         Zernike coefficients in microns for the CCS and OCS sample
         points, shape ``(n_points, n_zernikes)``.
-    interpolator_ccs, interpolator_ocs : `scipy.interpolate.LinearNDInterpolator` or `None`
+    interpolator, interpolator_ocs : `scipy.interpolate.LinearNDInterpolator` or `None`
         Interpolators built from the CCS and OCS sample points and
         values.  ``None`` until the corresponding system is populated.
 
-    Version 1.1 stores both the CCS and OCS coordinate systems.
+    Version 1.1 adds the OCS coordinate system alongside the CCS system
+    stored by version 1.
     """
 
     _OBSTYPE = "INTRINSIC_ZERNIKES"
@@ -89,23 +97,26 @@ class IntrinsicZernikes(IsrCalib):
     _VERSION = 1.1
 
     def __init__(self, table_ccs=None, table_ocs=None, **kwargs):
-        self.field_x_ccs = np.array([])
-        self.field_y_ccs = np.array([])
-        self.values_ccs = np.array([])
+        # CCS uses the un-suffixed names (field_x/field_y/values/
+        # interpolator) for backwards compatibility with version 1, which
+        # only stored the CCS system under those names.
+        self.field_x = np.array([])
+        self.field_y = np.array([])
+        self.values = np.array([])
         self.field_x_ocs = np.array([])
         self.field_y_ocs = np.array([])
         self.values_ocs = np.array([])
         self.noll_indices = np.array([])
-        self.interpolator_ccs = None
+        self.interpolator = None
         self.interpolator_ocs = None
 
         super().__init__(**kwargs)
 
         if table_ccs is not None:
-            (self.field_x_ccs, self.field_y_ccs,
-             self.values_ccs, self.noll_indices) = self._unpackTable(table_ccs)
-            self.interpolator_ccs = self._makeInterpolator(
-                self.field_x_ccs, self.field_y_ccs, self.values_ccs
+            (self.field_x, self.field_y,
+             self.values, self.noll_indices) = self._unpackTable(table_ccs)
+            self.interpolator = self._makeInterpolator(
+                self.field_x, self.field_y, self.values
             )
         if table_ocs is not None:
             (self.field_x_ocs, self.field_y_ocs,
@@ -117,7 +128,7 @@ class IntrinsicZernikes(IsrCalib):
             )
 
         self.requiredAttributes.update([
-            "field_x_ccs", "field_y_ccs", "values_ccs",
+            "field_x", "field_y", "values",
             "field_x_ocs", "field_y_ocs", "values_ocs",
             "noll_indices",
         ])
@@ -191,22 +202,18 @@ class IntrinsicZernikes(IsrCalib):
             )
 
         calib.setMetadata(dictionary["metadata"])
-        if "field_x_ccs" in dictionary:
-            calib.field_x_ccs = np.array(dictionary["field_x_ccs"])
-            calib.field_y_ccs = np.array(dictionary["field_y_ccs"])
-            calib.values_ccs = np.array(dictionary["values_ccs"])
-            calib.field_x_ocs = np.array(dictionary["field_x_ocs"])
-            calib.field_y_ocs = np.array(dictionary["field_y_ocs"])
-            calib.values_ocs = np.array(dictionary["values_ocs"])
-        else:
-            # Version 1 schema: a single (CCS) coordinate system, with no
-            # "_ccs"/"_ocs" suffixes.  The OCS system is left empty.
-            calib.field_x_ccs = np.array(dictionary["field_x"])
-            calib.field_y_ccs = np.array(dictionary["field_y"])
-            calib.values_ccs = np.array(dictionary["values"])
+        # CCS keys (field_x/field_y/values) are always present, including
+        # in version 1 dictionaries.  The OCS keys are optional, so version
+        # 1 dictionaries (CCS only) load with an empty OCS system.
+        calib.field_x = np.array(dictionary["field_x"])
+        calib.field_y = np.array(dictionary["field_y"])
+        calib.values = np.array(dictionary["values"])
+        calib.field_x_ocs = np.array(dictionary.get("field_x_ocs", []))
+        calib.field_y_ocs = np.array(dictionary.get("field_y_ocs", []))
+        calib.values_ocs = np.array(dictionary.get("values_ocs", []))
         calib.noll_indices = np.array(dictionary["noll_indices"])
-        calib.interpolator_ccs = cls._makeInterpolator(
-            calib.field_x_ccs, calib.field_y_ccs, calib.values_ccs
+        calib.interpolator = cls._makeInterpolator(
+            calib.field_x, calib.field_y, calib.values
         )
         calib.interpolator_ocs = cls._makeInterpolator(
             calib.field_x_ocs, calib.field_y_ocs, calib.values_ocs
@@ -230,9 +237,9 @@ class IntrinsicZernikes(IsrCalib):
 
         outDict = {}
         outDict["metadata"] = self.getMetadata()
-        outDict["field_x_ccs"] = self.field_x_ccs.tolist()
-        outDict["field_y_ccs"] = self.field_y_ccs.tolist()
-        outDict["values_ccs"] = self.values_ccs.tolist()
+        outDict["field_x"] = self.field_x.tolist()
+        outDict["field_y"] = self.field_y.tolist()
+        outDict["values"] = self.values.tolist()
         outDict["field_x_ocs"] = self.field_x_ocs.tolist()
         outDict["field_y_ocs"] = self.field_y_ocs.tolist()
         outDict["values_ocs"] = self.values_ocs.tolist()
@@ -250,7 +257,9 @@ class IntrinsicZernikes(IsrCalib):
             List of tables to use to construct the intrinsic zernikes
             calibration.  Each table is dispatched to the CCS or OCS
             coordinate system according to its ``coord_sys`` metadata
-            entry (defaulting to ``"CCS"``).
+            entry (defaulting to ``"CCS"``).  A version 1 single-table
+            calibration, which has no ``coord_sys`` entry, is therefore
+            read as the CCS system.
 
         Returns
         -------
@@ -289,7 +298,7 @@ class IntrinsicZernikes(IsrCalib):
 
         tableList = []
         for coord_sys, field_x, field_y, values in (
-            ("CCS", self.field_x_ccs, self.field_y_ccs, self.values_ccs),
+            ("CCS", self.field_x, self.field_y, self.values),
             ("OCS", self.field_x_ocs, self.field_y_ocs, self.values_ocs),
         ):
             data = {
@@ -347,9 +356,9 @@ class IntrinsicZernikes(IsrCalib):
 
         total = None
 
-        if self.interpolator_ccs is not None:
+        if self.interpolator is not None:
             point = np.array([field_x, field_y]).T
-            total = self.interpolator_ccs(point)
+            total = self.interpolator(point)
 
         if self.interpolator_ocs is not None:
             # Rotate the query point into the OCS frame before interpolating.
