@@ -63,8 +63,10 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         for i, noll in enumerate(self.noll_indices):
             self.inputTable[f"Z{noll}"] = self.values[:, i] * u.um
 
+        self.inputTableOCS = self.inputTable.copy()
+        self.inputTableOCS.meta["coord_sys"] = "OCS"
         # Create the calibration object
-        self.calib = IntrinsicZernikes(table=self.inputTable)
+        self.calib = IntrinsicZernikes(table=self.inputTable, table_ocs=self.inputTableOCS)
 
     def test_initialization_with_table(self):
         """Test that IntrinsicZernikes initializes correctly from a table."""
