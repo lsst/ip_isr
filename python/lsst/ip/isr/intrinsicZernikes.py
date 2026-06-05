@@ -37,14 +37,16 @@ class IntrinsicZernikes(IsrCalib):
 
     Stores Zernike wavefront-error coefficients sampled at a set of
     focal-plane field angles.  At query time the coefficients are
-    interpolated to an arbitrary field position.
+    interpolated to an arbitrary field position provided in CCS.
 
     The coefficients are stored in two coordinate systems, each as an
     independent set of sample points and values:
 
-    - the Camera Coordinate System (CCS), also known as the Engineering
-      Diagram Coordinate System, and
-    - the Optical Coordinate System (OCS).
+    - the Camera Coordinate System (CCS), which corresponds to the
+     focal plane heights and any other CCS contribution and
+    - the Optical Coordinate System (OCS), corresponding to
+    the intrinsics, which are by nature defined in the optical
+    coordinates.
 
     See `LSE-349 <https://ls.st/LSE-349>`_ for the definitions.
 
@@ -108,6 +110,7 @@ class IntrinsicZernikes(IsrCalib):
         self.field_y_ocs = np.array([])
         self.values_ocs = np.array([])
         self.noll_indices = np.array([])
+        self.noll_indices_ocs = np.array([])
         self.interpolator = None
         self.interpolator_ocs = None
 
@@ -121,11 +124,9 @@ class IntrinsicZernikes(IsrCalib):
                 self.field_x, self.field_y, self.values
             )
         if table_ocs is not None:
-            (self.field_x_ocs, self.field_y_ocs, self.values_ocs, noll_ocs) = (
+            (self.field_x_ocs, self.field_y_ocs, self.values_ocs, self.noll_indices_ocs) = (
                 self._unpackTable(table_ocs)
             )
-            if self.noll_indices.size == 0:
-                self.noll_indices = noll_ocs
             self.interpolator_ocs = self._makeInterpolator(
                 self.field_x_ocs, self.field_y_ocs, self.values_ocs
             )
@@ -139,6 +140,7 @@ class IntrinsicZernikes(IsrCalib):
                 "field_y_ocs",
                 "values_ocs",
                 "noll_indices",
+                "noll_indices_ocs",
             ]
         )
 
@@ -216,6 +218,7 @@ class IntrinsicZernikes(IsrCalib):
         calib.field_y_ocs = np.array(dictionary.get("field_y_ocs", []))
         calib.values_ocs = np.array(dictionary.get("values_ocs", []))
         calib.noll_indices = np.array(dictionary["noll_indices"])
+        calib.noll_indices_ocs = np.array(dictionary["noll_indices_ocs"])
         calib.interpolator = cls._makeInterpolator(
             calib.field_x, calib.field_y, calib.values
         )
@@ -248,6 +251,7 @@ class IntrinsicZernikes(IsrCalib):
         outDict["field_y_ocs"] = self.field_y_ocs.tolist()
         outDict["values_ocs"] = self.values_ocs.tolist()
         outDict["noll_indices"] = self.noll_indices.tolist()
+        outDict["noll_indices_ocs"] = self.noll_indices_ocs.tolist()
 
         return outDict
 
@@ -273,9 +277,14 @@ class IntrinsicZernikes(IsrCalib):
         tables = {}
         for table in tableList:
             coord_sys = table.meta.get("coord_sys", "CCS")
+            if coord_sys not in ("CCS", "OCS"):
+                raise RuntimeError(
+                    f"Invalid coordinate system {coord_sys} in table metadata; "
+                    f"expected 'CCS' or 'OCS'"
+                )
             tables[coord_sys] = table
 
-        calib = cls(table=tables.get("CCS"), table_ocs=tables.get("OCS"))
+        calib = cls(table=tables.get("CCS"), table_ocs=tables.get("OCS", None))
         # ``coord_sys`` is a per-table annotation used only to dispatch each
         # table above; drop it so it does not leak into the calibration
         # metadata (which must match across a toTable/fromTable round-trip).
@@ -331,17 +340,18 @@ class IntrinsicZernikes(IsrCalib):
         return tableList
 
     def getIntrinsicZernikes(
-        self, field_x, field_y, rotation_angle=0.0, noll_indices=None
+        self, field_x, field_y, rotTelPos=0.0, noll_indices=None
     ):
         """
         Get the intrinsic Zernike coefficients at a given field position.
 
-        The returned coefficients are the sum of the CCS contribution,
-        interpolated at the requested field position, and the OCS
-        contribution, interpolated at the field position rotated by
-        ``rotation_angle``.  For calibrations that only store one
+        The returned coefficients are the sum of the CCS contribution
+        (heights_ccs), interpolated at the requested field position,
+        and the OCS contribution (measured_intrinsics),
+        interpolated at the field position rotated by
+        ``rotTelPos``.  For calibrations that only store one
         coordinate system (e.g. version 1 files, which only carry CCS),
-        the missing contribution is simply omitted from the sum.
+        the missing OCS contribution is simply omitted from the sum.
 
         Parameters
         ----------
@@ -349,7 +359,7 @@ class IntrinsicZernikes(IsrCalib):
             x-field positions in degrees (CCS).
         field_y : `array-like`
             y-field positions in degrees (CCS).
-        rotation_angle : `float`, optional
+        rotTelPos : `float`, optional
             Rotation angle in degrees applied to the query point before
             interpolating the OCS contribution.  Defaults to 0.
         noll_indices : `list` [`int`], optional
@@ -362,7 +372,9 @@ class IntrinsicZernikes(IsrCalib):
             requested Noll indices and field positions.
         """
         if noll_indices is None:
-            noll_indices = self.noll_indices
+            noll_indices = sorted(
+                set(self.noll_indices).intersection(self.noll_indices_ocs)
+            )
         noll_indices = np.array(noll_indices)
         noll_mask = np.isin(self.noll_indices, noll_indices)
 
@@ -375,7 +387,7 @@ class IntrinsicZernikes(IsrCalib):
 
         if self.interpolator_ocs is not None:
             # Rotate the query point into the OCS frame before interpolating.
-            theta = np.deg2rad(rotation_angle)
+            theta = np.deg2rad(rotTelPos)
             cos_a, sin_a = np.cos(theta), np.sin(theta)
             x_ocs = cos_a * field_x - sin_a * field_y
             y_ocs = sin_a * field_x + cos_a * field_y
