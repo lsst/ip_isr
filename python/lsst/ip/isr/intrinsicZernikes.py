@@ -57,7 +57,7 @@ class IntrinsicZernikes(IsrCalib):
 
     Parameters
     ----------
-    table_ccs : `astropy.table.Table`, optional
+    table : `astropy.table.Table`, optional
         Source table in the CCS.  Must contain columns:
 
         ``"x"``
@@ -69,7 +69,7 @@ class IntrinsicZernikes(IsrCalib):
             (e.g. ``u.um``).
     table_ocs : `astropy.table.Table`, optional
         Source table in the OCS, with the same column layout as
-        ``table_ccs``.
+        ``table``.
 
     Attributes
     ----------
@@ -97,7 +97,7 @@ class IntrinsicZernikes(IsrCalib):
     _SCHEMA = "Intrinsic Zernikes"
     _VERSION = 1.1
 
-    def __init__(self, table_ccs=None, table_ocs=None, **kwargs):
+    def __init__(self, table=None, table_ocs=None, **kwargs):
         # CCS uses the un-suffixed names (field_x/field_y/values/
         # interpolator) for backwards compatibility with version 1, which
         # only stored the CCS system under those names.
@@ -113,9 +113,9 @@ class IntrinsicZernikes(IsrCalib):
 
         super().__init__(**kwargs)
 
-        if table_ccs is not None:
+        if table is not None:
             (self.field_x, self.field_y, self.values, self.noll_indices) = (
-                self._unpackTable(table_ccs)
+                self._unpackTable(table)
             )
             self.interpolator = self._makeInterpolator(
                 self.field_x, self.field_y, self.values
@@ -275,8 +275,13 @@ class IntrinsicZernikes(IsrCalib):
             coord_sys = table.meta.get("coord_sys", "CCS")
             tables[coord_sys] = table
 
-        calib = cls(table_ccs=tables.get("CCS"), table_ocs=tables.get("OCS"))
-        calib.setMetadata(tableList[0].meta)
+        calib = cls(table=tables.get("CCS"), table_ocs=tables.get("OCS"))
+        # ``coord_sys`` is a per-table annotation used only to dispatch each
+        # table above; drop it so it does not leak into the calibration
+        # metadata (which must match across a toTable/fromTable round-trip).
+        meta = dict(tableList[0].meta)
+        meta.pop("coord_sys", None)
+        calib.setMetadata(meta)
         calib.updateMetadata()
         return calib
 
@@ -284,15 +289,18 @@ class IntrinsicZernikes(IsrCalib):
         """Construct a list of tables containing the information in this
         calibration.
 
-        One table is produced per coordinate system (CCS and OCS).  The
-        list of tables should be able to be round-tripped through
-        `fromTable`.
+        One table is produced per populated coordinate system.  The CCS
+        table is always emitted; the OCS table is only emitted when the
+        OCS system holds sample points, so a CCS-only calibration (e.g.
+        one read from a version 1 file) round-trips to a single table,
+        exactly as in version 1.  The list of tables should be able to be
+        round-tripped through `fromTable`.
 
         Returns
         -------
         tableList : `list` [`astropy.table.Table`]
             List of tables containing the intrinsic zernikes calibration
-            information, one per coordinate system.
+            information, one per populated coordinate system.
         """
         self.updateMetadata()
 
@@ -300,11 +308,12 @@ class IntrinsicZernikes(IsrCalib):
         baseMeta = {k: v for k, v in inMeta.items() if v is not None}
         baseMeta.update({k: "" for k, v in inMeta.items() if v is None})
 
+        systems = [("CCS", self.field_x, self.field_y, self.values)]
+        if np.asarray(self.field_x_ocs).size > 0:
+            systems.append(("OCS", self.field_x_ocs, self.field_y_ocs, self.values_ocs))
+
         tableList = []
-        for coord_sys, field_x, field_y, values in (
-            ("CCS", self.field_x, self.field_y, self.values),
-            ("OCS", self.field_x_ocs, self.field_y_ocs, self.values_ocs),
-        ):
+        for coord_sys, field_x, field_y, values in systems:
             data = {
                 "x": field_x * u.deg,
                 "y": field_y * u.deg,
@@ -361,10 +370,8 @@ class IntrinsicZernikes(IsrCalib):
         field_y = np.asarray(field_y)
 
         total = None
-
-        if self.interpolator is not None:
-            point = np.array([field_x, field_y]).T
-            total = self.interpolator(point)
+        point = np.array([field_x, field_y]).T
+        total = self.interpolator(point)
 
         if self.interpolator_ocs is not None:
             # Rotate the query point into the OCS frame before interpolating.
@@ -375,10 +382,5 @@ class IntrinsicZernikes(IsrCalib):
             point_ocs = np.array([x_ocs, y_ocs]).T
             ocs_values = self.interpolator_ocs(point_ocs)
             total = ocs_values if total is None else total + ocs_values
-
-        if total is None:
-            raise RuntimeError(
-                "No intrinsic Zernikes are available in either coordinate system."
-            )
 
         return total[..., noll_mask]
