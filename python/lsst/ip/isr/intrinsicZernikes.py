@@ -84,7 +84,8 @@ class IntrinsicZernikes(IsrCalib):
     values, values_ocs : `numpy.ndarray`
         Zernike coefficients in microns for the CCS and OCS sample
         points, shape ``(n_points, n_zernikes)``.
-    interpolator, interpolator_ocs : `scipy.interpolate.LinearNDInterpolator` or `None`
+    interpolator, interpolator_ocs : `scipy.interpolate.LinearNDInterpolator`
+    or `None`
         Interpolators built from the CCS and OCS sample points and
         values.  ``None`` until the corresponding system is populated.
 
@@ -113,25 +114,33 @@ class IntrinsicZernikes(IsrCalib):
         super().__init__(**kwargs)
 
         if table_ccs is not None:
-            (self.field_x, self.field_y,
-             self.values, self.noll_indices) = self._unpackTable(table_ccs)
+            (self.field_x, self.field_y, self.values, self.noll_indices) = (
+                self._unpackTable(table_ccs)
+            )
             self.interpolator = self._makeInterpolator(
                 self.field_x, self.field_y, self.values
             )
         if table_ocs is not None:
-            (self.field_x_ocs, self.field_y_ocs,
-             self.values_ocs, noll_ocs) = self._unpackTable(table_ocs)
+            (self.field_x_ocs, self.field_y_ocs, self.values_ocs, noll_ocs) = (
+                self._unpackTable(table_ocs)
+            )
             if self.noll_indices.size == 0:
                 self.noll_indices = noll_ocs
             self.interpolator_ocs = self._makeInterpolator(
                 self.field_x_ocs, self.field_y_ocs, self.values_ocs
             )
 
-        self.requiredAttributes.update([
-            "field_x", "field_y", "values",
-            "field_x_ocs", "field_y_ocs", "values_ocs",
-            "noll_indices",
-        ])
+        self.requiredAttributes.update(
+            [
+                "field_x",
+                "field_y",
+                "values",
+                "field_x_ocs",
+                "field_y_ocs",
+                "values_ocs",
+                "noll_indices",
+            ]
+        )
 
     @staticmethod
     def _unpackTable(table):
@@ -157,9 +166,7 @@ class IntrinsicZernikes(IsrCalib):
         field_y = table["y"].to("deg").value
         zcols = [col for col in table.colnames if col.startswith("Z")]
         noll_indices = np.array(sorted(int(col[1:]) for col in zcols))
-        values = np.column_stack(
-            [table[f"Z{j}"].to("um").value for j in noll_indices]
-        )
+        values = np.column_stack([table[f"Z{j}"].to("um").value for j in noll_indices])
         return field_x, field_y, values, noll_indices
 
     @staticmethod
@@ -168,10 +175,7 @@ class IntrinsicZernikes(IsrCalib):
         sample points."""
         if np.asarray(field_x).size == 0:
             return None
-        return LinearNDInterpolator(
-            np.column_stack((field_x, field_y)),
-            values
-        )
+        return LinearNDInterpolator(np.column_stack((field_x, field_y)), values)
 
     @classmethod
     def fromDict(cls, dictionary):
@@ -317,7 +321,9 @@ class IntrinsicZernikes(IsrCalib):
 
         return tableList
 
-    def getIntrinsicZernikes(self, field_x, field_y, rotation_angle=0.0, noll_indices=None):
+    def getIntrinsicZernikes(
+        self, field_x, field_y, rotation_angle=0.0, noll_indices=None
+    ):
         """
         Get the intrinsic Zernike coefficients at a given field position.
 
