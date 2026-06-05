@@ -39,73 +39,127 @@ class IntrinsicZernikes(IsrCalib):
     focal-plane field angles.  At query time the coefficients are
     interpolated to an arbitrary field position.
 
-    Field angles are expressed in the Camera Coordinate System (CCS), also
-    known as the Engineering Diagram Coordinate System.  See
-    `LSE-349 <https://ls.st/LSE-349>`_ for the definition.
+    The coefficients are stored in two coordinate systems, each as an
+    independent set of sample points and values:
+
+    - the Camera Coordinate System (CCS), also known as the Engineering
+      Diagram Coordinate System, and
+    - the Optical Coordinate System (OCS).
+
+    See `LSE-349 <https://ls.st/LSE-349>`_ for the definitions.
 
     Parameters
     ----------
-    table : `astropy.table.Table`, optional
-        Source table.  Must contain columns:
+    table_ccs : `astropy.table.Table`, optional
+        Source table in the CCS.  Must contain columns:
 
         ``"x"``
-            Field x positions (in CCS) with angular units (e.g. ``u.deg``).
+            Field x positions with angular units (e.g. ``u.deg``).
         ``"y"``
-            Field y positions (in CCS) with angular units (e.g. ``u.deg``).
+            Field y positions with angular units (e.g. ``u.deg``).
         ``"Z{j}"``
             One column per Noll index *j*, with length units
             (e.g. ``u.um``).
+    table_ocs : `astropy.table.Table`, optional
+        Source table in the OCS, with the same column layout as
+        ``table_ccs``.
 
     Attributes
     ----------
-    field_x : `numpy.ndarray`
-        CCS x field positions in degrees for all sample points,
-        shape ``(n_points,)``.
-    field_y : `numpy.ndarray`
-        CCS y field positions in degrees for all sample points,
-        shape ``(n_points,)``.
+    field_x_ccs, field_y_ccs : `numpy.ndarray`
+        CCS x/y field positions in degrees for all sample points,
+        shape ``(n_points_ccs,)``.
+    field_x_ocs, field_y_ocs : `numpy.ndarray`
+        OCS x/y field positions in degrees for all sample points,
+        shape ``(n_points_ocs,)``.
     noll_indices : `numpy.ndarray`
         Noll indices of the stored Zernike terms, shape ``(n_zernikes,)``.
-    values : `numpy.ndarray`
-        Zernike coefficients in microns, shape
-        ``(n_points, n_zernikes)``.
-    interpolator : `scipy.interpolate.LinearNDInterpolator` or `None`
-        Interpolator built from ``field_x``, ``field_y``, and
-        ``values``.  ``None`` until the calibration is populated.
+    values_ccs, values_ocs : `numpy.ndarray`
+        Zernike coefficients in microns for the CCS and OCS sample
+        points, shape ``(n_points, n_zernikes)``.
+    interpolator_ccs, interpolator_ocs : `scipy.interpolate.LinearNDInterpolator` or `None`
+        Interpolators built from the CCS and OCS sample points and
+        values.  ``None`` until the corresponding system is populated.
+
+    Version 1.1 stores both the CCS and OCS coordinate systems.
     """
 
     _OBSTYPE = "INTRINSIC_ZERNIKES"
     _SCHEMA = "Intrinsic Zernikes"
-    _VERSION = 1.0
+    _VERSION = 1.1
 
-    def __init__(self, table=None, **kwargs):
-        self.field_x = np.array([])
-        self.field_y = np.array([])
-        self.values = np.array([])
+    def __init__(self, table_ccs=None, table_ocs=None, **kwargs):
+        self.field_x_ccs = np.array([])
+        self.field_y_ccs = np.array([])
+        self.values_ccs = np.array([])
+        self.field_x_ocs = np.array([])
+        self.field_y_ocs = np.array([])
+        self.values_ocs = np.array([])
         self.noll_indices = np.array([])
-        self.interpolator = None
+        self.interpolator_ccs = None
+        self.interpolator_ocs = None
 
         super().__init__(**kwargs)
 
-        if table is not None:
-            self.field_x = table["x"].to("deg").value
-            self.field_y = table["y"].to("deg").value
-            zcols = [col for col in table.colnames if col.startswith("Z")]
-            self.noll_indices = np.array(sorted([int(col[1:]) for col in zcols]))
-            zks = np.column_stack(
-                [
-                    table[col].to("um").value for col in zcols
-                ]
+        if table_ccs is not None:
+            (self.field_x_ccs, self.field_y_ccs,
+             self.values_ccs, self.noll_indices) = self._unpackTable(table_ccs)
+            self.interpolator_ccs = self._makeInterpolator(
+                self.field_x_ccs, self.field_y_ccs, self.values_ccs
             )
-            self.values = zks
-            self._createInterpolator()
+        if table_ocs is not None:
+            (self.field_x_ocs, self.field_y_ocs,
+             self.values_ocs, noll_ocs) = self._unpackTable(table_ocs)
+            if self.noll_indices.size == 0:
+                self.noll_indices = noll_ocs
+            self.interpolator_ocs = self._makeInterpolator(
+                self.field_x_ocs, self.field_y_ocs, self.values_ocs
+            )
 
-        self.requiredAttributes.update(["field_x", "field_y", "values", "noll_indices"])
+        self.requiredAttributes.update([
+            "field_x_ccs", "field_y_ccs", "values_ccs",
+            "field_x_ocs", "field_y_ocs", "values_ocs",
+            "noll_indices",
+        ])
 
-    def _createInterpolator(self):
-        self.interpolator = LinearNDInterpolator(
-            np.column_stack((self.field_x, self.field_y)),
-            self.values
+    @staticmethod
+    def _unpackTable(table):
+        """Unpack a source table into field positions, values, and Noll
+        indices.
+
+        Parameters
+        ----------
+        table : `astropy.table.Table`
+            Source table with ``"x"``, ``"y"``, and ``"Z{j}"`` columns.
+
+        Returns
+        -------
+        field_x, field_y : `numpy.ndarray`
+            Field positions in degrees.
+        values : `numpy.ndarray`
+            Zernike coefficients in microns, shape
+            ``(n_points, n_zernikes)`` ordered by ascending Noll index.
+        noll_indices : `numpy.ndarray`
+            Sorted Noll indices.
+        """
+        field_x = table["x"].to("deg").value
+        field_y = table["y"].to("deg").value
+        zcols = [col for col in table.colnames if col.startswith("Z")]
+        noll_indices = np.array(sorted(int(col[1:]) for col in zcols))
+        values = np.column_stack(
+            [table[f"Z{j}"].to("um").value for j in noll_indices]
+        )
+        return field_x, field_y, values, noll_indices
+
+    @staticmethod
+    def _makeInterpolator(field_x, field_y, values):
+        """Build a field-position interpolator, or `None` if there are no
+        sample points."""
+        if np.asarray(field_x).size == 0:
+            return None
+        return LinearNDInterpolator(
+            np.column_stack((field_x, field_y)),
+            values
         )
 
     @classmethod
@@ -137,11 +191,26 @@ class IntrinsicZernikes(IsrCalib):
             )
 
         calib.setMetadata(dictionary["metadata"])
-        calib.field_x = np.array(dictionary["field_x"])
-        calib.field_y = np.array(dictionary["field_y"])
-        calib.values = np.array(dictionary["values"])
+        if "field_x_ccs" in dictionary:
+            calib.field_x_ccs = np.array(dictionary["field_x_ccs"])
+            calib.field_y_ccs = np.array(dictionary["field_y_ccs"])
+            calib.values_ccs = np.array(dictionary["values_ccs"])
+            calib.field_x_ocs = np.array(dictionary["field_x_ocs"])
+            calib.field_y_ocs = np.array(dictionary["field_y_ocs"])
+            calib.values_ocs = np.array(dictionary["values_ocs"])
+        else:
+            # Version 1 schema: a single (CCS) coordinate system, with no
+            # "_ccs"/"_ocs" suffixes.  The OCS system is left empty.
+            calib.field_x_ccs = np.array(dictionary["field_x"])
+            calib.field_y_ccs = np.array(dictionary["field_y"])
+            calib.values_ccs = np.array(dictionary["values"])
         calib.noll_indices = np.array(dictionary["noll_indices"])
-        calib._createInterpolator()
+        calib.interpolator_ccs = cls._makeInterpolator(
+            calib.field_x_ccs, calib.field_y_ccs, calib.values_ccs
+        )
+        calib.interpolator_ocs = cls._makeInterpolator(
+            calib.field_x_ocs, calib.field_y_ocs, calib.values_ocs
+        )
 
         calib.updateMetadata()
         return calib
@@ -161,9 +230,12 @@ class IntrinsicZernikes(IsrCalib):
 
         outDict = {}
         outDict["metadata"] = self.getMetadata()
-        outDict["field_x"] = self.field_x.tolist()
-        outDict["field_y"] = self.field_y.tolist()
-        outDict["values"] = self.values.tolist()
+        outDict["field_x_ccs"] = self.field_x_ccs.tolist()
+        outDict["field_y_ccs"] = self.field_y_ccs.tolist()
+        outDict["values_ccs"] = self.values_ccs.tolist()
+        outDict["field_x_ocs"] = self.field_x_ocs.tolist()
+        outDict["field_y_ocs"] = self.field_y_ocs.tolist()
+        outDict["values_ocs"] = self.values_ocs.tolist()
         outDict["noll_indices"] = self.noll_indices.tolist()
 
         return outDict
@@ -176,16 +248,22 @@ class IntrinsicZernikes(IsrCalib):
         ----------
         tableList : `list` [`astropy.table.Table`]
             List of tables to use to construct the intrinsic zernikes
-            calibration.
+            calibration.  Each table is dispatched to the CCS or OCS
+            coordinate system according to its ``coord_sys`` metadata
+            entry (defaulting to ``"CCS"``).
 
         Returns
         -------
         calib : `lsst.ip.isr.IntrinsicZernikes`
             The calibration defined in the tables.
         """
-        table = tableList[0]
-        calib = cls(table=table)
-        calib.setMetadata(table.meta)
+        tables = {}
+        for table in tableList:
+            coord_sys = table.meta.get("coord_sys", "CCS")
+            tables[coord_sys] = table
+
+        calib = cls(table_ccs=tables.get("CCS"), table_ocs=tables.get("OCS"))
+        calib.setMetadata(tableList[0].meta)
         calib.updateMetadata()
         return calib
 
@@ -193,43 +271,63 @@ class IntrinsicZernikes(IsrCalib):
         """Construct a list of tables containing the information in this
         calibration.
 
-        The list of tables should be able to be round-tripped through
+        One table is produced per coordinate system (CCS and OCS).  The
+        list of tables should be able to be round-tripped through
         `fromTable`.
 
         Returns
         -------
         tableList : `list` [`astropy.table.Table`]
             List of tables containing the intrinsic zernikes calibration
-            information.
+            information, one per coordinate system.
         """
         self.updateMetadata()
 
-        data = {
-            "x": self.field_x * u.deg,
-            "y": self.field_y * u.deg,
-        }
-        for i, j in enumerate(self.noll_indices):
-            data[f"Z{j}"] = self.values[:, i] * u.um
-
-        table = Table(data)
-
         inMeta = self.getMetadata().toDict()
-        outMeta = {k: v for k, v in inMeta.items() if v is not None}
-        outMeta.update({k: "" for k, v in inMeta.items() if v is None})
-        table.meta = outMeta
+        baseMeta = {k: v for k, v in inMeta.items() if v is not None}
+        baseMeta.update({k: "" for k, v in inMeta.items() if v is None})
 
-        return [table]
+        tableList = []
+        for coord_sys, field_x, field_y, values in (
+            ("CCS", self.field_x_ccs, self.field_y_ccs, self.values_ccs),
+            ("OCS", self.field_x_ocs, self.field_y_ocs, self.values_ocs),
+        ):
+            data = {
+                "x": field_x * u.deg,
+                "y": field_y * u.deg,
+            }
+            for i, j in enumerate(self.noll_indices):
+                column = values[:, i] if values.ndim == 2 else np.array([])
+                data[f"Z{j}"] = column * u.um
 
-    def getIntrinsicZernikes(self, field_x, field_y, noll_indices=None):
+            table = Table(data)
+            meta = dict(baseMeta)
+            meta["coord_sys"] = coord_sys
+            table.meta = meta
+            tableList.append(table)
+
+        return tableList
+
+    def getIntrinsicZernikes(self, field_x, field_y, rotation_angle=0.0, noll_indices=None):
         """
         Get the intrinsic Zernike coefficients at a given field position.
+
+        The returned coefficients are the sum of the CCS contribution,
+        interpolated at the requested field position, and the OCS
+        contribution, interpolated at the field position rotated by
+        ``rotation_angle``.  For calibrations that only store one
+        coordinate system (e.g. version 1 files, which only carry CCS),
+        the missing contribution is simply omitted from the sum.
 
         Parameters
         ----------
         field_x : `array-like`
-            CCS x-field positions in degrees.
+            x-field positions in degrees (CCS).
         field_y : `array-like`
-            CCS y-field positions in degrees.
+            y-field positions in degrees (CCS).
+        rotation_angle : `float`, optional
+            Rotation angle in degrees applied to the query point before
+            interpolating the OCS contribution.  Defaults to 0.
         noll_indices : `list` [`int`], optional
             List of Noll indices to return. If None, return all.
 
@@ -241,10 +339,31 @@ class IntrinsicZernikes(IsrCalib):
         """
         if noll_indices is None:
             noll_indices = self.noll_indices
-
-        point = np.array([field_x, field_y]).T
-        interpolated_values = self.interpolator(point)
-
         noll_indices = np.array(noll_indices)
         noll_mask = np.isin(self.noll_indices, noll_indices)
-        return interpolated_values[..., noll_mask]
+
+        field_x = np.asarray(field_x)
+        field_y = np.asarray(field_y)
+
+        total = None
+
+        if self.interpolator_ccs is not None:
+            point = np.array([field_x, field_y]).T
+            total = self.interpolator_ccs(point)
+
+        if self.interpolator_ocs is not None:
+            # Rotate the query point into the OCS frame before interpolating.
+            theta = np.deg2rad(rotation_angle)
+            cos_a, sin_a = np.cos(theta), np.sin(theta)
+            x_ocs = cos_a * field_x - sin_a * field_y
+            y_ocs = sin_a * field_x + cos_a * field_y
+            point_ocs = np.array([x_ocs, y_ocs]).T
+            ocs_values = self.interpolator_ocs(point_ocs)
+            total = ocs_values if total is None else total + ocs_values
+
+        if total is None:
+            raise RuntimeError(
+                "No intrinsic Zernikes are available in either coordinate system."
+            )
+
+        return total[..., noll_mask]
