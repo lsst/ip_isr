@@ -47,23 +47,33 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         self.field_x = x_grid.ravel()
         self.field_y = y_grid.ravel()
 
-        # Create values: shape (n_points, n_zernikes)
+        # Create values: shape (n_points, n_zernikes).  The CCS and OCS
+        # systems get independent values so tests can tell their (per-element)
+        # contributions apart.
         rng = np.random.default_rng(seed=57721)
         self.values = rng.normal(
             scale=0.1,
             size=(len(self.field_x), len(self.noll_indices))
         )  # microns
+        self.values_ocs = rng.normal(
+            scale=0.1,
+            size=(len(self.field_x), len(self.noll_indices))
+        )  # microns
 
-        # Create an astropy table in the format expected by __init__
+        # Create astropy tables in the format expected by __init__
         self.inputTable = Table()
         self.inputTable["x"] = self.field_x * u.deg
         self.inputTable["y"] = self.field_y * u.deg
 
+        self.inputTableOCS = Table()
+        self.inputTableOCS["x"] = self.field_x * u.deg
+        self.inputTableOCS["y"] = self.field_y * u.deg
+
         # Add Zernike columns
         for i, noll in enumerate(self.noll_indices):
             self.inputTable[f"Z{noll}"] = self.values[:, i] * u.um
+            self.inputTableOCS[f"Z{noll}"] = self.values_ocs[:, i] * u.um
 
-        self.inputTableOCS = self.inputTable.copy()
         self.inputTableOCS.meta["coord_sys"] = "OCS"
         # Create the calibration object
         self.calib = IntrinsicZernikes(table=self.inputTable, table_ocs=self.inputTableOCS)
@@ -81,7 +91,7 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         metadata = self.calib.getMetadata()
         self.assertEqual(metadata["OBSTYPE"], "INTRINSIC_ZERNIKES")
         self.assertEqual(metadata["INTRINSIC_ZERNIKES_SCHEMA"], "Intrinsic Zernikes")
-        self.assertEqual(metadata["INTRINSIC_ZERNIKES_VERSION"], 1.0)
+        self.assertEqual(metadata["INTRINSIC_ZERNIKES_VERSION"], 1.1)
 
     def test_dict_roundtrip(self):
         """Test round-tripping through dictionary."""
@@ -93,25 +103,17 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         newCalib = IntrinsicZernikes.fromTable(self.calib.toTable())
         self.assertEqual(newCalib, self.calib)
 
-    def test_yaml_roundtrip(self):
-        """Test round-tripping through YAML file."""
-        with tempfile.TemporaryDirectory() as tempdir:
-            import os
-            filename = os.path.join(tempdir, "intrinsic_zernikes.yaml")
+    def test_text_io_not_implemented(self):
+        """Test that text I/O is intentionally not implemented."""
+        for ext in ("yaml", "ecsv"):
+            with self.subTest(ext=ext):
+                filename = f"intrinsic_zernikes.{ext}"
 
-            self.calib.writeText(filename)
-            newCalib = IntrinsicZernikes.readText(filename)
-            self.assertEqual(newCalib, self.calib)
+                with self.assertRaises(NotImplementedError):
+                    self.calib.writeText(filename)
 
-    def test_ecsv_roundtrip(self):
-        """Test round-tripping through ECSV file."""
-        with tempfile.TemporaryDirectory() as tempdir:
-            import os
-            filename = os.path.join(tempdir, "intrinsic_zernikes.ecsv")
-
-            self.calib.writeText(filename)
-            newCalib = IntrinsicZernikes.readText(filename)
-            self.assertEqual(newCalib, self.calib)
+                with self.assertRaises(NotImplementedError):
+                    self.calib.readText(filename)
 
     def test_fits_roundtrip(self):
         """Test round-tripping through FITS file."""
@@ -143,9 +145,12 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
 
         zernikes = self.calib.getIntrinsicZernikes(field_x_test, field_y_test)
 
-        # In this case, we're on a grid point
+        # On a grid point each interpolator returns its own stored value, so
+        # the result is the element-wise sum of the CCS and OCS coefficients
+        # (rotTelPos defaults to 0, so the OCS query point is unrotated).
         center_idx = np.flatnonzero((self.field_x == 0.0) & (self.field_y == 0.0))[0]
-        self.assertFloatsEqual(zernikes, self.values[center_idx, :])
+        expected = self.values[center_idx, :] + self.values_ocs[center_idx, :]
+        self.assertFloatsEqual(zernikes, expected)
 
         # Test with specific Noll indices
         zernikes_subset = self.calib.getIntrinsicZernikes(

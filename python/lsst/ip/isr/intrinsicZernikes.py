@@ -110,7 +110,6 @@ class IntrinsicZernikes(IsrCalib):
         self.field_y_ocs = np.array([])
         self.values_ocs = np.array([])
         self.noll_indices = np.array([])
-        self.noll_indices_ocs = np.array([])
         self.interpolator = None
         self.interpolator_ocs = None
 
@@ -124,9 +123,19 @@ class IntrinsicZernikes(IsrCalib):
                 self.field_x, self.field_y, self.values
             )
         if table_ocs is not None:
-            (self.field_x_ocs, self.field_y_ocs, self.values_ocs, self.noll_indices_ocs) = (
+            (self.field_x_ocs, self.field_y_ocs, self.values_ocs, noll_indices_ocs) = (
                 self._unpackTable(table_ocs)
             )
+            # The CCS and OCS systems are summed term-by-term at query time, so
+            # they must describe the same Noll indices.  Store a single shared
+            # ``noll_indices`` and reject tables that disagree.
+            if table is not None and not np.array_equal(noll_indices_ocs, self.noll_indices):
+                raise ValueError(
+                    "CCS and OCS tables must share the same Noll indices; got "
+                    f"{self.noll_indices.tolist()} (CCS) and "
+                    f"{noll_indices_ocs.tolist()} (OCS)."
+                )
+            self.noll_indices = noll_indices_ocs
             self.interpolator_ocs = self._makeInterpolator(
                 self.field_x_ocs, self.field_y_ocs, self.values_ocs
             )
@@ -140,7 +149,6 @@ class IntrinsicZernikes(IsrCalib):
                 "field_y_ocs",
                 "values_ocs",
                 "noll_indices",
-                "noll_indices_ocs",
             ]
         )
 
@@ -218,7 +226,6 @@ class IntrinsicZernikes(IsrCalib):
         calib.field_y_ocs = np.array(dictionary.get("field_y_ocs", []))
         calib.values_ocs = np.array(dictionary.get("values_ocs", []))
         calib.noll_indices = np.array(dictionary["noll_indices"])
-        calib.noll_indices_ocs = np.array(dictionary["noll_indices_ocs"])
         calib.interpolator = cls._makeInterpolator(
             calib.field_x, calib.field_y, calib.values
         )
@@ -251,7 +258,6 @@ class IntrinsicZernikes(IsrCalib):
         outDict["field_y_ocs"] = self.field_y_ocs.tolist()
         outDict["values_ocs"] = self.values_ocs.tolist()
         outDict["noll_indices"] = self.noll_indices.tolist()
-        outDict["noll_indices_ocs"] = self.noll_indices_ocs.tolist()
 
         return outDict
 
@@ -338,6 +344,12 @@ class IntrinsicZernikes(IsrCalib):
             tableList.append(table)
 
         return tableList
+    
+    def writeText(self, filename, format="auto"):
+        raise NotImplementedError("Text output not implemented for IntrinsicZernikes")
+
+    def readText(cls, filename, format="auto"):
+        raise NotImplementedError("Text input not implemented for IntrinsicZernikes")
 
     def getIntrinsicZernikes(
         self, field_x, field_y, rotTelPos=0.0, noll_indices=None
@@ -372,16 +384,16 @@ class IntrinsicZernikes(IsrCalib):
             requested Noll indices and field positions.
         """
         if noll_indices is None:
-            noll_indices = sorted(
-                set(self.noll_indices).intersection(self.noll_indices_ocs)
-            )
+            # Default to all stored terms.  The CCS and OCS systems share these
+            # indices, so the output shape is the same whether or not an OCS
+            # system is present (an absent OCS simply adds nothing).
+            noll_indices = self.noll_indices
         noll_indices = np.array(noll_indices)
         noll_mask = np.isin(self.noll_indices, noll_indices)
 
         field_x = np.asarray(field_x)
         field_y = np.asarray(field_y)
 
-        total = None
         point = np.array([field_x, field_y]).T
         total = self.interpolator(point)
 
@@ -392,7 +404,9 @@ class IntrinsicZernikes(IsrCalib):
             x_ocs = cos_a * field_x - sin_a * field_y
             y_ocs = sin_a * field_x + cos_a * field_y
             point_ocs = np.array([x_ocs, y_ocs]).T
-            ocs_values = self.interpolator_ocs(point_ocs)
-            total = ocs_values if total is None else total + ocs_values
+            # CCS and OCS share the same Noll indices (enforced in __init__),
+            # so the two interpolator outputs line up column-for-column and add
+            # element-wise, preserving the CCS output shape.
+            total = total + self.interpolator_ocs(point_ocs)
 
         return total[..., noll_mask]
