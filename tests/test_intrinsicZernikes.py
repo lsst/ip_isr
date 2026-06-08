@@ -52,12 +52,10 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         # contributions apart.
         rng = np.random.default_rng(seed=57721)
         self.values = rng.normal(
-            scale=0.1,
-            size=(len(self.field_x), len(self.noll_indices))
+            scale=0.1, size=(len(self.field_x), len(self.noll_indices))
         )  # microns
         self.values_ocs = rng.normal(
-            scale=0.1,
-            size=(len(self.field_x), len(self.noll_indices))
+            scale=0.1, size=(len(self.field_x), len(self.noll_indices))
         )  # microns
 
         # Create astropy tables in the format expected by __init__
@@ -76,7 +74,9 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
 
         self.inputTableOCS.meta["coord_sys"] = "OCS"
         # Create the calibration object
-        self.calib = IntrinsicZernikes(table=self.inputTable, table_ocs=self.inputTableOCS)
+        self.calib = IntrinsicZernikes(
+            table=self.inputTable, table_ocs=self.inputTableOCS
+        )
 
     def test_initialization_with_table(self):
         """Test that IntrinsicZernikes initializes correctly from a table."""
@@ -119,6 +119,7 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         """Test round-tripping through FITS file."""
         with tempfile.TemporaryDirectory() as tempdir:
             import os
+
             filename = os.path.join(tempdir, "intrinsic_zernikes.fits")
 
             self.calib.writeFits(filename)
@@ -154,8 +155,7 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
 
         # Test with specific Noll indices
         zernikes_subset = self.calib.getIntrinsicZernikes(
-            field_x_test, field_y_test,
-            noll_indices=[4]
+            field_x_test, field_y_test, noll_indices=[4]
         )
         self.assertFloatsEqual(zernikes_subset, zernikes[:, 0])
 
@@ -184,5 +184,6 @@ def setup_module(module):
 
 if __name__ == "__main__":
     import sys
+
     setup_module(sys.modules[__name__])
     unittest.main()
