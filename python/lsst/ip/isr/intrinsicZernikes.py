@@ -344,11 +344,11 @@ class IntrinsicZernikes(IsrCalib):
             tableList.append(table)
 
         return tableList
-    
+
     def writeText(self, filename, format="auto"):
         raise NotImplementedError("Text output not implemented for IntrinsicZernikes")
 
-    def readText(cls, filename, format="auto"):
+    def readText(self, filename, format="auto"):
         raise NotImplementedError("Text input not implemented for IntrinsicZernikes")
 
     def getIntrinsicZernikes(
