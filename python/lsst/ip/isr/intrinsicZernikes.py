@@ -135,7 +135,6 @@ class IntrinsicZernikes(IsrCalib):
                     f"{self.noll_indices.tolist()} (CCS) and "
                     f"{noll_indices_ocs.tolist()} (OCS)."
                 )
-            self.noll_indices = noll_indices_ocs
             self.interpolator_ocs = self._makeInterpolator(
                 self.field_x_ocs, self.field_y_ocs, self.values_ocs
             )
