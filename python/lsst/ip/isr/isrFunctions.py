@@ -513,7 +513,7 @@ def _applyMaskITLEdgeBleed(ccdExposure, xCore,
                     sliceMask[y, lowerRange:upperRange] |= saturatedBit
 
 
-def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT"):
+def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT", log=None):
     """Mask columns presenting saturation sag in saturated footprints in
     ITL detectors.
 
@@ -525,7 +525,10 @@ def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT"):
         Footprint of saturated core.
     saturatedMaskName : `str`, optional
         Mask name for saturation.
+    log : `logging.Logger`, optional
+        Logger to handle messages.
     """
+    log = log if log else logging.getLogger(__name__)
 
     # TODO DM-49736: add a flux level check to apply masking
 
@@ -533,12 +536,22 @@ def maskITLSatSag(ccdExposure, fpCore, saturatedMaskName="SAT"):
     saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
 
     cc = numpy.sum(fpCore.getSpans().asArray(), axis=0)
-    # Mask full columns that have 20 percent of the height of the footprint
-    # saturated
-    columnsToMaskFP = numpy.where(cc > fpCore.getSpans().asArray().shape[0]/5.)
+    # Mask full columns that have 30 percent of the height of the footprint
+    # saturated and only if the saturated footprint box is mostly vertical
+    ratioSatFP = fpCore.getSpans().asArray().shape[0]/fpCore.getSpans().asArray().shape[1]
 
-    columnsToMask = [x + int(fpCore.getBBox().getMinX()) for x in columnsToMaskFP]
-    maskedImage.mask.array[:, columnsToMask] |= saturatedBit
+    if ratioSatFP > 0.5:
+        # We apply the masking if the saturation footprint has a width of
+        # at most twice the height, to avoid trigerring in the case of
+        # horizontal saturation box (e.g. in the case of a satellite trail).
+        columnsToMaskFP = numpy.where(cc > fpCore.getSpans().asArray().shape[0]*0.3)
+
+        columnsToMask = [x + int(fpCore.getBBox().getMinX()) for x in columnsToMaskFP]
+
+        log.info("Masking %d columns for saturation sag masking.", len(columnsToMask[0]))
+        maskedImage.mask.array[:, columnsToMask[0]] |= saturatedBit
+    else:
+        log.info("Saturated footprint too wide, no saturation sag masking applied.")
 
 
 def maskITLDip(exposure, detectorConfig, maskPlaneNames=["SUSPECT", "ITL_DIP"], log=None):
