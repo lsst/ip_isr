@@ -1354,18 +1354,19 @@ class DeferredChargeTask(Task):
         r = np.exp(-1/decay_time)
         Ny, Nx = inputArr.shape
 
-        # j = 0 term:
-        offset = np.zeros((num_previous_pixels, Ny, Nx))
-        offset[0, :, :] = drift_scale*np.maximum(0, inputArr)
+        inputArr_pos = np.maximum(0, inputArr) * drift_scale
 
-        # j = 1..jmax terms:
-        for n in range(1, num_previous_pixels):
-            offset[n, :, n:] = drift_scale*np.maximum(0, inputArr[:, :-n])*(r**n)
+        # Initialize with j=0
+        Linv = inputArr_pos.copy()
 
-        Linv = np.amax(offset, axis=0)
-        outputArr = inputArr - Linv
+        # Compute all contributions at once with broadcasting
+        r_powers = r ** np.arange(1, num_previous_pixels)
 
-        return outputArr
+        for n, r_power in enumerate(r_powers, start=1):
+            # Use in-place maximum to avoid allocation
+            np.maximum(Linv[:, n:], inputArr_pos[:, :-n] * r_power, out=Linv[:, n:])
+
+        return inputArr - Linv
 
     @staticmethod
     def local_trap_inverse(inputArr, trap, global_cti=0.0, num_previous_pixels=6):
@@ -1398,23 +1399,30 @@ class DeferredChargeTask(Task):
         """
         Ny, Nx = inputArr.shape
         a = 1 - global_cti
-        r = np.exp(-1/trap.emission_time)
+        r = np.exp(-1 / trap.emission_time)
 
-        # Estimate trap occupancies during readout
-        trap_occupancy = np.zeros((num_previous_pixels, Ny, Nx))
+        # Pre-compute capture ONCE (critical for exact match)
+        input_capture = trap.capture(np.maximum(0, inputArr))
+
+        # Compute max trap occupancy without 3D array
+        trap_occupancy = np.zeros((Ny, Nx))
+
         for n in range(num_previous_pixels):
-            trap_occupancy[n, :, n+1:] = trap.capture(np.maximum(0, inputArr))[:, :-(n+1)]*(r**n)
-        trap_occupancy = np.amax(trap_occupancy, axis=0)
+            # This matches original: trap_occupancy[n, :, n+1:] = ...
+            contribution = np.zeros((Ny, Nx))
+            if n + 1 < Nx:
+                contribution[:, n + 1:] = input_capture[:, :-(n + 1)] * (r**n)
+            trap_occupancy = np.maximum(trap_occupancy, contribution)
 
         # Estimate captured charge
-        C = trap.capture(np.maximum(0, inputArr)) - trap_occupancy*r
-        C[C < 0] = 0.
+        C = input_capture - trap_occupancy * r
+        C[C < 0] = 0.0
 
         # Estimate released charge
         R = np.zeros(inputArr.shape)
-        R[:, 1:] = trap_occupancy[:, 1:]*(1-r)
+        R[:, 1:] = trap_occupancy[:, 1:] * (1 - r)
         T = R - C
 
-        outputArr = inputArr - a*T
+        outputArr = inputArr - a * T
 
         return outputArr
