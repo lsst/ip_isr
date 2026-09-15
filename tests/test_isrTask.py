@@ -21,12 +21,14 @@
 #
 
 import unittest
+import unittest.mock
 import numpy as np
 
 import lsst.afw.image as afwImage
 import lsst.ip.isr.isrMock as isrMock
 import lsst.utils.tests
 from lsst.ip.isr.isrTask import (IsrTask, IsrTaskConfig)
+from lsst.ip.isr.masking import DECamEdgeBleedMaskTask
 from lsst.ip.isr.isrQa import IsrQaConfig
 from lsst.pipe.base import Struct
 from lsst.ip.isr import PhotonTransferCurveDataset
@@ -474,6 +476,45 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 0)
+
+    def test_maskingCase_decamEdgeBleedRetarget(self):
+        """Test that the DECam edge bleed masking subtask can be retargeted
+        into the camera-specific masking slot and its config reaches the
+        function.
+        """
+        self.batchSetConfiguration(True)
+        self.config.overscan.fitType = "POLY"
+        self.config.overscan.order = 1
+        self.config.doSaturationInterpolation = False
+        self.config.doBrighterFatter = False
+        self.config.maskNegativeVariance = False  # These are mock images.
+
+        self.config.doCameraSpecificMasking = True
+        self.config.masking.retarget(DECamEdgeBleedMaskTask)
+        self.config.masking.satMinArea = 11
+        self.config.masking.satMaxArea = 22
+        self.config.masking.approachRows = 33
+        self.config.masking.nSigma = 4.4
+        self.config.masking.nRowsCheck = 55
+        self.config.masking.minLowPixelsPerRow = 66
+        self.config.masking.minLowPixelsExtent = 7
+        self.config.masking.marginFraction = 0.88
+        self.config.masking.saturatedMaskName = "SUSPECT"
+
+        with unittest.mock.patch("lsst.ip.isr.isrFunctions.maskDECamEdgeBleed") as mocked:
+            self.validateIsrResults()
+
+        mocked.assert_called_once()
+        kwargs = mocked.call_args.kwargs
+        self.assertEqual(kwargs["satMinArea"], 11)
+        self.assertEqual(kwargs["satMaxArea"], 22)
+        self.assertEqual(kwargs["approachRows"], 33)
+        self.assertEqual(kwargs["nSigma"], 4.4)
+        self.assertEqual(kwargs["nRowsCheck"], 55)
+        self.assertEqual(kwargs["minLowPixelsPerRow"], 66)
+        self.assertEqual(kwargs["minLowPixelsExtent"], 7)
+        self.assertEqual(kwargs["marginFraction"], 0.88)
+        self.assertEqual(kwargs["saturatedMaskName"], "SUSPECT")
 
     def test_maskingCase_satMaskingAndInterp(self):
         """Test masking cases of configuration parameters.

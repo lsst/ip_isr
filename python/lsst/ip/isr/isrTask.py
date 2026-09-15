@@ -793,12 +793,13 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
     # Camera-specific masking configuration.
     doCameraSpecificMasking = pexConfig.Field(
         dtype=bool,
-        doc="Mask camera-specific bad regions?",
+        doc="Use camera-specific masking task to mask bad regions?",
         default=False,
     )
     masking = pexConfig.ConfigurableField(
         target=MaskingTask,
-        doc="Masking task."
+        doc="Masking task. The default does nothing; retarget to a camera-specific "
+            "task and set doCameraSpecificMasking.",
     )
 
     # Interpolation options.
