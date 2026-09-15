@@ -21,6 +21,7 @@
 #
 
 import unittest
+import unittest.mock
 import numpy as np
 
 import lsst.afw.image as afwImage
@@ -313,6 +314,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.config.doBias = value
         self.config.doVariance = value
         self.config.doWidenSaturationTrails = value
+        self.config.doDECamEdgeBleedMask = value
         self.config.doBrighterFatter = value
         self.config.doDefect = value
         self.config.doSaturationInterpolation = value
@@ -409,6 +411,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.config.doSaturation = False
         self.config.doWidenSaturationTrails = False
         self.config.doSaturationInterpolation = False
+        self.config.doDECamEdgeBleedMask = False
         self.config.doSuspect = False
         self.config.doSetBadRegions = False
         self.config.doDefect = False
@@ -434,6 +437,7 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.config.doSaturation = False
         self.config.doWidenSaturationTrails = False
         self.config.doSaturationInterpolation = False
+        self.config.doDECamEdgeBleedMask = False
         self.config.doSuspect = False
         self.config.doSetBadRegions = False
         self.config.doDefect = False
@@ -474,6 +478,41 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.assertEqual(countMaskedPixels(results.exposure, "INTRP"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "SUSPECT"), 0)
         self.assertEqual(countMaskedPixels(results.exposure, "BAD"), 0)
+
+    def test_maskingCase_decamEdgeBleedConfig(self):
+        """Test that the DECam edge bleed config fields reach the function.
+        """
+        self.batchSetConfiguration(True)
+        self.config.overscan.fitType = "POLY"
+        self.config.overscan.order = 1
+        self.config.doSaturationInterpolation = False
+        self.config.doBrighterFatter = False
+        self.config.maskNegativeVariance = False  # These are mock images.
+
+        self.config.decamEdgeBleedSatMinArea = 11
+        self.config.decamEdgeBleedSatMaxArea = 22
+        self.config.decamEdgeBleedApproachRows = 33
+        self.config.decamEdgeBleedNSigma = 4.4
+        self.config.decamEdgeBleedNRowsCheck = 55
+        self.config.decamEdgeBleedMinLowPixelsPerRow = 66
+        self.config.decamEdgeBleedMinLowPixelsExtent = 77
+        self.config.decamEdgeBleedMarginFraction = 0.88
+        self.config.saturatedMaskName = "SUSPECT"
+
+        with unittest.mock.patch("lsst.ip.isr.isrFunctions.maskDECamEdgeBleed") as mocked:
+            self.validateIsrResults()
+
+        mocked.assert_called_once()
+        kwargs = mocked.call_args.kwargs
+        self.assertEqual(kwargs["satMinArea"], 11)
+        self.assertEqual(kwargs["satMaxArea"], 22)
+        self.assertEqual(kwargs["approachRows"], 33)
+        self.assertEqual(kwargs["nSigma"], 4.4)
+        self.assertEqual(kwargs["nRowsCheck"], 55)
+        self.assertEqual(kwargs["minLowPixelsPerRow"], 66)
+        self.assertEqual(kwargs["minLowPixelsExtent"], 77)
+        self.assertEqual(kwargs["marginFraction"], 0.88)
+        self.assertEqual(kwargs["saturatedMaskName"], "SUSPECT")
 
     def test_maskingCase_satMaskingAndInterp(self):
         """Test masking cases of configuration parameters.

@@ -632,6 +632,55 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
         doc="Widen bleed trails based on their width?",
         default=True
     )
+    doDECamEdgeBleedMask = pexConfig.Field(
+        dtype=bool,
+        doc="Mask DECam-style depressed edge bleeds adjacent to the read register?",
+        default=False,
+    )
+    decamEdgeBleedSatMinArea = pexConfig.Field(
+        dtype=int,
+        doc="Minimum area (pixels) of a saturated footprint to be an edge bleed candidate.",
+        default=10000,
+    )
+    decamEdgeBleedSatMaxArea = pexConfig.Field(
+        dtype=int,
+        doc="Maximum area (pixels, exclusive) of a saturated footprint to be an edge bleed candidate.",
+        default=100000,
+    )
+    decamEdgeBleedApproachRows = pexConfig.Field(
+        dtype=int,
+        doc="Saturated footprint must come within this many rows of the read edge.",
+        default=20,
+    )
+    decamEdgeBleedNSigma = pexConfig.Field(
+        dtype=float,
+        doc="A pixel is counted as depressed if it is below sky by more than this many sigma.",
+        default=5.0,
+    )
+    decamEdgeBleedNRowsCheck = pexConfig.Field(
+        dtype=int,
+        doc="Number of rows from the read edge used to confirm an edge bleed.",
+        default=20,
+    )
+    decamEdgeBleedMinLowPixelsPerRow = pexConfig.Field(
+        dtype=int,
+        doc=("Mean depressed pixels per row over the check rows required (exceeded) to confirm an "
+             "edge bleed. Read-edge rows with fewer usable pixels than this are skipped before the "
+             "check rows start."),
+        default=30,
+    )
+    decamEdgeBleedMinLowPixelsExtent = pexConfig.Field(
+        dtype=int,
+        doc=("Depressed pixels a row must have (more than this) to count toward the edge bleed "
+             "height. Should be smaller than decamEdgeBleedMinLowPixelsPerRow."),
+        default=10,
+    )
+    decamEdgeBleedMarginFraction = pexConfig.Field(
+        dtype=float,
+        doc=("Extra rows masked beyond the measured edge bleed height, as a fraction of that height "
+             "(plus one row)."),
+        default=0.125,
+    )
 
     # Brighter-Fatter correction.
     doBrighterFatter = pexConfig.Field(
@@ -992,6 +1041,8 @@ class IsrTaskConfig(pipeBase.PipelineTaskConfig,
             self.maskListToInterpolate.append("UNMASKEDNAN")
         if self.ampOffset.doApplyAmpOffset and not self.doAmpOffset:
             raise ValueError("ampOffset.doApplyAmpOffset requires doAmpOffset to be True.")
+        if self.doDECamEdgeBleedMask and not self.doSaturation:
+            raise ValueError("Cannot do DECam edge bleed masking when doSaturation=False.")
 
 
 class IsrTask(pipeBase.PipelineTask):
@@ -1609,6 +1660,22 @@ class IsrTask(pipeBase.PipelineTask):
         if self.config.doWidenSaturationTrails:
             self.log.info("Widening saturation trails.")
             isrFunctions.widenSaturationTrails(ccdExposure.getMaskedImage().getMask())
+
+        if self.config.doDECamEdgeBleedMask:
+            self.log.info("Masking DECam edge bleeds.")
+            isrFunctions.maskDECamEdgeBleed(
+                ccdExposure,
+                satMinArea=self.config.decamEdgeBleedSatMinArea,
+                satMaxArea=self.config.decamEdgeBleedSatMaxArea,
+                approachRows=self.config.decamEdgeBleedApproachRows,
+                nSigma=self.config.decamEdgeBleedNSigma,
+                nRowsCheck=self.config.decamEdgeBleedNRowsCheck,
+                minLowPixelsPerRow=self.config.decamEdgeBleedMinLowPixelsPerRow,
+                minLowPixelsExtent=self.config.decamEdgeBleedMinLowPixelsExtent,
+                marginFraction=self.config.decamEdgeBleedMarginFraction,
+                saturatedMaskName=self.config.saturatedMaskName,
+                log=self.log,
+            )
 
         if self.config.doCameraSpecificMasking:
             self.log.info("Masking regions for camera specific reasons.")
