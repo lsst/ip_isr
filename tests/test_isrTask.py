@@ -492,12 +492,14 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         self.config.doCameraSpecificMasking = True
         self.config.masking.retarget(DECamEdgeBleedMaskTask)
         self.config.masking.satMinArea = 11
-        self.config.masking.satMaxArea = 22
         self.config.masking.approachRows = 33
         self.config.masking.nSigma = 4.4
         self.config.masking.nRowsCheck = 55
-        self.config.masking.minLowPixelsPerRow = 66
-        self.config.masking.minLowPixelsExtent = 7
+        self.config.masking.nRowsCheckShort = 3
+        self.config.masking.minUsablePixelsPerRow = 66
+        self.config.masking.minLowFraction = 0.77
+        self.config.masking.minLowFractionExtent = 0.07
+        self.config.masking.minBlockedRows = 9
         self.config.masking.marginFraction = 0.88
         self.config.masking.saturatedMaskName = "SUSPECT"
 
@@ -507,12 +509,14 @@ class IsrTaskUnTrimmedTestCases(lsst.utils.tests.TestCase):
         mocked.assert_called_once()
         kwargs = mocked.call_args.kwargs
         self.assertEqual(kwargs["satMinArea"], 11)
-        self.assertEqual(kwargs["satMaxArea"], 22)
         self.assertEqual(kwargs["approachRows"], 33)
         self.assertEqual(kwargs["nSigma"], 4.4)
         self.assertEqual(kwargs["nRowsCheck"], 55)
-        self.assertEqual(kwargs["minLowPixelsPerRow"], 66)
-        self.assertEqual(kwargs["minLowPixelsExtent"], 7)
+        self.assertEqual(kwargs["nRowsCheckShort"], 3)
+        self.assertEqual(kwargs["minUsablePixelsPerRow"], 66)
+        self.assertEqual(kwargs["minLowFraction"], 0.77)
+        self.assertEqual(kwargs["minLowFractionExtent"], 0.07)
+        self.assertEqual(kwargs["minBlockedRows"], 9)
         self.assertEqual(kwargs["marginFraction"], 0.88)
         self.assertEqual(kwargs["saturatedMaskName"], "SUSPECT")
 

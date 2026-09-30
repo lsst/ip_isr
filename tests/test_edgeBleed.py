@@ -113,16 +113,124 @@ class MaskDECamEdgeBleedTestCase(lsst.utils.tests.TestCase):
 
         np.testing.assert_array_equal(after, before)
 
-    def test_largeFootprintIsNotMasked(self):
-        # 300 x 400 = 120000 SAT pixels: above satMaxArea. Only x 0-49 of the
+    def test_largeFootprintIsMasked(self):
+        # 300 x 400 = 120000 SAT pixels: tall DECam bleeds have footprints of
+        # 1e5-2e5 pixels, so there is no upper area cut.  Only x 0-49 of the
         # dip rows are unsaturated, still enough low pixels per row to be
-        # detectable, so only the area cut prevents masking.
+        # detectable.
         self.addSatBlock(50, 400, 300, 400)
         self.addDip(0, AMP_HEIGHT - 100, AMP_WIDTH, 100)
 
         before, after = self.runMasking()
 
+        expected = before.copy()
+        expected[AMP_HEIGHT - 113:, 0:AMP_WIDTH] |= self.satBit
+        np.testing.assert_array_equal(after, expected)
+
+    def test_dipInFewUsablePixelsIsMasked(self):
+        # Saturation covers 160 of the 200 columns in the 100 rows nearest
+        # the read edge, and the dip is in 25 of the remaining 40 columns:
+        # 25 low pixels per row is far below the old count threshold of 30,
+        # but 62 per cent of the usable pixels are low.
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+        self.addSatBlock(40, AMP_HEIGHT - 100, 160, 100)
+        self.addDip(0, AMP_HEIGHT - 100, 25, 100)
+
+        before, after = self.runMasking()
+
+        expected = before.copy()
+        expected[AMP_HEIGHT - 113:, 0:AMP_WIDTH] |= self.satBit
+        np.testing.assert_array_equal(after, expected)
+
+    def test_sparseLowPixelsAreNotADip(self):
+        # 2 low pixels per row, 2 per cent of the 100 usable columns in the
+        # check rows, is below minLowFraction: not an edge bleed.
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+        self.addDip(0, AMP_HEIGHT - 100, 2, 100)
+
+        before, after = self.runMasking()
+
         np.testing.assert_array_equal(after, before)
+
+    def test_shallowDipInFirstRowsIsMasked(self):
+        # A dip in 10 of the 100 usable columns over the 4 rows nearest the
+        # read edge: 2 per cent averaged over the 20 check rows, but 8 per
+        # cent over the 5-row short window.  4 rows -> int(4*0.125) + 1 = 1
+        # -> 5 rows masked.
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+        self.addDip(0, AMP_HEIGHT - 4, 10, 4)
+
+        before, after = self.runMasking()
+
+        expected = before.copy()
+        expected[AMP_HEIGHT - 5:, 0:AMP_WIDTH] |= self.satBit
+        np.testing.assert_array_equal(after, expected)
+
+    def test_shortWindowCanBeDisabled(self):
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+        self.addDip(0, AMP_HEIGHT - 4, 10, 4)
+
+        before = self.exposure.mask.array.copy()
+        ipIsrFunctions.maskDECamEdgeBleed(self.exposure, nRowsCheckShort=0)
+
+        np.testing.assert_array_equal(self.exposure.mask.array, before)
+
+    def test_blockedRowsBeyondBorderAreMasked(self):
+        # Both edges of amp A carry a 10-row BAD border (as DECam defects
+        # do).  A drained read register leaves rows 10-59 from the read edge
+        # fully BAD as well, with no measurable dip beyond them: those 50
+        # blocked rows are themselves the edge bleed, so the mask covers
+        # them plus the margin (60 -> int(60*0.125) + 1 = 8 -> 68 rows).
+        badBit = self.exposure.mask.getPlaneBitMask("BAD")
+        self.exposure.mask.array[:10, 0:AMP_WIDTH] |= badBit
+        self.exposure.mask.array[AMP_HEIGHT - 60:, 0:AMP_WIDTH] |= badBit
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+
+        before, after = self.runMasking()
+
+        expected = before.copy()
+        expected[AMP_HEIGHT - 68:, 0:AMP_WIDTH] |= self.satBit
+        np.testing.assert_array_equal(after, expected)
+
+    def test_normalBorderIsNotABleed(self):
+        # The same 10-row BAD border at both edges, but nothing beyond it:
+        # the read-edge border is not counted as blocked rows.
+        badBit = self.exposure.mask.getPlaneBitMask("BAD")
+        self.exposure.mask.array[:10, 0:AMP_WIDTH] |= badBit
+        self.exposure.mask.array[AMP_HEIGHT - 10:, 0:AMP_WIDTH] |= badBit
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+
+        before, after = self.runMasking()
+
+        np.testing.assert_array_equal(after, before)
+
+    def test_fewBlockedRowsNeedADip(self):
+        # 3 blocked rows beyond the border are below minBlockedRows; with no
+        # dip beyond them nothing is masked.
+        badBit = self.exposure.mask.getPlaneBitMask("BAD")
+        self.exposure.mask.array[:10, 0:AMP_WIDTH] |= badBit
+        self.exposure.mask.array[AMP_HEIGHT - 13:, 0:AMP_WIDTH] |= badBit
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+
+        before, after = self.runMasking()
+
+        np.testing.assert_array_equal(after, before)
+
+    def test_blockedRowsExtendAMeasuredDip(self):
+        # 30 blocked rows beyond a 10-row border, then a 40-row dip: the
+        # height is measured from the physical edge through the dip
+        # (80 -> int(80*0.125) + 1 = 11 -> 91 rows).
+        badBit = self.exposure.mask.getPlaneBitMask("BAD")
+        self.exposure.mask.array[:10, 0:AMP_WIDTH] |= badBit
+        self.exposure.mask.array[AMP_HEIGHT - 40:, 0:AMP_WIDTH] |= badBit
+        self.addSatBlock(50, AMP_HEIGHT - 200, 100, 200)
+        self.addDip(0, AMP_HEIGHT - 80, AMP_WIDTH, 40)
+
+        before, after = self.runMasking()
+
+        expected = before.copy()
+        expected[AMP_HEIGHT - 91:, 0:AMP_WIDTH] |= self.satBit
+        np.testing.assert_array_equal(after, expected)
 
     def test_footprintFarFromEdgeIsNotMasked(self):
         # Footprint top at row 599, 200 rows short of the read edge.
@@ -245,21 +353,48 @@ class DECamEdgeBleedMaskTaskTestCase(lsst.utils.tests.TestCase):
     def test_defaults(self):
         config = DECamEdgeBleedMaskTask.ConfigClass()
         self.assertEqual(config.satMinArea, 10000)
-        self.assertEqual(config.satMaxArea, 100000)
         self.assertEqual(config.approachRows, 20)
         self.assertEqual(config.nSigma, 5.0)
         self.assertEqual(config.nRowsCheck, 20)
-        self.assertEqual(config.minLowPixelsPerRow, 30)
-        self.assertEqual(config.minLowPixelsExtent, 10)
+        self.assertEqual(config.nRowsCheckShort, 5)
+        self.assertEqual(config.minUsablePixelsPerRow, 30)
+        self.assertEqual(config.minLowFraction, 0.03)
+        self.assertEqual(config.minLowFractionExtent, 0.01)
+        self.assertEqual(config.minBlockedRows, 5)
         self.assertEqual(config.marginFraction, 0.125)
         self.assertEqual(config.saturatedMaskName, "SAT")
         config.validate()
 
-    def test_validateExtentBelowPerRow(self):
+    def test_validateExtentFractionNotAboveDipFraction(self):
         config = DECamEdgeBleedMaskTask.ConfigClass()
-        config.minLowPixelsExtent = config.minLowPixelsPerRow
+        config.minLowFractionExtent = 2*config.minLowFraction
         with self.assertRaises(ValueError):
             config.validate()
+
+    def test_validateFractionsInRange(self):
+        config = DECamEdgeBleedMaskTask.ConfigClass()
+        config.minLowFraction = 1.5
+        with self.assertRaises(ValueError):
+            config.validate()
+
+    def test_runPassesNewParameters(self):
+        # minLowFraction above the 62 per cent dip fraction of a 25-column dip
+        # in 40 usable columns must switch masking off through the task.
+        self.exposure.mask.array[AMP_HEIGHT - 200:, 50:150] |= self.satBit
+        self.exposure.mask.array[AMP_HEIGHT - 100:, 40:AMP_WIDTH] |= self.satBit
+        self.exposure.image.array[AMP_HEIGHT - 100:, 0:25] -= DIP
+        before = self.exposure.mask.array.copy()
+
+        config = DECamEdgeBleedMaskTask.ConfigClass()
+        config.minLowFraction = 0.9
+        config.minLowFractionExtent = 0.5
+        DECamEdgeBleedMaskTask(config=config).run(self.exposure)
+        np.testing.assert_array_equal(self.exposure.mask.array, before)
+
+        DECamEdgeBleedMaskTask().run(self.exposure)
+        expected = before.copy()
+        expected[AMP_HEIGHT - 113:, 0:AMP_WIDTH] |= self.satBit
+        np.testing.assert_array_equal(self.exposure.mask.array, expected)
 
     def test_runMasksEdgeBleed(self):
         self.exposure.mask.array[AMP_HEIGHT - 200:, 50:150] |= self.satBit

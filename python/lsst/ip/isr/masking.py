@@ -62,45 +62,57 @@ class MaskingTask(Task):
 class DECamEdgeBleedMaskConfig(Config):
     satMinArea = Field(
         dtype=int,
-        doc="Minimum area (pixels) of a saturated footprint to be an edge bleed candidate.",
+        doc="Minimum area (pixels) of a saturated footprint to be considered.",
         default=10000,
-    )
-    satMaxArea = Field(
-        dtype=int,
-        doc="Maximum area (pixels, exclusive) of a saturated footprint to be an edge bleed candidate.",
-        default=100000,
     )
     approachRows = Field(
         dtype=int,
-        doc="Saturated footprint must come within this many rows of the read edge.",
+        doc=("A saturated footprint must come within this many rows of the read edge to trigger the "
+             "edge bleed check."),
         default=20,
     )
     nSigma = Field(
         dtype=float,
-        doc="A pixel is counted as depressed if it is below sky by more than this many sigma.",
+        doc="A pixel is \"low\" if it is more than this many sigma below sky.",
         default=5.0,
     )
     nRowsCheck = Field(
         dtype=int,
-        doc="Number of rows from the read edge used to confirm an edge bleed.",
+        doc="Number of rows from the read edge to check for an edge bleed dip.",
         default=20,
     )
-    minLowPixelsPerRow = Field(
+    nRowsCheckShort = Field(
         dtype=int,
-        doc=("Mean depressed pixels per row over the check rows required (exceeded) to confirm an "
-             "edge bleed. Read-edge rows with fewer usable pixels than this are skipped before the "
-             "check rows start."),
+        doc="A second, shorter window from the read edge to check for a short edge bleed dip.",
+        default=5,
+    )
+    minUsablePixelsPerRow = Field(
+        dtype=int,
+        doc=("Minimum number of pixels not saturated, bad or missing to search for dips. "
+             "Rows with fewer pixels may be \"blocked\" due to a drained register."),
         default=30,
     )
-    minLowPixelsExtent = Field(
+    minLowFraction = Field(
+        dtype=float,
+        doc=("Mean fraction of usable pixels that are low, over either nRowsCheck or nRowsCheckShort, "
+             "to confirm a dip."),
+        default=0.03,
+    )
+    minLowFractionExtent = Field(
+        dtype=float,
+        doc=("Fraction of usable pixels that are low that each row must exceed to count toward the "
+             "bleed height; the scan stops after five consecutive rows that do not. "
+             "Should not exceed minLowFraction."),
+        default=0.01,
+    )
+    minBlockedRows = Field(
         dtype=int,
-        doc=("Depressed pixels a row must have (more than this) to count toward the edge bleed "
-             "height. Should be smaller than minLowPixelsPerRow."),
-        default=10,
+        doc="Minimum number of blocked rows beyond the normal border at the read edge to be masked if found.",
+        default=5,
     )
     marginFraction = Field(
         dtype=float,
-        doc=("Extra rows masked beyond the measured edge bleed height, as a fraction of that height "
+        doc=("Extra rows masked beyond the measured height, as a fraction of that height "
              "(plus one row)."),
         default=0.125,
     )
@@ -112,8 +124,10 @@ class DECamEdgeBleedMaskConfig(Config):
 
     def validate(self):
         super().validate()
-        if self.minLowPixelsExtent >= self.minLowPixelsPerRow:
-            raise ValueError("minLowPixelsExtent must be smaller than minLowPixelsPerRow.")
+        if not 0.0 < self.minLowFraction < 1.0 or not 0.0 < self.minLowFractionExtent < 1.0:
+            raise ValueError("minLowFraction and minLowFractionExtent must be between 0 and 1.")
+        if self.minLowFractionExtent > self.minLowFraction:
+            raise ValueError("minLowFractionExtent must not exceed minLowFraction.")
 
 
 class DECamEdgeBleedMaskTask(MaskingTask):
@@ -138,12 +152,14 @@ class DECamEdgeBleedMaskTask(MaskingTask):
         isrFunctions.maskDECamEdgeBleed(
             exposure,
             satMinArea=self.config.satMinArea,
-            satMaxArea=self.config.satMaxArea,
             approachRows=self.config.approachRows,
             nSigma=self.config.nSigma,
             nRowsCheck=self.config.nRowsCheck,
-            minLowPixelsPerRow=self.config.minLowPixelsPerRow,
-            minLowPixelsExtent=self.config.minLowPixelsExtent,
+            nRowsCheckShort=self.config.nRowsCheckShort,
+            minUsablePixelsPerRow=self.config.minUsablePixelsPerRow,
+            minLowFraction=self.config.minLowFraction,
+            minLowFractionExtent=self.config.minLowFractionExtent,
+            minBlockedRows=self.config.minBlockedRows,
             marginFraction=self.config.marginFraction,
             saturatedMaskName=self.config.saturatedMaskName,
             log=self.log,

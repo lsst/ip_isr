@@ -281,16 +281,22 @@ def maskE2VEdgeBleed(exposure, e2vEdgeBleedSatMinArea=10000,
                         maskedImage.mask[amp.getBBox()].array[:e2vEdgeBleedYMax, :] |= saturatedBit
 
 
-def maskDECamEdgeBleed(exposure, satMinArea=10000, satMaxArea=100000, approachRows=20,
-                       nSigma=5.0, nRowsCheck=20, minLowPixelsPerRow=30, minLowPixelsExtent=10,
+def maskDECamEdgeBleed(exposure, satMinArea=10000, approachRows=20, nSigma=5.0,
+                       nRowsCheck=20, nRowsCheckShort=5, minUsablePixelsPerRow=30,
+                       minLowFraction=0.03, minLowFractionExtent=0.01, minBlockedRows=5,
                        marginFraction=0.125, saturatedMaskName="SAT", log=None):
     """Mask DECam-style edge bleeds with low rows next to the read register.
 
     For each amplifier that contains a large saturated footprint reaching
-    within ``approachRows`` of its read edge, this function confirms the dip
-    from the per-row count of pixels more than ``nSigma`` below the clipped
-    sky, measures how far the dip extends inward, and marks those rows
-    (plus a margin) with the saturation mask plane.
+    within ``approachRows`` of its read edge, this function identifies a dip
+    using the per-row fraction of usable pixels more than ``nSigma`` below
+    the clipped sky, measures how far the dip extends inward, and marks
+    those rows (plus a margin) with the saturation mask plane.
+
+    Rows next to the read edge that are unusable are the signature of a
+    drained serial register, which the overscan correction flags as bad;
+    ``minBlockedRows`` rows are also flagged, despite not having a
+    dip measurement.
 
     Parameters
     ----------
@@ -298,21 +304,30 @@ def maskDECamEdgeBleed(exposure, satMinArea=10000, satMaxArea=100000, approachRo
         Assembled exposure to mask.
     satMinArea : `int`, optional
         Minimum area (pixels) of a saturated footprint to be considered.
-    satMaxArea : `int`, optional
-        Maximum area (pixels) of a saturated footprint to be considered.
     approachRows : `int`, optional
-        A footprint must come within this many rows of the read edge.
+        A saturated footprint must come within this many rows of the read edge
+        to trigger the edge bleed check.
     nSigma : `float`, optional
         A pixel is "low" if it is more than this many sigma below sky.
     nRowsCheck : `int`, optional
-        Number of rows from the read edge used to confirm the bleed.
-    minLowPixelsPerRow : `int`, optional
-        Mean number of low pixels per row over the check rows required
-        to confirm the bleed.
-    minLowPixelsExtent : `int`, optional
-        Number of low pixels a row must exceed to count toward the bleed
-        height; the scan stops after five consecutive rows that do not.
-        Should be smaller than ``minLowPixelsPerRow``.
+        Number of rows from the read edge to check for an edge bleed dip.
+    nRowsCheckShort : `int`, optional
+        A second, shorter window from the read edge to check for a short
+        edge bleed dip.
+    minUsablePixelsPerRow : `int`, optional
+        Minimum number of pixels not saturated, bad or missing to search for
+        dips.  Rows with fewer pixels may be "blocked" due to a drained
+        register.
+    minLowFraction : `float`, optional
+        Mean fraction of usable pixels that are low, over either ``nRowsCheck``
+        or ``nRowsCheckShort``, to confirm a dip.
+    minLowFractionExtent : `float`, optional
+        Fraction of usable pixels that  are low that each row must exceed
+        to count toward the bleed height; the scan stops after five consecutive
+        rows that do not.  Should not exceed ``minLowFraction``.
+    minBlockedRows : `int`, optional
+        Minimum number of blocked rows beyond the normal border at the read
+        edge to be masked if found.
     marginFraction : `float`, optional
         Extra rows masked beyond the measured height, as a fraction of
         that height (plus one row).
@@ -334,23 +349,26 @@ def maskDECamEdgeBleed(exposure, satMinArea=10000, satMaxArea=100000, approachRo
 
     maskedImage = exposure.maskedImage
     saturatedBit = maskedImage.mask.getPlaneBitMask(saturatedMaskName)
-    unusableBits = maskedImage.mask.getPlaneBitMask([saturatedMaskName, "BAD", "NO_DATA"])
-    statsBits = unusableBits | maskedImage.mask.getPlaneBitMask("SUSPECT")
+    borderBits = maskedImage.mask.getPlaneBitMask(["BAD", "NO_DATA"])
+    unusableBits = borderBits | saturatedBit
+    excludeStatsBits = unusableBits | maskedImage.mask.getPlaneBitMask("SUSPECT")
 
+    # find saturated footprints
     thresh = afwDetection.Threshold(saturatedBit, afwDetection.Threshold.BITMASK)
     fpList = afwDetection.FootprintSet(maskedImage.mask, thresh).getFootprints()
     candidates = []
     for fp in fpList:
-        if satMinArea <= fp.getArea() < satMaxArea:
+        if fp.getArea() >= satMinArea:
             xCore, yCore = fp.getCentroid()
             candidates.append((int(xCore), int(yCore), fp.getBBox()))
     if not candidates:
-        log.debug("No saturated footprints in the DECam edge bleed area range.")
+        log.debug("No saturated footprints large enough for the DECam edge bleed check.")
         return
 
     statsCtrl = afwMath.StatisticsControl()
-    statsCtrl.setAndMask(statsBits)
-    # Number of consecutive rows without a dip that ends the height scan.
+    statsCtrl.setAndMask(excludeStatsBits)
+
+    # End the dip scan after this many consecutive rows without a dip.
     nRowsStop = 5
 
     for amp in detector:
@@ -359,6 +377,7 @@ def maskDECamEdgeBleed(exposure, satMinArea=10000, satMaxArea=100000, approachRo
             continue
         readTop = amp.getReadoutCorner() in (camGeom.ReadoutCorner.UL, camGeom.ReadoutCorner.UR)
 
+        # check to see if saturated footprints reach the readout edge
         if readTop:
             reachesReadEdge = any(ampBBox.contains(x, y)
                                   and fpBBox.getMaxY() >= ampBBox.getMaxY() - approachRows
@@ -383,29 +402,41 @@ def maskDECamEdgeBleed(exposure, satMinArea=10000, satMaxArea=100000, approachRo
         usable = (ampImage.mask.array & unusableBits) == 0
         low = (ampImage.image.array < sky - nSigma*sigma) & usable
         # Row profiles with index 0 at the read edge, increasing inward.
-        profile = low.sum(axis=1)
+        nLow = low.sum(axis=1)
         nUsable = usable.sum(axis=1)
+        nBorderUsable = ((ampImage.mask.array & borderBits) == 0).sum(axis=1)
         if readTop:
-            profile = profile[::-1]
+            nLow = nLow[::-1]
             nUsable = nUsable[::-1]
+        else:
+            nBorderUsable = nBorderUsable[::-1]
 
-        # Skip edge rows that cannot hold enough low pixels to confirm a dip.
-        enoughUsable = numpy.nonzero(nUsable >= minLowPixelsPerRow)[0]
+        enoughUsable = numpy.nonzero(nUsable >= minUsablePixelsPerRow)[0]
         if len(enoughUsable) == 0:
             log.debug("Skipping DECam edge bleed check in amp %s: no rows with usable pixels.",
                       amp.getName())
             continue
-        start = enoughUsable[0]
+        start = int(enoughUsable[0])
+        borderRows = numpy.nonzero(nBorderUsable >= minUsablePixelsPerRow)[0]
+        border = int(borderRows[0]) if len(borderRows) else 0
+        blocked = start - border
 
-        if profile[start:start + nRowsCheck].mean() <= minLowPixelsPerRow:
+        fraction = numpy.zeros(len(nLow), dtype=float)
+        good = nUsable >= minUsablePixelsPerRow
+        fraction[good] = nLow[good]/nUsable[good]
+
+        dipFound = fraction[start:start + nRowsCheck].mean() > minLowFraction
+        if nRowsCheckShort > 0:
+            dipFound |= fraction[start:start + nRowsCheckShort].mean() > minLowFraction
+        if not dipFound and blocked < minBlockedRows:
             log.debug("Saturated footprint reaches read edge of amp %s but no dip found.",
                       amp.getName())
             continue
 
-        height = 0
+        height = start if blocked >= minBlockedRows else 0
         nBelow = 0
-        for i in range(start, len(profile)):
-            if profile[i] > minLowPixelsExtent:
+        for i in range(start, len(fraction)):
+            if fraction[i] > minLowFractionExtent:
                 height = i + 1
                 nBelow = 0
             else:
@@ -419,8 +450,8 @@ def maskDECamEdgeBleed(exposure, satMinArea=10000, satMaxArea=100000, approachRo
             maskedImage.mask[ampBBox].array[-height:, :] |= saturatedBit
         else:
             maskedImage.mask[ampBBox].array[:height, :] |= saturatedBit
-        log.info("Found DECam edge bleed in amp %s at the %s read edge; masked %d rows.",
-                 amp.getName(), "top" if readTop else "bottom", height)
+        log.info("Found DECam edge bleed in amp %s at the %s read edge (%d blocked rows); masked %d rows.",
+                 amp.getName(), "top" if readTop else "bottom", max(blocked, 0), height)
 
 
 def maskITLEdgeBleed(ccdExposure, badAmpDict,
