@@ -645,9 +645,10 @@ class CustomFFTConvolution(object):
         # Handle both a list of kernels and a single kernel.
         ks = [kernels] if type(kernels) is not list else kernels
         convolutions = []
+        # Transform the image using FFT.
+        tim = self.fftImageObj(im)
         for k in ks:
-            # Transform the image and the kernel using FFT.
-            tim = self.fftImageObj(im)
+            # Transform the kernel using FFT.
             tk = self.fftKernelObj(k)
 
             # Multiply in Fourier space and perform the inverse FFT.
