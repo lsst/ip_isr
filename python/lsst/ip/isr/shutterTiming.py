@@ -62,10 +62,40 @@ __all__ = [
 import dataclasses
 import enum
 import functools
+import io
+import math
 
 import numpy as np
+from scipy.interpolate import LinearNDInterpolator
+from scipy.spatial import ConvexHull
 
 import lsst.pex.config as pexConfig
+
+from ._shutterTrajectory import ThreeJerksParams, ThreeJerksTrajectory, checkFitParams
+
+_SECONDS_PER_DAY = 86400.0
+
+#: Cumulative flux levels q of the beam table.
+_BEAM_LEVELS = np.array([0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99])
+
+#: Extrapolation margin (mm) outside the beam table's convex hull: the worst
+#: science pixel (28.64 mm outside) plus 10 mm; NaN beyond.
+_BEAM_MARGIN_MM = 28.64 + 10.0
+
+#: 2-point Gauss-Legendre abscissae on [0, 1].
+_GL2 = np.array([0.5 - 0.5 / np.sqrt(3.0), 0.5 + 0.5 / np.sqrt(3.0)])
+
+_THREE_JERKS_V1 = "ThreeJerksModelv1"
+
+#: ThreeJerksParams field -> card suffix.
+_FIT_CARDS = (
+    ("modelStartTime", "MODELSTARTTIME"),
+    ("pivot1", "PIVOTPOINT1"),
+    ("pivot2", "PIVOTPOINT2"),
+    ("jerk0", "JERK0"),
+    ("jerk1", "JERK1"),
+    ("jerk2", "JERK2"),
+)
 
 
 class ShutterTimingStatus(enum.IntEnum):
@@ -91,8 +121,10 @@ class ShutterTimingFlag(enum.IntFlag):
 
     NONE = 0
     NO_PROFILE = 1
-    """Missing or unusable shutter cards (no Hall fit, or a model other than
-    ``ThreeJerksModelv1``).  Implies `ShutterTimingStatus.UNAVAILABLE`.
+    """Missing or unusable Hall-fit cards (no fit, or a model other than
+    ``ThreeJerksModelv1``): the mean profile is used (with MEAN_PROFILE). The
+    result is UNAVAILABLE only if the start time or side cards are unusable
+    too.
     """
     PARAM_RANGE = 2
     """A Hall fit outside the nominal parameter ranges (mean profile used
@@ -248,18 +280,54 @@ class DetectorGeometry:
         linearized at the detector centre (the LSSTCam map is affine to < 1e-3
         mm).
         """
-        raise NotImplementedError("WP-H")
+        import lsst.geom
+        from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS
+
+        bbox = detector.getBBox()
+        center = lsst.geom.Box2D(bbox).getCenter()
+        transform = detector.getTransform(PIXELS, FOCAL_PLANE)
+        fp = transform.applyForward(center)
+        jac = np.asarray(transform.getJacobian(center), dtype=float)
+        return cls(
+            detectorId=int(detector.getId()),
+            nx=int(bbox.getWidth()),
+            ny=int(bbox.getHeight()),
+            centerPixel=(float(center.getX()), float(center.getY())),
+            centerMm=(float(fp.getX()), float(fp.getY())),
+            jacobian=((float(jac[0, 0]), float(jac[0, 1])), (float(jac[1, 0]), float(jac[1, 1]))),
+        )
+
+    def pixelToDvcs(self, x, y) -> tuple[np.ndarray, np.ndarray]:
+        """Pixel -> DVCS (afw FOCAL_PLANE, mm), broadcast."""
+        dx = np.asarray(x, dtype=float) - self.centerPixel[0]
+        dy = np.asarray(y, dtype=float) - self.centerPixel[1]
+        j = self.jacobian
+        return (self.centerMm[0] + j[0][0] * dx + j[0][1] * dy,
+                self.centerMm[1] + j[1][0] * dx + j[1][1] * dy)
 
     def pixelToCcs(self, x, y, ccsFromDvcsSign: int = 1) -> tuple[np.ndarray, np.ndarray]:
         """Pixel -> CCS (mm): ``x_ccs = s * Y_dvcs``, ``y_ccs = s * X_dvcs``.
         """
-        raise NotImplementedError("WP-H")
+        xd, yd = self.pixelToDvcs(x, y)
+        return ccsFromDvcsSign * yd, ccsFromDvcsSign * xd
 
     def offDetector(self, x, y) -> np.ndarray:
         """How far (pixels; the larger axis) each position lies outside the
         pixel bounds; 0 inside.
         """
-        raise NotImplementedError("WP-H")
+        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
+        return np.maximum.reduce([np.zeros(x.shape), -0.5 - x, x - (self.nx - 0.5),
+                                  -0.5 - y, y - (self.ny - 0.5)])
+
+    def _bladeAxis(self) -> str:
+        """The pixel axis (anti)parallel to DVCS y (the blade motion)."""
+        j = self.jacobian
+        return "x" if abs(j[1][0]) > abs(j[1][1]) else "y"
+
+    def _pixelCorners(self) -> np.ndarray:
+        """The four pixel-edge corners (4, 2)."""
+        lo, hx, hy = -0.5, self.nx - 0.5, self.ny - 0.5
+        return np.array([[lo, lo], [hx, lo], [hx, hy], [lo, hy]])
 
 
 class ShutterBeamModel:
@@ -268,22 +336,174 @@ class ShutterBeamModel:
     lies, at the tabulated levels q (0.01 ... 0.99); interpolated in the field
     position, and extrapolated (with a hull-distance test) outside the table's
     coverage.
+
+    Parameters
+    ----------
+    xCcs, yCcs : `numpy.ndarray`
+        The tabulated field positions (CCS mm), shape ``(npos,)``.
+    sQ : `numpy.ndarray`
+        s_q at each position and level, shape ``(npos, nlevels)``, strictly
+        increasing in q.
+    levels : `numpy.ndarray`
+        The levels q.
+    marginMm : `float`, optional
+        Extrapolation margin outside the hull (mm); NaN beyond.
+
+    Notes
+    -----
+    The cumulative profile F(s) is piecewise linear through (s_q, q), with
+    linear tails reaching F = 0 at ``s_0.01 - (s_0.05 - s_0.01)`` and F = 1 at
+    ``s_0.99 + (s_0.99 - s_0.95)``.  ``R_q = s_q - x_ccs`` is interpolated
+    bilinearly in grid cells whose four nodes are tabulated, barycentrically
+    on the Delaunay triangulation of the nodes elsewhere inside their convex
+    hull, and held at the nearest hull point outside it (up to ``marginMm``).
+    Port of ``shutter_timing.geometry.BeamModel``.
     """
+
+    def __init__(self, xCcs, yCcs, sQ, levels=_BEAM_LEVELS, *, marginMm: float = _BEAM_MARGIN_MM):
+        x = np.asarray(xCcs, dtype=float)
+        y = np.asarray(yCcs, dtype=float)
+        s = np.asarray(sQ, dtype=float)
+        levels = np.asarray(levels, dtype=float)
+        if s.shape != (x.size, levels.size):
+            raise ValueError("sQ must have shape (npos, nlevels)")
+        if not np.all(np.diff(s, axis=1) > 0):
+            raise ValueError("beam quantiles are not strictly increasing in level")
+        self._levels = levels
+        self.marginMm = float(marginMm)
+        self._points = np.column_stack([x, y])
+        self._r = s - x[:, None]
+        self._gx = np.unique(x)
+        self._gy = np.unique(y)
+        ix = np.searchsorted(self._gx, x)
+        iy = np.searchsorted(self._gy, y)
+        grid = np.full((self._gx.size, self._gy.size, levels.size), np.nan)
+        grid[ix, iy] = self._r
+        self._grid = grid
+        have = np.isfinite(grid[..., 0])
+        self._cellOk = have[:-1, :-1] & have[1:, :-1] & have[:-1, 1:] & have[1:, 1:]
+        self._tri = LinearNDInterpolator(self._points, self._r)
+        hull = ConvexHull(self._points)
+        self._hullVertices = hull.vertices
+        self._hullEq = hull.equations
+        knots = np.concatenate([[0.0], levels, [1.0]])
+        du = np.diff(knots)
+        self._knots = knots
+        self._nodes = (knots[:-1, None] + du[:, None] * _GL2[None, :]).ravel()
+        self._weights = np.repeat(du / 2.0, 2)
 
     @classmethod
     def fromFile(cls, path: str) -> ShutterBeamModel:
         """Read a beam table in the raytrace ``.tnt`` format."""
-        raise NotImplementedError("WP-H")
+        from lsst.resources import ResourcePath
+
+        text = ResourcePath(path).read().decode()
+        f = io.StringIO(text)
+        first = f.readline().strip()
+        if first.upper() == "DATA":
+            f.readline()
+            data = np.loadtxt(f, ndmin=2)
+        else:
+            data = np.loadtxt(f, delimiter=",", ndmin=2)
+        if data.shape[1] != 5:
+            raise ValueError(f"{path}: expected 5 columns, got {data.shape[1]}")
+        rows = data[:, [0, 1, 2, 4]]
+        levels = np.unique(rows[:, 2])
+        if levels.shape != _BEAM_LEVELS.shape or not np.allclose(levels, _BEAM_LEVELS):
+            raise ValueError(f"{path}: unexpected levels {levels}")
+        pos, inv = np.unique(rows[:, :2], axis=0, return_inverse=True)
+        inv = inv.ravel()
+        il = np.searchsorted(levels, rows[:, 2])
+        s = np.full((pos.shape[0], levels.size), np.nan)
+        s[inv, il] = rows[:, 3]
+        if np.isnan(s).any() or len(rows) != s.size:
+            raise ValueError(f"{path}: incomplete or duplicated (position, level) table")
+        return cls(pos[:, 0], pos[:, 1], s, _BEAM_LEVELS.copy())
 
     @property
     def levels(self) -> np.ndarray:
         """The flux levels q."""
-        raise NotImplementedError("WP-H")
+        return self._levels.copy()
+
+    def _isOutside(self, p):
+        return (p @ self._hullEq[:, :2].T + self._hullEq[:, 2]).max(axis=1) > 1e-9
+
+    def _hullProject(self, p):
+        """Nearest hull-boundary point of each row of p, and its distance."""
+        a = self._points[self._hullVertices]
+        ab = np.roll(a, -1, axis=0) - a
+        ap = p[:, None, :] - a[None]
+        t = np.clip((ap * ab).sum(-1) / (ab * ab).sum(-1), 0.0, 1.0)
+        d2 = ((ap - t[..., None] * ab) ** 2).sum(-1)
+        k = np.argmin(d2, axis=1)
+        n = np.arange(p.shape[0])
+        return a[k] + t[n, k, None] * ab[k], np.sqrt(d2[n, k])
 
     def hullDistance(self, xCcs, yCcs) -> np.ndarray:
         """Distance (mm) outside the convex hull of the table nodes; 0 inside.
         """
-        raise NotImplementedError("WP-H")
+        x, y = np.broadcast_arrays(np.asarray(xCcs, dtype=float), np.asarray(yCcs, dtype=float))
+        p = np.column_stack([x.ravel(), y.ravel()])
+        out = np.zeros(p.shape[0])
+        with np.errstate(invalid="ignore"):
+            outside = self._isOutside(p)
+        if outside.any():
+            out[outside] = self._hullProject(p[outside])[1]
+        out[~np.all(np.isfinite(p), axis=1)] = np.nan
+        return out.reshape(x.shape)
+
+    def _residual(self, x, y, extrapolate=True):
+        """R_q = s_q - x_ccs at flat arrays x, y; shape (n, nlevels)."""
+        n = x.size
+        out = np.full((n, self._levels.size), np.nan)
+        gx, gy = self._gx, self._gy
+        ix = np.clip(np.searchsorted(gx, x, side="right") - 1, 0, gx.size - 2)
+        iy = np.clip(np.searchsorted(gy, y, side="right") - 1, 0, gy.size - 2)
+        inbox = (x >= gx[0]) & (x <= gx[-1]) & (y >= gy[0]) & (y <= gy[-1])
+        bil = inbox & self._cellOk[ix, iy]
+        if bil.any():
+            i, j = ix[bil], iy[bil]
+            tx = ((x[bil] - gx[i]) / (gx[i + 1] - gx[i]))[:, None]
+            ty = ((y[bil] - gy[j]) / (gy[j + 1] - gy[j]))[:, None]
+            g = self._grid
+            out[bil] = (
+                (1 - tx) * (1 - ty) * g[i, j]
+                + tx * (1 - ty) * g[i + 1, j]
+                + (1 - tx) * ty * g[i, j + 1]
+                + tx * ty * g[i + 1, j + 1]
+            )
+        rest = ~bil & np.isfinite(x) & np.isfinite(y)
+        if rest.any():
+            p = np.column_stack([x[rest], y[rest]])
+            inside = ~self._isOutside(p)
+            r = np.full((p.shape[0], self._levels.size), np.nan)
+            if inside.any():
+                r[inside] = self._tri(p[inside])
+            need = ~np.isfinite(r[:, 0])
+            if extrapolate and need.any():
+                q, dist = self._hullProject(p[need])
+                c = self._points.mean(axis=0)
+                q += 1e-6 * (c - q) / np.linalg.norm(c - q, axis=1, keepdims=True)
+                rr = self._residual(q[:, 0], q[:, 1], extrapolate=False)
+                rr[dist > self.marginMm] = np.nan
+                r[need] = rr
+            out[rest] = r
+        return out
+
+    def _quadratureNodes(self, xCcs, yCcs):
+        """Blade coordinates s(u_k) at the 20 Gauss nodes of the beam CDF,
+        shape ``(n, 20)`` for flat ``xCcs``, ``yCcs``; and the weights.
+        """
+        xf = np.asarray(xCcs, dtype=float).ravel()
+        yf = np.asarray(yCcs, dtype=float).ravel()
+        s = self._residual(xf, yf) + xf[:, None]
+        lo = s[:, :1] - (s[:, 1:2] - s[:, :1])
+        hi = s[:, -1:] + (s[:, -1:] - s[:, -2:-1])
+        ext = np.concatenate([lo, s, hi], axis=-1)
+        knots, u = self._knots, self._nodes
+        k = np.clip(np.searchsorted(knots, u, side="right") - 1, 0, knots.size - 2)
+        f = (u - knots[k]) / (knots[k + 1] - knots[k])
+        return ext[..., k] * (1 - f) + ext[..., k + 1] * f, self._weights
 
 
 @functools.lru_cache(maxsize=4)
@@ -352,7 +572,18 @@ class ShutterTiming:
         where the per-source status is UNAVAILABLE.  Vectorized; shape of
         ``np.broadcast(x, y)``.
         """
-        raise NotImplementedError("WP-H")
+        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
+        status = self.sourceStatus(x, y)
+        out = np.full(x.shape, np.nan)
+        good = status != ShutterTimingStatus.UNAVAILABLE
+        if good.any():
+            cx, cy = self.geometry.centerPixel
+            xs, ys = x[good] - cx, y[good] - cy
+            u, v = (xs, ys) if self.axis == "x" else (ys, xs)
+            cU, cUU, cV, cUV, cVV = self.coefficients
+            ds = cU * u + cUU * u * u + cV * v + cUV * u * v + cVV * v * v
+            out[good] = self.centerMjdTai + ds / _SECONDS_PER_DAY
+        return out
 
     def sourceStatus(self, x, y) -> np.ndarray:
         """Per-source `ShutterTimingStatus` values (uint8), as
@@ -365,14 +596,41 @@ class ShutterTiming:
           hull (``hullDistance > 0``);
         - OK otherwise.
         """
-        raise NotImplementedError("WP-H")
+        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
+        if self.status == ShutterTimingStatus.UNAVAILABLE or self.geometry is None:
+            return np.full(x.shape, ShutterTimingStatus.UNAVAILABLE, dtype=np.uint8)
+        out = np.full(x.shape, self.status, dtype=np.uint8)
+        finite = np.isfinite(x) & np.isfinite(y)
+        off = np.where(finite, self.geometry.offDetector(np.where(finite, x, 0.0),
+                                                         np.where(finite, y, 0.0)), np.inf)
+        limit = self.config.offDetectorLimit if self.config is not None else 100.0
+        sign = self.config.ccsFromDvcsSign if self.config is not None else 1
+        unavailable = ~(off <= limit)
+        degraded = off > 0
+        if self.beam is not None and (~unavailable).any():
+            xc, yc = self.geometry.pixelToCcs(x[~unavailable], y[~unavailable], sign)
+            hull = np.zeros(x.shape)
+            hull[~unavailable] = self.beam.hullDistance(xc, yc)
+            degraded |= hull > 0
+        out[degraded] = np.maximum(out[degraded], ShutterTimingStatus.DEGRADED)
+        out[unavailable] = ShutterTimingStatus.UNAVAILABLE
+        return out
 
     def summary(self) -> dict:
         """Scalars for task metadata: status (name), flags (int), message,
         centerMjdTai, focalPlaneMjdTai, centerMinusHeaderMid (s),
         maxAbsResidual, policy.
         """
-        raise NotImplementedError("WP-H")
+        return dict(
+            status=self.status.name,
+            flags=int(self.flags),
+            message=self.message,
+            centerMjdTai=float(self.centerMjdTai),
+            focalPlaneMjdTai=float(self.focalPlaneMjdTai),
+            centerMinusHeaderMid=float((self.centerMjdTai - self.headerMidMjdTai) * _SECONDS_PER_DAY),
+            maxAbsResidual=float(self.maxAbsResidual),
+            policy=self.policy,
+        )
 
 
 def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None = None, *,
@@ -407,9 +665,12 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
     ``TABLE_SETTINGS = dict(kind="hall_fit", quadrature="weighted", order=2,
     n_along=9, n_across=9)`` and policy "auto"):
 
-    1. Parse the open and close motions; a missing or malformed card ->
-       NO_PROFILE, UNAVAILABLE.  Start positions: ``nominalStroke`` for 750 ->
-       0 moves, ``nominalStartIncreasing`` for 0 -> 750 moves.
+    1. Parse the open and close motions; a missing or malformed start time
+       or side card -> NO_PROFILE, UNAVAILABLE; a missing or malformed
+       Hall-fit card, or a model other than ``ThreeJerksModelv1`` ->
+       NO_PROFILE and the mean profile of its travel direction
+       (MEAN_PROFILE, DEGRADED).  Start positions: ``nominalStroke`` for 750
+       -> 0 moves, ``nominalStartIncreasing`` for 0 -> 750 moves.
     2. Exposure QC: PARAM_RANGE, the clock checks, SHUTTIME_MISMATCH.
     3. A Hall fit that is out of range -> the mean profile of its travel
        direction (MEAN_PROFILE).
@@ -427,4 +688,342 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
     2000-pixel lever arm to <= 10 us, identical ``axis``, ``flags`` and
     statuses.
     """
-    raise NotImplementedError("WP-H")
+    if config is None:
+        config = ShutterTimingConfig()
+    elif not isinstance(config, ShutterTimingConfig):
+        raise TypeError(f"config must be a ShutterTimingConfig, not {type(config).__name__}")
+    config.validate()
+    if isinstance(detector, DetectorGeometry):
+        geometry = detector
+        notScience = None
+    elif hasattr(detector, "getTransform") and hasattr(detector, "getBBox"):
+        geometry = DetectorGeometry.fromDetector(detector)
+        notScience = _notScienceReason(detector)
+    else:
+        raise TypeError("detector must be an lsst.afw.cameraGeom.Detector or a DetectorGeometry, "
+                        f"not {type(detector).__name__}")
+    if not (hasattr(metadata, "get") and hasattr(metadata, "__contains__")):
+        raise TypeError(f"metadata must be a PropertyList or a Mapping, not {type(metadata).__name__}")
+    if beam is None and config.beamFile:
+        beam = loadShutterBeam(config.beamFile)
+
+    ctx = _Result(geometry=geometry, config=config, beam=beam)
+    try:
+        ctx.headerMid = _headerMid(metadata)
+        if beam is None:
+            raise _Unavailable(ShutterTimingFlag.NONE, "no beam model (config.beamFile is empty)")
+        if notScience:
+            raise _Unavailable(ShutterTimingFlag.NONE, notScience)
+        _compute(ctx, metadata)
+    except _Unavailable as e:
+        return ctx.unavailable(e.flags, e.message)
+    except Exception as e:  # noqa: BLE001 -- bad data must never raise (contract)
+        return ctx.unavailable(ctx.flags, f"shutter timing failed: {type(e).__name__}: {e}")
+    return ctx.result()
+
+
+# --------------------------------------------------------------------------
+# Private implementation (port of the shutter_timing header-card path).
+# --------------------------------------------------------------------------
+
+
+class _Unavailable(Exception):
+    """No corrected time for this detector (flags, message)."""
+
+    def __init__(self, flags, message):
+        super().__init__(message)
+        self.flags = ShutterTimingFlag(int(flags))
+        self.message = message
+
+
+def _notScienceReason(detector):
+    """A message if an afw detector is not a science detector (the beam table
+    describes only the science beams), else None.
+    """
+    try:
+        from lsst.afw.cameraGeom import DetectorType
+
+        if detector.getType() != DetectorType.SCIENCE:
+            return (f"detector {detector.getId()} ({detector.getName()}) is "
+                    f"{detector.getType().name}, not SCIENCE: the beam table does not cover it")
+    except Exception:  # noqa: BLE001 -- detectors without a type are treated as science
+        return None
+    return None
+
+
+def _card(metadata, key):
+    """The value of ``key`` (or ``HIERARCH key``) in ``metadata``, or None.
+    """
+    for k in (key, "HIERARCH " + key):
+        try:
+            if k in metadata:
+                return metadata.get(k)
+        except Exception:  # noqa: BLE001 -- unreadable card: treat as missing
+            return None
+    return None
+
+
+def _float(value):
+    """float(value), or None for missing, empty, non-numeric or non-finite.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return out if math.isfinite(out) else None
+
+
+def _str(value):
+    if value is None:
+        return None
+    value = str(value).strip()
+    return value or None
+
+
+def _headerMid(metadata):
+    beg = _float(_card(metadata, "MJD-BEG"))
+    end = _float(_card(metadata, "MJD-END"))
+    return 0.5 * (beg + end) if beg is not None and end is not None else math.nan
+
+
+@dataclasses.dataclass
+class _Motion:
+    """One blade motion from the header cards."""
+
+    which: str
+    side: str
+    startMjdTai: float
+    fit: ThreeJerksParams | None
+    isOpen: bool
+    model: str | None = None
+
+    @property
+    def usable(self):
+        """A Hall fit of the supported model is present."""
+        return self.fit is not None and (self.model is None or self.model == _THREE_JERKS_V1)
+
+    @property
+    def travelSign(self):
+        decreasing = (self.side == "PLUSX") == self.isOpen  # PLUSX-open, MINUSX-close: 750 -> 0
+        return -1 if decreasing else 1
+
+
+def _readMotion(metadata, which):
+    pre = f"SHUTTER {which}"
+    start = _float(_card(metadata, f"{pre} STARTTIME TAI MJD"))
+    side = _str(_card(metadata, f"{pre} SIDE"))
+    if start is None or side is None:
+        raise _Unavailable(ShutterTimingFlag.NO_PROFILE,
+                           f"no usable '{pre} STARTTIME TAI MJD' / '{pre} SIDE' cards")
+    if side.upper() not in ("PLUSX", "MINUSX"):
+        raise _Unavailable(ShutterTimingFlag.NO_PROFILE, f"unknown shutter side {pre} SIDE = {side!r}")
+    model = _str(_card(metadata, f"{pre} MODEL"))
+    vals = {f: _float(_card(metadata, f"{pre} HALLSENSORFIT {c}")) for f, c in _FIT_CARDS}
+    fit = None if any(v is None for v in vals.values()) else ThreeJerksParams(**vals)
+    return _Motion(which=which, side=side.upper(), startMjdTai=start, fit=fit,
+                   isOpen=(which == "OPEN"), model=model)
+
+
+def _inRange(value, bounds):
+    lo, hi = bounds
+    return bool(np.isfinite(value) and lo <= value <= hi)
+
+
+def _flagNames(flags):
+    return "|".join(f.name for f in ShutterTimingFlag if f and (flags & f)) or "NONE"
+
+
+@dataclasses.dataclass
+class _Result:
+    """Mutable accumulator of `computeShutterTiming`."""
+
+    geometry: DetectorGeometry
+    config: ShutterTimingConfig
+    beam: ShutterBeamModel | None
+    flags: ShutterTimingFlag = ShutterTimingFlag.NONE
+    headerMid: float = math.nan
+    policy: str = ""
+    centerMjdTai: float = math.nan
+    coefficients: tuple = (math.nan,) * 5
+    maxAbsResidual: float = math.nan
+    effectiveExposureTime: float = math.nan
+    focalPlaneMjdTai: float = math.nan
+
+    def unavailable(self, flags, message):
+        return ShutterTiming(
+            status=ShutterTimingStatus.UNAVAILABLE, flags=ShutterTimingFlag(int(flags)),
+            message=message, detectorId=self.geometry.detectorId, axis=self.geometry._bladeAxis(),
+            centerMjdTai=math.nan, coefficients=(math.nan,) * 5, maxAbsResidual=math.nan,
+            effectiveExposureTime=math.nan, focalPlaneMjdTai=math.nan, headerMidMjdTai=self.headerMid,
+            policy=self.policy, geometry=self.geometry, beam=self.beam, config=self.config,
+        )
+
+    def result(self):
+        flags = ShutterTimingFlag(int(self.flags))
+        reasons = []
+        if flags & DEGRADED_FLAGS:
+            reasons.append(_flagNames(flags & DEGRADED_FLAGS))
+        if not self.maxAbsResidual <= self.config.degradedResidual:
+            reasons.append(f"quadratic residual {self.maxAbsResidual * 1e3:.3f} ms > "
+                           f"{self.config.degradedResidual * 1e3:g} ms")
+        status = ShutterTimingStatus.DEGRADED if reasons else ShutterTimingStatus.OK
+        return ShutterTiming(
+            status=status, flags=flags, message="; ".join(reasons),
+            detectorId=self.geometry.detectorId, axis=self.geometry._bladeAxis(),
+            centerMjdTai=self.centerMjdTai, coefficients=tuple(self.coefficients),
+            maxAbsResidual=self.maxAbsResidual, effectiveExposureTime=self.effectiveExposureTime,
+            focalPlaneMjdTai=self.focalPlaneMjdTai, headerMidMjdTai=self.headerMid, policy=self.policy,
+            geometry=self.geometry, beam=self.beam, config=self.config,
+        )
+
+
+def _compute(ctx, metadata):
+    """Fill ``ctx`` (`_Result`) from the metadata; raises `_Unavailable`."""
+    config, geometry, beam = ctx.config, ctx.geometry, ctx.beam
+    mOpen = _readMotion(metadata, "OPEN")
+    mClose = _readMotion(metadata, "CLOSE")
+    exptime = _float(_card(metadata, "EXPTIME"))
+    shuttime = _float(_card(metadata, "SHUTTIME"))
+    beg = _float(_card(metadata, "MJD-BEG"))
+    end = _float(_card(metadata, "MJD-END"))
+
+    # ---- exposure QC (shutter_timing core.qc_exposure, header path)
+    flags = ShutterTimingFlag.NONE
+    if not (mOpen.usable and mClose.usable):
+        flags |= ShutterTimingFlag.NO_PROFILE
+    inRange = [checkFitParams(m.fit, config) for m in (mOpen, mClose)]
+    if any(m.fit is not None and not ok for m, ok in zip((mOpen, mClose), inRange)):
+        flags |= ShutterTimingFlag.PARAM_RANGE
+    fitOk = [m.usable and ok for m, ok in zip((mOpen, mClose), inRange)]
+    if beg is not None:
+        v = (mOpen.startMjdTai - beg) * _SECONDS_PER_DAY * 1e3
+        if not _inRange(v, config.openMinusBegRange):
+            flags |= ShutterTimingFlag.CLOCK_OPEN_VS_BEG
+    if end is not None:
+        v = (end - mClose.startMjdTai) * _SECONDS_PER_DAY
+        if not _inRange(v, config.endMinusCloseRange):
+            flags |= ShutterTimingFlag.CLOCK_END_VS_CLOSE
+    if exptime is not None:
+        v = ((mClose.startMjdTai - mOpen.startMjdTai) * _SECONDS_PER_DAY - exptime) * 1e3
+        if not _inRange(v, config.closeMinusOpenMinusExptimeRange):
+            flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
+    ctx.flags = flags
+
+    # ---- shape: missing, unusable or out-of-range Hall fits -> the
+    # per-direction mean profile
+    for m, ok in zip((mOpen, mClose), fitOk):
+        if not ok:
+            mean = config.meanProfileDecreasing if m.travelSign < 0 else config.meanProfileIncreasing
+            m.fit = ThreeJerksParams(*(float(v) for v in mean))
+            flags |= ShutterTimingFlag.MEAN_PROFILE
+    ctx.flags = flags
+
+    # ---- zero point: re-anchor to the header if the two shutter clocks
+    # disagree
+    closeRelProfile = (mClose.startMjdTai - mOpen.startMjdTai) * _SECONDS_PER_DAY
+    if flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN:
+        if beg is None or exptime is None:
+            raise _Unavailable(flags, "CLOCK_CLOSE_VS_OPEN, and re-anchoring needs MJD-BEG and EXPTIME")
+        offBeg, offCloseOpen = (float(v) for v in config.headerAnchorOffsets)
+        openStart = beg + offBeg / _SECONDS_PER_DAY
+        closeRel = float(exptime) + offCloseOpen
+        flags |= ShutterTimingFlag.PRE_CLOCK_EPOCH
+        ctx.policy = "header_anchor"
+    else:
+        openStart = mOpen.startMjdTai
+        closeRel = closeRelProfile
+        ctx.policy = "profile"
+    ctx.flags = flags
+
+    # ---- trajectories
+    trajs, offsets, a1s = [], [], []
+    for m in (mOpen, mClose):
+        sign = m.travelSign
+        start = config.nominalStroke if sign < 0 else config.nominalStartIncreasing
+        trajs.append(ThreeJerksTrajectory(m.fit, start, sign))
+        offsets.append(float(m.fit.modelStartTime))
+        a1s.append(config.a1Decreasing if sign < 0 else config.a1Increasing)
+
+    # ---- evaluation points: centre, fit grid, staggered grid, focal-plane
+    # centre
+    na, nc = int(config.gridAlong), int(config.gridAcross)
+    if na < 3 or nc < 3:
+        raise ValueError("gridAlong and gridAcross must be >= 3")
+    axis = geometry._bladeAxis()
+    ia = 0 if axis == "x" else 1
+    c = geometry.centerPixel
+    n = (geometry.nx, geometry.ny)
+    along = np.linspace(0.0, n[ia] - 1.0, na)
+    across = np.linspace(0.0, n[1 - ia] - 1.0, nc)
+    ga, gc = np.meshgrid(along, across, indexing="ij")
+    ha, hc = np.meshgrid(0.5 * (along[1:] + along[:-1]), 0.5 * (across[1:] + across[:-1]), indexing="ij")
+    pa = np.concatenate([[c[ia]], ga.ravel(), ha.ravel()])
+    pc = np.concatenate([[c[1 - ia]], gc.ravel(), hc.ravel()])
+    px, py = (pa, pc) if ia == 0 else (pc, pa)
+    sign = config.ccsFromDvcsSign
+    xc, yc = geometry.pixelToCcs(px, py, sign)
+    xc = np.append(xc, 0.0)
+    yc = np.append(yc, 0.0)
+
+    # ---- flux-weighted crossing times (s after the open start time)
+    s, w = beam._quadratureNodes(xc, yc)
+    rel = []
+    for traj, off, a1 in zip(trajs, offsets, a1s):
+        d = traj.travelSign * ((config.encoderCenter + a1 - traj.startPosition) - s)
+        rel.append(np.asarray(traj.timeOfDisplacement(d)) + off)
+    tauO, tauC = rel
+    tO = tauO
+    tC = tauC + closeRel
+    with np.errstate(invalid="ignore"):
+        gap = np.min(tC, axis=-1) - np.max(tO, axis=-1)
+    overlap = gap <= 0
+    eO, eC = tO @ w, tC @ w
+    eO = np.where(overlap, np.nan, eO)
+    eC = np.where(overlap, np.nan, eC)
+
+    # ---- SHUTTIME diagnostic (profile zero point, focal-plane centre)
+    if shuttime is not None and not (flags & (ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.PARAM_RANGE)):
+        tCp = tauC[-1] + closeRelProfile
+        tEff = (tCp @ w) - (tauO[-1] @ w) if np.min(tCp) > np.max(tauO[-1]) else math.nan
+        if not abs((tEff - shuttime) * 1e3) <= config.shuttimeTolerance:
+            flags |= ShutterTimingFlag.SHUTTIME_MISMATCH
+
+    # ---- beam coverage of the detector (its corners, by convexity)
+    corners = geometry._pixelCorners()
+    if np.max(beam.hullDistance(*geometry.pixelToCcs(corners[:, 0], corners[:, 1], sign))) > 0:
+        flags |= ShutterTimingFlag.BEAM_EXTRAPOLATED
+    ctx.flags = flags
+
+    # ---- visit epoch
+    ctx.focalPlaneMjdTai = float(openStart + 0.5 * (eO[-1] + eC[-1]) / _SECONDS_PER_DAY)
+
+    # ---- quadratic fit
+    eO, eC = eO[:-1], eC[:-1]
+    tMid = 0.5 * (eO + eC)
+    if not np.all(np.isfinite(tMid)):
+        nBad = int((~np.isfinite(tMid)).sum())
+        raise _Unavailable(flags, f"no shutter time at {nBad} of {tMid.size} detector grid points "
+                           "(outside the beam table's margin, off the trajectory branch, or "
+                           "overlapping blades)")
+    dt = tMid - tMid[0]
+    su = max(0.5 * (n[ia] - 1.0), 1.0)
+    sv = max(0.5 * (n[1 - ia] - 1.0), 1.0)
+    z = (pa - c[ia]) / su
+    wv = (pc - c[1 - ia]) / sv
+    basis = np.stack([z, z * z, wv, z * wv, wv * wv], axis=-1)
+    unit = np.array([1 / su, su**-2.0, 1 / sv, 1 / (su * sv), sv**-2.0])
+    fit = slice(1, 1 + na * nc)
+    cz = np.linalg.lstsq(basis[fit], dt[fit], rcond=None)[0]
+    ctx.maxAbsResidual = float(np.max(np.abs(basis @ cz - dt)))
+    ctx.coefficients = tuple(float(v) for v in cz * unit)
+    ctx.centerMjdTai = float(openStart + tMid[0] / _SECONDS_PER_DAY)
+    ctx.effectiveExposureTime = float(eC[0] - eO[0])
+    if not (np.all(np.isfinite(ctx.coefficients)) and math.isfinite(ctx.focalPlaneMjdTai)
+            and math.isfinite(ctx.maxAbsResidual)):
+        raise _Unavailable(flags, "non-finite quadratic fit or visit epoch")
