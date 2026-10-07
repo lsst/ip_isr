@@ -582,12 +582,18 @@ class ShutterTiming:
     -> u = y - cy, v = x - cx).
 
     When ``status`` is UNAVAILABLE the numeric fields are NaN and the per-
-    source methods return NaN / UNAVAILABLE everywhere.
+    source methods return NaN / UNAVAILABLE everywhere.  A DEGRADED detector
+    may have a valid centre time but no quadratic (``coefficients`` and
+    ``maxAbsResidual`` NaN): this happens when no time exists at some points
+    of the fit grid, e.g. where the two blades overlap in exposures shorter
+    than ~0.2 s.  Its per-source times are then NaN / UNAVAILABLE.
     """
 
     status: ShutterTimingStatus
-    """Detector level: UNAVAILABLE if no timing; DEGRADED if ``flags &
-    DEGRADED_FLAGS`` or ``maxAbsResidual > degradedResidual``; else OK.
+    """Detector level: UNAVAILABLE if no time at the detector centre or the
+    focal-plane centre; DEGRADED if ``flags & DEGRADED_FLAGS`` or not
+    ``maxAbsResidual <= degradedResidual`` (including NaN: no quadratic);
+    else OK.
     """
     flags: ShutterTimingFlag
     """Exposure-level flags | detector-level flags."""
@@ -602,7 +608,9 @@ class ShutterTiming:
     coefficients: tuple[float, float, float, float, float]
     """(c_u, c_uu, c_v, c_uv, c_vv) in s / pixel^n."""
     maxAbsResidual: float
-    """Largest |quadratic - exact| over the fit grid (s)."""
+    """Largest |quadratic - exact| over the fit grid (s); NaN if there is no
+    quadratic.
+    """
     effectiveExposureTime: float
     """Flux-weighted open time at the detector centre (s)."""
     focalPlaneMjdTai: float
@@ -627,32 +635,27 @@ class ShutterTiming:
         ``np.broadcast(x, y)``.  Masked entries of masked arrays are treated
         as NaN.
         """
-        x, y = _sourcePositions(x, y)
-        status = self.sourceStatus(x, y)
-        out = np.full(x.shape, np.nan)
-        good = status != ShutterTimingStatus.UNAVAILABLE
-        if good.any():
-            cx, cy = self.geometry.centerPixel
-            xs, ys = x[good] - cx, y[good] - cy
-            u, v = (xs, ys) if self.axis == "x" else (ys, xs)
-            cU, cUU, cV, cUV, cVV = self.coefficients
-            ds = cU * u + cUU * u * u + cV * v + cUV * u * v + cVV * v * v
-            out[good] = self.centerMjdTai + ds / _SECONDS_PER_DAY
-        return out
+        return self._evaluate(x, y)[0]
 
     def sourceStatus(self, x, y) -> np.ndarray:
         """Per-source `ShutterTimingStatus` values (uint8):
 
-        - UNAVAILABLE: detector UNAVAILABLE, non-finite or masked x or y, or
-          more than ``offDetectorLimit`` pixels outside the detector;
+        - UNAVAILABLE: detector UNAVAILABLE, non-finite or masked x or y, more
+          than ``offDetectorLimit`` pixels outside the detector, or no
+          quadratic (see `ShutterTiming`);
         - DEGRADED: detector DEGRADED, or outside the detector (up to the
           limit), or the position's CCS coordinates outside the beam table's
           hull (``hullDistance > 0``);
         - OK otherwise.
         """
+        return self._evaluate(x, y)[1]
+
+    def _evaluate(self, x, y):
+        """Per-source times and statuses (`tMidMjdTai`, `sourceStatus`)."""
         x, y = _sourcePositions(x, y)
+        t = np.full(x.shape, np.nan)
         if self.status == ShutterTimingStatus.UNAVAILABLE or self.geometry is None:
-            return np.full(x.shape, ShutterTimingStatus.UNAVAILABLE, dtype=np.uint8)
+            return t, np.full(x.shape, ShutterTimingStatus.UNAVAILABLE, dtype=np.uint8)
         out = np.full(x.shape, self.status, dtype=np.uint8)
         finite = np.isfinite(x) & np.isfinite(y)
         off = np.where(finite, self.geometry.offDetector(np.where(finite, x, 0.0),
@@ -666,9 +669,19 @@ class ShutterTiming:
             hull = np.zeros(x.shape)
             hull[~unavailable] = self.beam.hullDistance(xc, yc)
             degraded |= hull > 0
+        good = ~unavailable
+        if good.any():
+            cx, cy = self.geometry.centerPixel
+            xs, ys = x[good] - cx, y[good] - cy
+            u, v = (xs, ys) if self.axis == "x" else (ys, xs)
+            cU, cUU, cV, cUV, cVV = self.coefficients
+            ds = cU * u + cUU * u * u + cV * v + cUV * u * v + cVV * v * v
+            t[good] = self.centerMjdTai + ds / _SECONDS_PER_DAY
+        unavailable |= ~np.isfinite(t)
+        t[unavailable] = np.nan
         out[degraded] = np.maximum(out[degraded], ShutterTimingStatus.DEGRADED)
         out[unavailable] = ShutterTimingStatus.UNAVAILABLE
-        return out
+        return t, out
 
     def summary(self) -> dict:
         """Scalars for task metadata: status (name), flags (int), message,
@@ -924,6 +937,7 @@ class _Result:
     maxAbsResidual: float = math.nan
     effectiveExposureTime: float = math.nan
     focalPlaneMjdTai: float = math.nan
+    noQuadratic: str = ""
 
     def unavailable(self, flags, message):
         return ShutterTiming(
@@ -939,7 +953,9 @@ class _Result:
         reasons = []
         if flags & DEGRADED_FLAGS:
             reasons.append(_flagNames(flags & DEGRADED_FLAGS))
-        if not self.maxAbsResidual <= self.config.degradedResidual:
+        if self.noQuadratic:
+            reasons.append(self.noQuadratic)
+        elif not self.maxAbsResidual <= self.config.degradedResidual:
             reasons.append(f"quadratic residual {self.maxAbsResidual * 1e3:.3f} ms > "
                            f"{self.config.degradedResidual * 1e3:g} ms")
         status = ShutterTimingStatus.DEGRADED if reasons else ShutterTimingStatus.OK
@@ -1073,14 +1089,24 @@ def _compute(ctx, metadata):
     # ---- visit epoch
     ctx.focalPlaneMjdTai = float(openStart + 0.5 * (eO[-1] + eC[-1]) / _SECONDS_PER_DAY)
 
-    # ---- quadratic fit
+    # ---- detector centre
     eO, eC = eO[:-1], eC[:-1]
     tMid = 0.5 * (eO + eC)
+    why = "(outside the beam table's margin, off the trajectory branch, or overlapping blades)"
+    if not math.isfinite(ctx.focalPlaneMjdTai):
+        raise _Unavailable(flags, f"no shutter time at the focal-plane centre {why}")
+    if not math.isfinite(tMid[0]):
+        raise _Unavailable(flags, f"no shutter time at the detector centre {why}")
+    ctx.centerMjdTai = float(openStart + tMid[0] / _SECONDS_PER_DAY)
+    ctx.effectiveExposureTime = float(eC[0] - eO[0])
+
+    # ---- quadratic fit; without a time at every grid point there is none:
+    # the centre time is kept (DEGRADED) and per-source times are NaN.
     if not np.all(np.isfinite(tMid)):
         nBad = int((~np.isfinite(tMid)).sum())
-        raise _Unavailable(flags, f"no shutter time at {nBad} of {tMid.size} detector grid points "
-                           "(outside the beam table's margin, off the trajectory branch, or "
-                           "overlapping blades)")
+        ctx.noQuadratic = (f"no shutter time at {nBad} of {tMid.size} detector grid points {why}: "
+                           "no per-source times")
+        return
     dt = tMid - tMid[0]
     su = max(0.5 * (n[ia] - 1.0), 1.0)
     sv = max(0.5 * (n[1 - ia] - 1.0), 1.0)
@@ -1092,8 +1118,5 @@ def _compute(ctx, metadata):
     cz = np.linalg.lstsq(basis[fit], dt[fit], rcond=None)[0]
     ctx.maxAbsResidual = float(np.max(np.abs(basis @ cz - dt)))
     ctx.coefficients = tuple(float(v) for v in cz * unit)
-    ctx.centerMjdTai = float(openStart + tMid[0] / _SECONDS_PER_DAY)
-    ctx.effectiveExposureTime = float(eC[0] - eO[0])
-    if not (np.all(np.isfinite(ctx.coefficients)) and math.isfinite(ctx.focalPlaneMjdTai)
-            and math.isfinite(ctx.maxAbsResidual)):
-        raise _Unavailable(flags, "non-finite quadratic fit or visit epoch")
+    if not (np.all(np.isfinite(ctx.coefficients)) and math.isfinite(ctx.maxAbsResidual)):
+        raise _Unavailable(flags, "non-finite quadratic fit")

@@ -392,6 +392,50 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         md["EXPTIME"] = 0.0
         self.assertEqual(self.compute(md).status, ShutterTimingStatus.UNAVAILABLE)
 
+    def testPartialBladeOverlap(self):
+        """EXPTIME 0.05 s: the blades overlap over part of the focal plane.
+
+        A detector with no time at its centre is UNAVAILABLE.  A detector with
+        a time at its centre but not at every grid point has no quadratic: it
+        is DEGRADED with its centre time and NaN coefficients and residual,
+        and every per-source time is NaN / UNAVAILABLE.
+        """
+        md = dict(self.base)
+        md["EXPTIME"] = 0.05
+        md["SHUTTER CLOSE STARTTIME TAI MJD"] = (md["SHUTTER OPEN STARTTIME TAI MJD"]
+                                                 + (0.05 + 0.00052) / SECONDS_PER_DAY)
+        science = [d for d, g in self.geometries.items() if g.isScience]
+        counts = dict(full=0, partial=0, none=0)
+        for det in science:
+            t = self.compute(md, det)
+            self.assertTrue(math.isfinite(t.focalPlaneMjdTai) or t.status == ShutterTimingStatus.UNAVAILABLE)
+            if t.status == ShutterTimingStatus.UNAVAILABLE:
+                counts["none"] += 1
+                self.assertIn("detector centre", t.message)
+                self.assertTrue(math.isnan(t.centerMjdTai))
+                continue
+            self.assertEqual(t.policy, "profile")
+            self.assertTrue(math.isfinite(t.centerMjdTai))
+            self.assertTrue(math.isfinite(t.effectiveExposureTime))
+            x = np.array([t.geometry.centerPixel[0], -0.5, t.geometry.nx - 0.5, 100.0])
+            y = np.array([t.geometry.centerPixel[1], -0.5, t.geometry.ny - 0.5, 3000.0])
+            if np.all(np.isfinite(t.coefficients)):
+                counts["full"] += 1
+                self.assertTrue(math.isfinite(t.maxAbsResidual))
+                self.assertTrue(np.all(np.isfinite(t.tMidMjdTai(x, y))))
+                continue
+            counts["partial"] += 1
+            self.assertEqual(t.status, ShutterTimingStatus.DEGRADED, det)
+            self.assertTrue(np.all(np.isnan(t.coefficients)))
+            self.assertTrue(math.isnan(t.maxAbsResidual))
+            self.assertIn("no per-source times", t.message)
+            self.assertTrue(np.all(np.isnan(t.tMidMjdTai(x, y))))
+            np.testing.assert_array_equal(t.sourceStatus(x, y), ShutterTimingStatus.UNAVAILABLE)
+            self.assertEqual(t.summary()["status"], "DEGRADED")
+        self.assertGreater(counts["full"], 0, counts)
+        self.assertGreater(counts["partial"], 0, counts)
+        self.assertGreater(counts["none"], 0, counts)
+
     def testOffDetectorLimit(self):
         """Exactly ``offDetectorLimit`` pixels off: DEGRADED; beyond:
         UNAVAILABLE.
