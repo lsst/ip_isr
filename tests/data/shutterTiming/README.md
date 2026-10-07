@@ -16,26 +16,21 @@ cards are included, no pixel data. Read-only.
     c_uv, c_vv, `max_abs_residual_s`, `effective_exposure_time_s`,
     `qc_flags`).
   - `visit_mjd_tai`: the focal-plane-centre time; `header_mid_mjd_tai`;
-    `policy`; `exposure_qc_flags`.
+    `exposure_qc_flags`.
   - `samples`: `[detector, x, y, t_mid_mjd_tai or null, status]` at 8
     positions per detector (centre, 4 pixel-edge corners, one interior point,
     50 px off the detector, and 150 px off); status 0 OK, 1 DEGRADED,
-    2 UNAVAILABLE.
-  - `constants`: the parameter ranges, clock thresholds and other constants
-    the values were computed with (the `ShutterTimingConfig` defaults).
+    2 UNAVAILABLE (a per-source time exists unless the status is 2).
   - `MC_O_20250810_000030.json` predates the shutter cards: the expected
     result is UNAVAILABLE (NO_PROFILE).
-- `mutations.json`: the metadata of `MC_O_20260712_000100` (for
-  `a1_increasing`, of `MC_O_20260105_000250`) with one card changed per entry
-  (`card`; the full mutated `metadata` is included), and the reference results
-  for detectors 0, 4, 30, 94, 120, 168 and 188 in the same format as above.
-  Entries the reference rejects have `status` 2 (UNAVAILABLE) and a `reason`.
-  The mutations: the close start time shifted by +10 ms and -5 ms (clock
-  re-anchoring); PIVOTPOINT1 and JERK2 out of range; a non-numeric JERK1; a
-  missing JERK0; a non-numeric open start time; MJD-BEG 20 ms early; a
-  negative JERK0; EXPTIME 0 (overlapping blades); and two unchanged headers
-  computed with a nonzero blade-edge offset A1 (`a1_mm`: travel sign ->
-  offset in mm), one per travel direction.
+- `mutations.json`: single-card changes to the metadata of `MC_O_20260712_000100`
+  (`base`), each with the cards it sets (`set`) or removes (`delete`), and the
+  reference results for detectors 0, 4, 30, 94, 120, 168 and 188 in the same
+  format as above. Entries the reference rejects have `status` 2 (UNAVAILABLE)
+  and a `reason`. The mutations: the close start time shifted by +10 ms and
+  -5 ms (clock re-anchoring); PIVOTPOINT1 and JERK2 out of range; a
+  non-numeric JERK1; a missing JERK0; a non-numeric open start time; MJD-BEG
+  20 ms early; a negative JERK0; and EXPTIME 0 (overlapping blades).
 - `beam_at_L3S1_z9.618_rot0_evaluated.tnt`: the LSSTCam shutter-plane beam
   table (an LSST Camera raytrace, LCA-20578), identical to the copy shipped
   by obs_lsst (see its `resources/shutter/README.md` for credit). A byte-identical copy is public in
@@ -46,4 +41,7 @@ cards are included, no pixel data. Read-only.
   detector type), so that the ip_isr tests need not import obs_lsst.
 
 Agreement target: centre times and quadratic terms at a 2000-pixel lever arm
-to <= 10 us; identical `axis`, flags and statuses.
+to <= 10 us; identical `axis`, flags and detector statuses; a per-source time
+exactly where the expected status is not 2.
+
+The JSON files are written compactly (one line each).
