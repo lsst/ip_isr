@@ -24,25 +24,51 @@ The LSSTCam shutter has two blades that cross the focal plane in ~0.9 s, so the
 mid-exposure time of a pixel depends on its position: across the focal plane it
 spans ~0.43 s.  This module computes, per detector, the flux-weighted
 mid-exposure time at the detector centre and a quadratic in pixel coordinates
-for the rest of the detector, from:
+for the rest of the detector.
 
-- the shutter Hall-sensor fit cards in the exposure metadata (``SHUTTER
-  {OPEN,CLOSE} STARTTIME TAI MJD``, ``... SIDE``, ``... MODEL``, ``...
-  HALLSENSORFIT {MODELSTARTTIME, PIVOTPOINT1, PIVOTPOINT2, JERK0, JERK1,
-  JERK2}``; present since 2025-10-29), plus ``MJD-BEG``, ``MJD-END``,
-  ``EXPTIME`` and ``SHUTTIME`` for the clock cross-checks;
-- a beam model: the ray bundle's flux quantiles at the shutter plane as a
-  function of field position (raytrace table, LCA-20578), shipped by the obs
-  package;
-- the detector geometry (``PIXELS -> FOCAL_PLANE``).
+Inputs
+------
+- The shutter cards in the exposure metadata (present since 2025-10-29): for
+  each of the opening and closing motions, ``SHUTTER {OPEN,CLOSE} STARTTIME
+  TAI MJD``, ``... SIDE``, ``... MODEL`` and the Hall-sensor trajectory fit
+  ``... HALLSENSORFIT {MODELSTARTTIME, PIVOTPOINT1, PIVOTPOINT2, JERK0,
+  JERK1, JERK2}``; plus ``MJD-BEG``, ``MJD-END``, ``EXPTIME`` and
+  ``SHUTTIME`` for the clock cross-checks.
+- A beam model: for each field position, the flux quantiles of the pixel's
+  ray bundle at the shutter plane (a raytrace table, LCA-20578), shipped by
+  the obs package.
+- The detector geometry (``PIXELS -> FOCAL_PLANE``).
 
-It is a port of the ``shutter_timing`` header-card path
-(github.com/mjuric/shutter-timing, docs/design/stack-port.md).  Times are TAI
-MJD.
+Method
+------
+1. *Blade trajectories.*  The camera fits each blade motion with the
+   ``ThreeJerksModelv1`` model: piecewise-constant jerk ``JERK0``, ``JERK1``,
+   ``JERK2`` switching at ``PIVOTPOINT1`` and ``PIVOTPOINT2``, starting from
+   rest ``MODELSTARTTIME`` after ``STARTTIME``.  Integrating it gives the
+   blade-edge position as a function of time; its inverse gives the time at
+   which the edge reaches a given position (`_shutterTrajectory`).  A missing
+   or out-of-range fit is replaced by a mean profile of the same travel
+   direction.
+2. *Beam-weighted crossing times.*  A pixel is illuminated by a converging
+   ray bundle that is ~60-70 mm wide at the shutter plane, so a blade edge
+   uncovers (or covers) it gradually.  The illumination-weighted crossing
+   time of one edge is ``<T> = integral T(s) dF(s)``, where ``F`` is the
+   cumulative flux profile of the bundle along the blade travel direction
+   (from the beam model) and ``T(s)`` the time the edge passes ``s``.  It is
+   evaluated by Gauss-Legendre quadrature on the piecewise-linear ``F``.  The
+   mid-exposure time is ``(<T>_open + <T>_close) / 2``; the effective
+   exposure time ``<T>_close - <T>_open``.
+3. *Per-detector representation.*  These times are computed at the detector
+   centre and on a grid spanning the detector, and a quadratic in the pixel
+   offsets along and across the blade direction is fit to them by least
+   squares (`ShutterTiming`); its maximum residual over the grid is recorded.
+4. *Quality control.*  The fit parameters are checked against nominal ranges
+   and the shutter clock against the header times (`ShutterTimingFlag`); if
+   the opening and closing clocks disagree, both start times are re-anchored
+   to ``MJD-BEG`` and ``EXPTIME``.
 
-WAVE-0 CONTRACT: the API below is fixed by the integrator; work packages
-implement the bodies and must not change signatures, field names, enum values
-or semantics.
+Times are TAI MJD.  The shutter motion and its Hall-sensor fit are described
+in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
 """
 
 from __future__ import annotations
@@ -114,9 +140,10 @@ class ShutterTimingStatus(enum.IntEnum):
 
 
 class ShutterTimingFlag(enum.IntFlag):
-    """Reasons, as a bit mask.  Bit values equal
-    ``shutter_timing._contract.QC`` so the stack and the standalone package can
-    be compared directly.
+    """Reasons for a DEGRADED or UNAVAILABLE result, as a bit mask.
+
+    The bit values are fixed: they are recorded in task metadata and compared
+    with the reference results in the test data.
     """
 
     NONE = 0
@@ -151,11 +178,17 @@ class ShutterTimingFlag(enum.IntFlag):
     fit.
     """
     FIT_RESIDUAL = 128
-    """Not computed from header cards (reserved; JSON-profile path)."""
+    """Reserved: a poor Hall-sensor fit, which needs the sampled shutter
+    motion profiles (not computed from header cards).
+    """
     HALL_VS_ENCODER = 256
-    """Not computed from header cards (reserved; JSON-profile path)."""
+    """Reserved: Hall-sensor and encoder positions disagree, which needs the
+    sampled shutter motion profiles (not computed from header cards).
+    """
     ACTION_DURATION = 512
-    """Not computed from header cards (reserved; JSON-profile path)."""
+    """Reserved: an anomalous motion duration, which needs the sampled
+    shutter motion profiles (not computed from header cards).
+    """
     SHUTTIME_MISMATCH = 1024
     """|T_eff(focal-plane centre) - SHUTTIME| > ``shuttimeTolerance``
     (diagnostic only).
@@ -170,11 +203,10 @@ class ShutterTimingFlag(enum.IntFlag):
     """
 
 
-#: Detector-level flags that make a corrected time DEGRADED (``shutter_timing``
-#: ``DEGRADED_QC``).  Not included: CLOCK_OPEN_VS_BEG (the shutter clock is
-#: kept),
-#: CLOCK_END_VS_CLOSE (MJD-END unused), SHUTTIME_MISMATCH (diagnostic) and
-#: BEAM_EXTRAPOLATED (replaced by the per-source hull test).
+#: Detector-level flags that make a corrected time DEGRADED.  Not included:
+#: CLOCK_OPEN_VS_BEG (the shutter clock is kept), CLOCK_END_VS_CLOSE (MJD-END
+#: is not used), SHUTTIME_MISMATCH (diagnostic) and BEAM_EXTRAPOLATED
+#: (replaced by the per-source hull test).
 DEGRADED_FLAGS = (
     ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.PARAM_RANGE | ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
     | ShutterTimingFlag.PRE_CLOCK_EPOCH | ShutterTimingFlag.MEAN_PROFILE | ShutterTimingFlag.FIT_RESIDUAL
@@ -183,9 +215,12 @@ DEGRADED_FLAGS = (
 
 
 class ShutterTimingConfig(pexConfig.Config):
-    """Configuration of `computeShutterTiming`.  Defaults are the values
-    validated in ``shutter_timing`` v0.4.0 (calibration b8554546ab84);
-    ``beamFile`` is set by the obs package's config overrides.
+    """Configuration of `computeShutterTiming`.
+
+    The defaults are the LSSTCam values: nominal Hall-fit parameter ranges,
+    per-direction mean Hall fits, and the clock offsets between the shutter
+    and the header times.  ``beamFile`` is set by the obs package's config
+    overrides.
     """
 
     beamFile = pexConfig.Field(
@@ -357,7 +392,6 @@ class ShutterBeamModel:
     bilinearly in grid cells whose four nodes are tabulated, barycentrically
     on the Delaunay triangulation of the nodes elsewhere inside their convex
     hull, and held at the nearest hull point outside it (up to ``marginMm``).
-    Port of ``shutter_timing.geometry.BeamModel``.
     """
 
     def __init__(self, xCcs, yCcs, sQ, levels=_BEAM_LEVELS, *, marginMm: float = _BEAM_MARGIN_MM):
@@ -548,9 +582,7 @@ class ShutterTiming:
     DEGRADED_FLAGS`` or ``maxAbsResidual > degradedResidual``; else OK.
     """
     flags: ShutterTimingFlag
-    """Exposure-level flags | detector-level flags (``shutter_timing`` row
-    ``qc_flags``).
-    """
+    """Exposure-level flags | detector-level flags."""
     message: str
     """Human-readable reason when not OK (for logs and task metadata); "" when
     OK.
@@ -600,8 +632,7 @@ class ShutterTiming:
         return out
 
     def sourceStatus(self, x, y) -> np.ndarray:
-        """Per-source `ShutterTimingStatus` values (uint8), as
-        ``shutter_timing`` ``corrected_midpoints``:
+        """Per-source `ShutterTimingStatus` values (uint8):
 
         - UNAVAILABLE: detector UNAVAILABLE, non-finite x or y, or more than
           ``offDetectorLimit`` pixels outside the detector;
@@ -675,9 +706,7 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
 
     Notes
     -----
-    Algorithm (``shutter_timing`` header-card path, ``table.compute_rows`` with
-    ``TABLE_SETTINGS = dict(kind="hall_fit", quadrature="weighted", order=2,
-    n_along=9, n_across=9)`` and policy "auto"):
+    Algorithm (see also the module docstring):
 
     1. Parse the open and close motions; a missing or malformed start time
        or side card -> NO_PROFILE, UNAVAILABLE; a missing or malformed
@@ -691,16 +720,18 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
     4. CLOCK_CLOSE_VS_OPEN -> re-anchor both start times to MJD-BEG / EXPTIME
        with ``headerAnchorOffsets`` (PRE_CLOCK_EPOCH; policy "header_anchor").
     5. ThreeJerks trajectories; flux-weighted crossing times <T> of each blade
-       at each grid point by Gauss quadrature over the beam's flux quantiles;
+       at each grid point by Gauss quadrature over the beam's flux quantiles
+       (two Gauss-Legendre nodes in each interval between tabulated levels);
        t_mid = (<T>o + <T>c) / 2.
     6. Least-squares quadratic in (u, v) over a ``gridAlong x gridAcross`` grid
-       spanning the detector; residual; BEAM_EXTRAPOLATED where the detector
-       leaves the hull.
+       spanning the detector; its maximum residual over that grid, the grid's
+       cell centres and the detector centre; BEAM_EXTRAPOLATED if a detector
+       corner lies outside the beam table's hull.
 
-    Agreement with ``shutter_timing`` (wave-0 fixtures,
-    tests/data/shutterTiming): centre times and the quadratic terms at a
-    2000-pixel lever arm to <= 10 us, identical ``axis``, ``flags`` and
-    statuses.
+    The test data (tests/data/shutterTiming) hold the results of an
+    independent reference implementation of this algorithm; this code agrees
+    with them to <= 10 us in the centre times and in the quadratic terms at a
+    2000-pixel lever arm, with identical ``axis``, ``flags`` and statuses.
     """
     if config is None:
         config = ShutterTimingConfig()
@@ -731,13 +762,13 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
         _compute(ctx, metadata)
     except _Unavailable as e:
         return ctx.unavailable(e.flags, e.message)
-    except Exception as e:  # noqa: BLE001 -- bad data must never raise (contract)
+    except Exception as e:  # noqa: BLE001 -- documented: bad data never raises
         return ctx.unavailable(ctx.flags, f"shutter timing failed: {type(e).__name__}: {e}")
     return ctx.result()
 
 
 # --------------------------------------------------------------------------
-# Private implementation (port of the shutter_timing header-card path).
+# Private implementation.
 # --------------------------------------------------------------------------
 
 
@@ -907,7 +938,7 @@ def _compute(ctx, metadata):
     beg = _float(_card(metadata, "MJD-BEG"))
     end = _float(_card(metadata, "MJD-END"))
 
-    # ---- exposure QC (shutter_timing core.qc_exposure, header path)
+    # ---- exposure QC
     flags = ShutterTimingFlag.NONE
     if not (mOpen.usable and mClose.usable):
         flags |= ShutterTimingFlag.NO_PROFILE
