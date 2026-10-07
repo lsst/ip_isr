@@ -624,9 +624,10 @@ class ShutterTiming:
     def tMidMjdTai(self, x, y) -> np.ndarray:
         """Per-source mid-exposure times (MJD TAI) at pixel positions; NaN
         where the per-source status is UNAVAILABLE.  Vectorized; shape of
-        ``np.broadcast(x, y)``.
+        ``np.broadcast(x, y)``.  Masked entries of masked arrays are treated
+        as NaN.
         """
-        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
+        x, y = _sourcePositions(x, y)
         status = self.sourceStatus(x, y)
         out = np.full(x.shape, np.nan)
         good = status != ShutterTimingStatus.UNAVAILABLE
@@ -642,14 +643,14 @@ class ShutterTiming:
     def sourceStatus(self, x, y) -> np.ndarray:
         """Per-source `ShutterTimingStatus` values (uint8):
 
-        - UNAVAILABLE: detector UNAVAILABLE, non-finite x or y, or more than
-          ``offDetectorLimit`` pixels outside the detector;
+        - UNAVAILABLE: detector UNAVAILABLE, non-finite or masked x or y, or
+          more than ``offDetectorLimit`` pixels outside the detector;
         - DEGRADED: detector DEGRADED, or outside the detector (up to the
           limit), or the position's CCS coordinates outside the beam table's
           hull (``hullDistance > 0``);
         - OK otherwise.
         """
-        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
+        x, y = _sourcePositions(x, y)
         if self.status == ShutterTimingStatus.UNAVAILABLE or self.geometry is None:
             return np.full(x.shape, ShutterTimingStatus.UNAVAILABLE, dtype=np.uint8)
         out = np.full(x.shape, self.status, dtype=np.uint8)
@@ -684,6 +685,18 @@ class ShutterTiming:
             maxAbsResidual=float(self.maxAbsResidual),
             policy=self.policy,
         )
+
+
+def _sourcePositions(x, y):
+    """Per-source pixel positions as broadcast float arrays; masked entries
+    of masked arrays become NaN.
+    """
+    def toFloat(a):
+        if np.ma.isMaskedArray(a):
+            return np.ma.filled(a.astype(float), np.nan)
+        return np.asarray(a, dtype=float)
+
+    return np.broadcast_arrays(toFloat(x), toFloat(y))
 
 
 def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None = None, *,

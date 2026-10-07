@@ -260,6 +260,29 @@ class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         st = timing.sourceStatus([np.nan, 10.0, np.inf], [10.0, np.nan, 10.0])
         np.testing.assert_array_equal(st, ShutterTimingStatus.UNAVAILABLE)
 
+    def testMaskedArrays(self):
+        """Masked entries of masked arrays are UNAVAILABLE with a NaN time;
+        unmasked entries are as for plain arrays.
+        """
+        doc = readFixture("MC_O_20260712_000100")
+        timing = computeShutterTiming(doc["metadata"], self.geometries[94], self.config)
+        x = np.array([10.0, 2000.0, 3000.0, 4000.0])
+        y = np.array([20.0, 1000.0, 2000.0, 3900.0])
+        mask = np.array([False, True, False, True])
+        plainT = timing.tMidMjdTai(x, y)
+        plainS = timing.sourceStatus(x, y)
+        self.assertTrue(np.all(np.isfinite(plainT)))
+        for mx, my in ((np.ma.array(x, mask=mask), y), (x, np.ma.array(y, mask=mask)),
+                       (np.ma.array(x.astype(int), mask=mask), np.ma.array(y, mask=False))):
+            t = timing.tMidMjdTai(mx, my)
+            st = timing.sourceStatus(mx, my)
+            self.assertNotIsInstance(t, np.ma.MaskedArray)
+            self.assertTrue(np.all(np.isnan(t[mask])))
+            np.testing.assert_array_equal(st[mask], ShutterTimingStatus.UNAVAILABLE)
+            np.testing.assert_array_equal(st[~mask], plainS[~mask])
+            np.testing.assert_allclose(t[~mask], timing.tMidMjdTai(np.asarray(mx, dtype=float)[~mask],
+                                                                   np.asarray(my, dtype=float)[~mask]))
+
 
 class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
     """Mutated header cards, against the reference results in
