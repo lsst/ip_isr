@@ -18,8 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Tests of `lsst.ip.isr.shutterTiming` against the ``shutter_timing``
-fixtures in tests/data/shutterTiming (see its README.md).
+"""Tests of `lsst.ip.isr.shutterTiming` against the reference results in
+tests/data/shutterTiming (see its README.md).
 """
 
 import csv
@@ -86,7 +86,7 @@ def readFixture(name):
 
 
 class ReferenceChecks:
-    """Comparisons with ``shutter_timing`` results (mixin)."""
+    """Comparisons with the reference results (mixin)."""
 
     def assertAgrees(self, timing, expected, label):
         """Compare one detector's result with a fixture row; return the
@@ -125,8 +125,7 @@ class ReferenceChecks:
 
 
 class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
-    """Agreement with ``shutter_timing.table.compute_rows`` on the fixtures.
-    """
+    """Agreement with the reference results on the fixture exposures."""
 
     @classmethod
     def setUpClass(cls):
@@ -157,7 +156,7 @@ class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
                 self.assertAlmostEqual(timing.headerMidMjdTai, doc["header_mid_mjd_tai"], delta=1e-9)
             worst["samples"] = max(worst.get("samples", 0.0),
                                    self.assertSamples(timings, doc["samples"], name))
-        print("\nworst |stack - shutter_timing| (us): "
+        print("\nworst |computed - reference| (us): "
               + ", ".join(f"{k} {v * 1e6:.2g}" for k, v in worst.items()))
 
     def testNoCards(self):
@@ -237,8 +236,8 @@ class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
 
 
 class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
-    """Mutated header cards (expected values from ``shutter_timing``:
-    tests/data/shutterTiming/mutations/make_mutations.py).
+    """Mutated header cards, against the reference results in
+    tests/data/shutterTiming/mutations.json.
     """
 
     @classmethod
@@ -246,7 +245,7 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         cls.geometries = readGeometries()
         cls.config = ShutterTimingConfig()
         cls.config.beamFile = BEAM_FILE
-        with open(os.path.join(DATADIR, "mutations", "mutations.json")) as f:
+        with open(os.path.join(DATADIR, "mutations.json")) as f:
             cls.mutations = json.load(f)["mutations"]
         cls.base = readFixture("MC_O_20260712_000100")["metadata"]
 
@@ -325,7 +324,7 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
 
     def testBladeOverlap(self):
         """EXPTIME 0 or tiny: the blades overlap, UNAVAILABLE (the reference
-        raises ShutterOverlapError).
+        rejects the exposure).
         """
         doc = self.mutations["exptime_zero"]
         self.assertEqual(doc["status"], ShutterTimingStatus.UNAVAILABLE)

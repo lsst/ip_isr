@@ -10,7 +10,7 @@
   168,
   188
  ],
- "generator": "v0.4.0-6-g5208e22",
+ "generator": "shutter_timing v0.4.0-6-g5208e22 (independent reference implementation, header-card path)",
  "mutations": {
   "close_start_plus_10ms": {
    "base": "MC_O_20260712_000100",

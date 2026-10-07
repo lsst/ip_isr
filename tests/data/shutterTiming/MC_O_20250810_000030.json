@@ -2,7 +2,7 @@
  "obs_id": "MC_O_20250810_000030",
  "visit": 2025081000030,
  "detector_of_header": 94,
- "generator": "shutter_timing v0.4.0-3-g08e26ce stackport/make_fixtures.py (header-card path)",
+ "generator": "shutter_timing v0.4.0-3-g08e26ce (independent reference implementation, header-card path)",
  "constants": {
   "PARAM_RANGES": {
    "pivot1": [
