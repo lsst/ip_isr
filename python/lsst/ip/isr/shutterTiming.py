@@ -24,25 +24,51 @@ The LSSTCam shutter has two blades that cross the focal plane in ~0.9 s, so the
 mid-exposure time of a pixel depends on its position: across the focal plane it
 spans ~0.43 s.  This module computes, per detector, the flux-weighted
 mid-exposure time at the detector centre and a quadratic in pixel coordinates
-for the rest of the detector, from:
+for the rest of the detector.
 
-- the shutter Hall-sensor fit cards in the exposure metadata (``SHUTTER
-  {OPEN,CLOSE} STARTTIME TAI MJD``, ``... SIDE``, ``... MODEL``, ``...
-  HALLSENSORFIT {MODELSTARTTIME, PIVOTPOINT1, PIVOTPOINT2, JERK0, JERK1,
-  JERK2}``; present since 2025-10-29), plus ``MJD-BEG``, ``MJD-END``,
-  ``EXPTIME`` and ``SHUTTIME`` for the clock cross-checks;
-- a beam model: the ray bundle's flux quantiles at the shutter plane as a
-  function of field position (raytrace table, LCA-20578), shipped by the obs
-  package;
-- the detector geometry (``PIXELS -> FOCAL_PLANE``).
+Inputs
+------
+- The shutter cards in the exposure metadata (present since 2025-10-29): for
+  each of the opening and closing motions, ``SHUTTER {OPEN,CLOSE} STARTTIME
+  TAI MJD``, ``... SIDE``, ``... MODEL`` and the Hall-sensor trajectory fit
+  ``... HALLSENSORFIT {MODELSTARTTIME, PIVOTPOINT1, PIVOTPOINT2, JERK0,
+  JERK1, JERK2}``; plus ``MJD-BEG``, ``MJD-END``, ``EXPTIME`` and
+  ``SHUTTIME`` for the clock cross-checks.
+- A beam model: for each field position, the flux quantiles of the pixel's
+  ray bundle at the shutter plane (a raytrace table, LCA-20578), shipped by
+  the obs package.
+- The detector geometry (``PIXELS -> FOCAL_PLANE``).
 
-It is a port of the ``shutter_timing`` header-card path
-(github.com/mjuric/shutter-timing, docs/design/stack-port.md).  Times are TAI
-MJD.
+Method
+------
+1. *Blade trajectories.*  The camera fits each blade motion with the
+   ``ThreeJerksModelv1`` model: piecewise-constant jerk ``JERK0``, ``JERK1``,
+   ``JERK2`` switching at ``PIVOTPOINT1`` and ``PIVOTPOINT2``, starting from
+   rest ``MODELSTARTTIME`` after ``STARTTIME``.  Integrating it gives the
+   blade-edge position as a function of time; its inverse gives the time at
+   which the edge reaches a given position (`_shutterTrajectory`).  A missing
+   or out-of-range fit is replaced by a mean profile of the same travel
+   direction.
+2. *Beam-weighted crossing times.*  A pixel is illuminated by a converging
+   ray bundle that is ~60-70 mm wide at the shutter plane, so a blade edge
+   uncovers (or covers) it gradually.  The illumination-weighted crossing
+   time of one edge is ``<T> = integral T(s) dF(s)``, where ``F`` is the
+   cumulative flux profile of the bundle along the blade travel direction
+   (from the beam model) and ``T(s)`` the time the edge passes ``s``.  It is
+   evaluated by Gauss-Legendre quadrature on the piecewise-linear ``F``.  The
+   mid-exposure time is ``(<T>_open + <T>_close) / 2``; the effective
+   exposure time ``<T>_close - <T>_open``.
+3. *Per-detector representation.*  These times are computed at the detector
+   centre and on a grid spanning the detector, and a quadratic in the pixel
+   offsets along and across the blade direction is fit to them by least
+   squares (`ShutterTiming`); its maximum residual over the grid is recorded.
+4. *Quality control.*  The fit parameters are checked against nominal ranges
+   and the shutter clock against the header times (`ShutterTimingFlag`); if
+   the opening and closing clocks disagree, both start times are re-anchored
+   to ``MJD-BEG`` and ``EXPTIME``.
 
-WAVE-0 CONTRACT: the API below is fixed by the integrator; work packages
-implement the bodies and must not change signatures, field names, enum values
-or semantics.
+Times are TAI MJD.  The shutter motion and its Hall-sensor fit are described
+in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
 """
 
 from __future__ import annotations
@@ -114,9 +140,10 @@ class ShutterTimingStatus(enum.IntEnum):
 
 
 class ShutterTimingFlag(enum.IntFlag):
-    """Reasons, as a bit mask.  Bit values equal
-    ``shutter_timing._contract.QC`` so the stack and the standalone package can
-    be compared directly.
+    """Reasons for a DEGRADED or UNAVAILABLE result, as a bit mask.
+
+    The bit values are fixed: they are recorded in task metadata and compared
+    with the reference results in the test data.
     """
 
     NONE = 0
@@ -151,11 +178,17 @@ class ShutterTimingFlag(enum.IntFlag):
     fit.
     """
     FIT_RESIDUAL = 128
-    """Not computed from header cards (reserved; JSON-profile path)."""
+    """Reserved: a poor Hall-sensor fit, which needs the sampled shutter
+    motion profiles (not computed from header cards).
+    """
     HALL_VS_ENCODER = 256
-    """Not computed from header cards (reserved; JSON-profile path)."""
+    """Reserved: Hall-sensor and encoder positions disagree, which needs the
+    sampled shutter motion profiles (not computed from header cards).
+    """
     ACTION_DURATION = 512
-    """Not computed from header cards (reserved; JSON-profile path)."""
+    """Reserved: an anomalous motion duration, which needs the sampled
+    shutter motion profiles (not computed from header cards).
+    """
     SHUTTIME_MISMATCH = 1024
     """|T_eff(focal-plane centre) - SHUTTIME| > ``shuttimeTolerance``
     (diagnostic only).
@@ -170,11 +203,10 @@ class ShutterTimingFlag(enum.IntFlag):
     """
 
 
-#: Detector-level flags that make a corrected time DEGRADED (``shutter_timing``
-#: ``DEGRADED_QC``).  Not included: CLOCK_OPEN_VS_BEG (the shutter clock is
-#: kept),
-#: CLOCK_END_VS_CLOSE (MJD-END unused), SHUTTIME_MISMATCH (diagnostic) and
-#: BEAM_EXTRAPOLATED (replaced by the per-source hull test).
+#: Detector-level flags that make a corrected time DEGRADED.  Not included:
+#: CLOCK_OPEN_VS_BEG (the shutter clock is kept), CLOCK_END_VS_CLOSE (MJD-END
+#: is not used), SHUTTIME_MISMATCH (diagnostic) and BEAM_EXTRAPOLATED
+#: (replaced by the per-source hull test).
 DEGRADED_FLAGS = (
     ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.PARAM_RANGE | ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
     | ShutterTimingFlag.PRE_CLOCK_EPOCH | ShutterTimingFlag.MEAN_PROFILE | ShutterTimingFlag.FIT_RESIDUAL
@@ -183,9 +215,12 @@ DEGRADED_FLAGS = (
 
 
 class ShutterTimingConfig(pexConfig.Config):
-    """Configuration of `computeShutterTiming`.  Defaults are the values
-    validated in ``shutter_timing`` v0.4.0 (calibration b8554546ab84);
-    ``beamFile`` is set by the obs package's config overrides.
+    """Configuration of `computeShutterTiming`.
+
+    The defaults are the LSSTCam values: nominal Hall-fit parameter ranges,
+    per-direction mean Hall fits, and the clock offsets between the shutter
+    and the header times.  ``beamFile`` is set by the obs package's config
+    overrides.
     """
 
     beamFile = pexConfig.Field(
@@ -273,15 +308,22 @@ class DetectorGeometry:
     centerMm: tuple[float, float]
     jacobian: tuple[tuple[float, float], tuple[float, float]]
     """[[dX/dx, dX/dy], [dY/dx, dY/dy]] in mm per pixel."""
+    isScience: bool = True
+    """False for guider, wavefront and other non-science detectors, which
+    the beam table does not describe: their timing is UNAVAILABLE.  Set from
+    the detector type by `fromDetector`; a geometry built by hand must set
+    it for non-science detectors.
+    """
 
     @classmethod
     def fromDetector(cls, detector) -> DetectorGeometry:
         """From an `lsst.afw.cameraGeom.Detector` (``PIXELS -> FOCAL_PLANE``),
         linearized at the detector centre (the LSSTCam map is affine to < 1e-3
-        mm).
+        mm).  ``isScience`` is from the detector type (True if the detector
+        has none).
         """
         import lsst.geom
-        from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS
+        from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, DetectorType
 
         bbox = detector.getBBox()
         center = lsst.geom.Box2D(bbox).getCenter()
@@ -295,6 +337,7 @@ class DetectorGeometry:
             centerPixel=(float(center.getX()), float(center.getY())),
             centerMm=(float(fp.getX()), float(fp.getY())),
             jacobian=((float(jac[0, 0]), float(jac[0, 1])), (float(jac[1, 0]), float(jac[1, 1]))),
+            isScience=_detectorType(detector) in (None, DetectorType.SCIENCE),
         )
 
     def pixelToDvcs(self, x, y) -> tuple[np.ndarray, np.ndarray]:
@@ -357,7 +400,6 @@ class ShutterBeamModel:
     bilinearly in grid cells whose four nodes are tabulated, barycentrically
     on the Delaunay triangulation of the nodes elsewhere inside their convex
     hull, and held at the nearest hull point outside it (up to ``marginMm``).
-    Port of ``shutter_timing.geometry.BeamModel``.
     """
 
     def __init__(self, xCcs, yCcs, sQ, levels=_BEAM_LEVELS, *, marginMm: float = _BEAM_MARGIN_MM):
@@ -540,17 +582,21 @@ class ShutterTiming:
     -> u = y - cy, v = x - cx).
 
     When ``status`` is UNAVAILABLE the numeric fields are NaN and the per-
-    source methods return NaN / UNAVAILABLE everywhere.
+    source methods return NaN / UNAVAILABLE everywhere.  A DEGRADED detector
+    may have a valid centre time but no quadratic (``coefficients`` and
+    ``maxAbsResidual`` NaN): this happens when no time exists at some points
+    of the fit grid, e.g. where the two blades overlap in exposures shorter
+    than ~0.2 s.  Its per-source times are then NaN / UNAVAILABLE.
     """
 
     status: ShutterTimingStatus
-    """Detector level: UNAVAILABLE if no timing; DEGRADED if ``flags &
-    DEGRADED_FLAGS`` or ``maxAbsResidual > degradedResidual``; else OK.
+    """Detector level: UNAVAILABLE if no time at the detector centre or the
+    focal-plane centre; DEGRADED if ``flags & DEGRADED_FLAGS`` or not
+    ``maxAbsResidual <= degradedResidual`` (including NaN: no quadratic);
+    else OK.
     """
     flags: ShutterTimingFlag
-    """Exposure-level flags | detector-level flags (``shutter_timing`` row
-    ``qc_flags``).
-    """
+    """Exposure-level flags | detector-level flags."""
     message: str
     """Human-readable reason when not OK (for logs and task metadata); "" when
     OK.
@@ -562,7 +608,9 @@ class ShutterTiming:
     coefficients: tuple[float, float, float, float, float]
     """(c_u, c_uu, c_v, c_uv, c_vv) in s / pixel^n."""
     maxAbsResidual: float
-    """Largest |quadratic - exact| over the fit grid (s)."""
+    """Largest |quadratic - exact| over the fit grid (s); NaN if there is no
+    quadratic.
+    """
     effectiveExposureTime: float
     """Flux-weighted open time at the detector centre (s)."""
     focalPlaneMjdTai: float
@@ -584,35 +632,30 @@ class ShutterTiming:
     def tMidMjdTai(self, x, y) -> np.ndarray:
         """Per-source mid-exposure times (MJD TAI) at pixel positions; NaN
         where the per-source status is UNAVAILABLE.  Vectorized; shape of
-        ``np.broadcast(x, y)``.
+        ``np.broadcast(x, y)``.  Masked entries of masked arrays are treated
+        as NaN.
         """
-        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
-        status = self.sourceStatus(x, y)
-        out = np.full(x.shape, np.nan)
-        good = status != ShutterTimingStatus.UNAVAILABLE
-        if good.any():
-            cx, cy = self.geometry.centerPixel
-            xs, ys = x[good] - cx, y[good] - cy
-            u, v = (xs, ys) if self.axis == "x" else (ys, xs)
-            cU, cUU, cV, cUV, cVV = self.coefficients
-            ds = cU * u + cUU * u * u + cV * v + cUV * u * v + cVV * v * v
-            out[good] = self.centerMjdTai + ds / _SECONDS_PER_DAY
-        return out
+        return self._evaluate(x, y)[0]
 
     def sourceStatus(self, x, y) -> np.ndarray:
-        """Per-source `ShutterTimingStatus` values (uint8), as
-        ``shutter_timing`` ``corrected_midpoints``:
+        """Per-source `ShutterTimingStatus` values (uint8):
 
-        - UNAVAILABLE: detector UNAVAILABLE, non-finite x or y, or more than
-          ``offDetectorLimit`` pixels outside the detector;
+        - UNAVAILABLE: detector UNAVAILABLE, non-finite or masked x or y, more
+          than ``offDetectorLimit`` pixels outside the detector, or no
+          quadratic (see `ShutterTiming`);
         - DEGRADED: detector DEGRADED, or outside the detector (up to the
           limit), or the position's CCS coordinates outside the beam table's
           hull (``hullDistance > 0``);
         - OK otherwise.
         """
-        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
+        return self._evaluate(x, y)[1]
+
+    def _evaluate(self, x, y):
+        """Per-source times and statuses (`tMidMjdTai`, `sourceStatus`)."""
+        x, y = _sourcePositions(x, y)
+        t = np.full(x.shape, np.nan)
         if self.status == ShutterTimingStatus.UNAVAILABLE or self.geometry is None:
-            return np.full(x.shape, ShutterTimingStatus.UNAVAILABLE, dtype=np.uint8)
+            return t, np.full(x.shape, ShutterTimingStatus.UNAVAILABLE, dtype=np.uint8)
         out = np.full(x.shape, self.status, dtype=np.uint8)
         finite = np.isfinite(x) & np.isfinite(y)
         off = np.where(finite, self.geometry.offDetector(np.where(finite, x, 0.0),
@@ -626,9 +669,19 @@ class ShutterTiming:
             hull = np.zeros(x.shape)
             hull[~unavailable] = self.beam.hullDistance(xc, yc)
             degraded |= hull > 0
+        good = ~unavailable
+        if good.any():
+            cx, cy = self.geometry.centerPixel
+            xs, ys = x[good] - cx, y[good] - cy
+            u, v = (xs, ys) if self.axis == "x" else (ys, xs)
+            cU, cUU, cV, cUV, cVV = self.coefficients
+            ds = cU * u + cUU * u * u + cV * v + cUV * u * v + cVV * v * v
+            t[good] = self.centerMjdTai + ds / _SECONDS_PER_DAY
+        unavailable |= ~np.isfinite(t)
+        t[unavailable] = np.nan
         out[degraded] = np.maximum(out[degraded], ShutterTimingStatus.DEGRADED)
         out[unavailable] = ShutterTimingStatus.UNAVAILABLE
-        return out
+        return t, out
 
     def summary(self) -> dict:
         """Scalars for task metadata: status (name), flags (int), message,
@@ -645,6 +698,18 @@ class ShutterTiming:
             maxAbsResidual=float(self.maxAbsResidual),
             policy=self.policy,
         )
+
+
+def _sourcePositions(x, y):
+    """Per-source pixel positions as broadcast float arrays; masked entries
+    of masked arrays become NaN.
+    """
+    def toFloat(a):
+        if np.ma.isMaskedArray(a):
+            return np.ma.filled(a.astype(float), np.nan)
+        return np.asarray(a, dtype=float)
+
+    return np.broadcast_arrays(toFloat(x), toFloat(y))
 
 
 def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None = None, *,
@@ -675,9 +740,7 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
 
     Notes
     -----
-    Algorithm (``shutter_timing`` header-card path, ``table.compute_rows`` with
-    ``TABLE_SETTINGS = dict(kind="hall_fit", quadrature="weighted", order=2,
-    n_along=9, n_across=9)`` and policy "auto"):
+    Algorithm (see also the module docstring):
 
     1. Parse the open and close motions; a missing or malformed start time
        or side card -> NO_PROFILE, UNAVAILABLE; a missing or malformed
@@ -691,16 +754,18 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
     4. CLOCK_CLOSE_VS_OPEN -> re-anchor both start times to MJD-BEG / EXPTIME
        with ``headerAnchorOffsets`` (PRE_CLOCK_EPOCH; policy "header_anchor").
     5. ThreeJerks trajectories; flux-weighted crossing times <T> of each blade
-       at each grid point by Gauss quadrature over the beam's flux quantiles;
+       at each grid point by Gauss quadrature over the beam's flux quantiles
+       (two Gauss-Legendre nodes in each interval between tabulated levels);
        t_mid = (<T>o + <T>c) / 2.
     6. Least-squares quadratic in (u, v) over a ``gridAlong x gridAcross`` grid
-       spanning the detector; residual; BEAM_EXTRAPOLATED where the detector
-       leaves the hull.
+       spanning the detector; its maximum residual over that grid, the grid's
+       cell centres and the detector centre; BEAM_EXTRAPOLATED if a detector
+       corner lies outside the beam table's hull.
 
-    Agreement with ``shutter_timing`` (wave-0 fixtures,
-    tests/data/shutterTiming): centre times and the quadratic terms at a
-    2000-pixel lever arm to <= 10 us, identical ``axis``, ``flags`` and
-    statuses.
+    The test data (tests/data/shutterTiming) hold the results of an
+    independent reference implementation of this algorithm; this code agrees
+    with them to <= 10 us in the centre times and in the quadratic terms at a
+    2000-pixel lever arm, with identical ``axis``, ``flags`` and statuses.
     """
     if config is None:
         config = ShutterTimingConfig()
@@ -709,10 +774,8 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
     config.validate()
     if isinstance(detector, DetectorGeometry):
         geometry = detector
-        notScience = None
     elif hasattr(detector, "getTransform") and hasattr(detector, "getBBox"):
         geometry = DetectorGeometry.fromDetector(detector)
-        notScience = _notScienceReason(detector)
     else:
         raise TypeError("detector must be an lsst.afw.cameraGeom.Detector or a DetectorGeometry, "
                         f"not {type(detector).__name__}")
@@ -726,18 +789,20 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
         ctx.headerMid = _headerMid(metadata)
         if beam is None:
             raise _Unavailable(ShutterTimingFlag.NONE, "no beam model (config.beamFile is empty)")
-        if notScience:
-            raise _Unavailable(ShutterTimingFlag.NONE, notScience)
+        if not geometry.isScience:
+            raise _Unavailable(ShutterTimingFlag.NONE,
+                               f"detector {geometry.detectorId} is not SCIENCE: the beam table does not "
+                               "cover it")
         _compute(ctx, metadata)
     except _Unavailable as e:
         return ctx.unavailable(e.flags, e.message)
-    except Exception as e:  # noqa: BLE001 -- bad data must never raise (contract)
+    except Exception as e:  # noqa: BLE001 -- documented: bad data never raises
         return ctx.unavailable(ctx.flags, f"shutter timing failed: {type(e).__name__}: {e}")
     return ctx.result()
 
 
 # --------------------------------------------------------------------------
-# Private implementation (port of the shutter_timing header-card path).
+# Private implementation.
 # --------------------------------------------------------------------------
 
 
@@ -750,28 +815,32 @@ class _Unavailable(Exception):
         self.message = message
 
 
-def _notScienceReason(detector):
-    """A message if an afw detector is not a science detector (the beam table
-    describes only the science beams), else None.
+def _detectorType(detector):
+    """The `lsst.afw.cameraGeom.DetectorType` of an afw detector, or None if
+    it has none.
     """
     try:
-        from lsst.afw.cameraGeom import DetectorType
-
-        if detector.getType() != DetectorType.SCIENCE:
-            return (f"detector {detector.getId()} ({detector.getName()}) is "
-                    f"{detector.getType().name}, not SCIENCE: the beam table does not cover it")
+        return detector.getType()
     except Exception:  # noqa: BLE001 -- detectors without a type are treated as science
         return None
-    return None
 
 
 def _card(metadata, key):
     """The value of ``key`` (or ``HIERARCH key``) in ``metadata``, or None.
+
+    A multi-valued card (a `~lsst.daf.base.PropertyList` key with several
+    values, or a sequence in a mapping) is malformed: None, as if missing.
     """
     for k in (key, "HIERARCH " + key):
         try:
             if k in metadata:
-                return metadata.get(k)
+                valueCount = getattr(metadata, "valueCount", None)
+                if valueCount is not None and valueCount(k) != 1:
+                    return None
+                value = metadata.get(k)
+                if isinstance(value, (list, tuple, np.ndarray)):
+                    return None
+                return value
         except Exception:  # noqa: BLE001 -- unreadable card: treat as missing
             return None
     return None
@@ -868,6 +937,7 @@ class _Result:
     maxAbsResidual: float = math.nan
     effectiveExposureTime: float = math.nan
     focalPlaneMjdTai: float = math.nan
+    noQuadratic: str = ""
 
     def unavailable(self, flags, message):
         return ShutterTiming(
@@ -883,7 +953,9 @@ class _Result:
         reasons = []
         if flags & DEGRADED_FLAGS:
             reasons.append(_flagNames(flags & DEGRADED_FLAGS))
-        if not self.maxAbsResidual <= self.config.degradedResidual:
+        if self.noQuadratic:
+            reasons.append(self.noQuadratic)
+        elif not self.maxAbsResidual <= self.config.degradedResidual:
             reasons.append(f"quadratic residual {self.maxAbsResidual * 1e3:.3f} ms > "
                            f"{self.config.degradedResidual * 1e3:g} ms")
         status = ShutterTimingStatus.DEGRADED if reasons else ShutterTimingStatus.OK
@@ -907,7 +979,7 @@ def _compute(ctx, metadata):
     beg = _float(_card(metadata, "MJD-BEG"))
     end = _float(_card(metadata, "MJD-END"))
 
-    # ---- exposure QC (shutter_timing core.qc_exposure, header path)
+    # ---- exposure QC
     flags = ShutterTimingFlag.NONE
     if not (mOpen.usable and mClose.usable):
         flags |= ShutterTimingFlag.NO_PROFILE
@@ -1017,14 +1089,24 @@ def _compute(ctx, metadata):
     # ---- visit epoch
     ctx.focalPlaneMjdTai = float(openStart + 0.5 * (eO[-1] + eC[-1]) / _SECONDS_PER_DAY)
 
-    # ---- quadratic fit
+    # ---- detector centre
     eO, eC = eO[:-1], eC[:-1]
     tMid = 0.5 * (eO + eC)
+    why = "(outside the beam table's margin, off the trajectory branch, or overlapping blades)"
+    if not math.isfinite(ctx.focalPlaneMjdTai):
+        raise _Unavailable(flags, f"no shutter time at the focal-plane centre {why}")
+    if not math.isfinite(tMid[0]):
+        raise _Unavailable(flags, f"no shutter time at the detector centre {why}")
+    ctx.centerMjdTai = float(openStart + tMid[0] / _SECONDS_PER_DAY)
+    ctx.effectiveExposureTime = float(eC[0] - eO[0])
+
+    # ---- quadratic fit; without a time at every grid point there is none:
+    # the centre time is kept (DEGRADED) and per-source times are NaN.
     if not np.all(np.isfinite(tMid)):
         nBad = int((~np.isfinite(tMid)).sum())
-        raise _Unavailable(flags, f"no shutter time at {nBad} of {tMid.size} detector grid points "
-                           "(outside the beam table's margin, off the trajectory branch, or "
-                           "overlapping blades)")
+        ctx.noQuadratic = (f"no shutter time at {nBad} of {tMid.size} detector grid points {why}: "
+                           "no per-source times")
+        return
     dt = tMid - tMid[0]
     su = max(0.5 * (n[ia] - 1.0), 1.0)
     sv = max(0.5 * (n[1 - ia] - 1.0), 1.0)
@@ -1036,8 +1118,5 @@ def _compute(ctx, metadata):
     cz = np.linalg.lstsq(basis[fit], dt[fit], rcond=None)[0]
     ctx.maxAbsResidual = float(np.max(np.abs(basis @ cz - dt)))
     ctx.coefficients = tuple(float(v) for v in cz * unit)
-    ctx.centerMjdTai = float(openStart + tMid[0] / _SECONDS_PER_DAY)
-    ctx.effectiveExposureTime = float(eC[0] - eO[0])
-    if not (np.all(np.isfinite(ctx.coefficients)) and math.isfinite(ctx.focalPlaneMjdTai)
-            and math.isfinite(ctx.maxAbsResidual)):
-        raise _Unavailable(flags, "non-finite quadratic fit or visit epoch")
+    if not (np.all(np.isfinite(ctx.coefficients)) and math.isfinite(ctx.maxAbsResidual)):
+        raise _Unavailable(flags, "non-finite quadratic fit")

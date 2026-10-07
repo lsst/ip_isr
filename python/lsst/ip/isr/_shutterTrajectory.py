@@ -20,8 +20,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """ThreeJerksModelv1 blade trajectory (private helper of `shutterTiming`).
 
-Port of ``shutter_timing.trajectory.ThreeJerksTrajectory``
-(github.com/mjuric/shutter-timing).  Conventions (CTN-002):
+The camera control system fits each shutter blade motion, from its
+Hall-sensor positions, with this model and writes the fit to the exposure
+metadata.  Conventions (CTN-002, https://ctn-002.lsst.io):
 
 - piecewise-constant jerk ``j0`` on ``[0, t1)``, ``j1`` on ``[t1, t2)``,
   ``j2`` on ``[t2, inf)``, from rest at model time 0;

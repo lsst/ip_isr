@@ -18,11 +18,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Tests of `lsst.ip.isr.shutterTiming` against the ``shutter_timing``
-fixtures in tests/data/shutterTiming (see its README.md).
+"""Tests of `lsst.ip.isr.shutterTiming` against the reference results in
+tests/data/shutterTiming (see its README.md).
 """
 
 import csv
+import dataclasses
 import glob
 import json
 import math
@@ -63,12 +64,10 @@ SECONDS_PER_DAY = 86400.0
 
 
 def readGeometries():
-    """The science detectors of the fixture CSV, as DetectorGeometry."""
+    """The detectors of the fixture CSV, as DetectorGeometry."""
     out = {}
     with open(GEOMETRY_FILE, newline="") as f:
         for r in csv.DictReader(f):
-            if r["type"] != "SCIENCE":
-                continue
             v = {k: float(x) for k, x in r.items() if k not in ("name", "type", "physical_type")}
             det = int(v["detector"])
             out[det] = DetectorGeometry(
@@ -76,6 +75,7 @@ def readGeometries():
                 centerPixel=(v["center_x_pix"], v["center_y_pix"]),
                 centerMm=(v["fp_center_x_mm"], v["fp_center_y_mm"]),
                 jacobian=((v["dfp_dxpix_x"], v["dfp_dypix_x"]), (v["dfp_dxpix_y"], v["dfp_dypix_y"])),
+                isScience=(r["type"] == "SCIENCE"),
             )
     return out
 
@@ -86,7 +86,7 @@ def readFixture(name):
 
 
 class ReferenceChecks:
-    """Comparisons with ``shutter_timing`` results (mixin)."""
+    """Comparisons with the reference results (mixin)."""
 
     def assertAgrees(self, timing, expected, label):
         """Compare one detector's result with a fixture row; return the
@@ -125,8 +125,7 @@ class ReferenceChecks:
 
 
 class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
-    """Agreement with ``shutter_timing.table.compute_rows`` on the fixtures.
-    """
+    """Agreement with the reference results on the fixture exposures."""
 
     @classmethod
     def setUpClass(cls):
@@ -157,7 +156,7 @@ class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
                 self.assertAlmostEqual(timing.headerMidMjdTai, doc["header_mid_mjd_tai"], delta=1e-9)
             worst["samples"] = max(worst.get("samples", 0.0),
                                    self.assertSamples(timings, doc["samples"], name))
-        print("\nworst |stack - shutter_timing| (us): "
+        print("\nworst |computed - reference| (us): "
               + ", ".join(f"{k} {v * 1e6:.2g}" for k, v in worst.items()))
 
     def testNoCards(self):
@@ -206,6 +205,32 @@ class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         c = computeShutterTiming({"HIERARCH " + k: v for k, v in doc["metadata"].items()}, det, self.config)
         self.assertEqual(a.centerMjdTai, c.centerMjdTai)
 
+    def testMultiValuedCards(self):
+        """A card with several values is malformed: the same flags and result
+        as for that card missing (PropertyList) or non-numeric (mapping).
+        """
+        doc = readFixture("MC_O_20260712_000100")
+        det = self.geometries[94]
+        for card in ("SHUTTER CLOSE HALLSENSORFIT JERK1", "SHUTTER OPEN STARTTIME TAI MJD",
+                     "SHUTTER OPEN SIDE", "EXPTIME"):
+            missing = dict(doc["metadata"])
+            del missing[card]
+            expected = computeShutterTiming(missing, det, self.config)
+            pl = PropertyList()
+            for k, v in doc["metadata"].items():
+                pl.set(k, v)
+            pl.add(card, doc["metadata"][card])
+            self.assertEqual(pl.valueCount(card), 2)
+            md = dict(doc["metadata"])
+            md[card] = [doc["metadata"][card]] * 2
+            for metadata in (pl, md):
+                t = computeShutterTiming(metadata, det, self.config)
+                self.assertEqual(t.status, expected.status, card)
+                self.assertEqual(t.flags, expected.flags, card)
+                np.testing.assert_array_equal(t.centerMjdTai, expected.centerMjdTai)
+            if card != "EXPTIME":  # a missing EXPTIME only skips a clock check
+                self.assertNotEqual(expected.flags, ShutterTimingFlag.NONE, card)
+
     def testSummary(self):
         doc = readFixture("MC_O_20260105_000249")
         timing = computeShutterTiming(doc["metadata"], self.geometries[94], self.config)
@@ -235,10 +260,33 @@ class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         st = timing.sourceStatus([np.nan, 10.0, np.inf], [10.0, np.nan, 10.0])
         np.testing.assert_array_equal(st, ShutterTimingStatus.UNAVAILABLE)
 
+    def testMaskedArrays(self):
+        """Masked entries of masked arrays are UNAVAILABLE with a NaN time;
+        unmasked entries are as for plain arrays.
+        """
+        doc = readFixture("MC_O_20260712_000100")
+        timing = computeShutterTiming(doc["metadata"], self.geometries[94], self.config)
+        x = np.array([10.0, 2000.0, 3000.0, 4000.0])
+        y = np.array([20.0, 1000.0, 2000.0, 3900.0])
+        mask = np.array([False, True, False, True])
+        plainT = timing.tMidMjdTai(x, y)
+        plainS = timing.sourceStatus(x, y)
+        self.assertTrue(np.all(np.isfinite(plainT)))
+        for mx, my in ((np.ma.array(x, mask=mask), y), (x, np.ma.array(y, mask=mask)),
+                       (np.ma.array(x.astype(int), mask=mask), np.ma.array(y, mask=False))):
+            t = timing.tMidMjdTai(mx, my)
+            st = timing.sourceStatus(mx, my)
+            self.assertNotIsInstance(t, np.ma.MaskedArray)
+            self.assertTrue(np.all(np.isnan(t[mask])))
+            np.testing.assert_array_equal(st[mask], ShutterTimingStatus.UNAVAILABLE)
+            np.testing.assert_array_equal(st[~mask], plainS[~mask])
+            np.testing.assert_allclose(t[~mask], timing.tMidMjdTai(np.asarray(mx, dtype=float)[~mask],
+                                                                   np.asarray(my, dtype=float)[~mask]))
+
 
 class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
-    """Mutated header cards (expected values from ``shutter_timing``:
-    tests/data/shutterTiming/mutations/make_mutations.py).
+    """Mutated header cards, against the reference results in
+    tests/data/shutterTiming/mutations.json.
     """
 
     @classmethod
@@ -246,7 +294,7 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         cls.geometries = readGeometries()
         cls.config = ShutterTimingConfig()
         cls.config.beamFile = BEAM_FILE
-        with open(os.path.join(DATADIR, "mutations", "mutations.json")) as f:
+        with open(os.path.join(DATADIR, "mutations.json")) as f:
             cls.mutations = json.load(f)["mutations"]
         cls.base = readFixture("MC_O_20260712_000100")["metadata"]
 
@@ -325,7 +373,7 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
 
     def testBladeOverlap(self):
         """EXPTIME 0 or tiny: the blades overlap, UNAVAILABLE (the reference
-        raises ShutterOverlapError).
+        rejects the exposure).
         """
         doc = self.mutations["exptime_zero"]
         self.assertEqual(doc["status"], ShutterTimingStatus.UNAVAILABLE)
@@ -343,6 +391,50 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         md["SHUTTER CLOSE STARTTIME TAI MJD"] = md["SHUTTER OPEN STARTTIME TAI MJD"]
         md["EXPTIME"] = 0.0
         self.assertEqual(self.compute(md).status, ShutterTimingStatus.UNAVAILABLE)
+
+    def testPartialBladeOverlap(self):
+        """EXPTIME 0.05 s: the blades overlap over part of the focal plane.
+
+        A detector with no time at its centre is UNAVAILABLE.  A detector with
+        a time at its centre but not at every grid point has no quadratic: it
+        is DEGRADED with its centre time and NaN coefficients and residual,
+        and every per-source time is NaN / UNAVAILABLE.
+        """
+        md = dict(self.base)
+        md["EXPTIME"] = 0.05
+        md["SHUTTER CLOSE STARTTIME TAI MJD"] = (md["SHUTTER OPEN STARTTIME TAI MJD"]
+                                                 + (0.05 + 0.00052) / SECONDS_PER_DAY)
+        science = [d for d, g in self.geometries.items() if g.isScience]
+        counts = dict(full=0, partial=0, none=0)
+        for det in science:
+            t = self.compute(md, det)
+            self.assertTrue(math.isfinite(t.focalPlaneMjdTai) or t.status == ShutterTimingStatus.UNAVAILABLE)
+            if t.status == ShutterTimingStatus.UNAVAILABLE:
+                counts["none"] += 1
+                self.assertIn("detector centre", t.message)
+                self.assertTrue(math.isnan(t.centerMjdTai))
+                continue
+            self.assertEqual(t.policy, "profile")
+            self.assertTrue(math.isfinite(t.centerMjdTai))
+            self.assertTrue(math.isfinite(t.effectiveExposureTime))
+            x = np.array([t.geometry.centerPixel[0], -0.5, t.geometry.nx - 0.5, 100.0])
+            y = np.array([t.geometry.centerPixel[1], -0.5, t.geometry.ny - 0.5, 3000.0])
+            if np.all(np.isfinite(t.coefficients)):
+                counts["full"] += 1
+                self.assertTrue(math.isfinite(t.maxAbsResidual))
+                self.assertTrue(np.all(np.isfinite(t.tMidMjdTai(x, y))))
+                continue
+            counts["partial"] += 1
+            self.assertEqual(t.status, ShutterTimingStatus.DEGRADED, det)
+            self.assertTrue(np.all(np.isnan(t.coefficients)))
+            self.assertTrue(math.isnan(t.maxAbsResidual))
+            self.assertIn("no per-source times", t.message)
+            self.assertTrue(np.all(np.isnan(t.tMidMjdTai(x, y))))
+            np.testing.assert_array_equal(t.sourceStatus(x, y), ShutterTimingStatus.UNAVAILABLE)
+            self.assertEqual(t.summary()["status"], "DEGRADED")
+        self.assertGreater(counts["full"], 0, counts)
+        self.assertGreater(counts["partial"], 0, counts)
+        self.assertGreater(counts["none"], 0, counts)
 
     def testOffDetectorLimit(self):
         """Exactly ``offDetectorLimit`` pixels off: DEGRADED; beyond:
@@ -494,9 +586,35 @@ class ShutterTimingGeometryTestCase(lsst.utils.tests.TestCase):
             self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, detType)
             self.assertIn("not SCIENCE", t.message)
             self.assertTrue(np.isnan(t.tMidMjdTai(2000.0, 2000.0)))
+            self.assertFalse(DetectorGeometry.fromDetector(detector).isScience)
         detector = DetectorWrapper(id=94, bbox=bbox, pixelSize=(0.01, 0.01), orientation=orientation,
                                    detType=DetectorType.SCIENCE).detector
+        self.assertTrue(DetectorGeometry.fromDetector(detector).isScience)
         self.assertEqual(computeShutterTiming(md, detector, config).status, ShutterTimingStatus.OK)
+
+    def testNonScienceGeometry(self):
+        """A DetectorGeometry with ``isScience=False`` is UNAVAILABLE, as the
+        afw detector it describes: the LSSTCam guider and wavefront detectors
+        (ids 189-204), and a science geometry flagged as non-science.
+        """
+        config = ShutterTimingConfig()
+        config.beamFile = BEAM_FILE
+        md = readFixture("MC_O_20260712_000100")["metadata"]
+        geometries = readGeometries()
+        nonScience = sorted(d for d, g in geometries.items() if not g.isScience)
+        self.assertEqual(nonScience, list(range(189, 205)))
+        for det in nonScience:
+            t = computeShutterTiming(md, geometries[det], config)
+            self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, det)
+            self.assertIn("not SCIENCE", t.message)
+            self.assertTrue(np.isnan(t.centerMjdTai))
+            np.testing.assert_array_equal(t.sourceStatus([0.0, 2000.0], [0.0, 1000.0]),
+                                          ShutterTimingStatus.UNAVAILABLE)
+        g = geometries[94]
+        self.assertTrue(g.isScience)
+        self.assertEqual(computeShutterTiming(md, g, config).status, ShutterTimingStatus.OK)
+        t = computeShutterTiming(md, dataclasses.replace(g, isScience=False), config)
+        self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE)
 
     def testOffDetector(self):
         g = readGeometries()[0]
