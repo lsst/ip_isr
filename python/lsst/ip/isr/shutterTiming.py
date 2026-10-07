@@ -391,6 +391,12 @@ class ShutterBeamModel:
         self._knots = knots
         self._nodes = (knots[:-1, None] + du[:, None] * _GL2[None, :]).ravel()
         self._weights = np.repeat(du / 2.0, 2)
+        # The model is shared by loadShutterBeam's cache: make it read-only.
+        for name in ("_levels", "_points", "_r", "_gx", "_gy", "_grid", "_cellOk", "_hullVertices",
+                     "_hullEq", "_knots", "_nodes", "_weights"):
+            arr = np.array(getattr(self, name))
+            arr.flags.writeable = False
+            setattr(self, name, arr)
 
     @classmethod
     def fromFile(cls, path: str) -> ShutterBeamModel:
@@ -506,12 +512,20 @@ class ShutterBeamModel:
         return ext[..., k] * (1 - f) + ext[..., k + 1] * f, self._weights
 
 
-@functools.lru_cache(maxsize=4)
 def loadShutterBeam(path: str) -> ShutterBeamModel:
     """`ShutterBeamModel.fromFile`, cached per process (call sites load it per
     quantum).
     """
-    return ShutterBeamModel.fromFile(path)
+    from lsst.resources import ResourcePath
+
+    # Key on the absolute URI: a relative path survives a chdir, and a path
+    # and its file:// URI share one (read-only) model.
+    return _loadShutterBeamCached(ResourcePath(path).geturl())
+
+
+@functools.lru_cache(maxsize=4)
+def _loadShutterBeamCached(uri: str) -> ShutterBeamModel:
+    return ShutterBeamModel.fromFile(uri)
 
 
 @dataclasses.dataclass(frozen=True)

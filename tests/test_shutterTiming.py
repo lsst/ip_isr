@@ -34,7 +34,7 @@ import numpy as np
 
 import lsst.geom
 import lsst.utils.tests
-from lsst.afw.cameraGeom import FOCAL_PLANE, Orientation
+from lsst.afw.cameraGeom import FOCAL_PLANE, DetectorType, Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.daf.base import PropertyList
 from lsst.ip.isr.shutterTiming import (
@@ -250,14 +250,24 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
             cls.mutations = json.load(f)["mutations"]
         cls.base = readFixture("MC_O_20260712_000100")["metadata"]
 
-    def compute(self, md, det=94):
-        return computeShutterTiming(md, self.geometries[det], self.config)
+    def compute(self, md, det=94, config=None):
+        return computeShutterTiming(md, self.geometries[det], config or self.config)
 
-    def checkAgainstReference(self, name):
+    def checkAgainstReference(self, name, config=None):
         """All detectors and samples of a mutation agree with the reference.
         """
         doc = self.mutations[name]
         timings = {}
+        saved = self.config
+        if config is not None:
+            self.config = config
+        try:
+            self._checkAgainstReference(doc, name, timings)
+        finally:
+            self.config = saved
+        return timings
+
+    def _checkAgainstReference(self, doc, name, timings):
         for det, expected in doc["detectors"].items():
             t = self.compute(doc["metadata"], int(det))
             timings[int(det)] = t
@@ -286,6 +296,72 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         t = self.compute(md)
         self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE)
         self.assertTrue(t.flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
+
+    def testA1(self):
+        """A nonzero A1 per direction, against the reference with the same
+        ``a1_mm`` (a dropped or sign-flipped A1 moves times by ~0.5 ms).
+        """
+        for name in ("a1_decreasing", "a1_increasing"):
+            doc = self.mutations[name]
+            config = ShutterTimingConfig()
+            config.beamFile = BEAM_FILE
+            config.a1Decreasing = doc["a1_mm"]["-1"]
+            config.a1Increasing = doc["a1_mm"]["1"]
+            self.assertNotEqual(config.a1Decreasing + config.a1Increasing, 0.0)
+            timings = self.checkAgainstReference(name, config)
+            # The A1 of the exposure's direction is applied (~0.5 ms).
+            t0 = self.compute(readFixture(doc["base"])["metadata"]).centerMjdTai
+            self.assertGreater(abs(timings[94].centerMjdTai - t0) * SECONDS_PER_DAY, 100e-6, name)
+
+    def testNegativeJerk0(self):
+        """|JERK0| in range but negative: only the displacement-at-0.9 s range
+        check catches it; the mean profile is used, as the reference.
+        """
+        timings = self.checkAgainstReference("open_jerk0_negative")
+        t = timings[94]
+        self.assertTrue(t.flags & ShutterTimingFlag.PARAM_RANGE)
+        self.assertTrue(t.flags & ShutterTimingFlag.MEAN_PROFILE)
+        self.assertEqual(t.status, ShutterTimingStatus.DEGRADED)
+
+    def testBladeOverlap(self):
+        """EXPTIME 0 or tiny: the blades overlap, UNAVAILABLE (the reference
+        raises ShutterOverlapError).
+        """
+        doc = self.mutations["exptime_zero"]
+        self.assertEqual(doc["status"], ShutterTimingStatus.UNAVAILABLE)
+        self.assertIn("Overlap", doc["reason"])
+        for exptime in (0.0, 1e-6, 0.01):
+            md = dict(self.base)
+            md["EXPTIME"] = exptime
+            for det in (0, 94, 188):
+                t = self.compute(md, det)
+                self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, (exptime, det))
+                self.assertIn("overlapping", t.message)
+        # Close start == open start, with EXPTIME consistent (no
+        # re-anchoring).
+        md = dict(self.base)
+        md["SHUTTER CLOSE STARTTIME TAI MJD"] = md["SHUTTER OPEN STARTTIME TAI MJD"]
+        md["EXPTIME"] = 0.0
+        self.assertEqual(self.compute(md).status, ShutterTimingStatus.UNAVAILABLE)
+
+    def testOffDetectorLimit(self):
+        """Exactly ``offDetectorLimit`` pixels off: DEGRADED; beyond:
+        UNAVAILABLE.
+        """
+        t = self.compute(self.base)
+        self.assertEqual(t.status, ShutterTimingStatus.OK)
+        limit = self.config.offDetectorLimit
+        nx, ny = t.geometry.nx, t.geometry.ny
+        cx, cy = t.geometry.centerPixel
+        x = np.array([-0.5 - limit, -0.5 - limit - 1e-6, nx - 0.5 + limit, nx - 0.5 + limit + 1e-6,
+                      cx, cx, cx, cx])
+        y = np.array([cy, cy, cy, cy, -0.5 - limit, -0.5 - limit - 1e-6, ny - 0.5 + limit,
+                      ny - 0.5 + limit + 1e-6])
+        expected = [ShutterTimingStatus.DEGRADED, ShutterTimingStatus.UNAVAILABLE] * 4
+        np.testing.assert_array_equal(t.sourceStatus(x, y), expected)
+        tt = t.tMidMjdTai(x, y)
+        self.assertTrue(np.all(np.isfinite(tt[0::2])))
+        self.assertTrue(np.all(np.isnan(tt[1::2])))
 
     def testParamRange(self):
         for name in ("open_pivot1_out_of_range", "close_jerk2_out_of_range"):
@@ -400,6 +476,28 @@ class ShutterTimingGeometryTestCase(lsst.utils.tests.TestCase):
         self.assertLess(abs(a.centerMjdTai - b.centerMjdTai) * SECONDS_PER_DAY, 1e-6)
         self.assertFloatsAlmostEqual(np.array(a.coefficients), np.array(b.coefficients), rtol=1e-6)
 
+    def testNonScienceDetector(self):
+        """An afw detector that is not SCIENCE is UNAVAILABLE (the beam table
+        covers only the science beams), even where the geometry is covered.
+        """
+        g = readGeometries()[94]
+        orientation = Orientation(lsst.geom.Point2D(*g.centerMm), lsst.geom.Point2D(*g.centerPixel),
+                                  lsst.geom.Angle(0.0, lsst.geom.degrees))
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(g.nx, g.ny))
+        config = ShutterTimingConfig()
+        config.beamFile = BEAM_FILE
+        md = readFixture("MC_O_20260712_000100")["metadata"]
+        for detType in (DetectorType.WAVEFRONT, DetectorType.GUIDER, DetectorType.FOCUS):
+            detector = DetectorWrapper(id=94, bbox=bbox, pixelSize=(0.01, 0.01), orientation=orientation,
+                                       detType=detType).detector
+            t = computeShutterTiming(md, detector, config)
+            self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, detType)
+            self.assertIn("not SCIENCE", t.message)
+            self.assertTrue(np.isnan(t.tMidMjdTai(2000.0, 2000.0)))
+        detector = DetectorWrapper(id=94, bbox=bbox, pixelSize=(0.01, 0.01), orientation=orientation,
+                                   detType=DetectorType.SCIENCE).detector
+        self.assertEqual(computeShutterTiming(md, detector, config).status, ShutterTimingStatus.OK)
+
     def testOffDetector(self):
         g = readGeometries()[0]
         off = g.offDetector([-0.5, 4071.5, -10.0, 2000.0, 4100.0], [-0.5, 3999.5, 5.0, 4030.0, -20.0])
@@ -416,6 +514,31 @@ class ShutterTimingGeometryTestCase(lsst.utils.tests.TestCase):
         # A URI works as well as a path.
         uriBeam = ShutterBeamModel.fromFile("file://" + BEAM_FILE)
         np.testing.assert_array_equal(uriBeam.hullDistance(350.0, 10.0), beam.hullDistance(350.0, 10.0))
+
+    def testLoadShutterBeamCache(self):
+        """The cache keys on the absolute URI and holds a read-only model."""
+        cwd = os.getcwd()
+        try:
+            os.chdir(DATADIR)
+            relative = loadShutterBeam(os.path.basename(BEAM_FILE))
+            os.chdir(TESTDIR)
+            self.assertIs(loadShutterBeam(BEAM_FILE), relative)
+            self.assertIs(loadShutterBeam("file://" + BEAM_FILE), relative)
+            self.assertIs(loadShutterBeam(os.path.join("data", "shutterTiming", os.path.basename(BEAM_FILE))),
+                          relative)
+            # The bare name no longer resolves after the chdir.
+            with self.assertRaises(Exception):
+                loadShutterBeam(os.path.basename(BEAM_FILE))
+        finally:
+            os.chdir(cwd)
+        for name in ("_grid", "_r", "_points", "_hullEq", "_nodes", "_weights"):
+            arr = getattr(relative, name)
+            self.assertFalse(arr.flags.writeable, name)
+            with self.assertRaises(ValueError):
+                arr.flat[0] = 0.0
+        levels = relative.levels
+        levels[0] = 0.5  # a copy
+        self.assertEqual(relative.levels[0], 0.01)
 
 
 class ShutterTimingSpeedTestCase(lsst.utils.tests.TestCase):
