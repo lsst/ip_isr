@@ -317,27 +317,28 @@ class ShutterTimingMutationTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         self.assertEqual(self.compute(md).flags, ShutterTimingFlag.NO_PROFILE)
 
     def testUnusableHallFit(self):
-        """A missing or malformed Hall-fit card, or another model, is
-        NO_PROFILE -> UNAVAILABLE (contract; the reference instead substitutes
-        the mean profile, flagging NO_PROFILE | MEAN_PROFILE).
+        """A missing or malformed Hall-fit card: the mean profile
+        (NO_PROFILE | MEAN_PROFILE, DEGRADED), as the reference.
         """
+        both = ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.MEAN_PROFILE
         for name in ("close_jerk1_string", "open_jerk0_missing"):
-            doc = self.mutations[name]
-            ref = next(iter(doc["detectors"].values()))
-            refFlags = int(ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.MEAN_PROFILE)
-            self.assertEqual(ref["qc_flags"] & refFlags, refFlags)
-            t = self.compute(doc["metadata"])
-            self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, name)
-            self.assertEqual(t.flags, ShutterTimingFlag.NO_PROFILE, name)
-            self.assertIn("HALLSENSORFIT", t.message)
-        for card, value in (("SHUTTER OPEN HALLSENSORFIT PIVOTPOINT2", math.nan),
-                            ("SHUTTER CLOSE HALLSENSORFIT JERK2", "35000 mm/s3"),
-                            ("SHUTTER OPEN MODEL", "FourJerksModel")):
+            timings = self.checkAgainstReference(name)
+            t = timings[94]
+            self.assertEqual(t.flags & both, both, name)
+            self.assertEqual(t.status, ShutterTimingStatus.DEGRADED, name)
+            self.assertIn("NO_PROFILE", t.message)
+        ref = self.compute(self.mutations["close_jerk1_string"]["metadata"])
+        for card, value in (("SHUTTER CLOSE HALLSENSORFIT JERK1", math.nan),
+                            ("SHUTTER CLOSE HALLSENSORFIT JERK1", math.inf),
+                            ("SHUTTER CLOSE HALLSENSORFIT JERK1", -math.inf),
+                            ("SHUTTER CLOSE HALLSENSORFIT JERK1", "35000 mm/s3"),
+                            ("SHUTTER CLOSE MODEL", "FourJerksModel")):
             md = dict(self.base)
             md[card] = value
             t = self.compute(md)
-            self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, card)
-            self.assertEqual(t.flags, ShutterTimingFlag.NO_PROFILE, card)
+            self.assertEqual(t.status, ShutterTimingStatus.DEGRADED, (card, value))
+            self.assertEqual(t.flags, ref.flags, (card, value))
+            self.assertEqual(t.centerMjdTai, ref.centerMjdTai, (card, value))
         # Numeric strings are numbers.
         md = dict(self.base)
         md["SHUTTER CLOSE HALLSENSORFIT JERK2"] = str(md["SHUTTER CLOSE HALLSENSORFIT JERK2"])

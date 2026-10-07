@@ -121,8 +121,10 @@ class ShutterTimingFlag(enum.IntFlag):
 
     NONE = 0
     NO_PROFILE = 1
-    """Missing or unusable shutter cards (no Hall fit, or a model other than
-    ``ThreeJerksModelv1``).  Implies `ShutterTimingStatus.UNAVAILABLE`.
+    """Missing or unusable Hall-fit cards (no fit, or a model other than
+    ``ThreeJerksModelv1``): the mean profile is used (with MEAN_PROFILE). The
+    result is UNAVAILABLE only if the start time or side cards are unusable
+    too.
     """
     PARAM_RANGE = 2
     """A Hall fit outside the nominal parameter ranges (mean profile used
@@ -663,9 +665,12 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
     ``TABLE_SETTINGS = dict(kind="hall_fit", quadrature="weighted", order=2,
     n_along=9, n_across=9)`` and policy "auto"):
 
-    1. Parse the open and close motions; a missing or malformed card ->
-       NO_PROFILE, UNAVAILABLE.  Start positions: ``nominalStroke`` for 750 ->
-       0 moves, ``nominalStartIncreasing`` for 0 -> 750 moves.
+    1. Parse the open and close motions; a missing or malformed start time
+       or side card -> NO_PROFILE, UNAVAILABLE; a missing or malformed
+       Hall-fit card, or a model other than ``ThreeJerksModelv1`` ->
+       NO_PROFILE and the mean profile of its travel direction
+       (MEAN_PROFILE, DEGRADED).  Start positions: ``nominalStroke`` for 750
+       -> 0 moves, ``nominalStartIncreasing`` for 0 -> 750 moves.
     2. Exposure QC: PARAM_RANGE, the clock checks, SHUTTIME_MISMATCH.
     3. A Hall fit that is out of range -> the mean profile of its travel
        direction (MEAN_PROFILE).
@@ -794,8 +799,14 @@ class _Motion:
     which: str
     side: str
     startMjdTai: float
-    fit: ThreeJerksParams
+    fit: ThreeJerksParams | None
     isOpen: bool
+    model: str | None = None
+
+    @property
+    def usable(self):
+        """A Hall fit of the supported model is present."""
+        return self.fit is not None and (self.model is None or self.model == _THREE_JERKS_V1)
 
     @property
     def travelSign(self):
@@ -813,15 +824,10 @@ def _readMotion(metadata, which):
     if side.upper() not in ("PLUSX", "MINUSX"):
         raise _Unavailable(ShutterTimingFlag.NO_PROFILE, f"unknown shutter side {pre} SIDE = {side!r}")
     model = _str(_card(metadata, f"{pre} MODEL"))
-    if model is not None and model != _THREE_JERKS_V1:
-        raise _Unavailable(ShutterTimingFlag.NO_PROFILE, f"{pre} MODEL = {model!r}, not {_THREE_JERKS_V1}")
     vals = {f: _float(_card(metadata, f"{pre} HALLSENSORFIT {c}")) for f, c in _FIT_CARDS}
-    bad = [c for f, c in _FIT_CARDS if vals[f] is None]
-    if bad:
-        raise _Unavailable(ShutterTimingFlag.NO_PROFILE,
-                           f"missing or malformed {pre} HALLSENSORFIT cards: {', '.join(bad)}")
-    return _Motion(which=which, side=side.upper(), startMjdTai=start, fit=ThreeJerksParams(**vals),
-                   isOpen=(which == "OPEN"))
+    fit = None if any(v is None for v in vals.values()) else ThreeJerksParams(**vals)
+    return _Motion(which=which, side=side.upper(), startMjdTai=start, fit=fit,
+                   isOpen=(which == "OPEN"), model=model)
 
 
 def _inRange(value, bounds):
@@ -889,9 +895,12 @@ def _compute(ctx, metadata):
 
     # ---- exposure QC (shutter_timing core.qc_exposure, header path)
     flags = ShutterTimingFlag.NONE
-    fitOk = [checkFitParams(m.fit, config) for m in (mOpen, mClose)]
-    if not all(fitOk):
+    if not (mOpen.usable and mClose.usable):
+        flags |= ShutterTimingFlag.NO_PROFILE
+    inRange = [checkFitParams(m.fit, config) for m in (mOpen, mClose)]
+    if any(m.fit is not None and not ok for m, ok in zip((mOpen, mClose), inRange)):
         flags |= ShutterTimingFlag.PARAM_RANGE
+    fitOk = [m.usable and ok for m, ok in zip((mOpen, mClose), inRange)]
     if beg is not None:
         v = (mOpen.startMjdTai - beg) * _SECONDS_PER_DAY * 1e3
         if not _inRange(v, config.openMinusBegRange):
@@ -906,7 +915,8 @@ def _compute(ctx, metadata):
             flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
     ctx.flags = flags
 
-    # ---- shape: out-of-range Hall fits -> per-direction mean profile
+    # ---- shape: missing, unusable or out-of-range Hall fits -> the
+    # per-direction mean profile
     for m, ok in zip((mOpen, mClose), fitOk):
         if not ok:
             mean = config.meanProfileDecreasing if m.travelSign < 0 else config.meanProfileIncreasing
