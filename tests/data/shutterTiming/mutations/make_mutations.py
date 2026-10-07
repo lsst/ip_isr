@@ -27,7 +27,8 @@ DETECTORS = [0, 4, 30, 94, 120, 168, 188]
 MJD_PER_MS = 1e-3 / 86400.0
 COEFFS = ("c_u_s", "c_uu_s", "c_v_s", "c_uv_s", "c_vv_s")
 
-#: name -> (card, new value or callable(old) -> new; None deletes the card)
+#: name -> (card, new value or callable(old) -> new; None deletes the card);
+#: card None: the header is unchanged (see A1_MM).
 MUTATIONS = {
     "close_start_plus_10ms": ("SHUTTER CLOSE STARTTIME TAI MJD", lambda v: v + 10 * MJD_PER_MS),
     "close_start_minus_5ms": ("SHUTTER CLOSE STARTTIME TAI MJD", lambda v: v - 5 * MJD_PER_MS),
@@ -37,7 +38,23 @@ MUTATIONS = {
     "open_jerk0_missing": ("SHUTTER OPEN HALLSENSORFIT JERK0", None),
     "open_start_string": ("SHUTTER OPEN STARTTIME TAI MJD", "not-a-number"),
     "open_beg_minus_20ms": ("MJD-BEG", lambda v: v - 20 * MJD_PER_MS),
+    "open_jerk0_negative": ("SHUTTER OPEN HALLSENSORFIT JERK0", lambda v: -v),
+    "exptime_zero": ("EXPTIME", 0.0),
+    "a1_decreasing": (None, None),
+    "a1_increasing": (None, None),
 }
+
+#: name -> reference a1_mm (travel sign -> mm) for the A1 cases; the stack's
+#: a1Decreasing / a1Increasing are the -1 / +1 values.
+A1_MM = {
+    "a1_decreasing": {-1: 0.4, 1: -0.3},
+    "a1_increasing": {-1: 0.4, 1: -0.3},
+}
+
+#: Mutations of another fixture than BASE.  MC_O_20260105_000250 opens with
+#: MINUSX: both motions move 0 -> 750 (travel sign +1), whereas BASE opens
+#: with PLUSX (both -1).
+OTHER_BASE = {"a1_increasing": "MC_O_20260105_000250"}
 
 
 def _header(md):
@@ -57,19 +74,29 @@ def main(argv):
     mf = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mf)
 
-    base = json.loads((HERE.parent / f"{BASE}.json").read_text())
+    bases = {b: json.loads((HERE.parent / f"{b}.json").read_text())
+             for b in {BASE, *OTHER_BASE.values()}}
+    base = bases[BASE]
     ctx = table.TableContext.load(raw_root=None, detectors=DETECTORS)
     out = dict(base=BASE, visit=base["visit"], detectors=DETECTORS, generator=mf._describe(), mutations={})
     for name, (card, change) in MUTATIONS.items():
-        md = dict(base["metadata"])
-        if change is None:
+        mbase = OTHER_BASE.get(name, BASE)
+        md = dict(bases[mbase]["metadata"])
+        visit = bases[mbase]["visit"]
+        if card is None:
+            pass
+        elif change is None:
             del md[card]
         else:
             md[card] = change(md[card]) if callable(change) else change
-        doc = dict(card=card, metadata=md)
+        a1 = A1_MM.get(name)
+        doc = dict(base=mbase, visit=visit, card=card, metadata=md)
+        if a1 is not None:
+            doc["a1_mm"] = {str(k): v for k, v in a1.items()}
+        ctx.a1_mm = a1
         try:
             exp = io.read_header(_header(md), obs_id=BASE)
-            rows, info = table.compute_rows(exp, base["visit"], ctx)
+            rows, info = table.compute_rows(exp, visit, ctx)
         except Exception as e:  # noqa: BLE001 -- recorded as UNAVAILABLE
             doc.update(status=2, reason=f"{type(e).__name__}: {e}")
         else:
@@ -84,7 +111,7 @@ def main(argv):
                         effective_exposure_time_s=float(r["t_eff_s"]), qc_flags=int(r["qc_flags"]),
                     ) for r in rows
                 },
-                samples=mf.per_source(rows, ctx, base["visit"]),
+                samples=mf.per_source(rows, ctx, visit),
             )
         out["mutations"][name] = doc
         print(name, doc.get("policy"), doc.get("exposure_qc_flags"), doc.get("reason", ""))
