@@ -38,8 +38,9 @@ cards are included, no pixel data. Read-only.
   offset in mm), one per travel direction.
 - `beam_at_L3S1_z9.618_rot0_evaluated.tnt`: the LSSTCam shutter-plane beam
   table (raytrace by A. Rasmussen, LSST Camera, LCA-20578), identical to the
-  copy shipped by obs_lsst. It is also public in lsst-dm/ap_pipe-notebooks
-  (`tickets/DM-50985`).
+  copy shipped by obs_lsst. A byte-identical copy is public in
+  lsst-dm/ap_pipe-notebooks (branch `tickets/DM-50985`, commit 3e6fc39,
+  `data/beam_at_L3S1_-z9.618_rot0_evaluated.tnt`).
 - `lsstcam_detector_geometry.csv`: the LSSTCam detector geometry exported from
   obs_lsst w_2026_10 (`PIXELS -> FOCAL_PLANE`, affine per detector, and the
   detector type), so that the ip_isr tests need not import obs_lsst.
