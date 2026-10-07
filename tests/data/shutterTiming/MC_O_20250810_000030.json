@@ -1,0 +1,103 @@
+{
+ "obs_id": "MC_O_20250810_000030",
+ "visit": 2025081000030,
+ "detector_of_header": 94,
+ "generator": "shutter_timing v0.4.0-3-g08e26ce (independent reference implementation, header-card path)",
+ "constants": {
+  "PARAM_RANGES": {
+   "pivot1": [
+    0.2,
+    0.25
+   ],
+   "pivot2": [
+    0.65,
+    0.7
+   ],
+   "abs_jerk": [
+    30000.0,
+    38000.0
+   ],
+   "abs_model_start_time": [
+    0.0,
+    0.003
+   ],
+   "displacement_at_0p9s": [
+    745.0,
+    757.0
+   ]
+  },
+  "QC_THRESHOLDS": {
+   "open_minus_beg_ms": [
+    5.0,
+    15.0
+   ],
+   "end_minus_close_s": [
+    0.89,
+    0.96
+   ],
+   "close_minus_open_minus_exptime_ms": [
+    -2.0,
+    4.0
+   ],
+   "fit_residual_rms_mm": 1.0,
+   "hall_vs_encoder_ms": 2.0,
+   "action_duration_ms": [
+    885.0,
+    915.0
+   ],
+   "shuttime_ms": 1.0
+  },
+  "HEADER_ANCHOR_OFFSETS_S": [
+   0.00809,
+   0.00052
+  ],
+  "A1_DEFAULT_MM": {
+   "-1": 0.0,
+   "1": 0.0
+  },
+  "ENCODER_CENTER_MM": 375.0,
+  "NOMINAL_STROKE_MM": 750.76,
+  "NOMINAL_START_INCREASING_MM": -0.05,
+  "CCS_FROM_DVCS_SIGN": 1,
+  "BEAM_LEVELS": [
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99
+  ],
+  "TABLE_SETTINGS": {
+   "kind": "hall_fit",
+   "quadrature": "weighted",
+   "order": 2,
+   "n_along": 9,
+   "n_across": 9
+  },
+  "DEGRADED_QC": 5107,
+  "DEGRADED_RESIDUAL_S": 0.001,
+  "OFF_DETECTOR_OMIT_PIX": 100.0
+ },
+ "metadata": {
+  "IMGTYPE": "ACQ",
+  "OBSID": "MC_O_20250810_000030",
+  "DATE-BEG": "2025-08-10T23:50:30.703",
+  "MJD-BEG": 60897.99341091048,
+  "DATE-END": "2025-08-10T23:51:01.632",
+  "MJD-END": 60897.993768888526,
+  "TIMESYS": "TAI",
+  "DAYOBS": "20250810",
+  "SEQNUM": 30,
+  "EXPTIME": 30.0,
+  "DARKTIME": 30.9293,
+  "SHUTTIME": 30.000109434127808,
+  "HEADVER": 2
+ },
+ "status": 2,
+ "reason": "MissingShutterCards: MC_O_20250810_000030: no usable 'HIERARCH SHUTTER OPEN STARTTIME TAI MJD'/'SIDE' cards (HEADVER=2; cards start 2025-10-29 and are empty when the shutter did not open)",
+ "detectors": {},
+ "samples": []
+}
