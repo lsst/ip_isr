@@ -23,6 +23,7 @@ tests/data/shutterTiming (see its README.md).
 """
 
 import csv
+import dataclasses
 import glob
 import json
 import math
@@ -63,12 +64,10 @@ SECONDS_PER_DAY = 86400.0
 
 
 def readGeometries():
-    """The science detectors of the fixture CSV, as DetectorGeometry."""
+    """The detectors of the fixture CSV, as DetectorGeometry."""
     out = {}
     with open(GEOMETRY_FILE, newline="") as f:
         for r in csv.DictReader(f):
-            if r["type"] != "SCIENCE":
-                continue
             v = {k: float(x) for k, x in r.items() if k not in ("name", "type", "physical_type")}
             det = int(v["detector"])
             out[det] = DetectorGeometry(
@@ -76,6 +75,7 @@ def readGeometries():
                 centerPixel=(v["center_x_pix"], v["center_y_pix"]),
                 centerMm=(v["fp_center_x_mm"], v["fp_center_y_mm"]),
                 jacobian=((v["dfp_dxpix_x"], v["dfp_dypix_x"]), (v["dfp_dxpix_y"], v["dfp_dypix_y"])),
+                isScience=(r["type"] == "SCIENCE"),
             )
     return out
 
@@ -493,9 +493,35 @@ class ShutterTimingGeometryTestCase(lsst.utils.tests.TestCase):
             self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, detType)
             self.assertIn("not SCIENCE", t.message)
             self.assertTrue(np.isnan(t.tMidMjdTai(2000.0, 2000.0)))
+            self.assertFalse(DetectorGeometry.fromDetector(detector).isScience)
         detector = DetectorWrapper(id=94, bbox=bbox, pixelSize=(0.01, 0.01), orientation=orientation,
                                    detType=DetectorType.SCIENCE).detector
+        self.assertTrue(DetectorGeometry.fromDetector(detector).isScience)
         self.assertEqual(computeShutterTiming(md, detector, config).status, ShutterTimingStatus.OK)
+
+    def testNonScienceGeometry(self):
+        """A DetectorGeometry with ``isScience=False`` is UNAVAILABLE, as the
+        afw detector it describes: the LSSTCam guider and wavefront detectors
+        (ids 189-204), and a science geometry flagged as non-science.
+        """
+        config = ShutterTimingConfig()
+        config.beamFile = BEAM_FILE
+        md = readFixture("MC_O_20260712_000100")["metadata"]
+        geometries = readGeometries()
+        nonScience = sorted(d for d, g in geometries.items() if not g.isScience)
+        self.assertEqual(nonScience, list(range(189, 205)))
+        for det in nonScience:
+            t = computeShutterTiming(md, geometries[det], config)
+            self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, det)
+            self.assertIn("not SCIENCE", t.message)
+            self.assertTrue(np.isnan(t.centerMjdTai))
+            np.testing.assert_array_equal(t.sourceStatus([0.0, 2000.0], [0.0, 1000.0]),
+                                          ShutterTimingStatus.UNAVAILABLE)
+        g = geometries[94]
+        self.assertTrue(g.isScience)
+        self.assertEqual(computeShutterTiming(md, g, config).status, ShutterTimingStatus.OK)
+        t = computeShutterTiming(md, dataclasses.replace(g, isScience=False), config)
+        self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE)
 
     def testOffDetector(self):
         g = readGeometries()[0]

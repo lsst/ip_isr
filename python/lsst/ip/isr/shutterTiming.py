@@ -308,15 +308,22 @@ class DetectorGeometry:
     centerMm: tuple[float, float]
     jacobian: tuple[tuple[float, float], tuple[float, float]]
     """[[dX/dx, dX/dy], [dY/dx, dY/dy]] in mm per pixel."""
+    isScience: bool = True
+    """False for guider, wavefront and other non-science detectors, which
+    the beam table does not describe: their timing is UNAVAILABLE.  Set from
+    the detector type by `fromDetector`; a geometry built by hand must set
+    it for non-science detectors.
+    """
 
     @classmethod
     def fromDetector(cls, detector) -> DetectorGeometry:
         """From an `lsst.afw.cameraGeom.Detector` (``PIXELS -> FOCAL_PLANE``),
         linearized at the detector centre (the LSSTCam map is affine to < 1e-3
-        mm).
+        mm).  ``isScience`` is from the detector type (True if the detector
+        has none).
         """
         import lsst.geom
-        from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS
+        from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, DetectorType
 
         bbox = detector.getBBox()
         center = lsst.geom.Box2D(bbox).getCenter()
@@ -330,6 +337,7 @@ class DetectorGeometry:
             centerPixel=(float(center.getX()), float(center.getY())),
             centerMm=(float(fp.getX()), float(fp.getY())),
             jacobian=((float(jac[0, 0]), float(jac[0, 1])), (float(jac[1, 0]), float(jac[1, 1]))),
+            isScience=_detectorType(detector) in (None, DetectorType.SCIENCE),
         )
 
     def pixelToDvcs(self, x, y) -> tuple[np.ndarray, np.ndarray]:
@@ -740,10 +748,8 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
     config.validate()
     if isinstance(detector, DetectorGeometry):
         geometry = detector
-        notScience = None
     elif hasattr(detector, "getTransform") and hasattr(detector, "getBBox"):
         geometry = DetectorGeometry.fromDetector(detector)
-        notScience = _notScienceReason(detector)
     else:
         raise TypeError("detector must be an lsst.afw.cameraGeom.Detector or a DetectorGeometry, "
                         f"not {type(detector).__name__}")
@@ -757,8 +763,10 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
         ctx.headerMid = _headerMid(metadata)
         if beam is None:
             raise _Unavailable(ShutterTimingFlag.NONE, "no beam model (config.beamFile is empty)")
-        if notScience:
-            raise _Unavailable(ShutterTimingFlag.NONE, notScience)
+        if not geometry.isScience:
+            raise _Unavailable(ShutterTimingFlag.NONE,
+                               f"detector {geometry.detectorId} is not SCIENCE: the beam table does not "
+                               "cover it")
         _compute(ctx, metadata)
     except _Unavailable as e:
         return ctx.unavailable(e.flags, e.message)
@@ -781,19 +789,14 @@ class _Unavailable(Exception):
         self.message = message
 
 
-def _notScienceReason(detector):
-    """A message if an afw detector is not a science detector (the beam table
-    describes only the science beams), else None.
+def _detectorType(detector):
+    """The `lsst.afw.cameraGeom.DetectorType` of an afw detector, or None if
+    it has none.
     """
     try:
-        from lsst.afw.cameraGeom import DetectorType
-
-        if detector.getType() != DetectorType.SCIENCE:
-            return (f"detector {detector.getId()} ({detector.getName()}) is "
-                    f"{detector.getType().name}, not SCIENCE: the beam table does not cover it")
+        return detector.getType()
     except Exception:  # noqa: BLE001 -- detectors without a type are treated as science
         return None
-    return None
 
 
 def _card(metadata, key):
