@@ -801,11 +801,20 @@ def _detectorType(detector):
 
 def _card(metadata, key):
     """The value of ``key`` (or ``HIERARCH key``) in ``metadata``, or None.
+
+    A multi-valued card (a `~lsst.daf.base.PropertyList` key with several
+    values, or a sequence in a mapping) is malformed: None, as if missing.
     """
     for k in (key, "HIERARCH " + key):
         try:
             if k in metadata:
-                return metadata.get(k)
+                valueCount = getattr(metadata, "valueCount", None)
+                if valueCount is not None and valueCount(k) != 1:
+                    return None
+                value = metadata.get(k)
+                if isinstance(value, (list, tuple, np.ndarray)):
+                    return None
+                return value
         except Exception:  # noqa: BLE001 -- unreadable card: treat as missing
             return None
     return None

@@ -205,6 +205,32 @@ class ShutterTimingFixtureTestCase(ReferenceChecks, lsst.utils.tests.TestCase):
         c = computeShutterTiming({"HIERARCH " + k: v for k, v in doc["metadata"].items()}, det, self.config)
         self.assertEqual(a.centerMjdTai, c.centerMjdTai)
 
+    def testMultiValuedCards(self):
+        """A card with several values is malformed: the same flags and result
+        as for that card missing (PropertyList) or non-numeric (mapping).
+        """
+        doc = readFixture("MC_O_20260712_000100")
+        det = self.geometries[94]
+        for card in ("SHUTTER CLOSE HALLSENSORFIT JERK1", "SHUTTER OPEN STARTTIME TAI MJD",
+                     "SHUTTER OPEN SIDE", "EXPTIME"):
+            missing = dict(doc["metadata"])
+            del missing[card]
+            expected = computeShutterTiming(missing, det, self.config)
+            pl = PropertyList()
+            for k, v in doc["metadata"].items():
+                pl.set(k, v)
+            pl.add(card, doc["metadata"][card])
+            self.assertEqual(pl.valueCount(card), 2)
+            md = dict(doc["metadata"])
+            md[card] = [doc["metadata"][card]] * 2
+            for metadata in (pl, md):
+                t = computeShutterTiming(metadata, det, self.config)
+                self.assertEqual(t.status, expected.status, card)
+                self.assertEqual(t.flags, expected.flags, card)
+                np.testing.assert_array_equal(t.centerMjdTai, expected.centerMjdTai)
+            if card != "EXPTIME":  # a missing EXPTIME only skips a clock check
+                self.assertNotEqual(expected.flags, ShutterTimingFlag.NONE, card)
+
     def testSummary(self):
         doc = readFixture("MC_O_20260105_000249")
         timing = computeShutterTiming(doc["metadata"], self.geometries[94], self.config)
