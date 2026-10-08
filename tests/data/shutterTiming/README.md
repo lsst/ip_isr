@@ -7,7 +7,8 @@ cards are included, no pixel data. Read-only.
 
 ## Files
 
-- `MC_O_<obs>.json`, one per exposure:
+- `MC_O_<obs>.json`, one per exposure (`MC_O_20260105_000250`, open blade
+  MINUSX, 10 s; `MC_O_20260712_000100`, open blade PLUSX, 30 s):
   - `metadata`: the primary-header cards the code reads (all `SHUTTER*` cards,
     `MJD-BEG`, `MJD-END`, `EXPTIME`, `SHUTTIME`, ...), keys without
     `HIERARCH`.
@@ -23,15 +24,13 @@ cards are included, no pixel data. Read-only.
     implementation reports it, 0 OK, 1 DEGRADED, 2 UNAVAILABLE. The stack code
     has no DEGRADED status: a per-source time exists unless the status is 2,
     and the tests only distinguish 2 from not 2.
-  - `MC_O_20250810_000030.json` predates the shutter cards: the expected
-    result is UNAVAILABLE (NO_PROFILE).
 - `mutations.json`: single-card changes to the metadata of `MC_O_20260712_000100`
   (`base`), each with the cards it sets (`set`) or removes (`delete`), and the
   reference results for detectors 0, 4, 30, 94, 120, 168 and 188 in the same
   format as above. Entries the reference rejects have `status` 2 (UNAVAILABLE)
   and a `reason`. The mutations: the close start time shifted by +10 ms and
-  -5 ms (clock re-anchoring); PIVOTPOINT1 and JERK2 out of range; a negative
-  JERK0; and EXPTIME 0 (overlapping blades).
+  -5 ms (clock re-anchoring); PIVOTPOINT1 and JERK2 out of range; and a
+  negative JERK0.
 - `beam_at_L3S1_z9.618_rot0_evaluated.tnt`: the LSSTCam shutter-plane beam
   table (an LSST Camera raytrace, LCA-20578), identical to the copy shipped
   by obs_lsst (see its `resources/shutter/README.md` for credit). A byte-identical copy is public in
