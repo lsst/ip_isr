@@ -169,17 +169,36 @@ class _DetectorGeometry:
     """
 
     detectorId: int
+    """The detector ID."""
+
     nx: int
+    """Width (pixels)."""
+
     ny: int
+    """Height (pixels)."""
+
     centerPixel: tuple[float, float]
+    """Pixel coordinates of the detector centre."""
+
     centerMm: tuple[float, float]
+    """DVCS coordinates (mm) of the detector centre."""
+
     jacobian: tuple[tuple[float, float], tuple[float, float]]
     """[[dX/dx, dX/dy], [dY/dx, dY/dy]] in mm per pixel."""
 
     @classmethod
     def fromDetector(cls, detector) -> _DetectorGeometry:
-        """From an `lsst.afw.cameraGeom.Detector`, linearized at its centre
-        (the LSSTCam map is affine to < 1e-3 mm).
+        """Linearize a detector's pixel -> focal-plane map at its centre.
+
+        Parameters
+        ----------
+        detector : `lsst.afw.cameraGeom.Detector`
+            The detector; for LSSTCam the map is affine to < 1e-3 mm.
+
+        Returns
+        -------
+        geometry : `_DetectorGeometry`
+            The linearized map.
         """
         import lsst.geom
         from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS
@@ -188,31 +207,35 @@ class _DetectorGeometry:
         center = lsst.geom.Box2D(bbox).getCenter()
         transform = detector.getTransform(PIXELS, FOCAL_PLANE)
         fp = transform.applyForward(center)
-        jac = np.asarray(transform.getJacobian(center), dtype=float)
+        jac = transform.getJacobian(center)
+
         return cls(
-            detectorId=int(detector.getId()),
-            nx=int(bbox.getWidth()),
-            ny=int(bbox.getHeight()),
-            centerPixel=(float(center.getX()), float(center.getY())),
-            centerMm=(float(fp.getX()), float(fp.getY())),
-            jacobian=((float(jac[0, 0]), float(jac[0, 1])), (float(jac[1, 0]), float(jac[1, 1]))),
+            detectorId=detector.getId(),
+            nx=bbox.getWidth(),
+            ny=bbox.getHeight(),
+            centerPixel=(center.getX(), center.getY()),
+            centerMm=(fp.getX(), fp.getY()),
+            jacobian=((jac[0, 0], jac[0, 1]), (jac[1, 0], jac[1, 1])),
         )
 
-    def pixelToCcs(self, x, y):
+    def pixelToCcs(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Pixel -> CCS (mm): ``x_ccs = Y_dvcs``, ``y_ccs = X_dvcs``."""
-        dx = np.asarray(x, dtype=float) - self.centerPixel[0]
-        dy = np.asarray(y, dtype=float) - self.centerPixel[1]
-        j = self.jacobian
-        return (self.centerMm[1] + j[1][0] * dx + j[1][1] * dy,
-                self.centerMm[0] + j[0][0] * dx + j[0][1] * dy)
+        dx = x - self.centerPixel[0]
+        dy = y - self.centerPixel[1]
 
-    def bladeAxis(self):
+        j = self.jacobian
+        xCcs = self.centerMm[1] + j[1][0]*dx + j[1][1]*dy
+        yCcs = self.centerMm[0] + j[0][0]*dx + j[0][1]*dy
+
+        return xCcs, yCcs
+
+    def bladeAxis(self) -> str:
         """The pixel axis (anti)parallel to DVCS y (the blade motion)."""
         j = self.jacobian
         return "x" if abs(j[1][0]) > abs(j[1][1]) else "y"
 
-    def pixelCorners(self):
-        """The four pixel-edge corners (4, 2)."""
+    def pixelCorners(self) -> np.ndarray:
+        """The four pixel-edge corners, shape (4, 2)."""
         lo, hx, hy = -0.5, self.nx - 0.5, self.ny - 0.5
         return np.array([[lo, lo], [hx, lo], [hx, hy], [lo, hy]])
 
@@ -229,14 +252,27 @@ class _ShutterBeamModel:
     the Delaunay triangulation elsewhere inside the convex hull of the nodes
     (32 corner nodes are missing), and held at the nearest hull point outside
     it, up to `_BEAM_MARGIN_MM` (NaN beyond).
+
+    Parameters
+    ----------
+    x, y : `numpy.ndarray`
+        CCS coordinates (mm) of the table nodes, shape (n,).
+    s : `numpy.ndarray`
+        Blade coordinates s_q (mm) at the levels `_BEAM_LEVELS`, shape
+        (n, 9).
+
+    Raises
+    ------
+    ValueError
+        Raised if the quantiles are not strictly increasing in level.
     """
 
-    def __init__(self, xCcs, yCcs, sQ):
-        x = np.asarray(xCcs, dtype=float)
-        y = np.asarray(yCcs, dtype=float)
-        s = np.asarray(sQ, dtype=float)
+    def __init__(self, x: np.ndarray, y: np.ndarray, s: np.ndarray):
         if not np.all(np.diff(s, axis=1) > 0):
             raise ValueError("beam quantiles are not strictly increasing in level")
+
+        # The nodes, and R_q on the regular grid they span (NaN where a node
+        # is missing).
         self._points = np.column_stack([x, y])
         self._r = s - x[:, None]
         self._gx = np.unique(x)
@@ -244,23 +280,47 @@ class _ShutterBeamModel:
         grid = np.full((self._gx.size, self._gy.size, _BEAM_LEVELS.size), np.nan)
         grid[np.searchsorted(self._gx, x), np.searchsorted(self._gy, y)] = self._r
         self._grid = grid
+
+        # Grid cells with all four nodes, for bilinear interpolation.
         have = np.isfinite(grid[..., 0])
         self._cellOk = have[:-1, :-1] & have[1:, :-1] & have[:-1, 1:] & have[1:, 1:]
+
+        # The triangulation and convex hull, for everywhere else.
         self._tri = LinearNDInterpolator(self._points, self._r)
         hull = ConvexHull(self._points)
         self._hullVertices = hull.vertices
         self._hullEq = hull.equations
+
+        # Gauss-Legendre nodes and weights in flux fraction: two per interval
+        # between levels, including the tails.
         knots = np.concatenate([[0.0], _BEAM_LEVELS, [1.0]])
         du = np.diff(knots)
         self._knots = knots
-        self._nodes = (knots[:-1, None] + du[:, None] * _GL2[None, :]).ravel()
-        self._weights = np.repeat(du / 2.0, 2)
+        self._nodes = (knots[:-1, None] + du[:, None]*_GL2[None, :]).ravel()
+        self._weights = np.repeat(du/2.0, 2)
 
     @classmethod
-    def fromFile(cls, path):
-        """Read a beam table in the raytrace ``.tnt`` format (a ``DATA``
-        line, a column-header line, then whitespace-separated columns x_ccs,
-        y_ccs, level, (unused), s_q).
+    def fromFile(cls, path: str) -> _ShutterBeamModel:
+        """Read a beam table in the raytrace ``.tnt`` format.
+
+        Parameters
+        ----------
+        path : `str`
+            Path or URI of the table: a ``DATA`` line, a column-header line,
+            then whitespace-separated columns x_ccs, y_ccs, level, (unused),
+            s_q.
+
+        Returns
+        -------
+        beam : `_ShutterBeamModel`
+            The model.
+
+        Raises
+        ------
+        ValueError
+            Raised if the file is not a beam table, its levels are not
+            `_BEAM_LEVELS`, or a (position, level) entry is missing or
+            duplicated.
         """
         from lsst.resources import ResourcePath
 
@@ -269,17 +329,21 @@ class _ShutterBeamModel:
             raise ValueError(f"{path}: not a beam table (no DATA line)")
         f.readline()
         rows = np.loadtxt(f, ndmin=2)[:, [0, 1, 2, 4]]
+
         levels = np.unique(rows[:, 2])
         if levels.shape != _BEAM_LEVELS.shape or not np.allclose(levels, _BEAM_LEVELS):
             raise ValueError(f"{path}: unexpected levels {levels}")
+
+        # One row per position, one column per level.
         pos, inv = np.unique(rows[:, :2], axis=0, return_inverse=True)
         s = np.full((pos.shape[0], levels.size), np.nan)
         s[inv.ravel(), np.searchsorted(levels, rows[:, 2])] = rows[:, 3]
         if np.isnan(s).any() or len(rows) != s.size:
             raise ValueError(f"{path}: incomplete or duplicated (position, level) table")
+
         return cls(pos[:, 0], pos[:, 1], s)
 
-    def isOutside(self, p):
+    def isOutside(self, p: np.ndarray) -> np.ndarray:
         """Whether each row of ``p`` (CCS mm) lies outside the convex hull of
         the table nodes.
         """
@@ -287,18 +351,24 @@ class _ShutterBeamModel:
 
     def _hullProject(self, p):
         """Nearest hull-boundary point of each row of p, and its distance."""
+        # Each hull edge runs from a to a + ab.
         a = self._points[self._hullVertices]
         ab = np.roll(a, -1, axis=0) - a
+
+        # The nearest point of every edge, and the nearest edge.
         ap = p[:, None, :] - a[None]
-        t = np.clip((ap * ab).sum(-1) / (ab * ab).sum(-1), 0.0, 1.0)
-        d2 = ((ap - t[..., None] * ab) ** 2).sum(-1)
+        t = np.clip((ap*ab).sum(-1)/(ab*ab).sum(-1), 0.0, 1.0)
+        d2 = ((ap - t[..., None]*ab)**2).sum(-1)
         k = np.argmin(d2, axis=1)
+
         n = np.arange(p.shape[0])
-        return a[k] + t[n, k, None] * ab[k], np.sqrt(d2[n, k])
+        return a[k] + t[n, k, None]*ab[k], np.sqrt(d2[n, k])
 
     def _residual(self, x, y, extrapolate=True):
         """R_q = s_q - x_ccs at flat arrays x, y; shape (n, nlevels)."""
         out = np.full((x.size, _BEAM_LEVELS.size), np.nan)
+
+        # Bilinear in grid cells with all four nodes.
         gx, gy = self._gx, self._gy
         ix = np.clip(np.searchsorted(gx, x, side="right") - 1, 0, gx.size - 2)
         iy = np.clip(np.searchsorted(gy, y, side="right") - 1, 0, gy.size - 2)
@@ -306,51 +376,83 @@ class _ShutterBeamModel:
         bil = inbox & self._cellOk[ix, iy]
         if bil.any():
             i, j = ix[bil], iy[bil]
-            tx = ((x[bil] - gx[i]) / (gx[i + 1] - gx[i]))[:, None]
-            ty = ((y[bil] - gy[j]) / (gy[j + 1] - gy[j]))[:, None]
+            tx = ((x[bil] - gx[i])/(gx[i + 1] - gx[i]))[:, None]
+            ty = ((y[bil] - gy[j])/(gy[j + 1] - gy[j]))[:, None]
             g = self._grid
             out[bil] = (
-                (1 - tx) * (1 - ty) * g[i, j]
-                + tx * (1 - ty) * g[i + 1, j]
-                + (1 - tx) * ty * g[i, j + 1]
-                + tx * ty * g[i + 1, j + 1]
+                (1 - tx)*(1 - ty)*g[i, j]
+                + tx*(1 - ty)*g[i + 1, j]
+                + (1 - tx)*ty*g[i, j + 1]
+                + tx*ty*g[i + 1, j + 1]
             )
-        rest = ~bil & np.isfinite(x) & np.isfinite(y)
+
+        rest = ~bil
         if rest.any():
+            # Barycentric on the triangulation inside the hull.
             p = np.column_stack([x[rest], y[rest]])
             inside = ~self.isOutside(p)
             r = np.full((p.shape[0], _BEAM_LEVELS.size), np.nan)
             if inside.any():
                 r[inside] = self._tri(p[inside])
+
+            # Outside the hull: the value just inside the nearest hull point,
+            # up to the margin.
             need = ~np.isfinite(r[:, 0])
             if extrapolate and need.any():
                 q, dist = self._hullProject(p[need])
                 c = self._points.mean(axis=0)
-                q += 1e-6 * (c - q) / np.linalg.norm(c - q, axis=1, keepdims=True)
+                q += 1e-6*(c - q)/np.linalg.norm(c - q, axis=1, keepdims=True)
                 rr = self._residual(q[:, 0], q[:, 1], extrapolate=False)
                 rr[dist > _BEAM_MARGIN_MM] = np.nan
                 r[need] = rr
+
             out[rest] = r
+
         return out
 
-    def quadratureNodes(self, xCcs, yCcs):
-        """Blade coordinates s(u_k) at the 20 Gauss nodes u_k of the beam CDF,
-        shape ``(n, 20)`` for flat ``xCcs``, ``yCcs``; and the weights.
+    def quadratureNodes(self, xCcs: np.ndarray, yCcs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Quadrature of the beam's cumulative flux profile.
+
+        Parameters
+        ----------
+        xCcs, yCcs : `numpy.ndarray`
+            Field positions (CCS mm), shape (n,).
+
+        Returns
+        -------
+        s : `numpy.ndarray`
+            Blade coordinates (mm) at the 20 Gauss nodes u_k of each
+            position's profile, shape (n, 20).
+        weights : `numpy.ndarray`
+            The weights of the nodes, shape (20,).
         """
+        # s_q at the tabulated levels, plus the linear tails at F = 0 and 1.
         s = self._residual(xCcs, yCcs) + xCcs[:, None]
         lo = s[:, :1] - (s[:, 1:2] - s[:, :1])
         hi = s[:, -1:] + (s[:, -1:] - s[:, -2:-1])
         ext = np.concatenate([lo, s, hi], axis=-1)
+
+        # Piecewise-linear s(u) at the nodes.
         knots, u = self._knots, self._nodes
         k = np.clip(np.searchsorted(knots, u, side="right") - 1, 0, knots.size - 2)
-        f = (u - knots[k]) / (knots[k + 1] - knots[k])
-        return ext[..., k] * (1 - f) + ext[..., k + 1] * f, self._weights
+        f = (u - knots[k])/(knots[k + 1] - knots[k])
+
+        return ext[..., k]*(1 - f) + ext[..., k + 1]*f, self._weights
 
 
 @functools.cache
 def loadShutterBeam(path: str) -> _ShutterBeamModel:
-    """Read the beam table at ``path`` (a path or URI), cached per process by
-    the ``path`` string.  The returned model is shared: do not modify it.
+    """Read a shutter-plane beam table, cached per process.
+
+    Parameters
+    ----------
+    path : `str`
+        Path or URI of the table; the cache is keyed by this string.
+
+    Returns
+    -------
+    beam : `_ShutterBeamModel`
+        The model.  It is shared between callers: do not modify it.
     """
     return _ShutterBeamModel.fromFile(path)
 
@@ -367,38 +469,74 @@ class ShutterTiming:
     """
 
     status: ShutterTimingStatus = ShutterTimingStatus.UNAVAILABLE
+    """OK, or UNAVAILABLE (callers keep the header midpoint)."""
+
     flags: ShutterTimingFlag = ShutterTimingFlag.NONE
+    """Why the result is UNAVAILABLE, or notes on an OK result."""
+
     message: str = ""
     """Why the result is UNAVAILABLE (for logs and task metadata); "" if OK."""
+
     detectorId: int = -1
+    """The detector ID."""
+
     centerMjdTai: float = math.nan
     """Flux-weighted mid-exposure time at the detector centre."""
+
     focalPlaneMjdTai: float = math.nan
     """Mid-exposure time at the focal-plane centre: the visit epoch."""
+
     headerMidMjdTai: float = math.nan
     """(MJD-BEG + MJD-END) / 2 (diagnostic only)."""
+
     effectiveExposureTime: float = math.nan
     """Flux-weighted open time at the detector centre (s)."""
+
     maxAbsResidual: float = math.nan
-    """Largest |quadratic - exact| over the fit grid (s)."""
+    """Largest |quadratic - exact| over the fit grid, its cell centres and the
+    detector centre (s).
+    """
+
     coefficients: tuple[float, float, float, float, float] = (math.nan,) * 5
     """(c_u, c_uu, c_v, c_uv, c_vv) in s / pixel^n."""
-    axis: str = ""
-    geometry: _DetectorGeometry | None = dataclasses.field(default=None, repr=False)
 
-    def tMidMjdTai(self, x, y) -> np.ndarray:
-        """Per-source mid-exposure times (MJD TAI) at pixel positions, shape
-        ``np.broadcast(x, y)``.  NaN where the detector is UNAVAILABLE or x or
-        y is not finite.
+    axis: str = ""
+    """The pixel axis along the blade motion, "x" or "y"; "" if UNAVAILABLE."""
+
+    geometry: _DetectorGeometry | None = dataclasses.field(default=None, repr=False)
+    """The detector's pixel-to-focal-plane map, used by `tMidMjdTai`."""
+
+    def tMidMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Per-source mid-exposure times at pixel positions.
+
+        Parameters
+        ----------
+        x, y : `numpy.ndarray`
+            Pixel coordinates; broadcast against each other.
+
+        Returns
+        -------
+        tMid : `numpy.ndarray`
+            Mid-exposure times (MJD TAI), shape ``np.broadcast(x, y).shape``.
+            NaN everywhere if the detector is UNAVAILABLE, and NaN where x or
+            y is NaN.
         """
-        x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
         if self.status == ShutterTimingStatus.UNAVAILABLE:
-            return np.full(x.shape, np.nan)
+            return np.full(np.broadcast(x, y).shape, np.nan)
+
+        # Pixel offsets from the detector centre, along (u) and across (v)
+        # the blade motion.
         cx, cy = self.geometry.centerPixel
-        u, v = (x - cx, y - cy) if self.axis == "x" else (y - cy, x - cx)
+        if self.axis == "x":
+            u, v = x - cx, y - cy
+        else:
+            u, v = y - cy, x - cx
+
+        # The quadratic, in seconds from the centre time.
         cU, cUU, cV, cUV, cVV = self.coefficients
-        t = self.centerMjdTai + (cU * u + cUU * u * u + cV * v + cUV * u * v + cVV * v * v) / _SECONDS_PER_DAY
-        return np.where(np.isfinite(x) & np.isfinite(y), t, np.nan)
+        dt = cU*u + cUU*u*u + cV*v + cUV*u*v + cVV*v*v
+
+        return self.centerMjdTai + dt/_SECONDS_PER_DAY
 
 
 def computeShutterTiming(
@@ -463,22 +601,35 @@ def computeShutterTiming(
     if not config.beamFile:
         raise ValueError("ShutterTimingConfig.beamFile is empty")
     beam = loadShutterBeam(config.beamFile)
+
     geometry = detector
     if not isinstance(detector, _DetectorGeometry):
         geometry = _DetectorGeometry.fromDetector(detector)
     common = dict(detectorId=geometry.detectorId, axis=geometry.bladeAxis(), geometry=geometry)
+
+    # Exposures before the shutter cards were added.
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
         return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE, message="no shutter motion cards", **common)
-    common["headerMidMjdTai"] = 0.5 * (float(metadata["MJD-BEG"]) + float(metadata["MJD-END"]))
+
+    common["headerMidMjdTai"] = 0.5*(float(metadata["MJD-BEG"]) + float(metadata["MJD-END"]))
     try:
-        values = _compute(metadata, geometry, beam, float(exposureTime))
+        values = _compute(metadata, geometry, beam, exposureTime)
     except _Unavailable as e:
         return ShutterTiming(flags=e.flags, message=e.message, **common)
+
     return ShutterTiming(status=ShutterTimingStatus.OK, **values, **common)
 
 
 class _Unavailable(Exception):
-    """No corrected time for this detector."""
+    """No corrected time for this detector.
+
+    Parameters
+    ----------
+    flags : `ShutterTimingFlag`
+        Why.
+    message : `str`
+        Why, for logs and task metadata.
+    """
 
     def __init__(self, flags, message):
         super().__init__(message)
@@ -493,32 +644,81 @@ def _inRange(value, bounds):
 
 def _fitInRange(fit):
     """True if a Hall fit is within the nominal ranges."""
+    displacementAt0p9s = ThreeJerksTrajectory(fit, 0.0, -1).sva(0.9)[0]
+
     return (
         0.0 <= fit.pivot1 <= fit.pivot2
         and _inRange(fit.pivot1, _PIVOT1_RANGE)
         and _inRange(fit.pivot2, _PIVOT2_RANGE)
         and all(_inRange(abs(j), _ABS_JERK_RANGE) for j in (fit.jerk0, fit.jerk1, fit.jerk2))
         and _inRange(abs(fit.modelStartTime), _ABS_MODEL_START_TIME_RANGE)
-        and _inRange(float(ThreeJerksTrajectory(fit, 0.0, -1).sva(0.9)[0]), _DISPLACEMENT_AT_0P9S_RANGE)
+        and _inRange(displacementAt0p9s, _DISPLACEMENT_AT_0P9S_RANGE)
     )
 
 
 def _readMotion(metadata, which):
-    """(start time (MJD TAI), travel sign, Hall fit) of one blade motion."""
+    """Read the cards of one blade motion.
+
+    Parameters
+    ----------
+    metadata : `lsst.daf.base.PropertyList` or `dict`
+        The exposure metadata.
+    which : `str`
+        ``"OPEN"`` or ``"CLOSE"``.
+
+    Returns
+    -------
+    startTime : `float`
+        When the blade started moving (MJD TAI).
+    travelSign : `int`
+        -1 for a 750 -> 0 mm move (PLUSX-open, MINUSX-close), else +1.
+    fit : `ThreeJerksParams`
+        The Hall-sensor fit.
+
+    Raises
+    ------
+    KeyError, ValueError, TypeError
+        Raised if a card is missing or malformed.
+    """
     pre = f"SHUTTER {which}"
+
     side = metadata[f"{pre} SIDE"]
     if side not in ("PLUSX", "MINUSX"):
         raise ValueError(f"'{pre} SIDE' is {side!r}, not PLUSX or MINUSX")
     if f"{pre} MODEL" in metadata and metadata[f"{pre} MODEL"] != _THREE_JERKS_V1:
         raise ValueError(f"'{pre} MODEL' is {metadata[f'{pre} MODEL']!r}, not {_THREE_JERKS_V1}")
+
+    startTime = float(metadata[f"{pre} STARTTIME TAI MJD"])
+    decreasing = (side == "PLUSX") == (which == "OPEN")
     fit = ThreeJerksParams(*(float(metadata[f"{pre} HALLSENSORFIT {c}"]) for c in _FIT_CARDS))
-    decreasing = (side == "PLUSX") == (which == "OPEN")  # PLUSX-open, MINUSX-close: 750 -> 0
-    return float(metadata[f"{pre} STARTTIME TAI MJD"]), -1 if decreasing else 1, fit
+
+    return startTime, -1 if decreasing else 1, fit
 
 
 def _compute(metadata, geometry, beam, exptime):
-    """The `ShutterTiming` fields that depend on the data; raises
-    `_Unavailable`.
+    """Compute the data-dependent fields of a `ShutterTiming`.
+
+    Parameters
+    ----------
+    metadata : `lsst.daf.base.PropertyList` or `dict`
+        The exposure metadata, with shutter cards.
+    geometry : `_DetectorGeometry`
+        The detector.
+    beam : `_ShutterBeamModel`
+        The beam model.
+    exptime : `float`
+        The requested exposure time (s).
+
+    Returns
+    -------
+    values : `dict`
+        ``flags``, ``centerMjdTai``, ``focalPlaneMjdTai``,
+        ``effectiveExposureTime``, ``maxAbsResidual`` and ``coefficients``.
+
+    Raises
+    ------
+    _Unavailable
+        Raised if the detector has no corrected time.
     """
     motions = (_readMotion(metadata, "OPEN"), _readMotion(metadata, "CLOSE"))
     (openStart, _, _), (closeStart, _, _) = motions
@@ -529,66 +729,74 @@ def _compute(metadata, geometry, beam, exptime):
 
     # Zero point: re-anchor to the header if the two shutter clocks disagree.
     flags = ShutterTimingFlag.NONE
-    closeRel = (closeStart - openStart) * _SECONDS_PER_DAY
-    if not _inRange((closeRel - exptime) * 1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
+    closeRel = (closeStart - openStart)*_SECONDS_PER_DAY
+    if not _inRange((closeRel - exptime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
         flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
-        openStart = beg + _HEADER_ANCHOR_OFFSETS[0] / _SECONDS_PER_DAY
+        openStart = beg + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
         closeRel = exptime + _HEADER_ANCHOR_OFFSETS[1]
 
     # Beam coverage of the detector (its corners, by convexity).
     corners = geometry.pixelCorners()
-    if beam.isOutside(np.column_stack(geometry.pixelToCcs(corners[:, 0], corners[:, 1]))).any():
+    cornersCcs = np.column_stack(geometry.pixelToCcs(corners[:, 0], corners[:, 1]))
+    if beam.isOutside(cornersCcs).any():
         flags |= ShutterTimingFlag.BEAM_EXTRAPOLATED
 
-    # Evaluation points: detector centre, fit grid, its cell centres, and the
-    # focal-plane centre.
+    # Evaluation points, along (pa) and across (pc) the blade axis: the
+    # detector centre, the fit grid, and its cell centres.
     ia = 0 if geometry.bladeAxis() == "x" else 1
     c = geometry.centerPixel
     n = (geometry.nx, geometry.ny)
     along = np.linspace(0.0, n[ia] - 1.0, _GRID)
     across = np.linspace(0.0, n[1 - ia] - 1.0, _GRID)
     ga, gc = np.meshgrid(along, across, indexing="ij")
-    ha, hc = np.meshgrid(0.5 * (along[1:] + along[:-1]), 0.5 * (across[1:] + across[:-1]), indexing="ij")
+    ha, hc = np.meshgrid(0.5*(along[1:] + along[:-1]), 0.5*(across[1:] + across[:-1]), indexing="ij")
     pa = np.concatenate([[c[ia]], ga.ravel(), ha.ravel()])
     pc = np.concatenate([[c[1 - ia]], gc.ravel(), hc.ravel()])
+
+    # The same points in CCS, plus the focal-plane centre.
     xc, yc = geometry.pixelToCcs(*((pa, pc) if ia == 0 else (pc, pa)))
     xc = np.append(xc, 0.0)
     yc = np.append(yc, 0.0)
 
-    # Flux-weighted crossing times (s after the open start time).
+    # Crossing times of each blade edge at the quadrature nodes (s after the
+    # open start time).
     s, w = beam.quadratureNodes(xc, yc)
     tau = []
     for _, travelSign, fit in motions:
         start = _NOMINAL_STROKE if travelSign < 0 else _NOMINAL_START_INCREASING
         traj = ThreeJerksTrajectory(fit, start, travelSign)
-        d = travelSign * ((_ENCODER_CENTER - start) - s)
+        d = travelSign*((_ENCODER_CENTER - start) - s)
         tau.append(traj.timeOfDisplacement(d) + fit.modelStartTime)
     tO, tauC = tau
     tC = tauC + closeRel
+
+    # Flux-weighted times; none where the blades overlap in the beam.
     with np.errstate(invalid="ignore"):
         overlap = np.min(tC, axis=-1) - np.max(tO, axis=-1) <= 0
     eO = np.where(overlap, np.nan, tO @ w)
     eC = np.where(overlap, np.nan, tC @ w)
-    tMid = 0.5 * (eO + eC)
+    tMid = 0.5*(eO + eC)
     if not np.all(np.isfinite(tMid)):
         raise _Unavailable(flags, f"no shutter time at {int((~np.isfinite(tMid)).sum())} of {tMid.size} "
                            "evaluation points (overlapping blades or outside the beam table's margin)")
 
-    # Quadratic fit.
+    # Quadratic fit on the grid, in offsets from the centre time, with the
+    # basis normalized to +-1 for conditioning.
     focalPlane, tMid = tMid[-1], tMid[:-1]
     dt = tMid - tMid[0]
-    su = max(0.5 * (n[ia] - 1.0), 1.0)
-    sv = max(0.5 * (n[1 - ia] - 1.0), 1.0)
-    z = (pa - c[ia]) / su
-    wv = (pc - c[1 - ia]) / sv
-    basis = np.stack([z, z * z, wv, z * wv, wv * wv], axis=-1)
-    unit = np.array([1 / su, su**-2.0, 1 / sv, 1 / (su * sv), sv**-2.0])
+    su = max(0.5*(n[ia] - 1.0), 1.0)
+    sv = max(0.5*(n[1 - ia] - 1.0), 1.0)
+    z = (pa - c[ia])/su
+    wv = (pc - c[1 - ia])/sv
+    basis = np.stack([z, z*z, wv, z*wv, wv*wv], axis=-1)
+    unit = np.array([1/su, su**-2.0, 1/sv, 1/(su*sv), sv**-2.0])
     cz = np.linalg.lstsq(basis[1:1 + _GRID**2], dt[1:1 + _GRID**2], rcond=None)[0]
+
     return dict(
         flags=flags,
-        centerMjdTai=float(openStart + tMid[0] / _SECONDS_PER_DAY),
-        focalPlaneMjdTai=float(openStart + focalPlane / _SECONDS_PER_DAY),
+        centerMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
+        focalPlaneMjdTai=float(openStart + focalPlane/_SECONDS_PER_DAY),
         effectiveExposureTime=float(eC[0] - eO[0]),
         maxAbsResidual=float(np.max(np.abs(basis @ cz - dt))),
-        coefficients=tuple(float(v) for v in cz * unit),
+        coefficients=tuple(float(v) for v in cz*unit),
     )

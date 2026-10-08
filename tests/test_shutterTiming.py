@@ -128,16 +128,19 @@ class ShutterTimingTestBase(lsst.utils.tests.TestCase):
         callers only pass on-detector positions, so those samples are only
         checked to be finite.
         """
+        # Every detector: status, flags and the fitted quantities.
         timings = {}
         for det, expected in doc["detectors"].items():
             t = timings[int(det)] = computeShutterTiming(
                 metadata, self.geometries[int(det)], metadata["EXPTIME"], self.config
             )
             label2 = f"{label} {det}"
+
             self.assertEqual(t.status, ShutterTimingStatus.OK, label2)
             self.assertEqual(t.message, "", label2)
             self.assertEqual(t.axis, expected["axis"], label2)
             self.assertEqual(int(t.flags), expected["qc_flags"] & KEPT_FLAGS, label2)
+
             diffs = dict(
                 center=abs(t.centerMjdTai - expected["center_mjd_tai"]) * SECONDS_PER_DAY,
                 lever=np.max(np.abs(np.array(t.coefficients) - expected["coefficients_s"]) * LEVER_POWERS),
@@ -147,12 +150,15 @@ class ShutterTimingTestBase(lsst.utils.tests.TestCase):
             )
             for k, v in diffs.items():
                 self.assertLessEqual(v, TOL_S, f"{label2}: {k}")
+
+        # Per-source times at the sample positions.
         for det, x, y, expected, _ in doc["samples"]:
-            got = float(timings[det].tMidMjdTai(x, y))
+            got = float(timings[det].tMidMjdTai(np.array(x), np.array(y)))
             self.assertTrue(math.isfinite(got), f"{label} {det} ({x}, {y})")
             if expected is not None:
-                self.assertLessEqual(abs(got - expected) * SECONDS_PER_DAY, TOL_S,
+                self.assertLessEqual(abs(got - expected)*SECONDS_PER_DAY, TOL_S,
                                      f"{label} {det} ({x}, {y})")
+
         return timings
 
 
@@ -162,14 +168,20 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
     """
 
     def testFixtures(self):
+        """The four exposures with shutter cards agree with the reference on
+        every science detector.
+        """
         names = sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(DATADIR, "MC_O_*.json")))
         self.assertEqual(len(names), 5)
+
         for name in names:
             if name == NO_CARDS:
                 continue
             doc = readFixture(name)
             self.assertEqual(len(doc["detectors"]), 189)
             timings = self.checkAgainstReference(doc, doc["metadata"], name)
+
+            # The outer detectors extend past the beam table.
             self.assertTrue(any(t.flags & ShutterTimingFlag.BEAM_EXTRAPOLATED for t in timings.values()))
             for t in timings.values():
                 self.assertAlmostEqual(t.headerMidMjdTai, doc["header_mid_mjd_tai"], delta=1e-9)
@@ -177,13 +189,15 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
     def testNoCards(self):
         """Exposures before the shutter cards: UNAVAILABLE, no times."""
         doc = readFixture(NO_CARDS)
+        xy = np.array([0.0, 2000.0])
+
         for det in (0, 94, 188):
             t = self.compute(doc["metadata"], det)
             self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE)
             self.assertEqual(t.flags, ShutterTimingFlag.NO_PROFILE)
             self.assertTrue(math.isnan(t.centerMjdTai))
             self.assertTrue(math.isnan(t.focalPlaneMjdTai))
-            self.assertTrue(np.all(np.isnan(t.tMidMjdTai([0.0, 2000.0], [0.0, 2000.0]))))
+            self.assertTrue(np.all(np.isnan(t.tMidMjdTai(xy, xy))))
 
     def testReanchoring(self):
         """Shutter clocks that disagree: re-anchored to the header, so the
@@ -197,6 +211,8 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
             self.assertTrue(t.flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
             timings.append(t)
         self.assertEqual(timings[0].centerMjdTai, timings[1].centerMjdTai)
+
+        # Clocks that agree are not re-anchored.
         self.assertFalse(self.compute(self.base).flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
 
     def testParamRange(self):
@@ -208,28 +224,35 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
                 t = self.compute(self.mutated(name), det)
                 self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, name)
                 self.assertEqual(t.flags, ShutterTimingFlag.PARAM_RANGE, name)
-                self.assertTrue(np.isnan(t.tMidMjdTai(2000.0, 2000.0)))
+                self.assertTrue(np.isnan(t.tMidMjdTai(np.array(2000.0), np.array(2000.0))))
 
     def testBladeOverlap(self):
         """EXPTIME 0: the blades overlap, UNAVAILABLE."""
         md = self.mutated("exptime_zero")
+
         for det in (0, 94, 188):
             t = self.compute(md, det)
             self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, det)
             self.assertTrue(math.isnan(t.centerMjdTai))
 
     def testPropertyList(self):
+        """A `PropertyList` gives the same result as a `dict`."""
         doc = readFixture("MC_O_20260105_000250")
         pl = PropertyList()
         for k, v in doc["metadata"].items():
             pl.set(k, v)
         self.assertEqual(self.compute(pl), self.compute(doc["metadata"]))
+
+        # And it agrees with the reference.
         one = dict(doc, detectors={"94": doc["detectors"]["94"]},
                    samples=[s for s in doc["samples"] if s[0] == 94])
         self.checkAgainstReference(one, pl, "PropertyList")
 
     def testVectorized(self):
+        """Positions broadcast against each other, and NaN propagates."""
         t = self.compute(self.base)
+
+        # A (5, 6) array against a (6,) array: each element as if alone.
         x = np.linspace(-0.5, 4071.5, 30).reshape(5, 6)
         y = np.linspace(-0.5, 3999.5, 6)
         tt = t.tMidMjdTai(x, y)
@@ -237,8 +260,12 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
         for i in range(5):
             for j in range(6):
                 self.assertEqual(tt[i, j], t.tMidMjdTai(x[i, j], y[j]))
-        self.assertEqual(t.tMidMjdTai(10, 10).shape, ())
-        got = t.tMidMjdTai([np.nan, 10.0, np.inf, 10.0], [10.0, np.nan, 10.0, 10.0])
+
+        # Zero-dimensional input.
+        self.assertEqual(t.tMidMjdTai(np.array(10.0), np.array(10.0)).shape, ())
+
+        # Non-finite positions give no time.
+        got = t.tMidMjdTai(np.array([np.nan, 10.0, np.inf, 10.0]), np.array([10.0, np.nan, 10.0, 10.0]))
         np.testing.assert_array_equal(np.isfinite(got), [False, False, False, True])
 
     def testFromDetector(self):
@@ -249,17 +276,21 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
             detector = makeDetector(17, (-127.0, 211.5), (2035.5, 1999.5), (4072, 4000), yaw)
             geom = _DetectorGeometry.fromDetector(detector)
             self.assertEqual((geom.detectorId, geom.nx, geom.ny), (17, 4072, 4000))
+
             # CCS = (DVCS y, DVCS x); afw's corner order is its own.
             pix = geom.pixelCorners()
             yd, xd = geom.pixelToCcs(pix[:, 0], pix[:, 1])
             for p in detector.getCorners(FOCAL_PLANE):
                 self.assertLess(np.min(np.hypot(xd - p.getX(), yd - p.getY())), 1e-6)
+
             self.assertEqual(geom.bladeAxis(), "y" if yaw in (0.0, 180.0) else "x")
+
+        # The afw path gives the same timing as the fixture geometry.
         g = self.geometries[94]
         a = self.compute(self.base, 94)
         b = computeShutterTiming(self.base, makeDetector(94, g.centerMm, g.centerPixel, (g.nx, g.ny)),
                                  self.base["EXPTIME"], self.config)
-        self.assertLess(abs(a.centerMjdTai - b.centerMjdTai) * SECONDS_PER_DAY, 1e-6)
+        self.assertLess(abs(a.centerMjdTai - b.centerMjdTai)*SECONDS_PER_DAY, 1e-6)
         self.assertFloatsAlmostEqual(np.array(a.coefficients), np.array(b.coefficients), rtol=1e-6)
 
 
@@ -270,6 +301,8 @@ class ShutterBeamTestCase(lsst.utils.tests.TestCase):
 
     def setUp(self):
         self.beam = loadShutterBeam(BEAM_FILE)
+
+        # The table's nodes, independently of the model: R_q per position.
         rows = np.loadtxt(BEAM_FILE, skiprows=2)
         self.nodes = {}
         for x, y, q, _, s in rows:
@@ -285,21 +318,24 @@ class ShutterBeamTestCase(lsst.utils.tests.TestCase):
     def testBilinear(self):
         """The centre of a fully tabulated cell is the mean of its corners."""
         x0, y0, h = 0.0, 0.0, 42.25
-        corners = [self.nodes[(x0 + i * h, y0 + j * h)] for i in (0, 1) for j in (0, 1)]
+        corners = [self.nodes[(x0 + i*h, y0 + j*h)] for i in (0, 1) for j in (0, 1)]
         expected = np.mean([[c[q] for q in sorted(c)] for c in corners], axis=0)
-        r = self.beam._residual(np.array([x0 + h / 2]), np.array([y0 + h / 2]))[0]
+
+        r = self.beam._residual(np.array([x0 + h/2]), np.array([y0 + h/2]))[0]
         np.testing.assert_allclose(r, expected, rtol=0, atol=1e-9)
 
     def testOutsideHull(self):
         """Outside the table's hull: held at the nearest hull point, up to
         the margin; NaN beyond.
         """
-        k = np.argmax(self.points.sum(axis=1))  # the hull vertex farthest along (1, 1)
+        # Points beyond the hull vertex farthest along (1, 1).
+        k = np.argmax(self.points.sum(axis=1))
         p = self.points[k]
-        out = np.array([p + d / np.sqrt(2.0) for d in (5.0, _BEAM_MARGIN_MM - 1.0, _BEAM_MARGIN_MM + 1.0)])
+        out = np.array([p + d/np.sqrt(2.0) for d in (5.0, _BEAM_MARGIN_MM - 1.0, _BEAM_MARGIN_MM + 1.0)])
         self.assertTrue(np.all(self.beam.isOutside(out)))
+
         r = self.beam._residual(out[:, 0], out[:, 1])
-        np.testing.assert_allclose(r[:2], np.array([self.r[k]] * 2), rtol=0, atol=1e-5)
+        np.testing.assert_allclose(r[:2], np.array([self.r[k]]*2), rtol=0, atol=1e-5)
         self.assertTrue(np.all(np.isnan(r[2])))
 
 
@@ -307,21 +343,31 @@ class ShutterTrajectoryTestCase(lsst.utils.tests.TestCase):
     """Inversion of the ThreeJerksModelv1 trajectory."""
 
     def testInversion(self):
+        """`timeOfDisplacement` inverts `sva` on the monotonic branch, for
+        real fits in both travel directions.
+        """
         md = readFixture(BASE)["metadata"]
         for which in ("OPEN", "CLOSE"):
             fit = ThreeJerksParams(*(md[f"SHUTTER {which} HALLSENSORFIT {c}"] for c in _FIT_CARDS))
             for sign, start in ((-1, 750.76), (1, -0.05)):
                 traj = ThreeJerksTrajectory(fit, start, sign)
                 self.assertGreater(traj.tStop, 0.85)
+
+                # Displacements along the branch, including at the pivots.
                 t = np.concatenate([np.linspace(0.0, traj.tStop, 1001), [fit.pivot1, fit.pivot2]])
                 d = traj.sva(t)[0]
                 self.assertTrue(np.all(np.diff(d[:1001]) > 0))
+
                 inv = traj.timeOfDisplacement(d)
                 np.testing.assert_allclose(traj.sva(inv)[0], d, rtol=0, atol=1e-9)
+
                 # The time is ill-conditioned only where the blade stops.
-                moving = t < 0.99 * traj.tStop
+                moving = t < 0.99*traj.tStop
                 np.testing.assert_allclose(inv[moving], t[moving], rtol=0, atol=1e-12)
-                self.assertTrue(np.all(np.isnan(traj.timeOfDisplacement([-1e-6, traj.dMax + 1e-6]))))
+
+                # No time outside [0, dMax].
+                outside = np.array([-1e-6, traj.dMax + 1e-6])
+                self.assertTrue(np.all(np.isnan(traj.timeOfDisplacement(outside))))
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
