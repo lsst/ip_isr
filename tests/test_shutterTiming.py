@@ -284,6 +284,24 @@ class ShutterTimingMutationTestCase(ShutterTimingTestBase):
             self.assertTrue(t.flags & ShutterTimingFlag.MEAN_PROFILE, name)
             self.assertEqual(t.status, ShutterTimingStatus.DEGRADED, name)
 
+    def testWidenedRanges(self):
+        """Fits that only pass widened ranges must not hang or raise: pivot1 =
+        0 with a negative jerk1 (no stopping point), and pivot1 > pivot2.
+        """
+        config = makeConfig()
+        config.pivot1Range = [0.0, 0.9]
+        config.pivot2Range = [0.0, 0.9]
+        config.absJerkRange = [0.0, 1e6]
+        config.displacementAt0p9sRange = [-1e6, 1e6]
+        for pivots in ((0.0, 0.6552), (0.5, 0.3)):
+            md = dict(self.base)
+            md["SHUTTER OPEN HALLSENSORFIT PIVOTPOINT1"] = pivots[0]
+            md["SHUTTER OPEN HALLSENSORFIT PIVOTPOINT2"] = pivots[1]
+            md["SHUTTER OPEN HALLSENSORFIT JERK0"] = 72437.5
+            md["SHUTTER OPEN HALLSENSORFIT JERK1"] = -15831.5
+            md["SHUTTER OPEN HALLSENSORFIT JERK2"] = -7737.4
+            self.assertIsInstance(self.compute(md, config=config).status, ShutterTimingStatus)
+
     def testOpenBegFlagOnly(self):
         t = self.compute(self.mutated("open_beg_minus_20ms"))
         self.assertEqual(t.flags, ShutterTimingFlag.CLOCK_OPEN_VS_BEG)
@@ -388,10 +406,21 @@ class ShutterTimingMutationTestCase(ShutterTimingTestBase):
             self.assertEqual(t.status, ShutterTimingStatus.DEGRADED, (card, value))
             self.assertEqual(t.flags, ref.flags, (card, value))
             self.assertEqual(t.centerMjdTai, ref.centerMjdTai, (card, value))
-        # Ints are numbers.
-        md = dict(self.base)
-        md["SHUTTER CLOSE HALLSENSORFIT JERK2"] = int(md["SHUTTER CLOSE HALLSENSORFIT JERK2"])
-        self.assertEqual(self.compute(md).status, ShutterTimingStatus.OK)
+        # Ints and numpy scalars are numbers; a missing MODEL card means the
+        # Hall fit is used.
+        ok = self.compute(self.base)
+        for card, convert in (("SHUTTER CLOSE HALLSENSORFIT JERK2", int),
+                              ("SHUTTER CLOSE HALLSENSORFIT JERK2", np.float32),
+                              ("SHUTTER OPEN STARTTIME TAI MJD", np.float64),
+                              ("SHUTTER CLOSE MODEL", None)):
+            md = dict(self.base)
+            if convert is None:
+                del md[card]
+            else:
+                md[card] = convert(md[card])
+            t = self.compute(md)
+            self.assertEqual(t.status, ok.status, card)
+            self.assertEqual(t.flags, ok.flags, card)
 
     def testGarbageNeverRaises(self):
         """Absurd card values give a result, never an exception."""

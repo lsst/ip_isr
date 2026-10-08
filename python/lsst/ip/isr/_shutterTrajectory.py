@@ -140,7 +140,7 @@ class ThreeJerksTrajectory:
         tEnd = self.tStop
         if not np.isfinite(tEnd):
             tEnd = 1.0
-            while self.sva(tEnd)[0] < dv.max():
+            while self.sva(tEnd)[0] < dv.max() and tEnd < 1024.0:  # s(t) may never reach d
                 tEnd *= 2.0
         # Segment breakpoints, cut at the end of the branch.
         tb = np.minimum(np.append(self._tb, tEnd), tEnd)
@@ -155,5 +155,7 @@ class ThreeJerksTrajectory:
             below = s0 + h * (v0 + h * (a0 + h * j)) < dv
             lo = np.where(below, h, lo)
             hi = np.where(below, hi, h)
-        out[valid] = tb[k] + 0.5 * (lo + hi)
+        t = tb[k] + 0.5 * (lo + hi)
+        t[dv > self.sva(tEnd)[0]] = np.nan
+        out[valid] = t
         return out

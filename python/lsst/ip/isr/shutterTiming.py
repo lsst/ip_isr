@@ -64,6 +64,7 @@ import enum
 import functools
 import io
 import math
+import numbers
 
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
@@ -563,13 +564,17 @@ class _Unavailable(Exception):
 
 
 def _number(metadata, key):
-    """The card's value as a float, or None unless it is a finite int or
-    float (not a bool).
+    """The card's value as a float, or None unless it is a finite real
+    number (not a bool).
     """
     value = metadata.get(key)
-    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
-        return float(value)
-    return None
+    if not isinstance(value, numbers.Real) or isinstance(value, (bool, np.bool_)):
+        return None
+    try:
+        value = float(value)
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def _inRange(value, bounds):
@@ -580,7 +585,8 @@ def _inRange(value, bounds):
 def _fitInRange(fit, config):
     """True if a Hall fit is within the configured nominal ranges."""
     return (
-        _inRange(fit.pivot1, config.pivot1Range)
+        0.0 <= fit.pivot1 <= fit.pivot2
+        and _inRange(fit.pivot1, config.pivot1Range)
         and _inRange(fit.pivot2, config.pivot2Range)
         and all(_inRange(abs(j), config.absJerkRange) for j in (fit.jerk0, fit.jerk1, fit.jerk2))
         and _inRange(abs(fit.modelStartTime), config.absModelStartTimeRange)
