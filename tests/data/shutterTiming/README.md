@@ -28,9 +28,8 @@ cards are included, no pixel data. Read-only.
   reference results for detectors 0, 4, 30, 94, 120, 168 and 188 in the same
   format as above. Entries the reference rejects have `status` 2 (UNAVAILABLE)
   and a `reason`. The mutations: the close start time shifted by +10 ms and
-  -5 ms (clock re-anchoring); PIVOTPOINT1 and JERK2 out of range; a
-  non-numeric JERK1; a missing JERK0; a non-numeric open start time; MJD-BEG
-  20 ms early; a negative JERK0; and EXPTIME 0 (overlapping blades).
+  -5 ms (clock re-anchoring); PIVOTPOINT1 and JERK2 out of range; a negative
+  JERK0; and EXPTIME 0 (overlapping blades).
 - `beam_at_L3S1_z9.618_rot0_evaluated.tnt`: the LSSTCam shutter-plane beam
   table (an LSST Camera raytrace, LCA-20578), identical to the copy shipped
   by obs_lsst (see its `resources/shutter/README.md` for credit). A byte-identical copy is public in
