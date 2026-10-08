@@ -111,7 +111,7 @@ class ShutterTimingTestBase(lsst.utils.tests.TestCase):
         cls.base = readFixture(BASE)["metadata"]
 
     def compute(self, md, det=94):
-        return computeShutterTiming(md, self.geometries[det], self.config)
+        return computeShutterTiming(md, self.geometries[det], md["EXPTIME"], self.config)
 
     def mutated(self, name):
         """The base metadata with a mutation's cards set."""
@@ -130,7 +130,9 @@ class ShutterTimingTestBase(lsst.utils.tests.TestCase):
         """
         timings = {}
         for det, expected in doc["detectors"].items():
-            t = timings[int(det)] = computeShutterTiming(metadata, self.geometries[int(det)], self.config)
+            t = timings[int(det)] = computeShutterTiming(
+                metadata, self.geometries[int(det)], metadata["EXPTIME"], self.config
+            )
             label2 = f"{label} {det}"
             self.assertEqual(t.status, ShutterTimingStatus.OK, label2)
             self.assertEqual(t.message, "", label2)
@@ -256,7 +258,7 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
         g = self.geometries[94]
         a = self.compute(self.base, 94)
         b = computeShutterTiming(self.base, makeDetector(94, g.centerMm, g.centerPixel, (g.nx, g.ny)),
-                                 self.config)
+                                 self.base["EXPTIME"], self.config)
         self.assertLess(abs(a.centerMjdTai - b.centerMjdTai) * SECONDS_PER_DAY, 1e-6)
         self.assertFloatsAlmostEqual(np.array(a.coefficients), np.array(b.coefficients), rtol=1e-6)
 

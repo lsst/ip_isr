@@ -107,12 +107,13 @@ _ABS_JERK_RANGE = (30000.0, 38000.0)
 _ABS_MODEL_START_TIME_RANGE = (0.0, 0.003)
 _DISPLACEMENT_AT_0P9S_RANGE = (745.0, 757.0)
 
-#: Range (ms) of close - open STARTTIME - EXPTIME; outside it the shutter
-#: clocks disagree and both start times are re-anchored to the header.
-_CLOSE_MINUS_OPEN_MINUS_EXPTIME_RANGE = (-2.0, 4.0)
+#: Range (ms) of close - open STARTTIME - requested exposure time; outside it
+#: the shutter clocks disagree and both start times are re-anchored to the
+#: header.
+_CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE = (-2.0, 4.0)
 
 #: Re-anchoring offsets (s): open STARTTIME - MJD-BEG, and close - open
-#: STARTTIME - EXPTIME.
+#: STARTTIME - requested exposure time.
 _HEADER_ANCHOR_OFFSETS = (0.00809, 0.00052)
 
 #: Fit grid points along and across the blade axis.
@@ -138,7 +139,7 @@ class ShutterTimingFlag(enum.IntFlag):
     """A Hall fit outside the nominal ranges: UNAVAILABLE."""
     CLOCK_CLOSE_VS_OPEN = 16
     """The two shutter clocks disagree: both start times are re-anchored to
-    MJD-BEG and EXPTIME.
+    MJD-BEG and the requested exposure time.
     """
     BEAM_EXTRAPOLATED = 2048
     """Part of the detector lies outside the beam table's coverage
@@ -409,7 +410,9 @@ class ShutterTiming:
         )
 
 
-def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None = None) -> ShutterTiming:
+def computeShutterTiming(
+    metadata, detector, exposureTime: float, config: ShutterTimingConfig | None = None
+) -> ShutterTiming:
     """Shutter-corrected times of one detector of one exposure.
 
     Parameters
@@ -418,6 +421,12 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
         The exposure metadata (a `dict` works too).
     detector : `lsst.afw.cameraGeom.Detector`
         The detector.
+    exposureTime : `float`
+        The requested (nominal) exposure time (s).  Callers take it from the
+        butler ``visit`` dimension record (``exposure_time``): ``EXPTIME`` is
+        stripped from exposure metadata at ingest, and
+        ``visitInfo.exposureTime`` is the measured shutter time, not the
+        requested one.
     config : `ShutterTimingConfig`, optional
         Defaults to ``ShutterTimingConfig()``; ``beamFile`` must be set.
 
@@ -441,8 +450,8 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
         If ``config.beamFile`` is empty, a SIDE card is not PLUSX or MINUSX,
         or a MODEL card is not ThreeJerksModelv1.
     KeyError, ValueError, TypeError
-        If the shutter cards are present but one of them, or MJD-BEG,
-        MJD-END or EXPTIME, is missing or not a number.
+        If the shutter cards are present but one of them, or MJD-BEG or
+        MJD-END, is missing or not a number.
 
     Notes
     -----
@@ -450,9 +459,9 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
 
     - Blade start positions are nominal: 750.76 mm for 750 -> 0 moves, -0.05
       mm for 0 -> 750 moves.
-    - If close - open STARTTIME - EXPTIME is outside -2 to 4 ms, the shutter
-      clocks disagree: both start times are re-anchored to MJD-BEG and
-      EXPTIME (flag CLOCK_CLOSE_VS_OPEN).
+    - If close - open STARTTIME - ``exposureTime`` is outside -2 to 4 ms, the
+      shutter clocks disagree: both start times are re-anchored to MJD-BEG
+      and ``exposureTime`` (flag CLOCK_CLOSE_VS_OPEN).
     - Each edge's crossing time is integrated by 2-point Gauss-Legendre
       quadrature in each interval between tabulated flux levels.  The
       quadratic is fit on a 9 x 9 grid; ``maxAbsResidual`` is over that grid,
@@ -471,7 +480,7 @@ def computeShutterTiming(metadata, detector, config: ShutterTimingConfig | None 
         return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE, message="no shutter motion cards", **common)
     common["headerMidMjdTai"] = 0.5 * (float(metadata["MJD-BEG"]) + float(metadata["MJD-END"]))
     try:
-        values = _compute(metadata, geometry, beam)
+        values = _compute(metadata, geometry, beam, float(exposureTime))
     except _Unavailable as e:
         return ShutterTiming(flags=e.flags, message=e.message, **common)
     return ShutterTiming(status=ShutterTimingStatus.OK, **values, **common)
@@ -516,13 +525,12 @@ def _readMotion(metadata, which):
     return float(metadata[f"{pre} STARTTIME TAI MJD"]), -1 if decreasing else 1, fit
 
 
-def _compute(metadata, geometry, beam):
+def _compute(metadata, geometry, beam, exptime):
     """The `ShutterTiming` fields that depend on the data; raises
     `_Unavailable`.
     """
     motions = (_readMotion(metadata, "OPEN"), _readMotion(metadata, "CLOSE"))
     (openStart, _, _), (closeStart, _, _) = motions
-    exptime = float(metadata["EXPTIME"])
     beg = float(metadata["MJD-BEG"])
 
     if not all(_fitInRange(fit) for _, _, fit in motions):
@@ -531,7 +539,7 @@ def _compute(metadata, geometry, beam):
     # Zero point: re-anchor to the header if the two shutter clocks disagree.
     flags = ShutterTimingFlag.NONE
     closeRel = (closeStart - openStart) * _SECONDS_PER_DAY
-    if not _inRange((closeRel - exptime) * 1e3, _CLOSE_MINUS_OPEN_MINUS_EXPTIME_RANGE):
+    if not _inRange((closeRel - exptime) * 1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
         flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
         openStart = beg + _HEADER_ANCHOR_OFFSETS[0] / _SECONDS_PER_DAY
         closeRel = exptime + _HEADER_ANCHOR_OFFSETS[1]
