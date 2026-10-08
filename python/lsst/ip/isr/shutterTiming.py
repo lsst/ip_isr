@@ -48,15 +48,12 @@ in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
 `lsst.ip.isr.ShutterMotionProfile` reads the same cards from an exposure.
 """
 
-from __future__ import annotations
-
 __all__ = [
     "ShutterTiming",
     "ShutterTimingConfig",
     "ShutterTimingFlag",
     "ShutterTimingStatus",
     "computeShutterTiming",
-    "loadShutterBeam",
 ]
 
 import dataclasses
@@ -69,9 +66,12 @@ import numpy as np
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import ConvexHull
 
+import lsst.geom
 import lsst.pex.config as pexConfig
+from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, Detector
+from lsst.daf.base import PropertyList
+from lsst.resources import ResourcePath
 
-from ._shutterTrajectory import ThreeJerksParams, ThreeJerksTrajectory
 
 _SECONDS_PER_DAY = 86400.0
 
@@ -87,7 +87,7 @@ _GL2 = np.array([0.5 - 0.5 / np.sqrt(3.0), 0.5 + 0.5 / np.sqrt(3.0)])
 
 _THREE_JERKS_V1 = "ThreeJerksModelv1"
 
-#: Card suffixes of the ThreeJerksParams fields, in order.
+#: Card suffixes of the _ThreeJerksParams fields, in order.
 _FIT_CARDS = ("MODELSTARTTIME", "PIVOTPOINT1", "PIVOTPOINT2", "JERK0", "JERK1", "JERK2")
 
 #: Encoder position (mm) of the focal-plane centre: x_ccs = c - e.
@@ -162,6 +162,196 @@ class ShutterTimingConfig(pexConfig.Config):
 
 
 @dataclasses.dataclass(frozen=True)
+class _ThreeJerksParams:
+    """One ThreeJerksModelv1 fit, in the order of the header cards."""
+
+    modelStartTime: float
+    """Delay (s) from the motion start time to model time zero."""
+
+    pivot1: float
+    """Model time (s) at which the jerk changes from ``jerk0`` to ``jerk1``."""
+
+    pivot2: float
+    """Model time (s) at which the jerk changes from ``jerk1`` to ``jerk2``."""
+
+    jerk0: float
+    """Jerk (mm/s^3) before ``pivot1``."""
+
+    jerk1: float
+    """Jerk (mm/s^3) between ``pivot1`` and ``pivot2``."""
+
+    jerk2: float
+    """Jerk (mm/s^3) after ``pivot2``."""
+
+
+class _ThreeJerksTrajectory:
+    """ThreeJerksModelv1 trajectory of one blade motion.
+
+    The camera fits each blade motion, from its Hall-sensor positions, with
+    this model (CTN-002): piecewise-constant jerk ``j0`` on ``[0, t1)``,
+    ``j1`` on ``[t1, t2)``, ``j2`` on ``[t2, inf)``, from rest at model time
+    0 (``(T - startTime) - ModelStartTime``, s).  It gives the displacement
+    ``d(t) >= 0`` along the travel direction; the encoder position is
+    ``startPosition + travelSign * d(t)``.
+
+    Parameters
+    ----------
+    params : ``_ThreeJerksParams``
+        The fit.
+    startPosition : `float`
+        Encoder position (mm) at model time zero.
+    travelSign : `int`
+        +1 if the encoder position increases during the move, else -1.
+
+    Raises
+    ------
+    ValueError
+        Raised if the pivots do not satisfy ``0 <= pivot1 <= pivot2``.
+    """
+
+    def __init__(self, params: _ThreeJerksParams, startPosition: float, travelSign: int):
+        t1, t2 = params.pivot1, params.pivot2
+        if not 0.0 <= t1 <= t2:
+            raise ValueError(f"invalid pivots (need 0 <= pivot1 <= pivot2): {t1}, {t2}")
+
+        self.startPosition = startPosition
+        self.travelSign = travelSign
+
+        # Segment start times and jerks.
+        self._tb = np.array([0.0, t1, t2])
+        self._j = np.array([params.jerk0, params.jerk1, params.jerk2])
+
+        # Displacement, velocity and acceleration at the start of each
+        # segment, integrating from rest.
+        state = np.zeros((3, 3))
+        s = v = a = 0.0
+        for k in range(3):
+            state[k] = (s, v, a)
+            if k < 2:
+                h, j = self._tb[k + 1] - self._tb[k], self._j[k]
+                s, v, a = (
+                    s + v*h + a*h*h/2 + j*h**3/6,
+                    v + a*h + j*h*h/2,
+                    a + j*h,
+                )
+        self._state = state
+
+        # End of the monotonic branch, where the inversion is defined.
+        self.tStop = self._branchEnd()
+        self.dMax = float(self.sva(self.tStop)[0]) if np.isfinite(self.tStop) else np.inf
+
+    def _branchEnd(self) -> float:
+        """End (model time, s) of the monotonic branch: the first velocity
+        zero or velocity minimum after 0; 0 if ``j0 <= 0``; inf if none.
+        """
+        if self._j[0] <= 0:
+            return 0.0
+
+        ends = np.append(self._tb[1:], np.inf)
+        for k in (1, 2):
+            _, v0, a0 = self._state[k]
+            j = self._j[k]
+            hMax = ends[k] - self._tb[k]
+
+            # Candidate times within this segment: velocity zeros, and the
+            # velocity minimum.
+            cands = []
+            if j != 0:
+                disc = a0*a0 - 2.0*j*v0
+                if disc >= 0:
+                    sq = np.sqrt(disc)
+                    cands += [(-a0 - sq)/j, (-a0 + sq)/j]
+            elif a0 != 0:
+                cands.append(-v0/a0)
+            if a0 < 0 < j:
+                cands.append(-a0/j)
+
+            cands = [h for h in cands if 0 < h <= hMax]
+            if cands:
+                return float(self._tb[k] + min(cands))
+
+        return np.inf
+
+    def sva(self, dt: np.ndarray | float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Evaluate the trajectory.
+
+        Parameters
+        ----------
+        dt : `numpy.ndarray` or `float`
+            Model time (s).
+
+        Returns
+        -------
+        s, v, a : `tuple` [`numpy.ndarray`]
+            Displacement (mm), velocity (mm/s) and acceleration (mm/s^2);
+            zero for ``dt < 0``.
+        """
+        # The segment of each time, and the time since its start.
+        tc = np.maximum(dt, 0.0)
+        k = np.clip(np.searchsorted(self._tb, tc, side="right") - 1, 0, 2)
+        h = tc - self._tb[k]
+
+        # Constant-jerk motion from that segment's starting state.
+        s0, v0, a0 = (self._state[k, i] for i in range(3))
+        j = self._j[k]
+        s = s0 + h*(v0 + h*(a0/2 + h*j/6))
+        v = v0 + h*(a0 + h*j/2)
+        a = a0 + h*j
+
+        return s, v, a
+
+    def timeOfDisplacement(self, d: np.ndarray) -> np.ndarray:
+        """Invert the trajectory on its monotonic branch.
+
+        Parameters
+        ----------
+        d : `numpy.ndarray`
+            Displacement (mm).
+
+        Returns
+        -------
+        t : `numpy.ndarray`
+            Model time (s) at which the displacement is ``d``, by bisection
+            within its jerk segment; NaN outside ``[0, dMax]``.
+        """
+        out = np.full(d.shape, np.nan)
+        valid = (d >= 0.0) & (d <= self.dMax)
+        if self.tStop <= 0.0 or not np.any(valid):
+            return out
+        dv = d[valid]
+
+        # End of the branch; if the motion never stops, far enough to reach
+        # the largest d (s(t) may never reach it).
+        tEnd = self.tStop
+        if not np.isfinite(tEnd):
+            tEnd = 1.0
+            while self.sva(tEnd)[0] < dv.max() and tEnd < 1024.0:
+                tEnd *= 2.0
+
+        # The segment containing each d, with breakpoints cut at the end of
+        # the branch.
+        tb = np.minimum(np.append(self._tb, tEnd), tEnd)
+        k = np.clip(np.searchsorted(self.sva(tb[:3])[0], dv, side="right") - 1, 0, 2)
+        s0, v0, a0 = self._state[k].T
+        a0, j = a0/2, self._j[k]/6
+
+        # Bisect within the segment; bracket width / 2**45 < 1e-13 s for the
+        # < 1 s shutter segments.
+        lo = np.zeros_like(dv)
+        hi = tb[k + 1] - tb[k]
+        for _ in range(45 + max(0, int(np.log2(max(hi.max(), 1.0))))):
+            h = 0.5*(lo + hi)
+            below = s0 + h*(v0 + h*(a0 + h*j)) < dv
+            lo = np.where(below, h, lo)
+            hi = np.where(below, hi, h)
+        t = tb[k] + 0.5*(lo + hi)
+        t[dv > self.sva(tEnd)[0]] = np.nan
+
+        out[valid] = t
+        return out
+
+
+@dataclasses.dataclass(frozen=True)
 class _DetectorGeometry:
     """Affine pixel -> DVCS (afw FOCAL_PLANE, mm) map of one detector:
     ``fp = centerMm + jacobian @ (p - centerPixel)``, with pixel centres at
@@ -187,7 +377,7 @@ class _DetectorGeometry:
     """[[dX/dx, dX/dy], [dY/dx, dY/dy]] in mm per pixel."""
 
     @classmethod
-    def fromDetector(cls, detector) -> _DetectorGeometry:
+    def fromDetector(cls, detector: Detector) -> "_DetectorGeometry":
         """Linearize a detector's pixel -> focal-plane map at its centre.
 
         Parameters
@@ -197,12 +387,9 @@ class _DetectorGeometry:
 
         Returns
         -------
-        geometry : `_DetectorGeometry`
+        geometry : ``_DetectorGeometry``
             The linearized map.
         """
-        import lsst.geom
-        from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS
-
         bbox = detector.getBBox()
         center = lsst.geom.Box2D(bbox).getCenter()
         transform = detector.getTransform(PIXELS, FOCAL_PLANE)
@@ -243,7 +430,7 @@ class _DetectorGeometry:
 class _ShutterBeamModel:
     """Shutter-plane beam model: for each field position (CCS mm), the blade
     coordinate s_q (CCS-x mm) below which a fraction q of the pixel's beam
-    flux lies, at the levels `_BEAM_LEVELS`.
+    flux lies, at the levels ``_BEAM_LEVELS``.
 
     The cumulative profile F(s) is piecewise linear through (s_q, q), with
     linear tails reaching F = 0 at ``s_0.01 - (s_0.05 - s_0.01)`` and F = 1 at
@@ -251,14 +438,14 @@ class _ShutterBeamModel:
     bilinearly in grid cells with all four nodes tabulated, barycentrically on
     the Delaunay triangulation elsewhere inside the convex hull of the nodes
     (32 corner nodes are missing), and held at the nearest hull point outside
-    it, up to `_BEAM_MARGIN_MM` (NaN beyond).
+    it, up to ``_BEAM_MARGIN_MM`` (NaN beyond).
 
     Parameters
     ----------
     x, y : `numpy.ndarray`
         CCS coordinates (mm) of the table nodes, shape (n,).
     s : `numpy.ndarray`
-        Blade coordinates s_q (mm) at the levels `_BEAM_LEVELS`, shape
+        Blade coordinates s_q (mm) at the levels ``_BEAM_LEVELS``, shape
         (n, 9).
 
     Raises
@@ -300,7 +487,7 @@ class _ShutterBeamModel:
         self._weights = np.repeat(du/2.0, 2)
 
     @classmethod
-    def fromFile(cls, path: str) -> _ShutterBeamModel:
+    def fromFile(cls, path: str) -> "_ShutterBeamModel":
         """Read a beam table in the raytrace ``.tnt`` format.
 
         Parameters
@@ -312,18 +499,16 @@ class _ShutterBeamModel:
 
         Returns
         -------
-        beam : `_ShutterBeamModel`
+        beam : ``_ShutterBeamModel``
             The model.
 
         Raises
         ------
         ValueError
             Raised if the file is not a beam table, its levels are not
-            `_BEAM_LEVELS`, or a (position, level) entry is missing or
+            ``_BEAM_LEVELS``, or a (position, level) entry is missing or
             duplicated.
         """
-        from lsst.resources import ResourcePath
-
         f = io.StringIO(ResourcePath(path).read().decode())
         if f.readline().strip().upper() != "DATA":
             raise ValueError(f"{path}: not a beam table (no DATA line)")
@@ -349,7 +534,7 @@ class _ShutterBeamModel:
         """
         return (p @ self._hullEq[:, :2].T + self._hullEq[:, 2]).max(axis=1) > 1e-9
 
-    def _hullProject(self, p):
+    def _hullProject(self, p: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Nearest hull-boundary point of each row of p, and its distance."""
         # Each hull edge runs from a to a + ab.
         a = self._points[self._hullVertices]
@@ -364,7 +549,7 @@ class _ShutterBeamModel:
         n = np.arange(p.shape[0])
         return a[k] + t[n, k, None]*ab[k], np.sqrt(d2[n, k])
 
-    def _residual(self, x, y, extrapolate=True):
+    def _residual(self, x: np.ndarray, y: np.ndarray, extrapolate: bool = True) -> np.ndarray:
         """R_q = s_q - x_ccs at flat arrays x, y; shape (n, nlevels)."""
         out = np.full((x.size, _BEAM_LEVELS.size), np.nan)
 
@@ -441,7 +626,7 @@ class _ShutterBeamModel:
 
 
 @functools.cache
-def loadShutterBeam(path: str) -> _ShutterBeamModel:
+def _loadShutterBeam(path: str) -> _ShutterBeamModel:
     """Read a shutter-plane beam table, cached per process.
 
     Parameters
@@ -451,7 +636,7 @@ def loadShutterBeam(path: str) -> _ShutterBeamModel:
 
     Returns
     -------
-    beam : `_ShutterBeamModel`
+    beam : ``_ShutterBeamModel``
         The model.  It is shared between callers: do not modify it.
     """
     return _ShutterBeamModel.fromFile(path)
@@ -462,8 +647,8 @@ class ShutterTiming:
     """Shutter-corrected mid-exposure times of one detector of one exposure.
 
     Times are MJD TAI, durations seconds.  Per source,
-    ``t(x, y) = centerMjdTai + (c_u u + c_uu u^2 + c_v v + c_uv u v + c_vv
-    v^2) / 86400``, with ``(u, v)`` the pixel offsets from the detector
+    ``t(x, y) = centerMidpointMjdTai + (c_u u + c_uu u^2 + c_v v + c_uv u v
+    + c_vv v^2) / 86400``, with ``(u, v)`` the pixel offsets from the detector
     centre along and across the blade axis (``axis``: ``"x"`` -> u = x - cx,
     v = y - cy; ``"y"`` -> u = y - cy, v = x - cx).
     """
@@ -480,13 +665,13 @@ class ShutterTiming:
     detectorId: int = -1
     """The detector ID."""
 
-    centerMjdTai: float = math.nan
+    centerMidpointMjdTai: float = math.nan
     """Flux-weighted mid-exposure time at the detector centre."""
 
-    focalPlaneMjdTai: float = math.nan
+    focalPlaneMidpointMjdTai: float = math.nan
     """Mid-exposure time at the focal-plane centre: the visit epoch."""
 
-    headerMidMjdTai: float = math.nan
+    headerMidpointMjdTai: float = math.nan
     """(MJD-BEG + MJD-END) / 2 (diagnostic only)."""
 
     effectiveExposureTime: float = math.nan
@@ -504,9 +689,9 @@ class ShutterTiming:
     """The pixel axis along the blade motion, "x" or "y"; "" if UNAVAILABLE."""
 
     geometry: _DetectorGeometry | None = dataclasses.field(default=None, repr=False)
-    """The detector's pixel-to-focal-plane map, used by `tMidMjdTai`."""
+    """The detector's pixel-to-focal-plane map, used by `midpointMjdTai`."""
 
-    def tMidMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    def midpointMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Per-source mid-exposure times at pixel positions.
 
         Parameters
@@ -536,11 +721,14 @@ class ShutterTiming:
         cU, cUU, cV, cUV, cVV = self.coefficients
         dt = cU*u + cUU*u*u + cV*v + cUV*u*v + cVV*v*v
 
-        return self.centerMjdTai + dt/_SECONDS_PER_DAY
+        return self.centerMidpointMjdTai + dt/_SECONDS_PER_DAY
 
 
 def computeShutterTiming(
-    metadata, detector, exposureTime: float, config: ShutterTimingConfig | None = None
+    metadata: PropertyList | dict,
+    detector: Detector,
+    exposureTime: float,
+    config: ShutterTimingConfig | None = None,
 ) -> ShutterTiming:
     """Shutter-corrected times of one detector of one exposure.
 
@@ -569,7 +757,7 @@ def computeShutterTiming(
         - either Hall fit is outside the nominal ranges: flag PARAM_RANGE;
         - there is no time at the focal-plane centre, the detector centre or
           any fit-grid point (overlapping blades in very short exposures, or
-          more than `_BEAM_MARGIN_MM` outside the beam table).
+          more than 38.64 mm outside the beam table).
 
         Otherwise OK.
 
@@ -600,8 +788,9 @@ def computeShutterTiming(
         config = ShutterTimingConfig()
     if not config.beamFile:
         raise ValueError("ShutterTimingConfig.beamFile is empty")
-    beam = loadShutterBeam(config.beamFile)
+    beam = _loadShutterBeam(config.beamFile)
 
+    # The tests pass a ``_DetectorGeometry`` directly.
     geometry = detector
     if not isinstance(detector, _DetectorGeometry):
         geometry = _DetectorGeometry.fromDetector(detector)
@@ -611,7 +800,7 @@ def computeShutterTiming(
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
         return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE, message="no shutter motion cards", **common)
 
-    common["headerMidMjdTai"] = 0.5*(float(metadata["MJD-BEG"]) + float(metadata["MJD-END"]))
+    common["headerMidpointMjdTai"] = 0.5*(float(metadata["MJD-BEG"]) + float(metadata["MJD-END"]))
     try:
         values = _compute(metadata, geometry, beam, exposureTime)
     except _Unavailable as e:
@@ -631,20 +820,20 @@ class _Unavailable(Exception):
         Why, for logs and task metadata.
     """
 
-    def __init__(self, flags, message):
+    def __init__(self, flags: ShutterTimingFlag, message: str):
         super().__init__(message)
         self.flags = flags
         self.message = message
 
 
-def _inRange(value, bounds):
+def _inRange(value: float, bounds: tuple[float, float]) -> bool:
     """lo <= value <= hi; False for NaN."""
     return bounds[0] <= value <= bounds[1]
 
 
-def _fitInRange(fit):
+def _fitInRange(fit: _ThreeJerksParams) -> bool:
     """True if a Hall fit is within the nominal ranges."""
-    displacementAt0p9s = ThreeJerksTrajectory(fit, 0.0, -1).sva(0.9)[0]
+    displacementAt0p9s = _ThreeJerksTrajectory(fit, 0.0, -1).sva(0.9)[0]
 
     return (
         0.0 <= fit.pivot1 <= fit.pivot2
@@ -656,7 +845,7 @@ def _fitInRange(fit):
     )
 
 
-def _readMotion(metadata, which):
+def _readMotion(metadata: PropertyList | dict, which: str) -> tuple[float, int, _ThreeJerksParams]:
     """Read the cards of one blade motion.
 
     Parameters
@@ -672,7 +861,7 @@ def _readMotion(metadata, which):
         When the blade started moving (MJD TAI).
     travelSign : `int`
         -1 for a 750 -> 0 mm move (PLUSX-open, MINUSX-close), else +1.
-    fit : `ThreeJerksParams`
+    fit : ``_ThreeJerksParams``
         The Hall-sensor fit.
 
     Raises
@@ -690,29 +879,34 @@ def _readMotion(metadata, which):
 
     startTime = float(metadata[f"{pre} STARTTIME TAI MJD"])
     decreasing = (side == "PLUSX") == (which == "OPEN")
-    fit = ThreeJerksParams(*(float(metadata[f"{pre} HALLSENSORFIT {c}"]) for c in _FIT_CARDS))
+    fit = _ThreeJerksParams(*(float(metadata[f"{pre} HALLSENSORFIT {c}"]) for c in _FIT_CARDS))
 
     return startTime, -1 if decreasing else 1, fit
 
 
-def _compute(metadata, geometry, beam, exptime):
+def _compute(
+    metadata: PropertyList | dict,
+    geometry: _DetectorGeometry,
+    beam: _ShutterBeamModel,
+    exposureTime: float,
+) -> dict:
     """Compute the data-dependent fields of a `ShutterTiming`.
 
     Parameters
     ----------
     metadata : `lsst.daf.base.PropertyList` or `dict`
         The exposure metadata, with shutter cards.
-    geometry : `_DetectorGeometry`
+    geometry : ``_DetectorGeometry``
         The detector.
-    beam : `_ShutterBeamModel`
+    beam : ``_ShutterBeamModel``
         The beam model.
-    exptime : `float`
+    exposureTime : `float`
         The requested exposure time (s).
 
     Returns
     -------
     values : `dict`
-        ``flags``, ``centerMjdTai``, ``focalPlaneMjdTai``,
+        ``flags``, ``centerMidpointMjdTai``, ``focalPlaneMidpointMjdTai``,
         ``effectiveExposureTime``, ``maxAbsResidual`` and ``coefficients``.
 
     Raises
@@ -730,10 +924,10 @@ def _compute(metadata, geometry, beam, exptime):
     # Zero point: re-anchor to the header if the two shutter clocks disagree.
     flags = ShutterTimingFlag.NONE
     closeRel = (closeStart - openStart)*_SECONDS_PER_DAY
-    if not _inRange((closeRel - exptime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
+    if not _inRange((closeRel - exposureTime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
         flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
         openStart = beg + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
-        closeRel = exptime + _HEADER_ANCHOR_OFFSETS[1]
+        closeRel = exposureTime + _HEADER_ANCHOR_OFFSETS[1]
 
     # Beam coverage of the detector (its corners, by convexity).
     corners = geometry.pixelCorners()
@@ -764,7 +958,7 @@ def _compute(metadata, geometry, beam, exptime):
     tau = []
     for _, travelSign, fit in motions:
         start = _NOMINAL_STROKE if travelSign < 0 else _NOMINAL_START_INCREASING
-        traj = ThreeJerksTrajectory(fit, start, travelSign)
+        traj = _ThreeJerksTrajectory(fit, start, travelSign)
         d = travelSign*((_ENCODER_CENTER - start) - s)
         tau.append(traj.timeOfDisplacement(d) + fit.modelStartTime)
     tO, tauC = tau
@@ -794,8 +988,8 @@ def _compute(metadata, geometry, beam, exptime):
 
     return dict(
         flags=flags,
-        centerMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
-        focalPlaneMjdTai=float(openStart + focalPlane/_SECONDS_PER_DAY),
+        centerMidpointMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
+        focalPlaneMidpointMjdTai=float(openStart + focalPlane/_SECONDS_PER_DAY),
         effectiveExposureTime=float(eC[0] - eO[0]),
         maxAbsResidual=float(np.max(np.abs(basis @ cz - dt))),
         coefficients=tuple(float(v) for v in cz*unit),

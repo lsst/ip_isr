@@ -137,18 +137,18 @@ class ShutterTimingTestBase(lsst.utils.tests.TestCase):
             self.assertEqual(int(t.flags), expected["qc_flags"] & KEPT_FLAGS, label2)
 
             diffs = dict(
-                center=abs(t.centerMjdTai - expected["center_mjd_tai"]) * SECONDS_PER_DAY,
+                center=abs(t.centerMidpointMjdTai - expected["center_mjd_tai"]) * SECONDS_PER_DAY,
                 lever=np.max(np.abs(np.array(t.coefficients) - expected["coefficients_s"]) * LEVER_POWERS),
                 residual=abs(t.maxAbsResidual - expected["max_abs_residual_s"]),
                 teff=abs(t.effectiveExposureTime - expected["effective_exposure_time_s"]),
-                focalPlane=abs(t.focalPlaneMjdTai - doc["visit_mjd_tai"]) * SECONDS_PER_DAY,
+                focalPlane=abs(t.focalPlaneMidpointMjdTai - doc["visit_mjd_tai"]) * SECONDS_PER_DAY,
             )
             for k, v in diffs.items():
                 self.assertLessEqual(v, TOL_S, f"{label2}: {k}")
 
         # Per-source times at the sample positions.
         for det, x, y, expected, _ in doc["samples"]:
-            got = float(timings[det].tMidMjdTai(np.array(x), np.array(y)))
+            got = float(timings[det].midpointMjdTai(np.array(x), np.array(y)))
             self.assertTrue(math.isfinite(got), f"{label} {det} ({x}, {y})")
             if expected is not None:
                 self.assertLessEqual(abs(got - expected)*SECONDS_PER_DAY, TOL_S,
@@ -186,9 +186,9 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
             t = self.compute(md, det)
             self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE)
             self.assertEqual(t.flags, ShutterTimingFlag.NO_PROFILE)
-            self.assertTrue(math.isnan(t.centerMjdTai))
-            self.assertTrue(math.isnan(t.focalPlaneMjdTai))
-            self.assertTrue(np.all(np.isnan(t.tMidMjdTai(xy, xy))))
+            self.assertTrue(math.isnan(t.centerMidpointMjdTai))
+            self.assertTrue(math.isnan(t.focalPlaneMidpointMjdTai))
+            self.assertTrue(np.all(np.isnan(t.midpointMjdTai(xy, xy))))
 
     def testReanchoring(self):
         """Shutter clocks that disagree: re-anchored to the header, so the
@@ -201,7 +201,7 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
             t = self.compute(md)
             self.assertTrue(t.flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
             timings.append(t)
-        self.assertEqual(timings[0].centerMjdTai, timings[1].centerMjdTai)
+        self.assertEqual(timings[0].centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 
         # Clocks that agree are not re-anchored.
         self.assertFalse(self.compute(self.base).flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
@@ -215,7 +215,7 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
                 t = self.compute(self.mutated(name), det)
                 self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, name)
                 self.assertEqual(t.flags, ShutterTimingFlag.PARAM_RANGE, name)
-                self.assertTrue(np.isnan(t.tMidMjdTai(np.array(2000.0), np.array(2000.0))))
+                self.assertTrue(np.isnan(t.midpointMjdTai(np.array(2000.0), np.array(2000.0))))
 
     def testPropertyList(self):
         """A `PropertyList` gives the same result as a `dict`."""
@@ -247,7 +247,7 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
         a = self.compute(self.base, 94)
         b = computeShutterTiming(self.base, makeDetector(94, g.centerMm, g.centerPixel, (g.nx, g.ny)),
                                  self.base["EXPTIME"], self.config)
-        self.assertLess(abs(a.centerMjdTai - b.centerMjdTai)*SECONDS_PER_DAY, 1e-6)
+        self.assertLess(abs(a.centerMidpointMjdTai - b.centerMidpointMjdTai)*SECONDS_PER_DAY, 1e-6)
         self.assertFloatsAlmostEqual(np.array(a.coefficients), np.array(b.coefficients), rtol=1e-6)
 
 
