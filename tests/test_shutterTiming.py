@@ -63,7 +63,7 @@ KEPT_FLAGS = int(ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.PARAM_RANGE
 
 
 def readGeometries():
-    """The science detectors of the fixture CSV."""
+    """Read the science detectors of the fixture CSV."""
     out = {}
     with open(GEOMETRY_FILE, newline="") as f:
         for r in csv.DictReader(f):
@@ -93,8 +93,10 @@ def makeDetector(detectorId, centerMm, centerPixel, size, yaw=0.0):
                            orientation=orientation).detector
 
 
-class ShutterTimingTestBase(lsst.utils.tests.TestCase):
-    """Shared fixtures and comparisons with the reference results."""
+class ShutterTimingTestCase(lsst.utils.tests.TestCase):
+    """Agreement with the reference results, and the cases that occur in
+    processing.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -109,13 +111,14 @@ class ShutterTimingTestBase(lsst.utils.tests.TestCase):
         return computeShutterTiming(md, self.geometries[det], md["EXPTIME"], self.config)
 
     def mutated(self, name):
-        """The base metadata with a mutation's cards set."""
+        """Return the base metadata with a mutation's cards set."""
         md = dict(self.base)
         md.update(self.mutations[name]["set"])
         return md
 
     def checkAgainstReference(self, doc, metadata, label):
-        """All detectors and samples of a fixture agree with the reference.
+        """Check all detectors and samples of a fixture against the
+        reference.
 
         The reference's DEGRADED is OK here, and its flags are compared on
         the kept bits.  The reference gives no time 150 px off the detector,
@@ -156,15 +159,9 @@ class ShutterTimingTestBase(lsst.utils.tests.TestCase):
 
         return timings
 
-
-class ShutterTimingTestCase(ShutterTimingTestBase):
-    """Agreement with the reference results, and the cases that occur in
-    processing.
-    """
-
     def testFixtures(self):
-        """Real exposures, one per blade direction, agree with the reference
-        on every science detector.
+        """Check real exposures, one per blade direction, against the
+        reference on every science detector.
         """
         names = sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(DATADIR, "MC_O_*.json")))
         self.assertEqual(len(names), 2)
@@ -178,7 +175,9 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
             self.assertTrue(any(t.flags & ShutterTimingFlag.BEAM_EXTRAPOLATED for t in timings.values()))
 
     def testNoCards(self):
-        """Exposures before the shutter cards: UNAVAILABLE, no times."""
+        """Check that exposures before the shutter cards are UNAVAILABLE,
+        with no times.
+        """
         md = {k: v for k, v in self.base.items() if not k.startswith("SHUTTER")}
         xy = np.array([0.0, 2000.0])
 
@@ -191,8 +190,8 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
             self.assertTrue(np.all(np.isnan(t.midpointMjdTai(xy, xy))))
 
     def testReanchoring(self):
-        """Shutter clocks that disagree: re-anchored to the header, so the
-        close-card shift does not move the result.
+        """Check that shutter clocks that disagree are re-anchored to the
+        header, so the close-card shift does not move the result.
         """
         timings = []
         for name in ("close_start_plus_10ms", "close_start_minus_5ms"):
@@ -207,8 +206,8 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
         self.assertFalse(self.compute(self.base).flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
 
     def testParamRange(self):
-        """Hall fits outside the nominal ranges, including a negative JERK0
-        with |JERK0| in range: UNAVAILABLE.
+        """Check that Hall fits outside the nominal ranges, including a
+        negative JERK0 with |JERK0| in range, are UNAVAILABLE.
         """
         for name in ("open_pivot1_out_of_range", "close_jerk2_out_of_range", "open_jerk0_negative"):
             for det in (0, 94, 188):
@@ -218,7 +217,7 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
                 self.assertTrue(np.isnan(t.midpointMjdTai(np.array(2000.0), np.array(2000.0))))
 
     def testPropertyList(self):
-        """A `PropertyList` gives the same result as a `dict`."""
+        """Check that a `PropertyList` gives the same result as a `dict`."""
         doc = readFixture("MC_O_20260105_000250")
         pl = PropertyList()
         for k, v in doc["metadata"].items():
@@ -226,8 +225,8 @@ class ShutterTimingTestCase(ShutterTimingTestBase):
         self.assertEqual(self.compute(pl), self.compute(doc["metadata"]))
 
     def testFromDetector(self):
-        """afw detector geometry: corners, blade axis, and the same timing as
-        the equivalent fixture geometry.
+        """Check the afw detector geometry: corners, blade axis, and the
+        same timing as the equivalent fixture geometry.
         """
         for yaw in (0.0, 90.0, 180.0, 270.0):
             detector = makeDetector(17, (-127.0, 211.5), (2035.5, 1999.5), (4072, 4000), yaw)

@@ -241,8 +241,9 @@ class _ThreeJerksTrajectory:
         self.dMax = float(self.sva(self.tStop)[0]) if np.isfinite(self.tStop) else np.inf
 
     def _branchEnd(self) -> float:
-        """End (model time, s) of the monotonic branch: the first velocity
-        zero or velocity minimum after 0; 0 if ``j0 <= 0``; inf if none.
+        """Return the end (model time, s) of the monotonic branch: the first
+        velocity zero or velocity minimum after 0; 0 if ``j0 <= 0``; inf if
+        none.
         """
         if self._j[0] <= 0:
             return 0.0
@@ -406,7 +407,9 @@ class _DetectorGeometry:
         )
 
     def pixelToCcs(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Pixel -> CCS (mm): ``x_ccs = Y_dvcs``, ``y_ccs = X_dvcs``."""
+        """Convert pixel to CCS coordinates (mm): ``x_ccs = Y_dvcs``,
+        ``y_ccs = X_dvcs``.
+        """
         dx = x - self.centerPixel[0]
         dy = y - self.centerPixel[1]
 
@@ -417,12 +420,14 @@ class _DetectorGeometry:
         return xCcs, yCcs
 
     def bladeAxis(self) -> str:
-        """The pixel axis (anti)parallel to DVCS y (the blade motion)."""
+        """Return the pixel axis (anti)parallel to DVCS y (the blade
+        motion).
+        """
         j = self.jacobian
         return "x" if abs(j[1][0]) > abs(j[1][1]) else "y"
 
     def pixelCorners(self) -> np.ndarray:
-        """The four pixel-edge corners, shape (4, 2)."""
+        """Return the four pixel-edge corners, shape (4, 2)."""
         lo, hx, hy = -0.5, self.nx - 0.5, self.ny - 0.5
         return np.array([[lo, lo], [hx, lo], [hx, hy], [lo, hy]])
 
@@ -529,13 +534,15 @@ class _ShutterBeamModel:
         return cls(pos[:, 0], pos[:, 1], s)
 
     def isOutside(self, p: np.ndarray) -> np.ndarray:
-        """Whether each row of ``p`` (CCS mm) lies outside the convex hull of
-        the table nodes.
+        """Return whether each row of ``p`` (CCS mm) lies outside the convex
+        hull of the table nodes.
         """
         return (p @ self._hullEq[:, :2].T + self._hullEq[:, 2]).max(axis=1) > 1e-9
 
     def _hullProject(self, p: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Nearest hull-boundary point of each row of p, and its distance."""
+        """Return the nearest hull-boundary point of each row of ``p``, and
+        its distance.
+        """
         # Each hull edge runs from a to a + ab.
         a = self._points[self._hullVertices]
         ab = np.roll(a, -1, axis=0) - a
@@ -550,7 +557,9 @@ class _ShutterBeamModel:
         return a[k] + t[n, k, None]*ab[k], np.sqrt(d2[n, k])
 
     def _residual(self, x: np.ndarray, y: np.ndarray, extrapolate: bool = True) -> np.ndarray:
-        """R_q = s_q - x_ccs at flat arrays x, y; shape (n, nlevels)."""
+        """Interpolate ``R_q = s_q - x_ccs`` at flat arrays ``x``, ``y``;
+        shape (n, nlevels).
+        """
         out = np.full((x.size, _BEAM_LEVELS.size), np.nan)
 
         # Bilinear in grid cells with all four nodes.
@@ -596,7 +605,8 @@ class _ShutterBeamModel:
         return out
 
     def quadratureNodes(self, xCcs: np.ndarray, yCcs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Quadrature of the beam's cumulative flux profile.
+        """Compute the quadrature nodes of the beam's cumulative flux
+        profile.
 
         Parameters
         ----------
@@ -692,7 +702,7 @@ class ShutterTiming:
     """The detector's pixel-to-focal-plane map, used by `midpointMjdTai`."""
 
     def midpointMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
-        """Per-source mid-exposure times at pixel positions.
+        """Compute per-source mid-exposure times at pixel positions.
 
         Parameters
         ----------
@@ -730,7 +740,7 @@ def computeShutterTiming(
     exposureTime: float,
     config: ShutterTimingConfig | None = None,
 ) -> ShutterTiming:
-    """Shutter-corrected times of one detector of one exposure.
+    """Compute the shutter-corrected times of one detector of one exposure.
 
     Parameters
     ----------
@@ -764,11 +774,11 @@ def computeShutterTiming(
     Raises
     ------
     ValueError
-        If ``config.beamFile`` is empty, a SIDE card is not PLUSX or MINUSX,
-        or a MODEL card is not ThreeJerksModelv1.
+        Raised if ``config.beamFile`` is empty, a SIDE card is not PLUSX or
+        MINUSX, or a MODEL card is not ThreeJerksModelv1.
     KeyError, ValueError, TypeError
-        If the shutter cards are present but one of them, or MJD-BEG or
-        MJD-END, is missing or not a number.
+        Raised if the shutter cards are present but one of them, or MJD-BEG
+        or MJD-END, is missing or not a number.
 
     Notes
     -----
@@ -827,12 +837,12 @@ class _Unavailable(Exception):
 
 
 def _inRange(value: float, bounds: tuple[float, float]) -> bool:
-    """lo <= value <= hi; False for NaN."""
+    """Return whether lo <= value <= hi (False for NaN)."""
     return bounds[0] <= value <= bounds[1]
 
 
 def _fitInRange(fit: _ThreeJerksParams) -> bool:
-    """True if a Hall fit is within the nominal ranges."""
+    """Return whether a Hall fit is within the nominal ranges."""
     displacementAt0p9s = _ThreeJerksTrajectory(fit, 0.0, -1).sva(0.9)[0]
 
     return (
