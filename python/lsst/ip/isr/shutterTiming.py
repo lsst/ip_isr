@@ -124,7 +124,10 @@ class ShutterTimingStatus(enum.IntEnum):
     """Whether a detector has a corrected time."""
 
     OK = 0
-    """Corrected; accurate to ~1 ms."""
+    """Corrected.  The quadratic is within 0.1 ms of the exact times on most
+    science detectors, and within ~2 ms at the outer corners
+    (``maxAbsResidual``).
+    """
     UNAVAILABLE = 2
     """No corrected time: callers keep the header midpoint."""
 
@@ -396,18 +399,6 @@ class ShutterTiming:
         cU, cUU, cV, cUV, cVV = self.coefficients
         t = self.centerMjdTai + (cU * u + cUU * u * u + cV * v + cUV * u * v + cVV * v * v) / _SECONDS_PER_DAY
         return np.where(np.isfinite(x) & np.isfinite(y), t, np.nan)
-
-    def summary(self) -> dict:
-        """Scalars for task metadata."""
-        return dict(
-            status=self.status.name,
-            flags=int(self.flags),
-            message=self.message,
-            centerMjdTai=float(self.centerMjdTai),
-            focalPlaneMjdTai=float(self.focalPlaneMjdTai),
-            centerMinusHeaderMid=float((self.centerMjdTai - self.headerMidMjdTai) * _SECONDS_PER_DAY),
-            maxAbsResidual=float(self.maxAbsResidual),
-        )
 
 
 def computeShutterTiming(

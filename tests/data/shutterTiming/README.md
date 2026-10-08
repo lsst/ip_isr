@@ -19,8 +19,10 @@ cards are included, no pixel data. Read-only.
     `exposure_qc_flags`.
   - `samples`: `[detector, x, y, t_mid_mjd_tai or null, status]` at 8
     positions per detector (centre, 4 pixel-edge corners, one interior point,
-    50 px off the detector, and 150 px off); status 0 OK, 1 DEGRADED,
-    2 UNAVAILABLE (a per-source time exists unless the status is 2).
+    50 px off the detector, and 150 px off); status as the reference
+    implementation reports it, 0 OK, 1 DEGRADED, 2 UNAVAILABLE. The stack code
+    has no DEGRADED status: a per-source time exists unless the status is 2,
+    and the tests only distinguish 2 from not 2.
   - `MC_O_20250810_000030.json` predates the shutter cards: the expected
     result is UNAVAILABLE (NO_PROFILE).
 - `mutations.json`: single-card changes to the metadata of `MC_O_20260712_000100`
