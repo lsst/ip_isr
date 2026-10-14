@@ -53,7 +53,6 @@ __all__ = [
     "ShutterTiming",
     "ShutterTimingConfig",
     "ShutterTimingFlag",
-    "ShutterTimingStatus",
     "computeShutterTiming",
 ]
 
@@ -124,23 +123,14 @@ _FOCAL_PLANE_Y_STEP = 0.5
 _FOCAL_PLANE_Y_MARGIN = 5.0
 
 
-class ShutterTimingStatus(enum.IntEnum):
-    """Whether a detector has a corrected time."""
-
-    OK = 0
-    """Corrected."""
-    UNAVAILABLE = 2
-    """No corrected time: callers keep the header midpoint."""
-
-
 class ShutterTimingFlag(enum.IntFlag):
     """Details of a result (fixed bit values)."""
 
     NONE = 0
     NO_PROFILE = 1
-    """No shutter cards (exposures before 2025-10-29): UNAVAILABLE."""
+    """No shutter cards (exposures before 2025-10-29): no corrected times."""
     PARAM_RANGE = 2
-    """A Hall fit outside the nominal ranges: UNAVAILABLE."""
+    """A Hall fit outside the nominal ranges: no corrected times."""
     CLOCK_CLOSE_VS_OPEN = 16
     """The two shutter clocks disagree: both start times are re-anchored to
     MJD-BEG and the requested exposure time.
@@ -270,32 +260,18 @@ class ShutterTiming:
     linearly.
     """
 
-    status: ShutterTimingStatus = ShutterTimingStatus.UNAVAILABLE
-    """OK, or UNAVAILABLE (callers keep the header midpoint)."""
-
     flags: ShutterTimingFlag = ShutterTimingFlag.NONE
-    """Why the result is UNAVAILABLE, or notes on an OK result."""
-
-    message: str = ""
-    """Why the result is UNAVAILABLE (for logs and task metadata); "" if OK."""
-
-    detectorId: int = -1
-    """The detector ID."""
+    """Why there are no corrected times, or notes on them."""
 
     centerMidpointMjdTai: float = math.nan
-    """Flux-weighted mid-exposure time at the detector centre."""
-
-    focalPlaneMidpointMjdTai: float = math.nan
-    """Mid-exposure time at the focal-plane centre: the visit epoch."""
-
-    headerMidpointMjdTai: float = math.nan
-    """(MJD-BEG + MJD-END) / 2 (diagnostic only)."""
-
-    effectiveExposureTime: float = math.nan
-    """Flux-weighted open time at the detector centre (s)."""
+    """Flux-weighted mid-exposure time at the detector centre; NaN if there
+    are no corrected times.
+    """
 
     focalPlaneY: np.ndarray | None = dataclasses.field(default=None, repr=False)
-    """Focal-plane y (mm, increasing) at which the times are tabulated."""
+    """Focal-plane y (mm, increasing) at which the times are tabulated; None
+    if there are no corrected times.
+    """
 
     midpointOffsets: np.ndarray | None = dataclasses.field(default=None, repr=False)
     """Mid-exposure times at ``focalPlaneY``, s after
@@ -304,6 +280,13 @@ class ShutterTiming:
 
     pixelToFocalPlane: TransformPoint2ToPoint2 | None = dataclasses.field(default=None, repr=False)
     """The detector's pixel to focal-plane (mm) transform."""
+
+    @property
+    def isAvailable(self) -> bool:
+        """Whether the detector has corrected times (otherwise callers keep
+        the header midpoint).
+        """
+        return self.focalPlaneY is not None
 
     def midpointMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Compute per-source mid-exposure times at pixel positions.
@@ -317,10 +300,10 @@ class ShutterTiming:
         -------
         tMid : `numpy.ndarray`
             Mid-exposure times (MJD TAI), of the shape of ``x``.  NaN
-            everywhere if the detector is UNAVAILABLE, and NaN where x or y is
-            NaN or more than 5 mm (500 pixels) beyond the detector.
+            everywhere if there are no corrected times, and NaN where x or y
+            is NaN or more than 5 mm (500 pixels) beyond the detector.
         """
-        if self.status == ShutterTimingStatus.UNAVAILABLE:
+        if not self.isAvailable:
             return np.full(np.shape(x), np.nan)
 
         # Focal-plane y of each position.
@@ -359,15 +342,14 @@ def computeShutterTiming(
     Returns
     -------
     timing : `ShutterTiming`
-        UNAVAILABLE (callers keep the header midpoint) if:
+        The times.  There are none (``isAvailable`` is False; callers keep
+        the header midpoint) if:
 
         - there are no shutter cards (``SHUTTER OPEN STARTTIME TAI MJD``
           absent; exposures before 2025-10-29): flag NO_PROFILE;
         - either Hall fit is outside the nominal ranges: flag PARAM_RANGE;
-        - there is no time at the focal-plane centre or somewhere on the
-          detector (overlapping blades in very short exposures).
-
-        Otherwise OK.
+        - there is no time somewhere on the detector (overlapping blades in
+          very short exposures).
 
     Raises
     ------
@@ -377,7 +359,7 @@ def computeShutterTiming(
     RuntimeError
         Raised if the shutter cards are present but one of them is missing.
     KeyError, ValueError, TypeError
-        Raised if MJD-BEG or MJD-END is missing, or a card is not a number.
+        Raised if MJD-BEG is missing, or a card is not a number.
 
     Notes
     -----
@@ -397,15 +379,12 @@ def computeShutterTiming(
     if config is None:
         config = ShutterTimingConfig()
 
-    common = dict(detectorId=detector.getId())
-
     # Exposures before the shutter cards were added.
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
-        return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE, message="no shutter motion cards", **common)
+        return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE)
 
     profile = ShutterMotionProfileFull.fromMetadata(metadata)
     begin = float(metadata["MJD-BEG"])
-    common["headerMidpointMjdTai"] = 0.5*(begin + float(metadata["MJD-END"]))
 
     # Focal-plane y of the detector centre and of the table, which spans the
     # detector plus a margin.
@@ -416,23 +395,19 @@ def computeShutterTiming(
     hi = max(cornersY) + _FOCAL_PLANE_Y_MARGIN
     focalPlaneY = np.linspace(lo, hi, int(np.ceil((hi - lo)/_FOCAL_PLANE_Y_STEP)) + 1)
 
-    # Times at the detector centre, the focal-plane centre and the table.
+    # Times at the detector centre and on the table.
     try:
-        flags, openStart, tMid, tEff = _compute(profile, begin, config, exposureTime,
-                                                np.concatenate([[centerY, 0.0], focalPlaneY]))
+        flags, openStart, tMid = _compute(profile, begin, config, exposureTime,
+                                          np.concatenate([[centerY], focalPlaneY]))
     except _Unavailable as e:
-        return ShutterTiming(flags=e.flags, message=e.message, **common)
+        return ShutterTiming(flags=e.flags)
 
     return ShutterTiming(
-        status=ShutterTimingStatus.OK,
         flags=flags,
         centerMidpointMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
-        focalPlaneMidpointMjdTai=float(openStart + tMid[1]/_SECONDS_PER_DAY),
-        effectiveExposureTime=float(tEff[0]),
         focalPlaneY=focalPlaneY,
-        midpointOffsets=tMid[2:] - tMid[0],
+        midpointOffsets=tMid[1:] - tMid[0],
         pixelToFocalPlane=pixelToFocalPlane,
-        **common,
     )
 
 
@@ -443,14 +418,11 @@ class _Unavailable(Exception):
     ----------
     flags : `ShutterTimingFlag`
         Why.
-    message : `str`
-        Why, for logs and task metadata.
     """
 
-    def __init__(self, flags: ShutterTimingFlag, message: str):
-        super().__init__(message)
+    def __init__(self, flags: ShutterTimingFlag):
+        super().__init__(repr(flags))
         self.flags = flags
-        self.message = message
 
 
 def _inRange(value: float, bounds: tuple[float, float]) -> bool:
@@ -557,9 +529,8 @@ def _compute(
     config: ShutterTimingConfig,
     exposureTime: float,
     focalPlaneY: np.ndarray,
-) -> tuple[ShutterTimingFlag, float, np.ndarray, np.ndarray]:
-    """Compute mid-exposure and effective exposure times along the blade
-    travel.
+) -> tuple[ShutterTimingFlag, float, np.ndarray]:
+    """Compute mid-exposure times along the blade travel.
 
     Parameters
     ----------
@@ -583,8 +554,6 @@ def _compute(
     tMid : `numpy.ndarray`
         Flux-weighted mid-exposure times at the points (s after
         ``openStart``).
-    tEff : `numpy.ndarray`
-        Flux-weighted open times at the points (s).
 
     Raises
     ------
@@ -595,7 +564,7 @@ def _compute(
     (openStart, _, _), (closeStart, _, _) = motions
 
     if not all(_fitInRange(fit) for _, _, fit in motions):
-        raise _Unavailable(ShutterTimingFlag.PARAM_RANGE, "a Hall fit is outside the nominal ranges")
+        raise _Unavailable(ShutterTimingFlag.PARAM_RANGE)
 
     # Zero point: re-anchor to the header if the two shutter clocks disagree.
     flags = ShutterTimingFlag.NONE
@@ -627,7 +596,6 @@ def _compute(
     eC = np.where(overlap, np.nan, tC @ w)
     tMid = 0.5*(eO + eC)
     if not np.all(np.isfinite(tMid)):
-        raise _Unavailable(flags, f"no shutter time at {int((~np.isfinite(tMid)).sum())} of {tMid.size} "
-                           "evaluation points (overlapping blades)")
+        raise _Unavailable(flags)
 
-    return flags, openStart, tMid, eC - eO
+    return flags, openStart, tMid

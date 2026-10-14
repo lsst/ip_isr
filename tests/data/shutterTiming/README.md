@@ -30,7 +30,6 @@ science detectors from the centre to the corners of the focal plane (0, 4, 30,
   start time shifted by +10 ms and -5 ms (clock re-anchoring); PIVOTPOINT1 and
   JERK2 out of range; and a negative JERK0.
 
-Agreement target: centre, focal-plane-centre and per-source times and the
-effective exposure time to <= 10 us; identical flags and detector statuses.
+Agreement target: centre and per-source times to <= 10 us; identical flags.
 
 The JSON files are written compactly (one line each).

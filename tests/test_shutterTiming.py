@@ -39,7 +39,6 @@ from lsst.daf.base import PropertyList
 from lsst.ip.isr.shutterTiming import (
     ShutterTimingConfig,
     ShutterTimingFlag,
-    ShutterTimingStatus,
     computeShutterTiming,
 )
 
@@ -47,7 +46,7 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(TESTDIR, "data", "shutterTiming")
 BASE = "MC_O_20260712_000100"
 
-#: Agreement target (s): centre, focal-plane and per-source times, T_eff.
+#: Agreement target (s): centre and per-source times.
 TOL_S = 10e-6
 SECONDS_PER_DAY = 86400.0
 #: The reference's flag bits that this implementation keeps.
@@ -113,7 +112,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         """Check all detectors and samples of a fixture against the
         reference; its flags are compared on the kept bits.
         """
-        # Every detector: status, flags and its times.
+        # Every detector: availability, flags and the centre time.
         timings = {}
         for det, expected in doc["detectors"].items():
             t = timings[int(det)] = computeShutterTiming(
@@ -121,17 +120,10 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             )
             label2 = f"{label} {det}"
 
-            self.assertEqual(t.status, ShutterTimingStatus.OK, label2)
-            self.assertEqual(t.message, "", label2)
+            self.assertTrue(t.isAvailable, label2)
             self.assertEqual(int(t.flags), expected["qc_flags"] & KEPT_FLAGS, label2)
-
-            diffs = dict(
-                center=abs(t.centerMidpointMjdTai - expected["center_mjd_tai"]) * SECONDS_PER_DAY,
-                teff=abs(t.effectiveExposureTime - expected["effective_exposure_time_s"]),
-                focalPlane=abs(t.focalPlaneMidpointMjdTai - doc["visit_mjd_tai"]) * SECONDS_PER_DAY,
-            )
-            for k, v in diffs.items():
-                self.assertLessEqual(v, TOL_S, f"{label2}: {k}")
+            self.assertLessEqual(abs(t.centerMidpointMjdTai - expected["center_mjd_tai"])*SECONDS_PER_DAY,
+                                 TOL_S, label2)
 
         # Per-source times at the sample positions, on the detector and up
         # to 150 pixels off it.
@@ -153,18 +145,17 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             self.checkAgainstReference(doc, doc["metadata"], name)
 
     def testNoCards(self):
-        """Check that exposures before the shutter cards are UNAVAILABLE,
-        with no times.
+        """Check that exposures before the shutter cards have no corrected
+        times.
         """
         md = {k: v for k, v in self.base.items() if not k.startswith("SHUTTER")}
         xy = np.array([0.0, 2000.0])
 
         for det in (0, 94, 188):
             t = self.compute(md, det)
-            self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE)
+            self.assertFalse(t.isAvailable)
             self.assertEqual(t.flags, ShutterTimingFlag.NO_PROFILE)
             self.assertTrue(math.isnan(t.centerMidpointMjdTai))
-            self.assertTrue(math.isnan(t.focalPlaneMidpointMjdTai))
             self.assertTrue(np.all(np.isnan(t.midpointMjdTai(xy, xy))))
 
     def testReanchoring(self):
@@ -185,12 +176,12 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
 
     def testParamRange(self):
         """Check that Hall fits outside the nominal ranges, including a
-        negative JERK0 with |JERK0| in range, are UNAVAILABLE.
+        negative JERK0 with |JERK0| in range, have no corrected times.
         """
         for name in ("open_pivot1_out_of_range", "close_jerk2_out_of_range", "open_jerk0_negative"):
             for det in (0, 94, 188):
                 t = self.compute(self.mutated(name), det)
-                self.assertEqual(t.status, ShutterTimingStatus.UNAVAILABLE, name)
+                self.assertFalse(t.isAvailable, name)
                 self.assertEqual(t.flags, ShutterTimingFlag.PARAM_RANGE, name)
                 self.assertTrue(np.isnan(t.midpointMjdTai(np.array(2000.0), np.array(2000.0))))
 
