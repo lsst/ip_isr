@@ -30,7 +30,8 @@ Method:
 
 1. *Blade trajectories.*  The camera fits each blade motion with the
    ``ThreeJerksModelv1`` model and writes the fit to the ``SHUTTER {OPEN,CLOSE}
-   ...`` metadata cards (present since 2025-10-29).  Inverting it gives the
+   ...`` metadata cards (present since 2025-10-29), which
+   `lsst.ip.isr.ShutterMotionProfileFull` reads.  Inverting the fit gives the
    time at which a blade edge reaches a given position.
 2. *Beam-weighted crossing times.*  A pixel's converging ray bundle is
    ~60-70 mm wide at the shutter plane, so an edge uncovers (or covers) it
@@ -45,7 +46,6 @@ Method:
 
 Times are TAI MJD.  The shutter motion and its Hall-sensor fit are described
 in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
-`lsst.ip.isr.ShutterMotionProfile` reads the same cards from an exposure.
 """
 
 __all__ = [
@@ -72,6 +72,8 @@ from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, Detector
 from lsst.daf.base import PropertyList
 from lsst.resources import ResourcePath
 
+from .shutterMotion import ShutterMotionProfile, ShutterMotionProfileFull
+
 
 _SECONDS_PER_DAY = 86400.0
 
@@ -87,8 +89,8 @@ _GL2 = np.array([0.5 - 0.5 / np.sqrt(3.0), 0.5 + 0.5 / np.sqrt(3.0)])
 
 _THREE_JERKS_V1 = "ThreeJerksModelv1"
 
-#: Card suffixes of the _ThreeJerksParams fields, in order.
-_FIT_CARDS = ("MODELSTARTTIME", "PIVOTPOINT1", "PIVOTPOINT2", "JERK0", "JERK1", "JERK2")
+#: Name of the Hall-sensor fit in a ShutterMotionProfile.
+_HALL_SENSOR_FIT = "hallSensorFit"
 
 #: Encoder position (mm) of the focal-plane centre: x_ccs = c - e.
 _ENCODER_CENTER = 375.0
@@ -163,7 +165,7 @@ class ShutterTimingConfig(pexConfig.Config):
 
 @dataclasses.dataclass(frozen=True)
 class _ThreeJerksParams:
-    """One ThreeJerksModelv1 fit, in the order of the header cards."""
+    """One ThreeJerksModelv1 fit."""
 
     modelStartTime: float
     """Delay (s) from the motion start time to model time zero."""
@@ -776,9 +778,10 @@ def computeShutterTiming(
     ValueError
         Raised if ``config.beamFile`` is empty, a SIDE card is not PLUSX or
         MINUSX, or a MODEL card is not ThreeJerksModelv1.
+    RuntimeError
+        Raised if the shutter cards are present but one of them is missing.
     KeyError, ValueError, TypeError
-        Raised if the shutter cards are present but one of them, or MJD-BEG
-        or MJD-END, is missing or not a number.
+        Raised if MJD-BEG or MJD-END is missing, or a card is not a number.
 
     Notes
     -----
@@ -807,9 +810,11 @@ def computeShutterTiming(
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
         return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE, message="no shutter motion cards", **common)
 
-    common["headerMidpointMjdTai"] = 0.5*(float(metadata["MJD-BEG"]) + float(metadata["MJD-END"]))
+    profile = ShutterMotionProfileFull.fromMetadata(metadata)
+    begin = float(metadata["MJD-BEG"])
+    common["headerMidpointMjdTai"] = 0.5*(begin + float(metadata["MJD-END"]))
     try:
-        values = _compute(metadata, geometry, beam, exposureTime)
+        values = _compute(profile, begin, geometry, beam, exposureTime)
     except _Unavailable as e:
         return ShutterTiming(flags=e.flags, message=e.message, **common)
 
@@ -852,15 +857,15 @@ def _fitInRange(fit: _ThreeJerksParams) -> bool:
     )
 
 
-def _readMotion(metadata: PropertyList | dict, which: str) -> tuple[float, int, _ThreeJerksParams]:
-    """Read the cards of one blade motion.
+def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int, _ThreeJerksParams]:
+    """Read one blade motion from its profile.
 
     Parameters
     ----------
-    metadata : `lsst.daf.base.PropertyList` or `dict`
-        The exposure metadata.
-    which : `str`
-        ``"OPEN"`` or ``"CLOSE"``.
+    profile : `lsst.ip.isr.ShutterMotionProfile`
+        The profile of the motion.
+    isOpen : `bool`
+        Whether the motion opens the shutter.
 
     Returns
     -------
@@ -873,26 +878,36 @@ def _readMotion(metadata: PropertyList | dict, which: str) -> tuple[float, int, 
 
     Raises
     ------
-    KeyError, ValueError, TypeError
-        Raised if a card is missing or malformed.
+    ValueError, TypeError
+        Raised if the side is not PLUSX or MINUSX, the model is not
+        ThreeJerksModelv1, or a value is not a number.
     """
-    pre = f"SHUTTER {which}"
-
-    side = metadata[f"{pre} SIDE"]
+    side = profile.metadata["side"]
     if side not in ("PLUSX", "MINUSX"):
-        raise ValueError(f"'{pre} SIDE' is {side!r}, not PLUSX or MINUSX")
-    if f"{pre} MODEL" in metadata and metadata[f"{pre} MODEL"] != _THREE_JERKS_V1:
-        raise ValueError(f"'{pre} MODEL' is {metadata[f'{pre} MODEL']!r}, not {_THREE_JERKS_V1}")
+        raise ValueError(f"shutter side is {side!r}, not PLUSX or MINUSX")
+    if profile.fit_model != _THREE_JERKS_V1:
+        raise ValueError(f"shutter motion model is {profile.fit_model!r}, not {_THREE_JERKS_V1}")
 
-    startTime = float(metadata[f"{pre} STARTTIME TAI MJD"])
-    decreasing = (side == "PLUSX") == (which == "OPEN")
-    fit = _ThreeJerksParams(*(float(metadata[f"{pre} HALLSENSORFIT {c}"]) for c in _FIT_CARDS))
+    # The Hall-sensor fit.
+    i = profile.fit_name.index(_HALL_SENSOR_FIT)
+    fit = _ThreeJerksParams(
+        modelStartTime=float(profile.fit_start_time[i]),
+        pivot1=float(profile.fit_pivot1[i]),
+        pivot2=float(profile.fit_pivot2[i]),
+        jerk0=float(profile.fit_jerk0[i]),
+        jerk1=float(profile.fit_jerk1[i]),
+        jerk2=float(profile.fit_jerk2[i]),
+    )
+
+    startTime = float(profile.metadata["startTime_mjd"])
+    decreasing = (side == "PLUSX") == isOpen
 
     return startTime, -1 if decreasing else 1, fit
 
 
 def _compute(
-    metadata: PropertyList | dict,
+    profile: ShutterMotionProfileFull,
+    begin: float,
     geometry: _DetectorGeometry,
     beam: _ShutterBeamModel,
     exposureTime: float,
@@ -901,8 +916,10 @@ def _compute(
 
     Parameters
     ----------
-    metadata : `lsst.daf.base.PropertyList` or `dict`
-        The exposure metadata, with shutter cards.
+    profile : `lsst.ip.isr.ShutterMotionProfileFull`
+        The two blade motions.
+    begin : `float`
+        The exposure start time in the header, MJD-BEG (MJD TAI).
     geometry : ``_DetectorGeometry``
         The detector.
     beam : ``_ShutterBeamModel``
@@ -921,9 +938,8 @@ def _compute(
     _Unavailable
         Raised if the detector has no corrected time.
     """
-    motions = (_readMotion(metadata, "OPEN"), _readMotion(metadata, "CLOSE"))
+    motions = (_readMotion(profile.profile_open, True), _readMotion(profile.profile_close, False))
     (openStart, _, _), (closeStart, _, _) = motions
-    beg = float(metadata["MJD-BEG"])
 
     if not all(_fitInRange(fit) for _, _, fit in motions):
         raise _Unavailable(ShutterTimingFlag.PARAM_RANGE, "a Hall fit is outside the nominal ranges")
@@ -933,7 +949,7 @@ def _compute(
     closeRel = (closeStart - openStart)*_SECONDS_PER_DAY
     if not _inRange((closeRel - exposureTime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
         flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
-        openStart = beg + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
+        openStart = begin + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
         closeRel = exposureTime + _HEADER_ANCHOR_OFFSETS[1]
 
     # Beam coverage of the detector (its corners, by convexity).
