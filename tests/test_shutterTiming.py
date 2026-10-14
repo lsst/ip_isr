@@ -36,7 +36,7 @@ from lsst.afw.cameraGeom import Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.afw.image import ExposureF, VisitInfo
 from lsst.daf.base import PropertyList
-from lsst.ip.isr import ShutterMotionProfile
+from lsst.ip.isr import IsrTaskLSST, IsrTaskLSSTConfig, ShutterMotionProfile
 from lsst.ip.isr.shutterTiming import (
     ShutterTiming,
     ShutterTimingConfig,
@@ -208,6 +208,22 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         y = np.array([0.0, 2000.0, 3999.0])
         dt = (fromProfiles.midpointMjdTai(y, y) - fromHeader.midpointMjdTai(y, y))*SECONDS_PER_DAY
         self.assertTrue(np.all(np.abs(dt) <= 31e-6), dt)
+
+    def testIsrTask(self):
+        """Check that ISR records the times of the header cards in the
+        metadata.
+        """
+        config = IsrTaskLSSTConfig()
+        config.doShutterTiming = True
+        task = IsrTaskLSST(config=config)
+
+        exposure = makeExposure(self.base, self.detectors[94], requestedExposureTime=False)
+        task.recordShutterTiming(exposure, None, None, self.base["EXPTIME"])
+        recorded = ShutterTiming.fromMetadata(exposure.metadata)
+        expected = self.compute(self.base)
+
+        self.assertEqual(recorded.centerMidpointMjdTai, expected.centerMidpointMjdTai)
+        self.assertFloatsEqual(recorded.chebyshevCoefficients, expected.chebyshevCoefficients)
 
     def testNoCards(self):
         """Check that exposures before the shutter cards have no corrected
