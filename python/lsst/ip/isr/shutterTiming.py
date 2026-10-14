@@ -34,12 +34,14 @@ Method:
    `lsst.ip.isr.ShutterMotionProfileFull` reads.  Inverting the fit gives the
    time at which a blade edge reaches a given position.
 2. *Beam-weighted crossing times.*  A pixel's converging ray bundle is
-   ~60-70 mm wide at the shutter plane, so an edge uncovers (or covers) it
+   ~67 mm wide at the shutter plane, so an edge uncovers (or covers) it
    gradually.  The flux-weighted crossing time of one edge is
    ``<T> = integral T(s) dF(s)``, with ``F`` the cumulative flux profile of
-   the bundle along the blade travel (a raytrace beam table, LCA-20578,
-   shipped by the obs package).  The mid-exposure time is
-   ``(<T>_open + <T>_close) / 2``.
+   the bundle along the blade travel.  The profile has the same shape
+   everywhere on the focal plane and moves with the pixel: its levels lie
+   at ``beamScale * x + beamOffsets`` (`ShutterTimingConfig`), a linear fit
+   to the LSST Camera raytrace of the beam (LCA-20578).  The mid-exposure
+   time is ``(<T>_open + <T>_close) / 2``.
 3. *Per-detector quadratic.*  These times are computed on a grid spanning
    the detector, and a quadratic in the pixel offsets along and across the
    blade direction is fit to them.
@@ -58,31 +60,22 @@ __all__ = [
 
 import dataclasses
 import enum
-import functools
-import io
 import math
 
 import numpy as np
-from scipy.interpolate import LinearNDInterpolator
-from scipy.spatial import ConvexHull
 
 import lsst.geom
 import lsst.pex.config as pexConfig
 from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, Detector
 from lsst.daf.base import PropertyList
-from lsst.resources import ResourcePath
 
 from .shutterMotion import ShutterMotionProfile, ShutterMotionProfileFull
 
 
 _SECONDS_PER_DAY = 86400.0
 
-#: Cumulative flux levels q of the beam table.
+#: Cumulative flux levels q of ``ShutterTimingConfig.beamOffsets``.
 _BEAM_LEVELS = np.array([0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99])
-
-#: Extrapolation margin (mm) outside the beam table's convex hull: the worst
-#: science pixel (28.64 mm outside) plus 10 mm; NaN beyond.
-_BEAM_MARGIN_MM = 28.64 + 10.0
 
 #: 2-point Gauss-Legendre abscissae on [0, 1].
 _GL2 = np.array([0.5 - 0.5 / np.sqrt(3.0), 0.5 + 0.5 / np.sqrt(3.0)])
@@ -146,20 +139,31 @@ class ShutterTimingFlag(enum.IntFlag):
     """The two shutter clocks disagree: both start times are re-anchored to
     MJD-BEG and the requested exposure time.
     """
-    BEAM_EXTRAPOLATED = 2048
-    """Part of the detector lies outside the beam table's coverage
-    (informational).
-    """
 
 
 class ShutterTimingConfig(pexConfig.Config):
-    """Configuration of `computeShutterTiming` (the obs package sets
-    ``beamFile``).
+    """Configuration of `computeShutterTiming`.
+
+    The defaults are for LSSTCam: a least-squares fit to the LSST Camera
+    raytrace of the beam at the shutter plane (LCA-20578, rotator angle 0),
+    on its 137 field positions within 280 mm of the focal-plane centre.
+    Against on-sky satellite edge times it does as well as the raytrace
+    table within 280 mm, and better beyond, where the table is coarse or
+    extrapolated.
     """
 
-    beamFile = pexConfig.Field(
-        dtype=str, default="",
-        doc="Path or URI of the shutter-plane beam table (raytrace flux quantiles, LCA-20578 format).",
+    beamScale = pexConfig.Field(
+        dtype=float, default=1.03014,
+        doc="Position of the centre of a pixel's beam at the shutter plane along the blade travel, "
+            "per mm of the pixel's position along it (CCS x).",
+    )
+    beamOffsets = pexConfig.ListField(
+        dtype=float,
+        default=[-33.618, -30.133, -27.032, -19.493, 0.001, 19.494, 27.031, 30.130, 33.616],
+        length=len(_BEAM_LEVELS),
+        listCheck=lambda offsets: all(a < b for a, b in zip(offsets[:-1], offsets[1:])),
+        doc="Offsets (mm, increasing) from beamScale * (CCS x) of the blade positions below which "
+            "1, 5, 10, 25, 50, 75, 90, 95 and 99% of a pixel's beam flux crosses the shutter plane.",
     )
 
 
@@ -428,231 +432,6 @@ class _DetectorGeometry:
         j = self.jacobian
         return "x" if abs(j[1][0]) > abs(j[1][1]) else "y"
 
-    def pixelCorners(self) -> np.ndarray:
-        """Return the four pixel-edge corners, shape (4, 2)."""
-        lo, hx, hy = -0.5, self.nx - 0.5, self.ny - 0.5
-        return np.array([[lo, lo], [hx, lo], [hx, hy], [lo, hy]])
-
-
-class _ShutterBeamModel:
-    """Shutter-plane beam model: for each field position (CCS mm), the blade
-    coordinate s_q (CCS-x mm) below which a fraction q of the pixel's beam
-    flux lies, at the levels ``_BEAM_LEVELS``.
-
-    The cumulative profile F(s) is piecewise linear through (s_q, q), with
-    linear tails reaching F = 0 at ``s_0.01 - (s_0.05 - s_0.01)`` and F = 1 at
-    ``s_0.99 + (s_0.99 - s_0.95)``.  ``R_q = s_q - x_ccs`` is interpolated
-    bilinearly in grid cells with all four nodes tabulated, barycentrically on
-    the Delaunay triangulation elsewhere inside the convex hull of the nodes
-    (32 corner nodes are missing), and held at the nearest hull point outside
-    it, up to ``_BEAM_MARGIN_MM`` (NaN beyond).
-
-    Parameters
-    ----------
-    x, y : `numpy.ndarray`
-        CCS coordinates (mm) of the table nodes, shape (n,).
-    s : `numpy.ndarray`
-        Blade coordinates s_q (mm) at the levels ``_BEAM_LEVELS``, shape
-        (n, 9).
-
-    Raises
-    ------
-    ValueError
-        Raised if the quantiles are not strictly increasing in level.
-    """
-
-    def __init__(self, x: np.ndarray, y: np.ndarray, s: np.ndarray):
-        if not np.all(np.diff(s, axis=1) > 0):
-            raise ValueError("beam quantiles are not strictly increasing in level")
-
-        # The nodes, and R_q on the regular grid they span (NaN where a node
-        # is missing).
-        self._points = np.column_stack([x, y])
-        self._r = s - x[:, None]
-        self._gx = np.unique(x)
-        self._gy = np.unique(y)
-        grid = np.full((self._gx.size, self._gy.size, _BEAM_LEVELS.size), np.nan)
-        grid[np.searchsorted(self._gx, x), np.searchsorted(self._gy, y)] = self._r
-        self._grid = grid
-
-        # Grid cells with all four nodes, for bilinear interpolation.
-        have = np.isfinite(grid[..., 0])
-        self._cellOk = have[:-1, :-1] & have[1:, :-1] & have[:-1, 1:] & have[1:, 1:]
-
-        # The triangulation and convex hull, for everywhere else.
-        self._tri = LinearNDInterpolator(self._points, self._r)
-        hull = ConvexHull(self._points)
-        self._hullVertices = hull.vertices
-        self._hullEq = hull.equations
-
-        # Gauss-Legendre nodes and weights in flux fraction: two per interval
-        # between levels, including the tails.
-        knots = np.concatenate([[0.0], _BEAM_LEVELS, [1.0]])
-        du = np.diff(knots)
-        self._knots = knots
-        self._nodes = (knots[:-1, None] + du[:, None]*_GL2[None, :]).ravel()
-        self._weights = np.repeat(du/2.0, 2)
-
-    @classmethod
-    def fromFile(cls, path: str) -> "_ShutterBeamModel":
-        """Read a beam table in the raytrace ``.tnt`` format.
-
-        Parameters
-        ----------
-        path : `str`
-            Path or URI of the table: a ``DATA`` line, a column-header line,
-            then whitespace-separated columns x_ccs, y_ccs, level, (unused),
-            s_q.
-
-        Returns
-        -------
-        beam : ``_ShutterBeamModel``
-            The model.
-
-        Raises
-        ------
-        ValueError
-            Raised if the file is not a beam table, its levels are not
-            ``_BEAM_LEVELS``, or a (position, level) entry is missing or
-            duplicated.
-        """
-        f = io.StringIO(ResourcePath(path).read().decode())
-        if f.readline().strip().upper() != "DATA":
-            raise ValueError(f"{path}: not a beam table (no DATA line)")
-        f.readline()
-        rows = np.loadtxt(f, ndmin=2)[:, [0, 1, 2, 4]]
-
-        levels = np.unique(rows[:, 2])
-        if levels.shape != _BEAM_LEVELS.shape or not np.allclose(levels, _BEAM_LEVELS):
-            raise ValueError(f"{path}: unexpected levels {levels}")
-
-        # One row per position, one column per level.
-        pos, inv = np.unique(rows[:, :2], axis=0, return_inverse=True)
-        s = np.full((pos.shape[0], levels.size), np.nan)
-        s[inv.ravel(), np.searchsorted(levels, rows[:, 2])] = rows[:, 3]
-        if np.isnan(s).any() or len(rows) != s.size:
-            raise ValueError(f"{path}: incomplete or duplicated (position, level) table")
-
-        return cls(pos[:, 0], pos[:, 1], s)
-
-    def isOutside(self, p: np.ndarray) -> np.ndarray:
-        """Return whether each row of ``p`` (CCS mm) lies outside the convex
-        hull of the table nodes.
-        """
-        return (p @ self._hullEq[:, :2].T + self._hullEq[:, 2]).max(axis=1) > 1e-9
-
-    def _hullProject(self, p: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Return the nearest hull-boundary point of each row of ``p``, and
-        its distance.
-        """
-        # Each hull edge runs from a to a + ab.
-        a = self._points[self._hullVertices]
-        ab = np.roll(a, -1, axis=0) - a
-
-        # The nearest point of every edge, and the nearest edge.
-        ap = p[:, None, :] - a[None]
-        t = np.clip((ap*ab).sum(-1)/(ab*ab).sum(-1), 0.0, 1.0)
-        d2 = ((ap - t[..., None]*ab)**2).sum(-1)
-        k = np.argmin(d2, axis=1)
-
-        n = np.arange(p.shape[0])
-        return a[k] + t[n, k, None]*ab[k], np.sqrt(d2[n, k])
-
-    def _residual(self, x: np.ndarray, y: np.ndarray, extrapolate: bool = True) -> np.ndarray:
-        """Interpolate ``R_q = s_q - x_ccs`` at flat arrays ``x``, ``y``;
-        shape (n, nlevels).
-        """
-        out = np.full((x.size, _BEAM_LEVELS.size), np.nan)
-
-        # Bilinear in grid cells with all four nodes.
-        gx, gy = self._gx, self._gy
-        ix = np.clip(np.searchsorted(gx, x, side="right") - 1, 0, gx.size - 2)
-        iy = np.clip(np.searchsorted(gy, y, side="right") - 1, 0, gy.size - 2)
-        inbox = (x >= gx[0]) & (x <= gx[-1]) & (y >= gy[0]) & (y <= gy[-1])
-        bil = inbox & self._cellOk[ix, iy]
-        if bil.any():
-            i, j = ix[bil], iy[bil]
-            tx = ((x[bil] - gx[i])/(gx[i + 1] - gx[i]))[:, None]
-            ty = ((y[bil] - gy[j])/(gy[j + 1] - gy[j]))[:, None]
-            g = self._grid
-            out[bil] = (
-                (1 - tx)*(1 - ty)*g[i, j]
-                + tx*(1 - ty)*g[i + 1, j]
-                + (1 - tx)*ty*g[i, j + 1]
-                + tx*ty*g[i + 1, j + 1]
-            )
-
-        rest = ~bil
-        if rest.any():
-            # Barycentric on the triangulation inside the hull.
-            p = np.column_stack([x[rest], y[rest]])
-            inside = ~self.isOutside(p)
-            r = np.full((p.shape[0], _BEAM_LEVELS.size), np.nan)
-            if inside.any():
-                r[inside] = self._tri(p[inside])
-
-            # Outside the hull: the value just inside the nearest hull point,
-            # up to the margin.
-            need = ~np.isfinite(r[:, 0])
-            if extrapolate and need.any():
-                q, dist = self._hullProject(p[need])
-                c = self._points.mean(axis=0)
-                q += 1e-6*(c - q)/np.linalg.norm(c - q, axis=1, keepdims=True)
-                rr = self._residual(q[:, 0], q[:, 1], extrapolate=False)
-                rr[dist > _BEAM_MARGIN_MM] = np.nan
-                r[need] = rr
-
-            out[rest] = r
-
-        return out
-
-    def quadratureNodes(self, xCcs: np.ndarray, yCcs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Compute the quadrature nodes of the beam's cumulative flux
-        profile.
-
-        Parameters
-        ----------
-        xCcs, yCcs : `numpy.ndarray`
-            Field positions (CCS mm), shape (n,).
-
-        Returns
-        -------
-        s : `numpy.ndarray`
-            Blade coordinates (mm) at the 20 Gauss nodes u_k of each
-            position's profile, shape (n, 20).
-        weights : `numpy.ndarray`
-            The weights of the nodes, shape (20,).
-        """
-        # s_q at the tabulated levels, plus the linear tails at F = 0 and 1.
-        s = self._residual(xCcs, yCcs) + xCcs[:, None]
-        lo = s[:, :1] - (s[:, 1:2] - s[:, :1])
-        hi = s[:, -1:] + (s[:, -1:] - s[:, -2:-1])
-        ext = np.concatenate([lo, s, hi], axis=-1)
-
-        # Piecewise-linear s(u) at the nodes.
-        knots, u = self._knots, self._nodes
-        k = np.clip(np.searchsorted(knots, u, side="right") - 1, 0, knots.size - 2)
-        f = (u - knots[k])/(knots[k + 1] - knots[k])
-
-        return ext[..., k]*(1 - f) + ext[..., k + 1]*f, self._weights
-
-
-@functools.cache
-def _loadShutterBeam(path: str) -> _ShutterBeamModel:
-    """Read a shutter-plane beam table, cached per process.
-
-    Parameters
-    ----------
-    path : `str`
-        Path or URI of the table; the cache is keyed by this string.
-
-    Returns
-    -------
-    beam : ``_ShutterBeamModel``
-        The model.  It is shared between callers: do not modify it.
-    """
-    return _ShutterBeamModel.fromFile(path)
-
 
 @dataclasses.dataclass(frozen=True)
 class ShutterTiming:
@@ -757,7 +536,7 @@ def computeShutterTiming(
         ``visitInfo.exposureTime`` is the measured shutter time, not the
         requested one.
     config : `ShutterTimingConfig`, optional
-        Defaults to ``ShutterTimingConfig()``; ``beamFile`` must be set.
+        Defaults to ``ShutterTimingConfig()``.
 
     Returns
     -------
@@ -768,16 +547,15 @@ def computeShutterTiming(
           absent; exposures before 2025-10-29): flag NO_PROFILE;
         - either Hall fit is outside the nominal ranges: flag PARAM_RANGE;
         - there is no time at the focal-plane centre, the detector centre or
-          any fit-grid point (overlapping blades in very short exposures, or
-          more than 38.64 mm outside the beam table).
+          any fit-grid point (overlapping blades in very short exposures).
 
         Otherwise OK.
 
     Raises
     ------
     ValueError
-        Raised if ``config.beamFile`` is empty, a SIDE card is not PLUSX or
-        MINUSX, or a MODEL card is not ThreeJerksModelv1.
+        Raised if a SIDE card is not PLUSX or MINUSX, or a MODEL card is not
+        ThreeJerksModelv1.
     RuntimeError
         Raised if the shutter cards are present but one of them is missing.
     KeyError, ValueError, TypeError
@@ -792,16 +570,16 @@ def computeShutterTiming(
     - If close - open STARTTIME - ``exposureTime`` is outside -2 to 4 ms, the
       shutter clocks disagree: both start times are re-anchored to MJD-BEG
       and ``exposureTime`` (flag CLOCK_CLOSE_VS_OPEN).
-    - Each edge's crossing time is integrated by 2-point Gauss-Legendre
-      quadrature in each interval between tabulated flux levels.  The
-      quadratic is fit on a 9 x 9 grid; ``maxAbsResidual`` is over that grid,
-      its cell centres and the detector centre.
+    - The beam's cumulative flux profile is piecewise linear through the
+      levels of ``config.beamOffsets``, with linear tails reaching 0 and 1
+      one interval beyond the first and last level.  Each edge's crossing
+      time is integrated over it by 2-point Gauss-Legendre quadrature in
+      each interval between levels.  The quadratic is fit on a 9 x 9 grid;
+      ``maxAbsResidual`` is over that grid, its cell centres and the
+      detector centre.
     """
     if config is None:
         config = ShutterTimingConfig()
-    if not config.beamFile:
-        raise ValueError("ShutterTimingConfig.beamFile is empty")
-    beam = _loadShutterBeam(config.beamFile)
 
     geometry = _DetectorGeometry.fromDetector(detector)
     common = dict(detectorId=geometry.detectorId, axis=geometry.bladeAxis(), geometry=geometry)
@@ -814,7 +592,7 @@ def computeShutterTiming(
     begin = float(metadata["MJD-BEG"])
     common["headerMidpointMjdTai"] = 0.5*(begin + float(metadata["MJD-END"]))
     try:
-        values = _compute(profile, begin, geometry, beam, exposureTime)
+        values = _compute(profile, begin, geometry, config, exposureTime)
     except _Unavailable as e:
         return ShutterTiming(flags=e.flags, message=e.message, **common)
 
@@ -905,11 +683,42 @@ def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int
     return startTime, -1 if decreasing else 1, fit
 
 
+def _beamQuadrature(offsets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Compute the quadrature nodes of a beam's cumulative flux profile.
+
+    Parameters
+    ----------
+    offsets : `numpy.ndarray`
+        Blade positions (mm, from the beam centre) at the levels
+        ``_BEAM_LEVELS``.
+
+    Returns
+    -------
+    nodes : `numpy.ndarray`
+        Blade positions (mm, from the beam centre) of the 2-point
+        Gauss-Legendre nodes in each interval of flux fraction, including the
+        tails, shape (20,).
+    weights : `numpy.ndarray`
+        Their weights, shape (20,).
+    """
+    # Blade positions at flux fractions 0, the levels, and 1 (linear tails).
+    s = np.concatenate([[2*offsets[0] - offsets[1]], offsets, [2*offsets[-1] - offsets[-2]]])
+    knots = np.concatenate([[0.0], _BEAM_LEVELS, [1.0]])
+    du = np.diff(knots)
+
+    # Two nodes per interval, interpolated linearly in flux fraction.
+    k = np.repeat(np.arange(du.size), 2)
+    f = np.tile(_GL2, du.size)
+    nodes = s[k]*(1 - f) + s[k + 1]*f
+
+    return nodes, np.repeat(du/2, 2)
+
+
 def _compute(
     profile: ShutterMotionProfileFull,
     begin: float,
     geometry: _DetectorGeometry,
-    beam: _ShutterBeamModel,
+    config: ShutterTimingConfig,
     exposureTime: float,
 ) -> dict:
     """Compute the data-dependent fields of a `ShutterTiming`.
@@ -922,7 +731,7 @@ def _compute(
         The exposure start time in the header, MJD-BEG (MJD TAI).
     geometry : ``_DetectorGeometry``
         The detector.
-    beam : ``_ShutterBeamModel``
+    config : `ShutterTimingConfig`
         The beam model.
     exposureTime : `float`
         The requested exposure time (s).
@@ -952,12 +761,6 @@ def _compute(
         openStart = begin + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
         closeRel = exposureTime + _HEADER_ANCHOR_OFFSETS[1]
 
-    # Beam coverage of the detector (its corners, by convexity).
-    corners = geometry.pixelCorners()
-    cornersCcs = np.column_stack(geometry.pixelToCcs(corners[:, 0], corners[:, 1]))
-    if beam.isOutside(cornersCcs).any():
-        flags |= ShutterTimingFlag.BEAM_EXTRAPOLATED
-
     # Evaluation points, along (pa) and across (pc) the blade axis: the
     # detector centre, the fit grid, and its cell centres.
     ia = 0 if geometry.bladeAxis() == "x" else 1
@@ -970,14 +773,17 @@ def _compute(
     pa = np.concatenate([[c[ia]], ga.ravel(), ha.ravel()])
     pc = np.concatenate([[c[1 - ia]], gc.ravel(), hc.ravel()])
 
-    # The same points in CCS, plus the focal-plane centre.
-    xc, yc = geometry.pixelToCcs(*((pa, pc) if ia == 0 else (pc, pa)))
+    # Their position along the blade travel (CCS x), plus the focal-plane
+    # centre.
+    xc, _ = geometry.pixelToCcs(*((pa, pc) if ia == 0 else (pc, pa)))
     xc = np.append(xc, 0.0)
-    yc = np.append(yc, 0.0)
+
+    # Blade positions of each point's beam quadrature nodes.
+    nodes, w = _beamQuadrature(np.array(config.beamOffsets))
+    s = config.beamScale*xc[:, None] + nodes
 
     # Crossing times of each blade edge at the quadrature nodes (s after the
     # open start time).
-    s, w = beam.quadratureNodes(xc, yc)
     tau = []
     for _, travelSign, fit in motions:
         start = _NOMINAL_STROKE if travelSign < 0 else _NOMINAL_START_INCREASING
@@ -995,7 +801,7 @@ def _compute(
     tMid = 0.5*(eO + eC)
     if not np.all(np.isfinite(tMid)):
         raise _Unavailable(flags, f"no shutter time at {int((~np.isfinite(tMid)).sum())} of {tMid.size} "
-                           "evaluation points (overlapping blades or outside the beam table's margin)")
+                           "evaluation points (overlapping blades)")
 
     # Quadratic fit on the grid, in offsets from the centre time, with the
     # basis normalized to +-1 for conditioning.

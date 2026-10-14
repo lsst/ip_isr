@@ -46,7 +46,6 @@ from lsst.ip.isr.shutterTiming import (
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(TESTDIR, "data", "shutterTiming")
-BEAM_FILE = os.path.join(DATADIR, "beam_at_L3S1_z9.618_rot0_evaluated.tnt")
 BASE = "MC_O_20260712_000100"
 
 #: Agreement target (s): centre times, lever-arm terms, residuals, T_eff.
@@ -57,7 +56,7 @@ LEVER_POWERS = np.array([LEVER, LEVER**2, LEVER, LEVER**2, LEVER**2])
 SECONDS_PER_DAY = 86400.0
 #: The reference's flag bits that this implementation keeps.
 KEPT_FLAGS = int(ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.PARAM_RANGE
-                 | ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN | ShutterTimingFlag.BEAM_EXTRAPOLATED)
+                 | ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
 
 
 def readFixture(name):
@@ -99,7 +98,6 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.config = ShutterTimingConfig()
-        cls.config.beamFile = BEAM_FILE
         with open(os.path.join(DATADIR, "mutations.json")) as f:
             cls.mutations = json.load(f)["mutations"]
         doc = readFixture(BASE)
@@ -157,8 +155,6 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                 self.assertLessEqual(abs(got - expected)*SECONDS_PER_DAY, TOL_S,
                                      f"{label} {det} ({x}, {y})")
 
-        return timings
-
     def testFixtures(self):
         """Check real exposures, one per blade direction, against the
         reference on detectors from the centre to the corners of the focal
@@ -170,10 +166,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         for name in names:
             doc = readFixture(name)
             self.assertEqual(len(doc["detectors"]), 7)
-            timings = self.checkAgainstReference(doc, doc["metadata"], name)
-
-            # The outer detectors extend past the beam table.
-            self.assertTrue(any(t.flags & ShutterTimingFlag.BEAM_EXTRAPOLATED for t in timings.values()))
+            self.checkAgainstReference(doc, doc["metadata"], name)
 
     def testNoCards(self):
         """Check that exposures before the shutter cards are UNAVAILABLE,
@@ -236,8 +229,8 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             self.assertEqual((geom.detectorId, geom.nx, geom.ny), (17, 4072, 4000))
 
             # CCS = (DVCS y, DVCS x); afw's corner order is its own.
-            pix = geom.pixelCorners()
-            yd, xd = geom.pixelToCcs(pix[:, 0], pix[:, 1])
+            yd, xd = geom.pixelToCcs(np.array([-0.5, 4071.5, 4071.5, -0.5]),
+                                     np.array([-0.5, -0.5, 3999.5, 3999.5]))
             for p in detector.getCorners(FOCAL_PLANE):
                 self.assertLess(np.min(np.hypot(xd - p.getX(), yd - p.getY())), 1e-6)
 

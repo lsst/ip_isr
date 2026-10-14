@@ -2,7 +2,8 @@
 
 Expected results for `lsst.ip.isr.shutterTiming`, computed by an independent
 reference implementation of the same algorithm (`shutter_timing`, header-card
-path; its version is in the `generator` field of each JSON file), for seven
+path, with the linear beam model of `ShutterTimingConfig`'s defaults; its
+version is in the `generator` field of each JSON file), for seven
 science detectors from the centre to the corners of the focal plane (0, 4, 30,
 94, 120, 168, 188). Only header cards are included, no pixel data. Read-only.
 
@@ -33,11 +34,6 @@ science detectors from the centre to the corners of the focal plane (0, 4, 30,
   the same detectors in the same format as above. The mutations: the close
   start time shifted by +10 ms and -5 ms (clock re-anchoring); PIVOTPOINT1 and
   JERK2 out of range; and a negative JERK0.
-- `beam_at_L3S1_z9.618_rot0_evaluated.tnt`: the LSSTCam shutter-plane beam
-  table (an LSST Camera raytrace, LCA-20578), identical to the copy shipped
-  by obs_lsst (see its `resources/shutter/README.md` for credit). A byte-identical copy is public in
-  lsst-dm/ap_pipe-notebooks (branch `tickets/DM-50985`, commit 3e6fc39,
-  `data/beam_at_L3S1_-z9.618_rot0_evaluated.tnt`).
 
 Agreement target: centre times and quadratic terms at a 2000-pixel lever arm
 to <= 10 us; identical `axis`, flags and detector statuses; a per-source time
