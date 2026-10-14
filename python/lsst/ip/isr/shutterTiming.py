@@ -109,6 +109,16 @@ _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE = (-2.0, 4.0)
 _MOTION_TIME_STEP = 1e-4
 _MAX_MOTION_TIME = 1.5
 
+#: Metadata card with the requested exposure time (s), added by the obs_lsst
+#: raw formatter as a workaround until VisitInfo records it.
+_REQUESTED_EXPOSURE_TIME_CARD = "EXPTIME REQUESTED"
+
+#: Requested exposure times (s) of the exposures whose shutter timestamps are
+#: known to disagree, for images made before the card above was added: all
+#: such LSSTCam exposures from 2025-10-29 to 2026-07-14.  Remove once those
+#: images are no longer processed.
+_KNOWN_CLOCK_FAULT_EXPOSURES = {2026031900172: 30.0, 2026031900173: 30.0, 2026052200119: 30.0}
+
 #: Re-anchoring offsets (s): open STARTTIME - MJD-BEG, and close - open
 #: STARTTIME - requested exposure time.
 _HEADER_ANCHOR_OFFSETS = (0.00809, 0.00052)
@@ -265,7 +275,6 @@ class ShutterTiming:
 
 def computeShutterTiming(
     exposure: Exposure,
-    requestedExposureTime: float | None = None,
     config: ShutterTimingConfig | None = None,
 ) -> ShutterTiming | None:
     """Compute the shutter-corrected times of one detector of one exposure.
@@ -273,16 +282,8 @@ def computeShutterTiming(
     Parameters
     ----------
     exposure : `lsst.afw.image.Exposure`
-        The exposure; its metadata carries the shutter cards and ``MJD-BEG``.
-    requestedExposureTime : `float`, optional
-        The exposure time requested for this exposure (s), from the butler
-        ``visit`` dimension record (``exposure_time``).  It is an independent
-        check on the two shutter timestamps in the header: if they are not
-        this far apart, one of them is wrong, and both start times are
-        re-anchored to ``MJD-BEG``.  (``EXPTIME`` is not in the exposure
-        metadata, and ``visitInfo.exposureTime`` is measured from the same
-        timestamps, so neither can serve.)  If `None`, the timestamps are
-        used unchecked.
+        The exposure; its metadata carries the shutter cards, ``MJD-BEG``
+        and ``EXPTIME REQUESTED``.
     config : `ShutterTimingConfig`, optional
         Defaults to ``ShutterTimingConfig()``.
 
@@ -314,10 +315,16 @@ def computeShutterTiming(
 
     - Blade start positions are nominal: 750.76 mm for 750 -> 0 moves, -0.05
       mm for 0 -> 750 moves.
-    - If ``requestedExposureTime`` is given and close - open STARTTIME -
-      ``requestedExposureTime`` is outside -2 to 4 ms, the shutter timestamps
-      disagree: the open start time is set from MJD-BEG and the close start
-      time from ``requestedExposureTime``.
+    - The requested exposure time is an independent check on the two shutter
+      timestamps: if close - open STARTTIME differs from it by more than -2
+      to 4 ms, one timestamp is wrong, and the open start time is set from
+      MJD-BEG and the close start time from the requested exposure time.
+      (``visitInfo.exposureTime`` is measured from the same timestamps, so
+      it cannot serve.)  The requested exposure time is read from the
+      ``EXPTIME REQUESTED`` card, which the obs_lsst raw formatter adds as a
+      workaround until VisitInfo records it.  Images made before that card
+      existed fall back to a list of the exposures known to need
+      re-anchoring; other timestamps in them are used unchecked.
     """
     if config is None:
         config = ShutterTimingConfig()
@@ -336,6 +343,12 @@ def computeShutterTiming(
     if not all(_fitInRange(fit) for _, _, fit in motions):
         log.warning("A shutter Hall-sensor fit is outside the nominal ranges: no shutter-corrected times.")
         return None
+
+    # The requested exposure time: from its card, or for images made before
+    # the card existed, from the list of exposures known to need it.
+    requestedExposureTime = metadata.get(_REQUESTED_EXPOSURE_TIME_CARD)
+    if requestedExposureTime is None:
+        requestedExposureTime = _KNOWN_CLOCK_FAULT_EXPOSURES.get(exposure.visitInfo.id)
 
     # Zero point: re-anchor to the header if the shutter timestamps disagree
     # with the requested exposure time.

@@ -34,7 +34,7 @@ import lsst.geom
 import lsst.utils.tests
 from lsst.afw.cameraGeom import Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
-from lsst.afw.image import ExposureF
+from lsst.afw.image import ExposureF, VisitInfo
 from lsst.ip.isr.shutterTiming import ShutterTimingConfig, computeShutterTiming
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -78,14 +78,21 @@ def makeDetector(detectorId, geometry):
                            orientation=orientation).detector
 
 
-def makeExposure(metadata, detector):
+def makeExposure(metadata, detector, requestedExposureTime=True, exposureId=0):
     """Build a 1x1 exposure (pixels are not used) with the given metadata
     (`dict`) and detector.
+
+    Unless ``requestedExposureTime`` is False, the metadata also gets the
+    ``EXPTIME REQUESTED`` card from ``EXPTIME``, as the obs_lsst raw
+    formatter adds it.  ``exposureId`` sets the VisitInfo ID.
     """
     exposure = ExposureF(1, 1)
     exposure.setDetector(detector)
+    exposure.info.setVisitInfo(VisitInfo(id=exposureId))
     for key, value in metadata.items():
         exposure.metadata.set(key, value)
+    if requestedExposureTime:
+        exposure.metadata.set("EXPTIME REQUESTED", metadata["EXPTIME"])
     return exposure
 
 
@@ -103,7 +110,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                          for det, expected in doc["detectors"].items()}
 
     def compute(self, md, det=94):
-        return computeShutterTiming(makeExposure(md, self.detectors[det]), md["EXPTIME"], self.config)
+        return computeShutterTiming(makeExposure(md, self.detectors[det]), self.config)
 
     def changed(self, card, value):
         """Return the base metadata with one card set to ``value``."""
@@ -119,7 +126,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timings = {}
         for det, expected in doc["detectors"].items():
             exposure = makeExposure(metadata, makeDetector(int(det), expected["geometry"]))
-            t = timings[int(det)] = computeShutterTiming(exposure, metadata["EXPTIME"], self.config)
+            t = timings[int(det)] = computeShutterTiming(exposure, self.config)
             label2 = f"{label} {det}"
 
             self.assertEqual(t.reanchored, bool(expected["qc_flags"] & REANCHORED_FLAG), label2)
@@ -154,9 +161,9 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             self.assertIsNone(self.compute(md, det))
 
     def testReanchoring(self):
-        """Check that shutter clocks that disagree are re-anchored to the
-        header, so the shift of the close start time does not move the
-        result.
+        """Check that shutter timestamps that disagree with the requested
+        exposure time are re-anchored to the header, so the shift of the
+        close start time does not move the result.
         """
         card = "SHUTTER CLOSE STARTTIME TAI MJD"
         timings = []
@@ -171,12 +178,18 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         # Clocks that agree are not re-anchored.
         self.assertFalse(self.compute(self.base).reanchored)
 
-        # Without the requested exposure time, the timestamps are used as
-        # they are.
-        exposure = makeExposure(md, self.detectors[94])
-        unchecked = computeShutterTiming(exposure, None, self.config)
+        # Images made before the requested exposure time was recorded: the
+        # timestamps are used as they are, except for the exposures known to
+        # need re-anchoring.
+        exposure = makeExposure(md, self.detectors[94], requestedExposureTime=False)
+        unchecked = computeShutterTiming(exposure, self.config)
         self.assertFalse(unchecked.reanchored)
         self.assertNotEqual(unchecked.centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
+
+        exposure = makeExposure(md, self.detectors[94], requestedExposureTime=False, exposureId=2026031900172)
+        listed = computeShutterTiming(exposure, self.config)
+        self.assertTrue(listed.reanchored)
+        self.assertEqual(listed.centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 
     def testParamRange(self):
         """Check that Hall fits outside the nominal ranges, including a
