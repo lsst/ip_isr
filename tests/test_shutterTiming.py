@@ -170,7 +170,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timing.toMetadata(metadata)
         readBack = ShutterTiming.fromMetadata(metadata)
         self.assertFloatsEqual(readBack.midpointMjdTai(y, y), timing.midpointMjdTai(y, y))
-        for field in ("centerExposureTime", "reanchored", "source"):
+        for field in ("reanchored", "source"):
             self.assertEqual(getattr(readBack, field), getattr(timing, field), field)
         self.assertIsNone(ShutterTiming.fromMetadata(PropertyList()))
 
@@ -178,7 +178,6 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timing.updateSummaryStats(summary)
         readBack = ShutterTiming.fromSummaryStats(summary)
         self.assertFloatsEqual(readBack.midpointMjdTai(y, y), timing.midpointMjdTai(y, y))
-        self.assertEqual(readBack.centerExposureTime, timing.centerExposureTime)
         self.assertIsNone(ShutterTiming.fromSummaryStats(ExposureSummaryStats()))
 
     def testProfiles(self):

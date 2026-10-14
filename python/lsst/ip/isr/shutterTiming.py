@@ -121,7 +121,6 @@ _MIDPOINT_CARD = "SHUTTER MIDPT MJD"
 _CHEBYSHEV_CARD = "SHUTTER CHEB{}"
 _CHEBYSHEV_Y_CENTER_CARD = "SHUTTER CHEB YCENTER"
 _CHEBYSHEV_Y_HALF_RANGE_CARD = "SHUTTER CHEB YHALF"
-_EXPOSURE_TIME_CARD = "SHUTTER EXPOSURE TIME"
 _REANCHORED_CARD = "SHUTTER REANCHORED"
 _SOURCE_CARD = "SHUTTER TIMING SOURCE"
 
@@ -177,11 +176,6 @@ class ShutterTiming:
     """Pixels per unit of the Chebyshev variable: half the detector height.
     """
 
-    centerExposureTime: float
-    """Flux-weighted time (s) between the opening and closing of the shutter
-    at the detector centre.
-    """
-
     reanchored: bool | None
     """Whether the shutter timestamps disagreed with the requested exposure
     time, so that the start times were re-anchored to ``MJD-BEG``; `None` if
@@ -230,8 +224,6 @@ class ShutterTiming:
                      "Pixel y at which the Chebyshev variable is 0")
         metadata.set(_CHEBYSHEV_Y_HALF_RANGE_CARD, self.chebyshevYHalfRange,
                      "Pixels per unit of the Chebyshev variable")
-        metadata.set(_EXPOSURE_TIME_CARD, self.centerExposureTime,
-                     "Shutter open time (s) at detector centre")
         metadata.set(_REANCHORED_CARD, self.reanchored, "Shutter start times re-anchored to MJD-BEG")
         metadata.set(_SOURCE_CARD, self.source, "Source of the shutter motions: profile or header")
 
@@ -260,7 +252,6 @@ class ShutterTiming:
             ),
             chebyshevYCenter=metadata[_CHEBYSHEV_Y_CENTER_CARD],
             chebyshevYHalfRange=metadata[_CHEBYSHEV_Y_HALF_RANGE_CARD],
-            centerExposureTime=metadata[_EXPOSURE_TIME_CARD],
             reanchored=metadata[_REANCHORED_CARD],
             source=metadata[_SOURCE_CARD],
         )
@@ -273,11 +264,10 @@ class ShutterTiming:
         summary : `lsst.afw.image.ExposureSummaryStats`
             Summary statistics to update.
         """
-        summary.shutterMidpointMjdTai = self.centerMidpointMjdTai
+        summary.detectorMidpointMjdTai = self.centerMidpointMjdTai
         summary.shutterChebyshevCoefficients = self.chebyshevCoefficients.tolist()
         summary.shutterChebyshevYCenter = self.chebyshevYCenter
         summary.shutterChebyshevYHalfRange = self.chebyshevYHalfRange
-        summary.shutterExposureTime = self.centerExposureTime
 
     @classmethod
     def fromSummaryStats(cls, summary: ExposureSummaryStats) -> "ShutterTiming | None":
@@ -293,15 +283,14 @@ class ShutterTiming:
         timing : `ShutterTiming` or `None`
             The times, or `None` if the summary has none.
         """
-        if np.isnan(summary.shutterMidpointMjdTai):
+        if np.isnan(summary.detectorMidpointMjdTai):
             return None
 
         return cls(
-            centerMidpointMjdTai=summary.shutterMidpointMjdTai,
+            centerMidpointMjdTai=summary.detectorMidpointMjdTai,
             chebyshevCoefficients=np.array(summary.shutterChebyshevCoefficients),
             chebyshevYCenter=summary.shutterChebyshevYCenter,
             chebyshevYHalfRange=summary.shutterChebyshevYHalfRange,
-            centerExposureTime=summary.shutterExposureTime,
             reanchored=None,
             source=None,
         )
@@ -394,13 +383,11 @@ def computeShutterTiming(
     pixels = np.array([np.full(u.size, xCenter), yCenter + yHalfRange*u])
     focalPlaneY = detector.getTransform(PIXELS, FOCAL_PLANE).getMapping().applyForward(pixels)[1]
 
-    # Opening and closing times there; none where a blade does not reach the
-    # beam.
-    tOpen, tClose = _edgeTimes(motions, closeRel, config, focalPlaneY)
-    if not np.all(np.isfinite(tOpen + tClose)):
+    # Times there; none where a blade does not reach the beam.
+    tMid = _midpointTimes(motions, closeRel, config, focalPlaneY)
+    if not np.all(np.isfinite(tMid)):
         log.warning("A shutter blade does not reach part of the detector's beam: no shutter-corrected times.")
         return None
-    tMid = 0.5*(tOpen + tClose)
 
     # Mid-exposure time at the centre, and the series relative to it.
     coefficients = np.polynomial.chebyshev.chebfit(u[1:], tMid[1:] - tMid[0], _CHEBYSHEV_DEGREE)
@@ -410,7 +397,6 @@ def computeShutterTiming(
         chebyshevCoefficients=coefficients,
         chebyshevYCenter=yCenter,
         chebyshevYHalfRange=yHalfRange,
-        centerExposureTime=float(tClose[0] - tOpen[0]),
         reanchored=reanchored,
         source="profile" if "startPosition" in profileOpen.metadata else "header",
     )
@@ -535,13 +521,13 @@ def _beamQuadrature(offsets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return nodes, np.repeat(du/2, 2)
 
 
-def _edgeTimes(
+def _midpointTimes(
     motions: tuple[ShutterMotionProfile, ShutterMotionProfile],
     closeRel: float,
     config: ShutterTimingConfig,
     focalPlaneY: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Compute flux-weighted opening and closing times along the blade travel.
+) -> np.ndarray:
+    """Compute flux-weighted mid-exposure times along the blade travel.
 
     Parameters
     ----------
@@ -556,10 +542,9 @@ def _edgeTimes(
 
     Returns
     -------
-    tOpen, tClose : `numpy.ndarray`
-        Flux-weighted times at which the shutter opens and closes at the
-        points, s after the start of the opening motion; NaN where a blade
-        does not reach the beam.
+    tMid : `numpy.ndarray`
+        Mid-exposure times at the points, s after the start of the opening
+        motion; NaN where a blade does not reach the beam.
     """
     # Blade positions of each point's beam quadrature nodes (focal-plane y is
     # CCS x, the blade coordinate).
@@ -571,5 +556,5 @@ def _edgeTimes(
     tO, tauC = (motion.timeAtPosition(_ENCODER_CENTER - s) for motion in motions)
     tC = tauC + closeRel
 
-    # Flux-weighted times of the two edges.
-    return tO @ w, tC @ w
+    # Flux-weighted times of the two edges, and their mean.
+    return 0.5*(tO @ w + tC @ w)
