@@ -34,7 +34,7 @@ import lsst.geom
 import lsst.utils.tests
 from lsst.afw.cameraGeom import Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
-from lsst.afw.image import ExposureF, VisitInfo
+from lsst.afw.image import ExposureF, ExposureSummaryStats, VisitInfo
 from lsst.daf.base import PropertyList
 from lsst.ip.isr import IsrTaskLSST, IsrTaskLSSTConfig, ShutterMotionProfile
 from lsst.ip.isr.shutterTiming import (
@@ -159,20 +159,27 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             self.assertEqual(len(doc["detectors"]), 7)
             self.checkAgainstReference(doc, doc["metadata"], name)
 
-    def testMetadata(self):
-        """Check that the times survive a round trip through metadata
-        cards, and that metadata without them gives none.
+    def testRecord(self):
+        """Check that the times survive a round trip through metadata cards
+        and summary statistics, and that those without them give none.
         """
         timing = self.compute(self.base)
+        y = np.array([-100.0, 0.0, 2000.0, 3999.0])
+
         metadata = PropertyList()
         timing.toMetadata(metadata)
         readBack = ShutterTiming.fromMetadata(metadata)
-
-        y = np.array([-100.0, 0.0, 2000.0, 3999.0])
         self.assertFloatsEqual(readBack.midpointMjdTai(y, y), timing.midpointMjdTai(y, y))
         for field in ("centerExposureTime", "reanchored", "source"):
             self.assertEqual(getattr(readBack, field), getattr(timing, field), field)
         self.assertIsNone(ShutterTiming.fromMetadata(PropertyList()))
+
+        summary = ExposureSummaryStats()
+        timing.updateSummaryStats(summary)
+        readBack = ShutterTiming.fromSummaryStats(summary)
+        self.assertFloatsEqual(readBack.midpointMjdTai(y, y), timing.midpointMjdTai(y, y))
+        self.assertEqual(readBack.centerExposureTime, timing.centerExposureTime)
+        self.assertIsNone(ShutterTiming.fromSummaryStats(ExposureSummaryStats()))
 
     def testProfiles(self):
         """Check that the camera's motion profiles give the times of the

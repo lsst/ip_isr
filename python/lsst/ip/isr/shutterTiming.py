@@ -66,7 +66,7 @@ import numpy as np
 
 import lsst.pex.config as pexConfig
 from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, Detector
-from lsst.afw.image import Exposure
+from lsst.afw.image import Exposure, ExposureSummaryStats
 from lsst.daf.base import PropertyList
 
 from .shutterMotion import ShutterMotionProfile, ShutterMotionProfileFull
@@ -182,14 +182,16 @@ class ShutterTiming:
     at the detector centre.
     """
 
-    reanchored: bool
+    reanchored: bool | None
     """Whether the shutter timestamps disagreed with the requested exposure
-    time, so that the start times were re-anchored to ``MJD-BEG``.
+    time, so that the start times were re-anchored to ``MJD-BEG``; `None` if
+    read from summary statistics, which do not record it.
     """
 
-    source: str
+    source: str | None
     """Source of the blade motions: ``"profile"`` (motion profiles with the
-    measured start positions) or ``"header"`` (exposure header cards).
+    measured start positions) or ``"header"`` (exposure header cards); `None`
+    if read from summary statistics, which do not record it.
     """
 
     def midpointMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -261,6 +263,47 @@ class ShutterTiming:
             centerExposureTime=metadata[_EXPOSURE_TIME_CARD],
             reanchored=metadata[_REANCHORED_CARD],
             source=metadata[_SOURCE_CARD],
+        )
+
+    def updateSummaryStats(self, summary: ExposureSummaryStats) -> None:
+        """Write the times to summary statistics.
+
+        Parameters
+        ----------
+        summary : `lsst.afw.image.ExposureSummaryStats`
+            Summary statistics to update.
+        """
+        summary.shutterMidpointMjdTai = self.centerMidpointMjdTai
+        summary.shutterChebyshevCoefficients = self.chebyshevCoefficients.tolist()
+        summary.shutterChebyshevYCenter = self.chebyshevYCenter
+        summary.shutterChebyshevYHalfRange = self.chebyshevYHalfRange
+        summary.shutterExposureTime = self.centerExposureTime
+
+    @classmethod
+    def fromSummaryStats(cls, summary: ExposureSummaryStats) -> "ShutterTiming | None":
+        """Read the times from summary statistics.
+
+        Parameters
+        ----------
+        summary : `lsst.afw.image.ExposureSummaryStats`
+            Summary statistics written by `updateSummaryStats`.
+
+        Returns
+        -------
+        timing : `ShutterTiming` or `None`
+            The times, or `None` if the summary has none.
+        """
+        if np.isnan(summary.shutterMidpointMjdTai):
+            return None
+
+        return cls(
+            centerMidpointMjdTai=summary.shutterMidpointMjdTai,
+            chebyshevCoefficients=np.array(summary.shutterChebyshevCoefficients),
+            chebyshevYCenter=summary.shutterChebyshevYCenter,
+            chebyshevYHalfRange=summary.shutterChebyshevYHalfRange,
+            centerExposureTime=summary.shutterExposureTime,
+            reanchored=None,
+            source=None,
         )
 
 
