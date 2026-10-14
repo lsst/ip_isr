@@ -348,8 +348,8 @@ def computeShutterTiming(
         - there are no shutter cards (``SHUTTER OPEN STARTTIME TAI MJD``
           absent; exposures before 2025-10-29): flag NO_PROFILE;
         - either Hall fit is outside the nominal ranges: flag PARAM_RANGE;
-        - there is no time somewhere on the detector (overlapping blades in
-          very short exposures).
+        - a blade does not reach part of the detector's beam (not seen in
+          data that passes the fit checks).
 
     Raises
     ------
@@ -589,12 +589,8 @@ def _compute(
     tO, tauC = tau
     tC = tauC + closeRel
 
-    # Flux-weighted times; none where the blades overlap in the beam.
-    with np.errstate(invalid="ignore"):
-        overlap = np.min(tC, axis=-1) - np.max(tO, axis=-1) <= 0
-    eO = np.where(overlap, np.nan, tO @ w)
-    eC = np.where(overlap, np.nan, tC @ w)
-    tMid = 0.5*(eO + eC)
+    # Flux-weighted times; none where a blade does not reach the beam.
+    tMid = 0.5*(tO @ w + tC @ w)
     if not np.all(np.isfinite(tMid)):
         raise _Unavailable(flags)
 
