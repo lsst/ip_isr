@@ -18,25 +18,19 @@ science detectors from the centre to the corners of the focal plane (0, 4, 30,
     position of its centre; `center_pix`, the centre's pixel coordinates;
     `size` in pixels; 10 um pixels and yaw 0, as for every LSSTCam detector),
     from which the tests build it with `DetectorWrapper`, and the expected
-    results (`axis`, `center_mjd_tai`, `coefficients_s` = c_u, c_uu, c_v,
-    c_uv, c_vv, `max_abs_residual_s`, `effective_exposure_time_s`,
-    `qc_flags`).
+    results (`center_mjd_tai`, `effective_exposure_time_s`, `qc_flags`).
   - `visit_mjd_tai`: the focal-plane-centre time; `header_mid_mjd_tai`;
     `exposure_qc_flags`.
-  - `samples`: `[detector, x, y, t_mid_mjd_tai or null, status]` at 8
-    positions per detector (centre, 4 pixel-edge corners, one interior point,
-    50 px off the detector, and 150 px off); status as the reference
-    implementation reports it, 0 OK, 1 DEGRADED, 2 UNAVAILABLE. The stack code
-    has no DEGRADED status: a per-source time exists unless the status is 2,
-    and the tests only distinguish 2 from not 2.
+  - `samples`: `[detector, x, y, t_mid_mjd_tai]` at 8 positions per detector
+    (centre, 4 pixel-edge corners, one interior point, 50 px off the detector,
+    and 150 px off), computed exactly at each position.
 - `mutations.json`: single-card changes to the metadata of `MC_O_20260712_000100`
   (`base`), each with the cards it sets (`set`) and the reference results for
   the same detectors in the same format as above. The mutations: the close
   start time shifted by +10 ms and -5 ms (clock re-anchoring); PIVOTPOINT1 and
   JERK2 out of range; and a negative JERK0.
 
-Agreement target: centre times and quadratic terms at a 2000-pixel lever arm
-to <= 10 us; identical `axis`, flags and detector statuses; a per-source time
-exactly where the expected status is not 2.
+Agreement target: centre, focal-plane-centre and per-source times and the
+effective exposure time to <= 10 us; identical flags and detector statuses.
 
 The JSON files are written compactly (one line each).

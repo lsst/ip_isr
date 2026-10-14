@@ -23,8 +23,7 @@
 The two LSSTCam shutter blades cross the focal plane in ~0.9 s, so the
 mid-exposure time of a pixel depends on its position (by up to ~0.43 s across
 the focal plane).  For one detector, `computeShutterTiming` gives the
-flux-weighted mid-exposure time at the detector centre and a quadratic in
-pixel coordinates for the rest of it.
+flux-weighted mid-exposure time at any of its pixels.
 
 Method:
 
@@ -42,9 +41,9 @@ Method:
    at ``beamScale * x + beamOffsets`` (`ShutterTimingConfig`), a linear fit
    to the LSST Camera raytrace of the beam (LCA-20578).  The mid-exposure
    time is ``(<T>_open + <T>_close) / 2``.
-3. *Per-detector quadratic.*  These times are computed on a grid spanning
-   the detector, and a quadratic in the pixel offsets along and across the
-   blade direction is fit to them.
+3. *Interpolation.*  The time therefore depends only on the position along
+   the blade travel, focal-plane y.  It is computed every
+   ``_FOCAL_PLANE_Y_STEP`` mm over the detector and interpolated linearly.
 
 Times are TAI MJD.  The shutter motion and its Hall-sensor fit are described
 in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
@@ -64,9 +63,9 @@ import math
 
 import numpy as np
 
-import lsst.geom
 import lsst.pex.config as pexConfig
 from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, Detector
+from lsst.afw.geom import TransformPoint2ToPoint2
 from lsst.daf.base import PropertyList
 
 from .shutterMotion import ShutterMotionProfile, ShutterMotionProfileFull
@@ -111,18 +110,20 @@ _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE = (-2.0, 4.0)
 #: STARTTIME - requested exposure time.
 _HEADER_ANCHOR_OFFSETS = (0.00809, 0.00052)
 
-#: Fit grid points along and across the blade axis.
-_GRID = 9
+#: Spacing (mm) of the focal-plane y at which times are computed; linear
+#: interpolation between them is good to ~1 us.
+_FOCAL_PLANE_Y_STEP = 0.5
+
+#: Margin (mm) beyond the detector edges over which times are computed; NaN
+#: beyond.
+_FOCAL_PLANE_Y_MARGIN = 5.0
 
 
 class ShutterTimingStatus(enum.IntEnum):
     """Whether a detector has a corrected time."""
 
     OK = 0
-    """Corrected.  The quadratic is within 0.1 ms of the exact times on most
-    science detectors, and within ~2 ms at the outer corners
-    (``maxAbsResidual``).
-    """
+    """Corrected."""
     UNAVAILABLE = 2
     """No corrected time: callers keep the header midpoint."""
 
@@ -358,90 +359,13 @@ class _ThreeJerksTrajectory:
         return out
 
 
-@dataclasses.dataclass(frozen=True)
-class _DetectorGeometry:
-    """Affine pixel -> DVCS (afw FOCAL_PLANE, mm) map of one detector:
-    ``fp = centerMm + jacobian @ (p - centerPixel)``, with pixel centres at
-    integer coordinates.
-    """
-
-    detectorId: int
-    """The detector ID."""
-
-    nx: int
-    """Width (pixels)."""
-
-    ny: int
-    """Height (pixels)."""
-
-    centerPixel: tuple[float, float]
-    """Pixel coordinates of the detector centre."""
-
-    centerMm: tuple[float, float]
-    """DVCS coordinates (mm) of the detector centre."""
-
-    jacobian: tuple[tuple[float, float], tuple[float, float]]
-    """[[dX/dx, dX/dy], [dY/dx, dY/dy]] in mm per pixel."""
-
-    @classmethod
-    def fromDetector(cls, detector: Detector) -> "_DetectorGeometry":
-        """Linearize a detector's pixel -> focal-plane map at its centre.
-
-        Parameters
-        ----------
-        detector : `lsst.afw.cameraGeom.Detector`
-            The detector; for LSSTCam the map is affine to < 1e-3 mm.
-
-        Returns
-        -------
-        geometry : ``_DetectorGeometry``
-            The linearized map.
-        """
-        bbox = detector.getBBox()
-        center = lsst.geom.Box2D(bbox).getCenter()
-        transform = detector.getTransform(PIXELS, FOCAL_PLANE)
-        fp = transform.applyForward(center)
-        jac = transform.getJacobian(center)
-
-        return cls(
-            detectorId=detector.getId(),
-            nx=bbox.getWidth(),
-            ny=bbox.getHeight(),
-            centerPixel=(center.getX(), center.getY()),
-            centerMm=(fp.getX(), fp.getY()),
-            jacobian=((jac[0, 0], jac[0, 1]), (jac[1, 0], jac[1, 1])),
-        )
-
-    def pixelToCcs(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Convert pixel to CCS coordinates (mm): ``x_ccs = Y_dvcs``,
-        ``y_ccs = X_dvcs``.
-        """
-        dx = x - self.centerPixel[0]
-        dy = y - self.centerPixel[1]
-
-        j = self.jacobian
-        xCcs = self.centerMm[1] + j[1][0]*dx + j[1][1]*dy
-        yCcs = self.centerMm[0] + j[0][0]*dx + j[0][1]*dy
-
-        return xCcs, yCcs
-
-    def bladeAxis(self) -> str:
-        """Return the pixel axis (anti)parallel to DVCS y (the blade
-        motion).
-        """
-        j = self.jacobian
-        return "x" if abs(j[1][0]) > abs(j[1][1]) else "y"
-
-
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, eq=False)
 class ShutterTiming:
     """Shutter-corrected mid-exposure times of one detector of one exposure.
 
-    Times are MJD TAI, durations seconds.  Per source,
-    ``t(x, y) = centerMidpointMjdTai + (c_u u + c_uu u^2 + c_v v + c_uv u v
-    + c_vv v^2) / 86400``, with ``(u, v)`` the pixel offsets from the detector
-    centre along and across the blade axis (``axis``: ``"x"`` -> u = x - cx,
-    v = y - cy; ``"y"`` -> u = y - cy, v = x - cx).
+    Times are MJD TAI, durations seconds.  The mid-exposure time depends only
+    on focal-plane y; it is tabulated over the detector and interpolated
+    linearly.
     """
 
     status: ShutterTimingStatus = ShutterTimingStatus.UNAVAILABLE
@@ -468,19 +392,16 @@ class ShutterTiming:
     effectiveExposureTime: float = math.nan
     """Flux-weighted open time at the detector centre (s)."""
 
-    maxAbsResidual: float = math.nan
-    """Largest |quadratic - exact| over the fit grid, its cell centres and the
-    detector centre (s).
+    focalPlaneY: np.ndarray | None = dataclasses.field(default=None, repr=False)
+    """Focal-plane y (mm, increasing) at which the times are tabulated."""
+
+    midpointOffsets: np.ndarray | None = dataclasses.field(default=None, repr=False)
+    """Mid-exposure times at ``focalPlaneY``, s after
+    ``centerMidpointMjdTai``.
     """
 
-    coefficients: tuple[float, float, float, float, float] = (math.nan,) * 5
-    """(c_u, c_uu, c_v, c_uv, c_vv) in s / pixel^n."""
-
-    axis: str = ""
-    """The pixel axis along the blade motion, "x" or "y"; "" if UNAVAILABLE."""
-
-    geometry: _DetectorGeometry | None = dataclasses.field(default=None, repr=False)
-    """The detector's pixel-to-focal-plane map, used by `midpointMjdTai`."""
+    pixelToFocalPlane: TransformPoint2ToPoint2 | None = dataclasses.field(default=None, repr=False)
+    """The detector's pixel to focal-plane (mm) transform."""
 
     def midpointMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Compute per-source mid-exposure times at pixel positions.
@@ -488,31 +409,26 @@ class ShutterTiming:
         Parameters
         ----------
         x, y : `numpy.ndarray`
-            Pixel coordinates; broadcast against each other.
+            Pixel coordinates, of the same shape.
 
         Returns
         -------
         tMid : `numpy.ndarray`
-            Mid-exposure times (MJD TAI), shape ``np.broadcast(x, y).shape``.
-            NaN everywhere if the detector is UNAVAILABLE, and NaN where x or
-            y is NaN.
+            Mid-exposure times (MJD TAI), of the shape of ``x``.  NaN
+            everywhere if the detector is UNAVAILABLE, and NaN where x or y is
+            NaN or more than 5 mm (500 pixels) beyond the detector.
         """
         if self.status == ShutterTimingStatus.UNAVAILABLE:
-            return np.full(np.broadcast(x, y).shape, np.nan)
+            return np.full(np.shape(x), np.nan)
 
-        # Pixel offsets from the detector centre, along (u) and across (v)
-        # the blade motion.
-        cx, cy = self.geometry.centerPixel
-        if self.axis == "x":
-            u, v = x - cx, y - cy
-        else:
-            u, v = y - cy, x - cx
+        # Focal-plane y of each position.
+        pixels = np.array([np.ravel(x), np.ravel(y)], dtype=float)
+        focalPlaneY = self.pixelToFocalPlane.getMapping().applyForward(pixels)[1]
 
-        # The quadratic, in seconds from the centre time.
-        cU, cUU, cV, cUV, cVV = self.coefficients
-        dt = cU*u + cUU*u*u + cV*v + cUV*u*v + cVV*v*v
+        # Interpolated time, in seconds from the centre time.
+        dt = np.interp(focalPlaneY, self.focalPlaneY, self.midpointOffsets, left=np.nan, right=np.nan)
 
-        return self.centerMidpointMjdTai + dt/_SECONDS_PER_DAY
+        return np.reshape(self.centerMidpointMjdTai + dt/_SECONDS_PER_DAY, np.shape(x))
 
 
 def computeShutterTiming(
@@ -546,8 +462,8 @@ def computeShutterTiming(
         - there are no shutter cards (``SHUTTER OPEN STARTTIME TAI MJD``
           absent; exposures before 2025-10-29): flag NO_PROFILE;
         - either Hall fit is outside the nominal ranges: flag PARAM_RANGE;
-        - there is no time at the focal-plane centre, the detector centre or
-          any fit-grid point (overlapping blades in very short exposures).
+        - there is no time at the focal-plane centre or somewhere on the
+          detector (overlapping blades in very short exposures).
 
         Otherwise OK.
 
@@ -574,15 +490,12 @@ def computeShutterTiming(
       levels of ``config.beamOffsets``, with linear tails reaching 0 and 1
       one interval beyond the first and last level.  Each edge's crossing
       time is integrated over it by 2-point Gauss-Legendre quadrature in
-      each interval between levels.  The quadratic is fit on a 9 x 9 grid;
-      ``maxAbsResidual`` is over that grid, its cell centres and the
-      detector centre.
+      each interval between levels.
     """
     if config is None:
         config = ShutterTimingConfig()
 
-    geometry = _DetectorGeometry.fromDetector(detector)
-    common = dict(detectorId=geometry.detectorId, axis=geometry.bladeAxis(), geometry=geometry)
+    common = dict(detectorId=detector.getId())
 
     # Exposures before the shutter cards were added.
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
@@ -591,12 +504,34 @@ def computeShutterTiming(
     profile = ShutterMotionProfileFull.fromMetadata(metadata)
     begin = float(metadata["MJD-BEG"])
     common["headerMidpointMjdTai"] = 0.5*(begin + float(metadata["MJD-END"]))
+
+    # Focal-plane y of the detector centre and of the table, which spans the
+    # detector plus a margin.
+    pixelToFocalPlane = detector.getTransform(PIXELS, FOCAL_PLANE)
+    centerY = detector.getCenter(FOCAL_PLANE).getY()
+    cornersY = [p.getY() for p in detector.getCorners(FOCAL_PLANE)]
+    lo = min(cornersY) - _FOCAL_PLANE_Y_MARGIN
+    hi = max(cornersY) + _FOCAL_PLANE_Y_MARGIN
+    focalPlaneY = np.linspace(lo, hi, int(np.ceil((hi - lo)/_FOCAL_PLANE_Y_STEP)) + 1)
+
+    # Times at the detector centre, the focal-plane centre and the table.
     try:
-        values = _compute(profile, begin, geometry, config, exposureTime)
+        flags, openStart, tMid, tEff = _compute(profile, begin, config, exposureTime,
+                                                np.concatenate([[centerY, 0.0], focalPlaneY]))
     except _Unavailable as e:
         return ShutterTiming(flags=e.flags, message=e.message, **common)
 
-    return ShutterTiming(status=ShutterTimingStatus.OK, **values, **common)
+    return ShutterTiming(
+        status=ShutterTimingStatus.OK,
+        flags=flags,
+        centerMidpointMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
+        focalPlaneMidpointMjdTai=float(openStart + tMid[1]/_SECONDS_PER_DAY),
+        effectiveExposureTime=float(tEff[0]),
+        focalPlaneY=focalPlaneY,
+        midpointOffsets=tMid[2:] - tMid[0],
+        pixelToFocalPlane=pixelToFocalPlane,
+        **common,
+    )
 
 
 class _Unavailable(Exception):
@@ -717,11 +652,12 @@ def _beamQuadrature(offsets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def _compute(
     profile: ShutterMotionProfileFull,
     begin: float,
-    geometry: _DetectorGeometry,
     config: ShutterTimingConfig,
     exposureTime: float,
-) -> dict:
-    """Compute the data-dependent fields of a `ShutterTiming`.
+    focalPlaneY: np.ndarray,
+) -> tuple[ShutterTimingFlag, float, np.ndarray, np.ndarray]:
+    """Compute mid-exposure and effective exposure times along the blade
+    travel.
 
     Parameters
     ----------
@@ -729,18 +665,24 @@ def _compute(
         The two blade motions.
     begin : `float`
         The exposure start time in the header, MJD-BEG (MJD TAI).
-    geometry : ``_DetectorGeometry``
-        The detector.
     config : `ShutterTimingConfig`
         The beam model.
     exposureTime : `float`
         The requested exposure time (s).
+    focalPlaneY : `numpy.ndarray`
+        Focal-plane y (mm) of the points.
 
     Returns
     -------
-    values : `dict`
-        ``flags``, ``centerMidpointMjdTai``, ``focalPlaneMidpointMjdTai``,
-        ``effectiveExposureTime``, ``maxAbsResidual`` and ``coefficients``.
+    flags : `ShutterTimingFlag`
+        CLOCK_CLOSE_VS_OPEN if the start times were re-anchored.
+    openStart : `float`
+        Start time of the opening motion (MJD TAI).
+    tMid : `numpy.ndarray`
+        Flux-weighted mid-exposure times at the points (s after
+        ``openStart``).
+    tEff : `numpy.ndarray`
+        Flux-weighted open times at the points (s).
 
     Raises
     ------
@@ -761,26 +703,10 @@ def _compute(
         openStart = begin + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
         closeRel = exposureTime + _HEADER_ANCHOR_OFFSETS[1]
 
-    # Evaluation points, along (pa) and across (pc) the blade axis: the
-    # detector centre, the fit grid, and its cell centres.
-    ia = 0 if geometry.bladeAxis() == "x" else 1
-    c = geometry.centerPixel
-    n = (geometry.nx, geometry.ny)
-    along = np.linspace(0.0, n[ia] - 1.0, _GRID)
-    across = np.linspace(0.0, n[1 - ia] - 1.0, _GRID)
-    ga, gc = np.meshgrid(along, across, indexing="ij")
-    ha, hc = np.meshgrid(0.5*(along[1:] + along[:-1]), 0.5*(across[1:] + across[:-1]), indexing="ij")
-    pa = np.concatenate([[c[ia]], ga.ravel(), ha.ravel()])
-    pc = np.concatenate([[c[1 - ia]], gc.ravel(), hc.ravel()])
-
-    # Their position along the blade travel (CCS x), plus the focal-plane
-    # centre.
-    xc, _ = geometry.pixelToCcs(*((pa, pc) if ia == 0 else (pc, pa)))
-    xc = np.append(xc, 0.0)
-
-    # Blade positions of each point's beam quadrature nodes.
+    # Blade positions of each point's beam quadrature nodes (focal-plane y is
+    # CCS x, the blade coordinate).
     nodes, w = _beamQuadrature(np.array(config.beamOffsets))
-    s = config.beamScale*xc[:, None] + nodes
+    s = config.beamScale*focalPlaneY[:, None] + nodes
 
     # Crossing times of each blade edge at the quadrature nodes (s after the
     # open start time).
@@ -803,23 +729,4 @@ def _compute(
         raise _Unavailable(flags, f"no shutter time at {int((~np.isfinite(tMid)).sum())} of {tMid.size} "
                            "evaluation points (overlapping blades)")
 
-    # Quadratic fit on the grid, in offsets from the centre time, with the
-    # basis normalized to +-1 for conditioning.
-    focalPlane, tMid = tMid[-1], tMid[:-1]
-    dt = tMid - tMid[0]
-    su = max(0.5*(n[ia] - 1.0), 1.0)
-    sv = max(0.5*(n[1 - ia] - 1.0), 1.0)
-    z = (pa - c[ia])/su
-    wv = (pc - c[1 - ia])/sv
-    basis = np.stack([z, z*z, wv, z*wv, wv*wv], axis=-1)
-    unit = np.array([1/su, su**-2.0, 1/sv, 1/(su*sv), sv**-2.0])
-    cz = np.linalg.lstsq(basis[1:1 + _GRID**2], dt[1:1 + _GRID**2], rcond=None)[0]
-
-    return dict(
-        flags=flags,
-        centerMidpointMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
-        focalPlaneMidpointMjdTai=float(openStart + focalPlane/_SECONDS_PER_DAY),
-        effectiveExposureTime=float(eC[0] - eO[0]),
-        maxAbsResidual=float(np.max(np.abs(basis @ cz - dt))),
-        coefficients=tuple(float(v) for v in cz*unit),
-    )
+    return flags, openStart, tMid, eC - eO
