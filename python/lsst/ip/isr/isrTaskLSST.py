@@ -29,8 +29,7 @@ from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
-from .shutterMotion import ShutterMotionProfileFull
-from .shutterTiming import ShutterTimingConfig, computeShutterTiming
+from .shutterTiming import ShutterTimingConfig, computeShutterTiming, writeShutterTiming
 from .isrFunctions import isTrimmedExposure, compareCameraKeywords
 from .brighterFatterKernel import (brighterFatterCorrection,
                                    fluxConservingBrighterFatterCorrection)
@@ -2038,38 +2037,6 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         ),
         version="v28", category=FutureWarning
     )
-    def recordShutterTiming(self, exposure, profileOpen, profileClose, requestedExposureTime):
-        """Record the shutter-corrected mid-exposure times of the detector in
-        the exposure metadata.
-
-        Parameters
-        ----------
-        exposure : `lsst.afw.image.Exposure`
-            Exposure whose metadata to update; it carries ``MJD-BEG`` and,
-            since 2025-10-29, the shutter motion cards.
-        profileOpen, profileClose : `lsst.ip.isr.ShutterMotionProfile` or \
-                `None`
-            Shutter blade motions; if `None`, they are read from the exposure
-            metadata.
-        requestedExposureTime : `float` or `None`
-            Requested exposure time (s), to check the shutter timestamps.
-        """
-        metadata = exposure.metadata
-
-        # The blade motions: from the profiles if given, else from the
-        # header (none before 2025-10-29).
-        if profileOpen is None and profileClose is None:
-            if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
-                self.log.info("No shutter motion profiles or cards: no shutter-corrected times.")
-                return
-            profiles = ShutterMotionProfileFull.fromExposure(exposure)
-            profileOpen, profileClose = profiles.profile_open, profiles.profile_close
-
-        timing = computeShutterTiming(profileOpen, profileClose, exposure.detector, metadata["MJD-BEG"],
-                                      requestedExposureTime, self.config.shutterTiming)
-        if timing is not None:
-            timing.toMetadata(metadata)
-
     def makeBinnedImages(self, exposure):
         """Make visualizeVisit style binned exposures.
 
@@ -2759,8 +2726,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
 
         if self.config.doShutterTiming:
-            self.recordShutterTiming(ccdExposure, shutterMotionProfileOpen, shutterMotionProfileClose,
-                                     requestedExposureTime)
+            timing = computeShutterTiming(ccdExposure, requestedExposureTime, shutterMotionProfileOpen,
+                                          shutterMotionProfileClose, self.config.shutterTiming)
+            writeShutterTiming(ccdExposure.metadata, timing)
 
         # calculate additional statistics.
         outputStatistics = None

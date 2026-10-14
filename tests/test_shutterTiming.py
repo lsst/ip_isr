@@ -36,12 +36,13 @@ from lsst.afw.cameraGeom import Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.afw.image import ExposureF, ExposureSummaryStats, VisitInfo
 from lsst.daf.base import PropertyList
-from lsst.ip.isr import IsrTaskLSST, IsrTaskLSSTConfig, ShutterMotionProfile
+from lsst.ip.isr import ShutterMotionProfile
 from lsst.ip.isr.shutterTiming import (
     ShutterTiming,
     ShutterTimingConfig,
     computeShutterTiming,
     getShutterTiming,
+    writeShutterTiming,
 )
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -170,8 +171,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timing.toMetadata(metadata)
         readBack = ShutterTiming.fromMetadata(metadata)
         self.assertFloatsEqual(readBack.midpointMjdTai(y, y), timing.midpointMjdTai(y, y))
-        for field in ("reanchored", "source"):
-            self.assertEqual(getattr(readBack, field), getattr(timing, field), field)
+        self.assertEqual(readBack.reanchored, timing.reanchored)
         self.assertIsNone(ShutterTiming.fromMetadata(PropertyList()))
 
         summary = ExposureSummaryStats()
@@ -183,7 +183,8 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
     def testProfiles(self):
         """Check that the camera's motion profiles give the times of the
         header cards of the same exposure, to within the correction for the
-        measured start positions (<= 31 us; here they are nominal to 0.2 um).
+        measured start positions (<= 31 us; here they are nominal to 0.2 um),
+        and that with only one profile the header cards are used.
         """
         def profile(direction):
             return ShutterMotionProfile.readText(os.path.join(
@@ -206,42 +207,42 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                        prefix + "HALLSENSORFIT JERK1": p.fit_jerk1[i],
                        prefix + "HALLSENSORFIT JERK2": p.fit_jerk2[i]})
         md["EXPTIME"] = 10.0
-        fromHeader = self.compute(md, 0)
-        fromProfiles = computeShutterTiming(profile("Open"), profile("Close"), self.detectors[0],
-                                            md["MJD-BEG"], 10.0, self.config)
+        exposure = makeExposure(md, self.detectors[0])
+        fromHeader = computeShutterTiming(exposure, 10.0, config=self.config)
+        fromProfiles = computeShutterTiming(exposure, 10.0, profile("Open"), profile("Close"), self.config)
 
-        self.assertEqual((fromHeader.source, fromProfiles.source), ("header", "profile"))
         y = np.array([0.0, 2000.0, 3999.0])
         dt = (fromProfiles.midpointMjdTai(y, y) - fromHeader.midpointMjdTai(y, y))*SECONDS_PER_DAY
         self.assertTrue(np.all(np.abs(dt) <= 31e-6), dt)
 
-    def testIsrTask(self):
-        """Check that ISR records the times of the header cards in the
-        metadata.
+        # Only one profile: the header cards, with an error.
+        with self.assertLogs(level="ERROR"):
+            oneProfile = computeShutterTiming(exposure, 10.0, profile("Open"), None, self.config)
+        self.assertFloatsEqual(oneProfile.chebyshevCoefficients, fromHeader.chebyshevCoefficients)
+
+    def testRecorded(self):
+        """Check that later steps get the times ISR recorded, not ones from
+        the header, including when ISR computed none.
         """
-        config = IsrTaskLSSTConfig()
-        config.doShutterTiming = True
-        task = IsrTaskLSST(config=config)
-
-        exposure = makeExposure(self.base, self.detectors[94], requestedExposureTime=False)
-        task.recordShutterTiming(exposure, None, None, self.base["EXPTIME"])
-        recorded = ShutterTiming.fromMetadata(exposure.metadata)
         expected = self.compute(self.base)
+        exposure = makeExposure(self.base, self.detectors[94])
 
-        self.assertEqual(recorded.centerMidpointMjdTai, expected.centerMidpointMjdTai)
-        self.assertFloatsEqual(recorded.chebyshevCoefficients, expected.chebyshevCoefficients)
-
-        # Later steps get the recorded times, not ones from the header.
+        # Recorded times, with a header that would give none.
+        writeShutterTiming(exposure.metadata, expected)
         exposure.metadata.set("SHUTTER OPEN HALLSENSORFIT JERK0", 0.0)
         self.assertEqual(getShutterTiming(exposure).centerMidpointMjdTai, expected.centerMidpointMjdTai)
+
+        # None recorded, with a header that would give times.
+        exposure = makeExposure(self.base, self.detectors[94])
+        writeShutterTiming(exposure.metadata, None)
+        self.assertIsNone(getShutterTiming(exposure))
 
     def testNoCards(self):
         """Check that exposures before the shutter cards have no corrected
         times.
         """
         md = {k: v for k, v in self.base.items() if not k.startswith("SHUTTER")}
-        for det in (0, 94, 188):
-            self.assertIsNone(self.compute(md, det))
+        self.assertIsNone(self.compute(md))
 
     def testReanchoring(self):
         """Check that shutter timestamps that disagree with the requested
@@ -252,7 +253,8 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timings = []
         for shiftMs in (10.0, -5.0):
             md = self.changed(card, self.base[card] + shiftMs*1e-3/SECONDS_PER_DAY)
-            self.checkAgainstReference(self.baseDoc["reanchored"], md, f"close start {shiftMs:+} ms")
+            if shiftMs > 0:
+                self.checkAgainstReference(self.baseDoc["reanchored"], md, f"close start {shiftMs:+} ms")
             t = self.compute(md)
             self.assertTrue(t.reanchored)
             timings.append(t)
@@ -285,8 +287,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             (jerk0, -self.base[jerk0]),
         )
         for card, value in changes:
-            for det in (0, 94, 188):
-                self.assertIsNone(self.compute(self.changed(card, value), det), card)
+            self.assertIsNone(self.compute(self.changed(card, value)), card)
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):

@@ -25,6 +25,7 @@ Shutter motion profile storage class
 __all__ = ["ShutterMotionProfile", "ShutterMotionProfileFull"]
 
 from astropy.table import Table
+from scipy.interpolate import PPoly
 import numpy as np
 
 from lsst.ip.isr import IsrCalib
@@ -117,7 +118,7 @@ class ShutterMotionProfile(IsrCalib):
             Raised if the requested ``modelName`` is not found in the
             calibration.
         """
-        t0, t1, t2, j0, j1, j2 = self._fitParameters(modelName)
+        t0, t1, t2, j0, j1, j2 = self.fitParameters(modelName)
 
         # First estimate of midpoint, where the acceleration
         # j0*t1 + j1*(t - t1) is zero (Equations 3.2, 3.4, 5.1).
@@ -161,25 +162,13 @@ class ShutterMotionProfile(IsrCalib):
         ValueError
             Raised if the fit model is not ``ThreeJerksModelv1``.
         """
-        modelStartTime, pivot1, pivot2, *jerks = self._fitParameters(modelName)
-        starts = np.array([0.0, pivot1, pivot2])
+        modelStartTime, pivot1, pivot2, *jerks = self.fitParameters(modelName)
 
-        # Displacement, velocity and acceleration at the start of each
-        # segment.
-        state = np.zeros((3, 3))
-        for k in (1, 2):
-            s0, v0, a0 = state[k - 1]
-            h, j = starts[k] - starts[k - 1], jerks[k - 1]
-            state[k] = (s0 + h*(v0 + h*(a0/2 + h*j/6)), v0 + h*(a0 + h*j/2), a0 + h*j)
+        # The piecewise-constant jerk, integrated three times from rest; at
+        # rest before the model start.
+        jerk = PPoly(np.array([jerks]), np.array([0.0, pivot1, pivot2, np.inf]))
 
-        # Constant-jerk motion within each time's segment; at rest before
-        # the model start.
-        modelTime = np.maximum(t - modelStartTime, 0.0)
-        k = np.searchsorted(starts, modelTime, side="right") - 1
-        h = modelTime - starts[k]
-        s0, v0, a0 = state[k].T
-
-        return s0 + h*(v0 + h*(a0/2 + h*np.array(jerks)[k]/6))
+        return jerk.antiderivative(3)(np.maximum(t - modelStartTime, 0.0))
 
     def timeAtPosition(self, position: np.ndarray, modelName: str = "hallSensorFit") -> np.ndarray:
         """Compute when the blade reaches given positions.
@@ -234,7 +223,7 @@ class ShutterMotionProfile(IsrCalib):
             displacement = position - startPosition
 
         # The displacement on a time grid, up to where the motion stops.
-        modelStartTime = self._fitParameters(modelName)[0]
+        modelStartTime = self.fitParameters(modelName)[0]
         tGrid = np.arange(0.0, _MAX_MOTION_TIME + _MOTION_TIME_STEP/2, _MOTION_TIME_STEP)
         dGrid = self.displacement(tGrid + modelStartTime, modelName)
         stops = np.flatnonzero(np.diff(dGrid) <= 0)
@@ -244,7 +233,7 @@ class ShutterMotionProfile(IsrCalib):
 
         return tModel + modelStartTime
 
-    def _fitParameters(self, modelName: str) -> np.ndarray:
+    def fitParameters(self, modelName: str) -> np.ndarray:
         """Return a fit as ``ModelStartTime``, ``PivotPoint1``,
         ``PivotPoint2`` (s), ``Jerk0``, ``Jerk1`` and ``Jerk2`` (mm/s^3).
 
