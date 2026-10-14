@@ -106,6 +106,11 @@ _DISPLACEMENT_AT_0P9S_RANGE = (745.0, 757.0)
 #: header.
 _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE = (-2.0, 4.0)
 
+#: Time step (s) and span (s) of the model times at which blade motions are
+#: evaluated for inversion; a motion lasts ~0.9 s.
+_MOTION_TIME_STEP = 1e-4
+_MAX_MOTION_TIME = 1.5
+
 #: Re-anchoring offsets (s): open STARTTIME - MJD-BEG, and close - open
 #: STARTTIME - requested exposure time.
 _HEADER_ANCHOR_OFFSETS = (0.00809, 0.00052)
@@ -191,172 +196,69 @@ class _ThreeJerksParams:
     """Jerk (mm/s^3) after ``pivot2``."""
 
 
-class _ThreeJerksTrajectory:
-    """ThreeJerksModelv1 trajectory of one blade motion.
+def _displacement(fit: _ThreeJerksParams, t: np.ndarray) -> np.ndarray:
+    """Compute the displacement of a ThreeJerksModelv1 blade motion.
 
     The camera fits each blade motion, from its Hall-sensor positions, with
-    this model (CTN-002): piecewise-constant jerk ``j0`` on ``[0, t1)``,
-    ``j1`` on ``[t1, t2)``, ``j2`` on ``[t2, inf)``, from rest at model time
-    0 (``(T - startTime) - ModelStartTime``, s).  It gives the displacement
-    ``d(t) >= 0`` along the travel direction; the encoder position is
-    ``startPosition + travelSign * d(t)``.
+    this model (CTN-002): piecewise-constant jerk ``jerk0`` before
+    ``pivot1``, ``jerk1`` to ``pivot2`` and ``jerk2`` after, from rest at
+    model time 0 (the motion start time plus ``modelStartTime``).
 
     Parameters
     ----------
-    params : ``_ThreeJerksParams``
+    fit : ``_ThreeJerksParams``
         The fit.
-    startPosition : `float`
-        Encoder position (mm) at model time zero.
-    travelSign : `int`
-        +1 if the encoder position increases during the move, else -1.
+    t : `numpy.ndarray`
+        Model times (s), >= 0.
 
-    Raises
-    ------
-    ValueError
-        Raised if the pivots do not satisfy ``0 <= pivot1 <= pivot2``.
+    Returns
+    -------
+    d : `numpy.ndarray`
+        Displacement (mm) along the travel direction.
     """
+    # Start time and jerk of each segment.
+    starts = np.array([0.0, fit.pivot1, fit.pivot2])
+    jerks = np.array([fit.jerk0, fit.jerk1, fit.jerk2])
 
-    def __init__(self, params: _ThreeJerksParams, startPosition: float, travelSign: int):
-        t1, t2 = params.pivot1, params.pivot2
-        if not 0.0 <= t1 <= t2:
-            raise ValueError(f"invalid pivots (need 0 <= pivot1 <= pivot2): {t1}, {t2}")
+    # Displacement, velocity and acceleration at the start of each segment.
+    state = np.zeros((3, 3))
+    for k in (1, 2):
+        s0, v0, a0 = state[k - 1]
+        h, j = starts[k] - starts[k - 1], jerks[k - 1]
+        state[k] = (s0 + h*(v0 + h*(a0/2 + h*j/6)), v0 + h*(a0 + h*j/2), a0 + h*j)
 
-        self.startPosition = startPosition
-        self.travelSign = travelSign
+    # Constant-jerk motion within each time's segment.
+    k = np.searchsorted(starts, t, side="right") - 1
+    h = t - starts[k]
+    s0, v0, a0 = state[k].T
 
-        # Segment start times and jerks.
-        self._tb = np.array([0.0, t1, t2])
-        self._j = np.array([params.jerk0, params.jerk1, params.jerk2])
+    return s0 + h*(v0 + h*(a0/2 + h*jerks[k]/6))
 
-        # Displacement, velocity and acceleration at the start of each
-        # segment, integrating from rest.
-        state = np.zeros((3, 3))
-        s = v = a = 0.0
-        for k in range(3):
-            state[k] = (s, v, a)
-            if k < 2:
-                h, j = self._tb[k + 1] - self._tb[k], self._j[k]
-                s, v, a = (
-                    s + v*h + a*h*h/2 + j*h**3/6,
-                    v + a*h + j*h*h/2,
-                    a + j*h,
-                )
-        self._state = state
 
-        # End of the monotonic branch, where the inversion is defined.
-        self.tStop = self._branchEnd()
-        self.dMax = float(self.sva(self.tStop)[0]) if np.isfinite(self.tStop) else np.inf
+def _timeOfDisplacement(fit: _ThreeJerksParams, d: np.ndarray) -> np.ndarray:
+    """Invert a ThreeJerksModelv1 blade motion.
 
-    def _branchEnd(self) -> float:
-        """Return the end (model time, s) of the monotonic branch: the first
-        velocity zero or velocity minimum after 0; 0 if ``j0 <= 0``; inf if
-        none.
-        """
-        if self._j[0] <= 0:
-            return 0.0
+    Parameters
+    ----------
+    fit : ``_ThreeJerksParams``
+        The fit.
+    d : `numpy.ndarray`
+        Displacements (mm) along the travel direction.
 
-        ends = np.append(self._tb[1:], np.inf)
-        for k in (1, 2):
-            _, v0, a0 = self._state[k]
-            j = self._j[k]
-            hMax = ends[k] - self._tb[k]
+    Returns
+    -------
+    t : `numpy.ndarray`
+        Model times (s) at which the blade reaches ``d``, interpolated
+        linearly between times ``_MOTION_TIME_STEP`` apart (to < 0.1 us); NaN
+        before the start and beyond the end of the forward motion.
+    """
+    # The displacement on a time grid, up to where the motion stops.
+    tGrid = np.arange(0.0, _MAX_MOTION_TIME + _MOTION_TIME_STEP/2, _MOTION_TIME_STEP)
+    dGrid = _displacement(fit, tGrid)
+    forward = np.flatnonzero(np.diff(dGrid) <= 0)
+    end = forward[0] + 1 if forward.size else dGrid.size
 
-            # Candidate times within this segment: velocity zeros, and the
-            # velocity minimum.
-            cands = []
-            if j != 0:
-                disc = a0*a0 - 2.0*j*v0
-                if disc >= 0:
-                    sq = np.sqrt(disc)
-                    cands += [(-a0 - sq)/j, (-a0 + sq)/j]
-            elif a0 != 0:
-                cands.append(-v0/a0)
-            if a0 < 0 < j:
-                cands.append(-a0/j)
-
-            cands = [h for h in cands if 0 < h <= hMax]
-            if cands:
-                return float(self._tb[k] + min(cands))
-
-        return np.inf
-
-    def sva(self, dt: np.ndarray | float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Evaluate the trajectory.
-
-        Parameters
-        ----------
-        dt : `numpy.ndarray` or `float`
-            Model time (s).
-
-        Returns
-        -------
-        s, v, a : `tuple` [`numpy.ndarray`]
-            Displacement (mm), velocity (mm/s) and acceleration (mm/s^2);
-            zero for ``dt < 0``.
-        """
-        # The segment of each time, and the time since its start.
-        tc = np.maximum(dt, 0.0)
-        k = np.clip(np.searchsorted(self._tb, tc, side="right") - 1, 0, 2)
-        h = tc - self._tb[k]
-
-        # Constant-jerk motion from that segment's starting state.
-        s0, v0, a0 = (self._state[k, i] for i in range(3))
-        j = self._j[k]
-        s = s0 + h*(v0 + h*(a0/2 + h*j/6))
-        v = v0 + h*(a0 + h*j/2)
-        a = a0 + h*j
-
-        return s, v, a
-
-    def timeOfDisplacement(self, d: np.ndarray) -> np.ndarray:
-        """Invert the trajectory on its monotonic branch.
-
-        Parameters
-        ----------
-        d : `numpy.ndarray`
-            Displacement (mm).
-
-        Returns
-        -------
-        t : `numpy.ndarray`
-            Model time (s) at which the displacement is ``d``, by bisection
-            within its jerk segment; NaN outside ``[0, dMax]``.
-        """
-        out = np.full(d.shape, np.nan)
-        valid = (d >= 0.0) & (d <= self.dMax)
-        if self.tStop <= 0.0 or not np.any(valid):
-            return out
-        dv = d[valid]
-
-        # End of the branch; if the motion never stops, far enough to reach
-        # the largest d (s(t) may never reach it).
-        tEnd = self.tStop
-        if not np.isfinite(tEnd):
-            tEnd = 1.0
-            while self.sva(tEnd)[0] < dv.max() and tEnd < 1024.0:
-                tEnd *= 2.0
-
-        # The segment containing each d, with breakpoints cut at the end of
-        # the branch.
-        tb = np.minimum(np.append(self._tb, tEnd), tEnd)
-        k = np.clip(np.searchsorted(self.sva(tb[:3])[0], dv, side="right") - 1, 0, 2)
-        s0, v0, a0 = self._state[k].T
-        a0, j = a0/2, self._j[k]/6
-
-        # Bisect within the segment; bracket width / 2**45 < 1e-13 s for the
-        # < 1 s shutter segments.
-        lo = np.zeros_like(dv)
-        hi = tb[k + 1] - tb[k]
-        for _ in range(45 + max(0, int(np.log2(max(hi.max(), 1.0))))):
-            h = 0.5*(lo + hi)
-            below = s0 + h*(v0 + h*(a0 + h*j)) < dv
-            lo = np.where(below, h, lo)
-            hi = np.where(below, hi, h)
-        t = tb[k] + 0.5*(lo + hi)
-        t[dv > self.sva(tEnd)[0]] = np.nan
-
-        out[valid] = t
-        return out
+    return np.interp(d, dGrid[:end], tGrid[:end], left=np.nan, right=np.nan)
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -558,7 +460,7 @@ def _inRange(value: float, bounds: tuple[float, float]) -> bool:
 
 def _fitInRange(fit: _ThreeJerksParams) -> bool:
     """Return whether a Hall fit is within the nominal ranges."""
-    displacementAt0p9s = _ThreeJerksTrajectory(fit, 0.0, -1).sva(0.9)[0]
+    displacementAt0p9s = _displacement(fit, np.array([0.9]))[0]
 
     return (
         0.0 <= fit.pivot1 <= fit.pivot2
@@ -713,9 +615,8 @@ def _compute(
     tau = []
     for _, travelSign, fit in motions:
         start = _NOMINAL_STROKE if travelSign < 0 else _NOMINAL_START_INCREASING
-        traj = _ThreeJerksTrajectory(fit, start, travelSign)
         d = travelSign*((_ENCODER_CENTER - start) - s)
-        tau.append(traj.timeOfDisplacement(d) + fit.modelStartTime)
+        tau.append(_timeOfDisplacement(fit, d) + fit.modelStartTime)
     tO, tauC = tau
     tC = tauC + closeRel
 
