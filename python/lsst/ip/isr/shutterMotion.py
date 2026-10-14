@@ -180,35 +180,6 @@ class ShutterMotionProfile(IsrCalib):
             Constructed profile.
 
         """
-        return cls.fromMetadata(exposure.metadata, direction=direction)
-
-    @classmethod
-    def fromMetadata(cls, metadata, direction="open"):
-        """Construct a ShutterMotionProfile from exposure metadata.
-
-        The profile holds the motion's start time, side and Hall-sensor
-        fit, under the same names as a profile read with `fromDict`
-        (``startTime_mjd``, ``startTime_tai`` and ``side`` in the metadata,
-        ``fit_model``); the header has no start position.
-
-        Parameters
-        ----------
-        metadata : `lsst.daf.base.PropertyList` or `dict`
-            Exposure metadata with the ``SHUTTER {OPEN,CLOSE}`` cards.
-        direction : `str`, optional
-            Direction of shutter to construct.  Should be one of
-            "open" or "close".
-
-        Returns
-        -------
-        calib : `lsst.ip.isr.ShutterMotionProfile`
-            Constructed profile.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if a card is missing.
-        """
         if direction not in ('open', 'close'):
             raise ValueError(f"Unknown shutter direction {direction} suppled.")
 
@@ -224,30 +195,30 @@ class ShutterMotionProfile(IsrCalib):
                     f'SHUTTER {direction.upper()} HALLSENSORFIT JERK2']
 
         for kw in keywords:
-            if kw not in metadata:
+            if kw not in exposure.metadata:
                 raise RuntimeError(f"Expected header keyword not found: {kw}.")
 
         calib = cls()
-        calib.time_tai.append(metadata[f'SHUTTER {direction.upper()} STARTTIME TAI ISOT'])
-        calib.time_mjd.append(metadata[f'SHUTTER {direction.upper()} STARTTIME TAI MJD'])
-        calib.metadata['SIDE'] = metadata[f'SHUTTER {direction.upper()} SIDE']
+        calib.time_tai.append(exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI ISOT'])
+        calib.time_mjd.append(exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI MJD'])
+        calib.metadata['SIDE'] = exposure.metadata[f'SHUTTER {direction.upper()} SIDE']
 
         # The same names as a profile read from the camera's JSON file.
         calib.metadata['startTime_tai'] = calib.time_tai[0]
         calib.metadata['startTime_mjd'] = calib.time_mjd[0]
         calib.metadata['side'] = calib.metadata['SIDE']
-        calib.fit_model = metadata[f'SHUTTER {direction.upper()} MODEL']
+        calib.fit_model = exposure.metadata[f'SHUTTER {direction.upper()} MODEL']
 
         calib.fit_name.append("hallSensorFit")
 
         calib.fit_start_time.append(
-            metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT MODELSTARTTIME']
+            exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT MODELSTARTTIME']
         )
-        calib.fit_pivot1.append(metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT1'])
-        calib.fit_pivot2.append(metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT2'])
-        calib.fit_jerk0.append(metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK0'])
-        calib.fit_jerk1.append(metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK1'])
-        calib.fit_jerk2.append(metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK2'])
+        calib.fit_pivot1.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT1'])
+        calib.fit_pivot2.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT PIVOTPOINT2'])
+        calib.fit_jerk0.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK0'])
+        calib.fit_jerk1.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK1'])
+        calib.fit_jerk2.append(exposure.metadata[f'SHUTTER {direction.upper()} HALLSENSORFIT JERK2'])
 
         return calib
 
@@ -748,30 +719,9 @@ class ShutterMotionProfileFull(IsrCalib):
         calib : `lsst.ip.isr.ShutterMotionProfile`
             Constructed profile.
         """
-        return cls.fromMetadata(exposure.metadata)
-
-    @classmethod
-    def fromMetadata(cls, metadata):
-        """Construct a ShutterMotionProfileFull from exposure metadata.
-
-        Parameters
-        ----------
-        metadata : `lsst.daf.base.PropertyList` or `dict`
-            Exposure metadata with the ``SHUTTER {OPEN,CLOSE}`` cards.
-
-        Returns
-        -------
-        calib : `lsst.ip.isr.ShutterMotionProfileFull`
-            Constructed profiles.
-
-        Raises
-        ------
-        RuntimeError
-            Raised if a card is missing.
-        """
         calib = cls()
-        calib.profile_open = ShutterMotionProfile.fromMetadata(metadata, direction="open")
-        calib.profile_close = ShutterMotionProfile.fromMetadata(metadata, direction="close")
+        calib.profile_open = ShutterMotionProfile.fromExposure(exposure, direction="open")
+        calib.profile_close = ShutterMotionProfile.fromExposure(exposure, direction="close")
 
         return calib
 

@@ -63,9 +63,9 @@ import math
 import numpy as np
 
 import lsst.pex.config as pexConfig
-from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS, Detector
+from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS
 from lsst.afw.geom import TransformPoint2ToPoint2
-from lsst.daf.base import PropertyList
+from lsst.afw.image import Exposure
 
 from .shutterMotion import ShutterMotionProfile, ShutterMotionProfileFull
 
@@ -317,8 +317,7 @@ class ShutterTiming:
 
 
 def computeShutterTiming(
-    metadata: PropertyList | dict,
-    detector: Detector,
+    exposure: Exposure,
     exposureTime: float,
     config: ShutterTimingConfig | None = None,
 ) -> ShutterTiming:
@@ -326,10 +325,8 @@ def computeShutterTiming(
 
     Parameters
     ----------
-    metadata : `lsst.daf.base.PropertyList`
-        The exposure metadata (a `dict` works too).
-    detector : `lsst.afw.cameraGeom.Detector`
-        The detector.
+    exposure : `lsst.afw.image.Exposure`
+        The exposure; its metadata carries the shutter cards and ``MJD-BEG``.
     exposureTime : `float`
         The requested (nominal) exposure time (s).  Callers take it from the
         butler ``visit`` dimension record (``exposure_time``): ``EXPTIME`` is
@@ -379,11 +376,14 @@ def computeShutterTiming(
     if config is None:
         config = ShutterTimingConfig()
 
+    metadata = exposure.metadata
+    detector = exposure.detector
+
     # Exposures before the shutter cards were added.
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
         return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE)
 
-    profile = ShutterMotionProfileFull.fromMetadata(metadata)
+    profile = ShutterMotionProfileFull.fromExposure(exposure)
     begin = float(metadata["MJD-BEG"])
 
     # Focal-plane y of the detector centre and of the table, which spans the

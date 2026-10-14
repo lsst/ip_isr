@@ -35,7 +35,7 @@ import lsst.geom
 import lsst.utils.tests
 from lsst.afw.cameraGeom import Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
-from lsst.daf.base import PropertyList
+from lsst.afw.image import ExposureF
 from lsst.ip.isr.shutterTiming import (
     ShutterTimingConfig,
     ShutterTimingFlag,
@@ -84,6 +84,17 @@ def makeDetector(detectorId, geometry):
                            orientation=orientation).detector
 
 
+def makeExposure(metadata, detector):
+    """Build a 1x1 exposure (pixels are not used) with the given metadata
+    (`dict`) and detector.
+    """
+    exposure = ExposureF(1, 1)
+    exposure.setDetector(detector)
+    for key, value in metadata.items():
+        exposure.metadata.set(key, value)
+    return exposure
+
+
 class ShutterTimingTestCase(lsst.utils.tests.TestCase):
     """Agreement with the reference results, and the cases that occur in
     processing.
@@ -100,7 +111,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                          for det, expected in doc["detectors"].items()}
 
     def compute(self, md, det=94):
-        return computeShutterTiming(md, self.detectors[det], md["EXPTIME"], self.config)
+        return computeShutterTiming(makeExposure(md, self.detectors[det]), md["EXPTIME"], self.config)
 
     def mutated(self, name):
         """Return the base metadata with a mutation's cards set."""
@@ -115,9 +126,8 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         # Every detector: availability, flags and the centre time.
         timings = {}
         for det, expected in doc["detectors"].items():
-            t = timings[int(det)] = computeShutterTiming(
-                metadata, makeDetector(int(det), expected["geometry"]), metadata["EXPTIME"], self.config
-            )
+            exposure = makeExposure(metadata, makeDetector(int(det), expected["geometry"]))
+            t = timings[int(det)] = computeShutterTiming(exposure, metadata["EXPTIME"], self.config)
             label2 = f"{label} {det}"
 
             self.assertTrue(t.isAvailable, label2)
@@ -184,18 +194,6 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                 self.assertFalse(t.isAvailable, name)
                 self.assertEqual(t.flags, ShutterTimingFlag.PARAM_RANGE, name)
                 self.assertTrue(np.isnan(t.midpointMjdTai(np.array(2000.0), np.array(2000.0))))
-
-    def testPropertyList(self):
-        """Check that a `PropertyList` gives the same result as a `dict`."""
-        doc = readFixture("MC_O_20260105_000250")
-        pl = PropertyList()
-        for k, v in doc["metadata"].items():
-            pl.set(k, v)
-
-        a, b = self.compute(pl), self.compute(doc["metadata"])
-        xy = np.array([0.0, 2000.0, 4000.0])
-        self.assertEqual(a.centerMidpointMjdTai, b.centerMidpointMjdTai)
-        np.testing.assert_array_equal(a.midpointMjdTai(xy, xy), b.midpointMjdTai(xy, xy))
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
