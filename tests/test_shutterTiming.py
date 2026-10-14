@@ -25,7 +25,6 @@ tests/data/shutterTiming (see its README.md).
 
 import glob
 import json
-import math
 import os
 import unittest
 
@@ -36,11 +35,7 @@ import lsst.utils.tests
 from lsst.afw.cameraGeom import Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.afw.image import ExposureF
-from lsst.ip.isr.shutterTiming import (
-    ShutterTimingConfig,
-    ShutterTimingFlag,
-    computeShutterTiming,
-)
+from lsst.ip.isr.shutterTiming import ShutterTimingConfig, computeShutterTiming
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(TESTDIR, "data", "shutterTiming")
@@ -49,9 +44,8 @@ BASE = "MC_O_20260712_000100"
 #: Agreement target (s): centre and per-source times.
 TOL_S = 10e-6
 SECONDS_PER_DAY = 86400.0
-#: The reference's flag bits that this implementation keeps.
-KEPT_FLAGS = int(ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.PARAM_RANGE
-                 | ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
+#: The reference's flag for re-anchored start times (CLOCK_CLOSE_VS_OPEN).
+REANCHORED_FLAG = 16
 
 
 def readFixture(name):
@@ -119,17 +113,16 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
 
     def checkAgainstReference(self, doc, metadata, label):
         """Check all detectors and samples of a fixture against the
-        reference; its flags are compared on the kept bits.
+        reference.
         """
-        # Every detector: availability, flags and the centre time.
+        # Every detector: re-anchoring and the centre time.
         timings = {}
         for det, expected in doc["detectors"].items():
             exposure = makeExposure(metadata, makeDetector(int(det), expected["geometry"]))
             t = timings[int(det)] = computeShutterTiming(exposure, metadata["EXPTIME"], self.config)
             label2 = f"{label} {det}"
 
-            self.assertTrue(t.isAvailable, label2)
-            self.assertEqual(int(t.flags), expected["qc_flags"] & KEPT_FLAGS, label2)
+            self.assertEqual(t.reanchored, bool(expected["qc_flags"] & REANCHORED_FLAG), label2)
             self.assertLessEqual(abs(t.centerMidpointMjdTai - expected["center_mjd_tai"])*SECONDS_PER_DAY,
                                  TOL_S, label2)
 
@@ -157,14 +150,8 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         times.
         """
         md = {k: v for k, v in self.base.items() if not k.startswith("SHUTTER")}
-        xy = np.array([0.0, 2000.0])
-
         for det in (0, 94, 188):
-            t = self.compute(md, det)
-            self.assertFalse(t.isAvailable)
-            self.assertEqual(t.flags, ShutterTimingFlag.NO_PROFILE)
-            self.assertTrue(math.isnan(t.centerMidpointMjdTai))
-            self.assertTrue(np.all(np.isnan(t.midpointMjdTai(xy, xy))))
+            self.assertIsNone(self.compute(md, det))
 
     def testReanchoring(self):
         """Check that shutter clocks that disagree are re-anchored to the
@@ -177,12 +164,19 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             md = self.changed(card, self.base[card] + shiftMs*1e-3/SECONDS_PER_DAY)
             self.checkAgainstReference(self.baseDoc["reanchored"], md, f"close start {shiftMs:+} ms")
             t = self.compute(md)
-            self.assertTrue(t.flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
+            self.assertTrue(t.reanchored)
             timings.append(t)
         self.assertEqual(timings[0].centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 
         # Clocks that agree are not re-anchored.
-        self.assertFalse(self.compute(self.base).flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
+        self.assertFalse(self.compute(self.base).reanchored)
+
+        # Without the requested exposure time, the timestamps are used as
+        # they are.
+        exposure = makeExposure(md, self.detectors[94])
+        unchecked = computeShutterTiming(exposure, None, self.config)
+        self.assertFalse(unchecked.reanchored)
+        self.assertNotEqual(unchecked.centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 
     def testParamRange(self):
         """Check that Hall fits outside the nominal ranges, including a
@@ -196,10 +190,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         )
         for card, value in changes:
             for det in (0, 94, 188):
-                t = self.compute(self.changed(card, value), det)
-                self.assertFalse(t.isAvailable, card)
-                self.assertEqual(t.flags, ShutterTimingFlag.PARAM_RANGE, card)
-                self.assertTrue(np.isnan(t.midpointMjdTai(np.array(2000.0), np.array(2000.0))))
+                self.assertIsNone(self.compute(self.changed(card, value), det), card)
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):

@@ -52,13 +52,11 @@ in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
 __all__ = [
     "ShutterTiming",
     "ShutterTimingConfig",
-    "ShutterTimingFlag",
     "computeShutterTiming",
 ]
 
 import dataclasses
-import enum
-import math
+import logging
 
 import numpy as np
 
@@ -69,6 +67,7 @@ from lsst.afw.image import Exposure
 
 from .shutterMotion import ShutterMotionProfile, ShutterMotionProfileFull
 
+log = logging.getLogger(__name__)
 
 _SECONDS_PER_DAY = 86400.0
 
@@ -101,8 +100,8 @@ _ABS_MODEL_START_TIME_RANGE = (0.0, 0.003)
 _DISPLACEMENT_AT_0P9S_RANGE = (745.0, 757.0)
 
 #: Range (ms) of close - open STARTTIME - requested exposure time; outside it
-#: the shutter clocks disagree and both start times are re-anchored to the
-#: header.
+#: the shutter timestamps disagree and both start times are re-anchored to
+#: the header.
 _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE = (-2.0, 4.0)
 
 #: Time step (s) and span (s) of the model times at which blade motions are
@@ -121,20 +120,6 @@ _FOCAL_PLANE_Y_STEP = 0.5
 #: Margin (mm) beyond the detector edges over which times are computed; NaN
 #: beyond.
 _FOCAL_PLANE_Y_MARGIN = 5.0
-
-
-class ShutterTimingFlag(enum.IntFlag):
-    """Details of a result (fixed bit values)."""
-
-    NONE = 0
-    NO_PROFILE = 1
-    """No shutter cards (exposures before 2025-10-29): no corrected times."""
-    PARAM_RANGE = 2
-    """A Hall fit outside the nominal ranges: no corrected times."""
-    CLOCK_CLOSE_VS_OPEN = 16
-    """The two shutter clocks disagree: both start times are re-anchored to
-    MJD-BEG and the requested exposure time.
-    """
 
 
 class ShutterTimingConfig(pexConfig.Config):
@@ -235,33 +220,24 @@ class ShutterTiming:
     linearly.
     """
 
-    flags: ShutterTimingFlag = ShutterTimingFlag.NONE
-    """Why there are no corrected times, or notes on them."""
+    centerMidpointMjdTai: float
+    """Flux-weighted mid-exposure time at the detector centre."""
 
-    centerMidpointMjdTai: float = math.nan
-    """Flux-weighted mid-exposure time at the detector centre; NaN if there
-    are no corrected times.
-    """
+    focalPlaneY: np.ndarray = dataclasses.field(repr=False)
+    """Focal-plane y (mm, increasing) at which the times are tabulated."""
 
-    focalPlaneY: np.ndarray | None = dataclasses.field(default=None, repr=False)
-    """Focal-plane y (mm, increasing) at which the times are tabulated; None
-    if there are no corrected times.
-    """
-
-    midpointOffsets: np.ndarray | None = dataclasses.field(default=None, repr=False)
+    midpointOffsets: np.ndarray = dataclasses.field(repr=False)
     """Mid-exposure times at ``focalPlaneY``, s after
     ``centerMidpointMjdTai``.
     """
 
-    pixelToFocalPlane: TransformPoint2ToPoint2 | None = dataclasses.field(default=None, repr=False)
+    pixelToFocalPlane: TransformPoint2ToPoint2 = dataclasses.field(repr=False)
     """The detector's pixel to focal-plane (mm) transform."""
 
-    @property
-    def isAvailable(self) -> bool:
-        """Whether the detector has corrected times (otherwise callers keep
-        the header midpoint).
-        """
-        return self.focalPlaneY is not None
+    reanchored: bool = False
+    """Whether the shutter timestamps disagreed with the requested exposure
+    time, so that the start times were re-anchored to ``MJD-BEG``.
+    """
 
     def midpointMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Compute per-source mid-exposure times at pixel positions.
@@ -274,13 +250,9 @@ class ShutterTiming:
         Returns
         -------
         tMid : `numpy.ndarray`
-            Mid-exposure times (MJD TAI), of the shape of ``x``.  NaN
-            everywhere if there are no corrected times, and NaN where x or y
-            is NaN or more than 5 mm (500 pixels) beyond the detector.
+            Mid-exposure times (MJD TAI), of the shape of ``x``; NaN where x
+            or y is NaN or more than 5 mm (500 pixels) beyond the detector.
         """
-        if not self.isAvailable:
-            return np.full(np.shape(x), np.nan)
-
         # Focal-plane y of each position.
         pixels = np.array([np.ravel(x), np.ravel(y)], dtype=float)
         focalPlaneY = self.pixelToFocalPlane.getMapping().applyForward(pixels)[1]
@@ -293,33 +265,36 @@ class ShutterTiming:
 
 def computeShutterTiming(
     exposure: Exposure,
-    exposureTime: float,
+    requestedExposureTime: float | None = None,
     config: ShutterTimingConfig | None = None,
-) -> ShutterTiming:
+) -> ShutterTiming | None:
     """Compute the shutter-corrected times of one detector of one exposure.
 
     Parameters
     ----------
     exposure : `lsst.afw.image.Exposure`
         The exposure; its metadata carries the shutter cards and ``MJD-BEG``.
-    exposureTime : `float`
-        The requested (nominal) exposure time (s).  Callers take it from the
-        butler ``visit`` dimension record (``exposure_time``): ``EXPTIME`` is
-        stripped from exposure metadata at ingest, and
-        ``visitInfo.exposureTime`` is the measured shutter time, not the
-        requested one.
+    requestedExposureTime : `float`, optional
+        The exposure time requested for this exposure (s), from the butler
+        ``visit`` dimension record (``exposure_time``).  It is an independent
+        check on the two shutter timestamps in the header: if they are not
+        this far apart, one of them is wrong, and both start times are
+        re-anchored to ``MJD-BEG``.  (``EXPTIME`` is not in the exposure
+        metadata, and ``visitInfo.exposureTime`` is measured from the same
+        timestamps, so neither can serve.)  If `None`, the timestamps are
+        used unchecked.
     config : `ShutterTimingConfig`, optional
         Defaults to ``ShutterTimingConfig()``.
 
     Returns
     -------
-    timing : `ShutterTiming`
-        The times.  There are none (``isAvailable`` is False; callers keep
-        the header midpoint) if:
+    timing : `ShutterTiming` or `None`
+        The times, or `None` (callers keep the header midpoint; the reason is
+        logged) if:
 
         - there are no shutter cards (``SHUTTER OPEN STARTTIME TAI MJD``
-          absent; exposures before 2025-10-29): flag NO_PROFILE;
-        - either Hall fit is outside the nominal ranges: flag PARAM_RANGE;
+          absent; exposures before 2025-10-29);
+        - either Hall fit is outside the nominal ranges;
         - a blade does not reach part of the detector's beam (not seen in
           data that passes the fit checks).
 
@@ -339,9 +314,10 @@ def computeShutterTiming(
 
     - Blade start positions are nominal: 750.76 mm for 750 -> 0 moves, -0.05
       mm for 0 -> 750 moves.
-    - If close - open STARTTIME - ``exposureTime`` is outside -2 to 4 ms, the
-      shutter clocks disagree: both start times are re-anchored to MJD-BEG
-      and ``exposureTime`` (flag CLOCK_CLOSE_VS_OPEN).
+    - If ``requestedExposureTime`` is given and close - open STARTTIME -
+      ``requestedExposureTime`` is outside -2 to 4 ms, the shutter timestamps
+      disagree: the open start time is set from MJD-BEG and the close start
+      time from ``requestedExposureTime``.
     """
     if config is None:
         config = ShutterTimingConfig()
@@ -351,22 +327,28 @@ def computeShutterTiming(
 
     # Exposures before the shutter cards were added.
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
-        return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE)
+        log.info("No shutter motion cards (exposures before 2025-10-29): no shutter-corrected times.")
+        return None
 
     # The two blade motions; none if a Hall fit is out of range.
     profile = ShutterMotionProfileFull.fromExposure(exposure)
     motions = (_readMotion(profile.profile_open, True), _readMotion(profile.profile_close, False))
     if not all(_fitInRange(fit) for _, _, fit in motions):
-        return ShutterTiming(flags=ShutterTimingFlag.PARAM_RANGE)
+        log.warning("A shutter Hall-sensor fit is outside the nominal ranges: no shutter-corrected times.")
+        return None
 
-    # Zero point: re-anchor to the header if the two shutter clocks disagree.
-    flags = ShutterTimingFlag.NONE
+    # Zero point: re-anchor to the header if the shutter timestamps disagree
+    # with the requested exposure time.
     (openStart, _, _), (closeStart, _, _) = motions
     closeRel = (closeStart - openStart)*_SECONDS_PER_DAY
-    if not _inRange((closeRel - exposureTime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
-        flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
+    reanchored = requestedExposureTime is not None and not _inRange(
+        (closeRel - requestedExposureTime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE
+    )
+    if reanchored:
+        log.warning("Shutter timestamps %.4f s apart for a requested exposure time of %.4f s: "
+                    "start times re-anchored to MJD-BEG.", closeRel, requestedExposureTime)
         openStart = float(metadata["MJD-BEG"]) + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
-        closeRel = exposureTime + _HEADER_ANCHOR_OFFSETS[1]
+        closeRel = requestedExposureTime + _HEADER_ANCHOR_OFFSETS[1]
 
     # Focal-plane y of the detector centre and of the table, which spans the
     # detector plus a margin.
@@ -381,14 +363,15 @@ def computeShutterTiming(
     # does not reach the beam.
     tMid = _midpointTimes(motions, closeRel, config, np.concatenate([[centerY], focalPlaneY]))
     if not np.all(np.isfinite(tMid)):
-        return ShutterTiming(flags=flags)
+        log.warning("A shutter blade does not reach part of the detector's beam: no shutter-corrected times.")
+        return None
 
     return ShutterTiming(
-        flags=flags,
         centerMidpointMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
         focalPlaneY=focalPlaneY,
         midpointOffsets=tMid[1:] - tMid[0],
         pixelToFocalPlane=pixelToFocalPlane,
+        reanchored=reanchored,
     )
 
 
