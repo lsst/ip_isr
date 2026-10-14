@@ -35,7 +35,14 @@ import lsst.utils.tests
 from lsst.afw.cameraGeom import Orientation
 from lsst.afw.cameraGeom.testUtils import DetectorWrapper
 from lsst.afw.image import ExposureF, VisitInfo
-from lsst.ip.isr.shutterTiming import ShutterTimingConfig, computeShutterTiming
+from lsst.daf.base import PropertyList
+from lsst.ip.isr import ShutterMotionProfile
+from lsst.ip.isr.shutterTiming import (
+    ShutterTiming,
+    ShutterTimingConfig,
+    computeShutterTiming,
+    computeShutterTimingFromHeader,
+)
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(TESTDIR, "data", "shutterTiming")
@@ -110,7 +117,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                          for det, expected in doc["detectors"].items()}
 
     def compute(self, md, det=94):
-        return computeShutterTiming(makeExposure(md, self.detectors[det]), self.config)
+        return computeShutterTimingFromHeader(makeExposure(md, self.detectors[det]), self.config)
 
     def changed(self, card, value):
         """Return the base metadata with one card set to ``value``."""
@@ -126,7 +133,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timings = {}
         for det, expected in doc["detectors"].items():
             exposure = makeExposure(metadata, makeDetector(int(det), expected["geometry"]))
-            t = timings[int(det)] = computeShutterTiming(exposure, self.config)
+            t = timings[int(det)] = computeShutterTimingFromHeader(exposure, self.config)
             label2 = f"{label} {det}"
 
             self.assertEqual(t.reanchored, bool(expected["qc_flags"] & REANCHORED_FLAG), label2)
@@ -151,6 +158,56 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
             doc = readFixture(name)
             self.assertEqual(len(doc["detectors"]), 7)
             self.checkAgainstReference(doc, doc["metadata"], name)
+
+    def testMetadata(self):
+        """Check that the times survive a round trip through metadata
+        cards, and that metadata without them gives none.
+        """
+        timing = self.compute(self.base)
+        metadata = PropertyList()
+        timing.toMetadata(metadata)
+        readBack = ShutterTiming.fromMetadata(metadata)
+
+        y = np.array([-100.0, 0.0, 2000.0, 3999.0])
+        self.assertFloatsEqual(readBack.midpointMjdTai(y, y), timing.midpointMjdTai(y, y))
+        for field in ("centerExposureTime", "reanchored", "source"):
+            self.assertEqual(getattr(readBack, field), getattr(timing, field), field)
+        self.assertIsNone(ShutterTiming.fromMetadata(PropertyList()))
+
+    def testProfiles(self):
+        """Check that the camera's motion profiles give the times of the
+        header cards of the same exposure, to within the correction for the
+        measured start positions (<= 31 us; here they are nominal to 0.2 um).
+        """
+        def profile(direction):
+            return ShutterMotionProfile.readText(os.path.join(
+                TESTDIR, "data", f"MC_O_20251203_000317_shutterMotionProfile{direction}.json"))
+
+        # The header cards of that exposure, as written by the camera.
+        md = {k: v for k, v in self.base.items() if not k.startswith("SHUTTER")}
+        for direction in ("Open", "Close"):
+            p = profile(direction)
+            i = p.fit_name.index("hallSensorFit")
+            prefix = f"SHUTTER {direction.upper()} "
+            md.update({prefix + "STARTTIME TAI ISOT": p.metadata["startTime_tai"],
+                       prefix + "STARTTIME TAI MJD": p.metadata["startTime_mjd"],
+                       prefix + "SIDE": p.metadata["side"],
+                       prefix + "MODEL": p.fit_model,
+                       prefix + "HALLSENSORFIT MODELSTARTTIME": p.fit_start_time[i],
+                       prefix + "HALLSENSORFIT PIVOTPOINT1": p.fit_pivot1[i],
+                       prefix + "HALLSENSORFIT PIVOTPOINT2": p.fit_pivot2[i],
+                       prefix + "HALLSENSORFIT JERK0": p.fit_jerk0[i],
+                       prefix + "HALLSENSORFIT JERK1": p.fit_jerk1[i],
+                       prefix + "HALLSENSORFIT JERK2": p.fit_jerk2[i]})
+        md["EXPTIME"] = 10.0
+        fromHeader = self.compute(md, 0)
+        fromProfiles = computeShutterTiming(profile("Open"), profile("Close"), self.detectors[0],
+                                            md["MJD-BEG"], 10.0, self.config)
+
+        self.assertEqual((fromHeader.source, fromProfiles.source), ("header", "profile"))
+        y = np.array([0.0, 2000.0, 3999.0])
+        dt = (fromProfiles.midpointMjdTai(y, y) - fromHeader.midpointMjdTai(y, y))*SECONDS_PER_DAY
+        self.assertTrue(np.all(np.abs(dt) <= 31e-6), dt)
 
     def testNoCards(self):
         """Check that exposures before the shutter cards have no corrected
@@ -182,12 +239,12 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         # timestamps are used as they are, except for the exposures known to
         # need re-anchoring.
         exposure = makeExposure(md, self.detectors[94], requestedExposureTime=False)
-        unchecked = computeShutterTiming(exposure, self.config)
+        unchecked = computeShutterTimingFromHeader(exposure, self.config)
         self.assertFalse(unchecked.reanchored)
         self.assertNotEqual(unchecked.centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 
         exposure = makeExposure(md, self.detectors[94], requestedExposureTime=False, exposureId=2026031900172)
-        listed = computeShutterTiming(exposure, self.config)
+        listed = computeShutterTimingFromHeader(exposure, self.config)
         self.assertTrue(listed.reanchored)
         self.assertEqual(listed.centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 
