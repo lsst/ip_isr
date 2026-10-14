@@ -29,6 +29,7 @@ from .masking import MaskingTask
 from .isrStatistics import IsrStatisticsTask
 from .isr import maskNans
 from .ptcDataset import PhotonTransferCurveDataset
+from .shutterTiming import ShutterTimingConfig, computeShutterTiming, writeShutterTiming
 from .isrFunctions import isTrimmedExposure, compareCameraKeywords
 from .brighterFatterKernel import (brighterFatterCorrection,
                                    fluxConservingBrighterFatterCorrection)
@@ -137,6 +138,20 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
         dimensions=["instrument", "detector", "physical_filter"],
         isCalibration=True,
     )
+    shutterMotionProfileOpen = cT.PrerequisiteInput(
+        name="shutterMotionProfileOpen",
+        doc="Motion profile of the opening shutter blade; the exposure header is used if absent.",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "exposure"],
+        minimum=0,
+    )
+    shutterMotionProfileClose = cT.PrerequisiteInput(
+        name="shutterMotionProfileClose",
+        doc="Motion profile of the closing shutter blade; the exposure header is used if absent.",
+        storageClass="IsrCalib",
+        dimensions=["instrument", "exposure"],
+        minimum=0,
+    )
     outputExposure = cT.Output(
         name='postISRCCD',
         doc="Output ISR processed exposure.",
@@ -204,6 +219,9 @@ class IsrTaskLSSTConnections(pipeBase.PipelineTaskConnections,
             del self.dark
         if config.doFlat is not True:
             del self.flat
+        if config.doShutterTiming is not True:
+            del self.shutterMotionProfileOpen
+            del self.shutterMotionProfileClose
 
         if config.doBinnedExposures is not True:
             del self.outputBin1Exposure
@@ -673,6 +691,18 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         default=1e10,
     )
 
+    # Shutter timing.
+    doShutterTiming = pexConfig.Field(
+        dtype=bool,
+        doc="Record the shutter-corrected mid-exposure times of the detector in the metadata "
+            "(lsst.ip.isr.shutterTiming)?",
+        default=False,
+    )
+    shutterTiming = pexConfig.ConfigField(
+        dtype=ShutterTimingConfig,
+        doc="Shutter timing configuration.",
+    )
+
     # Calculate image quality statistics?
     doStandardStatistics = pexConfig.Field(
         dtype=bool,
@@ -775,6 +805,10 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     exposureMetadata[runKey] = runValue
                     exposureMetadata[idKey] = idValue
                     exposureMetadata[dateKey] = dateValue
+
+        if self.config.doShutterTiming:
+            exposureRecord = inputRefs.ccdExposure.dataId.records["exposure"]
+            inputs["requestedExposureTime"] = exposureRecord.exposure_time
 
         outputs = self.run(**inputs)
         butlerQC.put(outputs, outputRefs)
@@ -2048,6 +2082,9 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         dark=None,
         flat=None,
         camera=None,
+        shutterMotionProfileOpen=None,
+        shutterMotionProfileClose=None,
+        requestedExposureTime=None,
     ):
         """Run the IsrTaskLSST task.
 
@@ -2079,6 +2116,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             Flat-field frame.
         camera : `lsst.afw.cameraGeom.Camera`, optional
             Camera object.
+        shutterMotionProfileOpen, shutterMotionProfileClose : \
+                `lsst.ip.isr.ShutterMotionProfile`, optional
+            Shutter blade motions; the exposure header is used if absent.
+        requestedExposureTime : `float`, optional
+            Requested exposure time (s), to check the shutter timestamps.
 
         Returns
         -------
@@ -2682,6 +2724,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                     metadata[f"LSST ISR LEVEL {ampName}"] = metadata[k1] - metadata[k2]
                 else:
                     metadata[f"LSST ISR LEVEL {ampName}"] = numpy.nan
+
+        if self.config.doShutterTiming:
+            timing = computeShutterTiming(ccdExposure, requestedExposureTime, shutterMotionProfileOpen,
+                                          shutterMotionProfileClose, self.config.shutterTiming)
+            writeShutterTiming(ccdExposure.metadata, timing)
 
         # calculate additional statistics.
         outputStatistics = None

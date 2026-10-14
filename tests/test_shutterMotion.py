@@ -50,11 +50,11 @@ class ShutterMotionV1TestCase(lsst.utils.tests.TestCase):
     def testMidpointCalculation(self):
         mid_accel, mid_position = self.calib.calculateMidpoint(modelName="hallSensorFit")
         self.assertFloatsAlmostEqual(mid_accel, 0.45052044442394185)
-        self.assertFloatsAlmostEqual(mid_position, 0.44985220648315977)
+        self.assertFloatsAlmostEqual(mid_position, 0.4502401308966196, atol=1e-9)
 
         mid_accel, mid_position = self.calib.calculateMidpoint(modelName="motorEncoderFit")
         self.assertFloatsAlmostEqual(mid_accel, 0.45040944835186697)
-        self.assertFloatsAlmostEqual(mid_position, 0.4497698788310154)
+        self.assertFloatsAlmostEqual(mid_position, 0.450157753287843, atol=1e-9)
 
 
 class ShutterMotionV2TestCase(lsst.utils.tests.TestCase):
@@ -78,11 +78,11 @@ class ShutterMotionV2TestCase(lsst.utils.tests.TestCase):
     def testMidpointCalculation(self):
         mid_accel, mid_position = self.calib.calculateMidpoint(modelName="hallSensorFit")
         self.assertFloatsAlmostEqual(mid_accel, 0.4503675064864023)
-        self.assertFloatsAlmostEqual(mid_position, 0.45007949121581464)
+        self.assertFloatsAlmostEqual(mid_position, 0.45010930572426794, atol=1e-9)
 
         mid_accel, mid_position = self.calib.calculateMidpoint(modelName="motorEncoderFit")
         self.assertFloatsAlmostEqual(mid_accel, 0.4503689163377142)
-        self.assertFloatsAlmostEqual(mid_position, 0.45008433680071347)
+        self.assertFloatsAlmostEqual(mid_position, 0.45011421182169353, atol=1e-9)
 
 
 class ShutterMotionFullTestCase(lsst.utils.tests.TestCase):

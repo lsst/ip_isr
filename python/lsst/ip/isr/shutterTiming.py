@@ -22,16 +22,18 @@
 
 The two LSSTCam shutter blades cross the focal plane in ~0.9 s, so the
 mid-exposure time of a pixel depends on its position (by up to ~0.43 s across
-the focal plane).  For one detector, `computeShutterTiming` gives the
-flux-weighted mid-exposure time at any of its pixels.
+the focal plane).  For one detector, `computeShutterTiming` gives a compact
+model of the flux-weighted mid-exposure time at any of its pixels,
+`ShutterTiming`, which ISR records in the image metadata and
+`getShutterTiming` returns.
 
 Method:
 
 1. *Blade trajectories.*  The camera fits each blade motion with the
-   ``ThreeJerksModelv1`` model and writes the fit to the ``SHUTTER {OPEN,CLOSE}
-   ...`` metadata cards (present since 2025-10-29), which
-   `lsst.ip.isr.ShutterMotionProfileFull` reads.  Inverting the fit gives the
-   time at which a blade edge reaches a given position.
+   ``ThreeJerksModelv1`` model; the fit is in its motion profiles, and in the
+   ``SHUTTER {OPEN,CLOSE} ...`` metadata cards (since 2025-10-29).
+   `lsst.ip.isr.ShutterMotionProfile` gives the time at which a blade edge
+   reaches a given position.
 2. *Beam-weighted crossing times.*  A pixel's converging ray bundle is
    ~67 mm wide at the shutter plane, so an edge uncovers (or covers) it
    gradually.  The flux-weighted crossing time of one edge is
@@ -41,9 +43,10 @@ Method:
    at ``beamScale * x + beamOffsets`` (`ShutterTimingConfig`), a linear fit
    to the LSST Camera raytrace of the beam (LCA-20578).  The mid-exposure
    time is ``(<T>_open + <T>_close) / 2``.
-3. *Interpolation.*  The time therefore depends only on the position along
-   the blade travel, focal-plane y.  It is computed every 0.5 mm over the
-   detector and interpolated linearly.
+3. *Chebyshev series.*  The time therefore depends only on the position
+   along the blade travel, focal-plane y, which is pixel y on every LSSTCam
+   detector.  Over one detector it is a degree-5 Chebyshev series in pixel
+   y, fitted to the exact times (to ~1 us on the detector).
 
 Times are TAI MJD.  The shutter motion and its Hall-sensor fit are described
 in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
@@ -53,6 +56,8 @@ __all__ = [
     "ShutterTiming",
     "ShutterTimingConfig",
     "computeShutterTiming",
+    "getShutterTiming",
+    "writeShutterTiming",
 ]
 
 import dataclasses
@@ -60,10 +65,11 @@ import logging
 
 import numpy as np
 
+import lsst.geom
 import lsst.pex.config as pexConfig
 from lsst.afw.cameraGeom import FOCAL_PLANE, PIXELS
-from lsst.afw.geom import TransformPoint2ToPoint2
-from lsst.afw.image import Exposure
+from lsst.afw.image import Exposure, ExposureSummaryStats
+from lsst.daf.base import PropertyList
 
 from .shutterMotion import ShutterMotionProfile, ShutterMotionProfileFull
 
@@ -77,19 +83,8 @@ _BEAM_LEVELS = np.array([0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99])
 #: 2-point Gauss-Legendre abscissae on [0, 1].
 _GL2 = np.array([0.5 - 0.5 / np.sqrt(3.0), 0.5 + 0.5 / np.sqrt(3.0)])
 
-_THREE_JERKS_V1 = "ThreeJerksModelv1"
-
-#: Name of the Hall-sensor fit in a ShutterMotionProfile.
-_HALL_SENSOR_FIT = "hallSensorFit"
-
 #: Encoder position (mm) of the focal-plane centre: x_ccs = c - e.
 _ENCODER_CENTER = 375.0
-
-#: Start position (mm) of a 750 -> 0 move (the cards carry none).
-_NOMINAL_STROKE = 750.76
-
-#: Start position (mm) of a 0 -> 750 move.
-_NOMINAL_START_INCREASING = -0.05
 
 #: Nominal Hall-fit ranges: pivot points (s), |jerks| (mm/s^3),
 #: |ModelStartTime| (s) and the model displacement at t = 0.9 s (mm).
@@ -103,11 +98,6 @@ _DISPLACEMENT_AT_0P9S_RANGE = (745.0, 757.0)
 #: the shutter timestamps disagree and both start times are re-anchored to
 #: the header.
 _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE = (-2.0, 4.0)
-
-#: Time step (s) and span (s) of the model times at which blade motions are
-#: evaluated for inversion; a motion lasts ~0.9 s.
-_MOTION_TIME_STEP = 1e-4
-_MAX_MOTION_TIME = 1.5
 
 #: Metadata card with the requested exposure time (s), added by the obs_lsst
 #: raw formatter as a workaround until VisitInfo records it.
@@ -123,13 +113,19 @@ _KNOWN_CLOCK_FAULT_EXPOSURES = {2026031900172: 30.0, 2026031900173: 30.0, 202605
 #: STARTTIME - requested exposure time.
 _HEADER_ANCHOR_OFFSETS = (0.00809, 0.00052)
 
-#: Spacing (mm) of the focal-plane y at which times are computed; linear
-#: interpolation between them is good to ~1 us.
-_FOCAL_PLANE_Y_STEP = 0.5
+#: Degree of the Chebyshev series in pixel y, and the number of Chebyshev
+#: points over the detector to which it is fitted.
+_CHEBYSHEV_DEGREE = 5
+_CHEBYSHEV_FIT_POINTS = 16
 
-#: Margin (mm) beyond the detector edges over which times are computed; NaN
-#: beyond.
-_FOCAL_PLANE_Y_MARGIN = 5.0
+#: Metadata card saying whether ISR computed the times (bool), and the cards
+#: of a `ShutterTiming`.
+_RECORDED_CARD = "SHUTTER TIMING"
+_MIDPOINT_CARD = "SHUTTER MIDPT MJD"
+_CHEBYSHEV_CARD = "SHUTTER CHEB{}"
+_CHEBYSHEV_Y_CENTER_CARD = "SHUTTER CHEB YCENTER"
+_CHEBYSHEV_Y_HALF_RANGE_CARD = "SHUTTER CHEB YHALF"
+_REANCHORED_CARD = "SHUTTER REANCHORED"
 
 
 class ShutterTimingConfig(pexConfig.Config):
@@ -155,98 +151,41 @@ class ShutterTimingConfig(pexConfig.Config):
     )
 
 
-def _displacement(fit: np.ndarray, t: np.ndarray) -> np.ndarray:
-    """Compute the displacement of a ThreeJerksModelv1 blade motion.
-
-    The camera fits each blade motion, from its Hall-sensor positions, with
-    this model (CTN-002): piecewise-constant jerk ``jerk0`` before
-    ``pivot1``, ``jerk1`` to ``pivot2`` and ``jerk2`` after, from rest at
-    model time 0 (the motion start time plus ``modelStartTime``).
-
-    Parameters
-    ----------
-    fit : `numpy.ndarray`
-        The fit: modelStartTime (s), pivot1 (s), pivot2 (s), jerk0, jerk1 and
-        jerk2 (mm/s^3).
-    t : `numpy.ndarray`
-        Model times (s), >= 0.
-
-    Returns
-    -------
-    d : `numpy.ndarray`
-        Displacement (mm) along the travel direction.
-    """
-    # Start time and jerk of each segment.
-    starts = np.array([0.0, fit[1], fit[2]])
-    jerks = fit[3:]
-
-    # Displacement, velocity and acceleration at the start of each segment.
-    state = np.zeros((3, 3))
-    for k in (1, 2):
-        s0, v0, a0 = state[k - 1]
-        h, j = starts[k] - starts[k - 1], jerks[k - 1]
-        state[k] = (s0 + h*(v0 + h*(a0/2 + h*j/6)), v0 + h*(a0 + h*j/2), a0 + h*j)
-
-    # Constant-jerk motion within each time's segment.
-    k = np.searchsorted(starts, t, side="right") - 1
-    h = t - starts[k]
-    s0, v0, a0 = state[k].T
-
-    return s0 + h*(v0 + h*(a0/2 + h*jerks[k]/6))
-
-
-def _timeOfDisplacement(fit: np.ndarray, d: np.ndarray) -> np.ndarray:
-    """Invert a ThreeJerksModelv1 blade motion.
-
-    Parameters
-    ----------
-    fit : `numpy.ndarray`
-        The fit, as for ``_displacement``.
-    d : `numpy.ndarray`
-        Displacements (mm) along the travel direction.
-
-    Returns
-    -------
-    t : `numpy.ndarray`
-        Model times (s) at which the blade reaches ``d``, interpolated
-        linearly between times ``_MOTION_TIME_STEP`` apart (to < 0.1 us); NaN
-        before the start and beyond the end of the forward motion.
-    """
-    # The displacement on a time grid, up to where the motion stops.
-    tGrid = np.arange(0.0, _MAX_MOTION_TIME + _MOTION_TIME_STEP/2, _MOTION_TIME_STEP)
-    dGrid = _displacement(fit, tGrid)
-    forward = np.flatnonzero(np.diff(dGrid) <= 0)
-    end = forward[0] + 1 if forward.size else dGrid.size
-
-    return np.interp(d, dGrid[:end], tGrid[:end], left=np.nan, right=np.nan)
-
-
 @dataclasses.dataclass(frozen=True, eq=False)
 class ShutterTiming:
     """Shutter-corrected mid-exposure times of one detector of one exposure.
 
-    Times are MJD TAI, durations seconds.  The mid-exposure time depends only
-    on focal-plane y; it is tabulated over the detector and interpolated
-    linearly.
+    The mid-exposure time at pixel row ``y`` is
+    ``centerMidpointMjdTai + sum(c[k] T_k(u))/86400``, with ``T_k`` the
+    Chebyshev polynomials, ``c`` the ``chebyshevCoefficients`` and
+    ``u = (y - chebyshevYCenter)/chebyshevYHalfRange``, which runs from -1 to
+    1 across the detector.  This is the normalisation of
+    `lsst.afw.math.ChebyshevBoundedField` over the detector's bounding box,
+    so ``ChebyshevBoundedField(bbox, c[:, np.newaxis])`` evaluates the same
+    series.
     """
 
     centerMidpointMjdTai: float
-    """Flux-weighted mid-exposure time at the detector centre."""
+    """Flux-weighted mid-exposure time at the detector centre (MJD TAI)."""
 
-    focalPlaneY: np.ndarray = dataclasses.field(repr=False)
-    """Focal-plane y (mm, increasing) at which the times are tabulated."""
-
-    midpointOffsets: np.ndarray = dataclasses.field(repr=False)
-    """Mid-exposure times at ``focalPlaneY``, s after
-    ``centerMidpointMjdTai``.
+    chebyshevCoefficients: np.ndarray
+    """Chebyshev coefficients (s) of the mid-exposure time relative to
+    ``centerMidpointMjdTai``, in increasing degree.
     """
 
-    pixelToFocalPlane: TransformPoint2ToPoint2 = dataclasses.field(repr=False)
-    """The detector's pixel to focal-plane (mm) transform."""
+    chebyshevYCenter: float
+    """Pixel y at which the Chebyshev variable is 0: the detector's central
+    row.
+    """
 
-    reanchored: bool = False
+    chebyshevYHalfRange: float
+    """Pixels per unit of the Chebyshev variable: half the detector height.
+    """
+
+    reanchored: bool | None = None
     """Whether the shutter timestamps disagreed with the requested exposure
-    time, so that the start times were re-anchored to ``MJD-BEG``.
+    time, so that the start times were re-anchored to ``MJD-BEG``; `None` if
+    read from summary statistics, which do not record it.
     """
 
     def midpointMjdTai(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -255,26 +194,108 @@ class ShutterTiming:
         Parameters
         ----------
         x, y : `numpy.ndarray`
-            Pixel coordinates, of the same shape.
+            Pixel coordinates, of the same shape; the times depend only on
+            ``y``.
 
         Returns
         -------
         tMid : `numpy.ndarray`
-            Mid-exposure times (MJD TAI), of the shape of ``x``; NaN where x
-            or y is NaN or more than 5 mm (500 pixels) beyond the detector.
+            Mid-exposure times (MJD TAI), of the shape of ``y``.
         """
-        # Focal-plane y of each position.
-        pixels = np.array([np.ravel(x), np.ravel(y)], dtype=float)
-        focalPlaneY = self.pixelToFocalPlane.getMapping().applyForward(pixels)[1]
+        u = (y - self.chebyshevYCenter)/self.chebyshevYHalfRange
+        dt = np.polynomial.chebyshev.chebval(u, self.chebyshevCoefficients)
 
-        # Interpolated time, in seconds from the centre time.
-        dt = np.interp(focalPlaneY, self.focalPlaneY, self.midpointOffsets, left=np.nan, right=np.nan)
+        return self.centerMidpointMjdTai + dt/_SECONDS_PER_DAY
 
-        return np.reshape(self.centerMidpointMjdTai + dt/_SECONDS_PER_DAY, np.shape(x))
+    def toMetadata(self, metadata: PropertyList) -> None:
+        """Write the times to metadata cards.
+
+        Parameters
+        ----------
+        metadata : `lsst.daf.base.PropertyList`
+            Metadata to update.
+        """
+        metadata.set(_MIDPOINT_CARD, self.centerMidpointMjdTai,
+                     "Shutter-corrected mid-exposure time at detector centre (MJD TAI)")
+        for k, c in enumerate(self.chebyshevCoefficients):
+            metadata.set(_CHEBYSHEV_CARD.format(k), c,
+                         f"Chebyshev coefficient {k} (s) of mid-exposure time in pixel y")
+        metadata.set(_CHEBYSHEV_Y_CENTER_CARD, self.chebyshevYCenter,
+                     "Pixel y at which the Chebyshev variable is 0")
+        metadata.set(_CHEBYSHEV_Y_HALF_RANGE_CARD, self.chebyshevYHalfRange,
+                     "Pixels per unit of the Chebyshev variable")
+        metadata.set(_REANCHORED_CARD, self.reanchored, "Shutter start times re-anchored to MJD-BEG")
+
+    @classmethod
+    def fromMetadata(cls, metadata: PropertyList) -> "ShutterTiming | None":
+        """Read the times from metadata cards.
+
+        Parameters
+        ----------
+        metadata : `lsst.daf.base.PropertyList`
+            Metadata written by `toMetadata`.
+
+        Returns
+        -------
+        timing : `ShutterTiming` or `None`
+            The times, or `None` if the metadata has none.
+        """
+        if _MIDPOINT_CARD not in metadata:
+            return None
+
+        return cls(
+            centerMidpointMjdTai=metadata[_MIDPOINT_CARD],
+            chebyshevCoefficients=np.array(
+                [metadata[_CHEBYSHEV_CARD.format(k)] for k in range(_CHEBYSHEV_DEGREE + 1)]
+            ),
+            chebyshevYCenter=metadata[_CHEBYSHEV_Y_CENTER_CARD],
+            chebyshevYHalfRange=metadata[_CHEBYSHEV_Y_HALF_RANGE_CARD],
+            reanchored=metadata[_REANCHORED_CARD],
+        )
+
+    def updateSummaryStats(self, summary: ExposureSummaryStats) -> None:
+        """Write the times to summary statistics.
+
+        Parameters
+        ----------
+        summary : `lsst.afw.image.ExposureSummaryStats`
+            Summary statistics to update.
+        """
+        summary.detectorMidpointMjdTai = self.centerMidpointMjdTai
+        summary.shutterChebyshevCoefficients = self.chebyshevCoefficients.tolist()
+        summary.shutterChebyshevYCenter = self.chebyshevYCenter
+        summary.shutterChebyshevYHalfRange = self.chebyshevYHalfRange
+
+    @classmethod
+    def fromSummaryStats(cls, summary: ExposureSummaryStats) -> "ShutterTiming | None":
+        """Read the times from summary statistics.
+
+        Parameters
+        ----------
+        summary : `lsst.afw.image.ExposureSummaryStats`
+            Summary statistics written by `updateSummaryStats`.
+
+        Returns
+        -------
+        timing : `ShutterTiming` or `None`
+            The times, or `None` if the summary has none.
+        """
+        if np.isnan(summary.detectorMidpointMjdTai):
+            return None
+
+        return cls(
+            centerMidpointMjdTai=summary.detectorMidpointMjdTai,
+            chebyshevCoefficients=np.array(summary.shutterChebyshevCoefficients),
+            chebyshevYCenter=summary.shutterChebyshevYCenter,
+            chebyshevYHalfRange=summary.shutterChebyshevYHalfRange,
+        )
 
 
 def computeShutterTiming(
     exposure: Exposure,
+    requestedExposureTime: float | None,
+    profileOpen: ShutterMotionProfile | None = None,
+    profileClose: ShutterMotionProfile | None = None,
     config: ShutterTimingConfig | None = None,
 ) -> ShutterTiming | None:
     """Compute the shutter-corrected times of one detector of one exposure.
@@ -282,8 +303,15 @@ def computeShutterTiming(
     Parameters
     ----------
     exposure : `lsst.afw.image.Exposure`
-        The exposure; its metadata carries the shutter cards, ``MJD-BEG``
-        and ``EXPTIME REQUESTED``.
+        The exposure; its metadata carries ``MJD-BEG`` and, since
+        2025-10-29, the shutter motion cards.
+    requestedExposureTime : `float` or `None`
+        The requested exposure time (s), used only to check the shutter
+        timestamps; `None` to use them unchecked.
+    profileOpen, profileClose : `lsst.ip.isr.ShutterMotionProfile`, optional
+        The opening and closing blade motions from the camera's motion
+        profiles; if either is missing, both are read from the exposure
+        metadata.
     config : `ShutterTimingConfig`, optional
         Defaults to ``ShutterTimingConfig()``.
 
@@ -293,8 +321,8 @@ def computeShutterTiming(
         The times, or `None` (callers keep the header midpoint; the reason is
         logged) if:
 
-        - there are no shutter cards (``SHUTTER OPEN STARTTIME TAI MJD``
-          absent; exposures before 2025-10-29);
+        - there are no profiles and no shutter cards (exposures before
+          2025-10-29);
         - either Hall fit is outside the nominal ranges;
         - a blade does not reach part of the detector's beam (not seen in
           data that passes the fit checks).
@@ -302,57 +330,54 @@ def computeShutterTiming(
     Raises
     ------
     ValueError
-        Raised if a SIDE card is not PLUSX or MINUSX, or a MODEL card is not
+        Raised if a side is not PLUSX or MINUSX, or a model is not
         ThreeJerksModelv1.
     RuntimeError
-        Raised if the shutter cards are present but one of them is missing.
-    KeyError, ValueError, TypeError
-        Raised if MJD-BEG is missing, or a card is not a number.
+        Raised if the shutter cards are used, are present, but one of them is
+        missing.
 
     Notes
     -----
     Rules beyond the method in the module docstring:
 
-    - Blade start positions are nominal: 750.76 mm for 750 -> 0 moves, -0.05
-      mm for 0 -> 750 moves.
+    - Blade start positions are the measured ones of motion profiles; the
+      header has none, and they are nominal: 750.76 mm for 750 -> 0 moves,
+      -0.05 mm for 0 -> 750 moves.
     - The requested exposure time is an independent check on the two shutter
-      timestamps: if close - open STARTTIME differs from it by more than -2
+      timestamps: if close - open start time differs from it by more than -2
       to 4 ms, one timestamp is wrong, and the open start time is set from
-      MJD-BEG and the close start time from the requested exposure time.
+      ``MJD-BEG`` and the close start time from the requested exposure time.
       (``visitInfo.exposureTime`` is measured from the same timestamps, so
-      it cannot serve.)  The requested exposure time is read from the
-      ``EXPTIME REQUESTED`` card, which the obs_lsst raw formatter adds as a
-      workaround until VisitInfo records it.  Images made before that card
-      existed fall back to a list of the exposures known to need
-      re-anchoring; other timestamps in them are used unchecked.
+      it cannot serve.)
     """
     if config is None:
         config = ShutterTimingConfig()
-
     metadata = exposure.metadata
     detector = exposure.detector
 
-    # Exposures before the shutter cards were added.
-    if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
-        log.info("No shutter motion cards (exposures before 2025-10-29): no shutter-corrected times.")
-        return None
+    # The blade motions: the camera's profiles if both are given, else the
+    # header cards (none before 2025-10-29).
+    if profileOpen is None or profileClose is None:
+        for direction, profile in (("open", profileOpen), ("close", profileClose)):
+            if profile is not None:
+                log.error("Only the %s shutter motion profile (%s) is available: using the header cards.",
+                          direction, profile.metadata.get("fileName"))
+        if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
+            log.info("No shutter motion profiles or cards (exposures before 2025-10-29): "
+                     "no shutter-corrected times.")
+            return None
+        profiles = ShutterMotionProfileFull.fromExposure(exposure)
+        profileOpen, profileClose = profiles.profile_open, profiles.profile_close
+    motions = (profileOpen, profileClose)
 
-    # The two blade motions; none if a Hall fit is out of range.
-    profile = ShutterMotionProfileFull.fromExposure(exposure)
-    motions = (_readMotion(profile.profile_open, True), _readMotion(profile.profile_close, False))
-    if not all(_fitInRange(fit) for _, _, fit in motions):
+    # No times if a Hall fit is out of range.
+    if not all(_fitInRange(motion) for motion in motions):
         log.warning("A shutter Hall-sensor fit is outside the nominal ranges: no shutter-corrected times.")
         return None
 
-    # The requested exposure time: from its card, or for images made before
-    # the card existed, from the list of exposures known to need it.
-    requestedExposureTime = metadata.get(_REQUESTED_EXPOSURE_TIME_CARD)
-    if requestedExposureTime is None:
-        requestedExposureTime = _KNOWN_CLOCK_FAULT_EXPOSURES.get(exposure.visitInfo.id)
-
     # Zero point: re-anchor to the header if the shutter timestamps disagree
     # with the requested exposure time.
-    (openStart, _, _), (closeStart, _, _) = motions
+    openStart, closeStart = (float(motion.metadata["startTime_mjd"]) for motion in motions)
     closeRel = (closeStart - openStart)*_SECONDS_PER_DAY
     reanchored = requestedExposureTime is not None and not _inRange(
         (closeRel - requestedExposureTime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE
@@ -363,29 +388,103 @@ def computeShutterTiming(
         openStart = float(metadata["MJD-BEG"]) + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
         closeRel = requestedExposureTime + _HEADER_ANCHOR_OFFSETS[1]
 
-    # Focal-plane y of the detector centre and of the table, which spans the
-    # detector plus a margin.
-    pixelToFocalPlane = detector.getTransform(PIXELS, FOCAL_PLANE)
-    centerY = detector.getCenter(FOCAL_PLANE).getY()
-    cornersY = [p.getY() for p in detector.getCorners(FOCAL_PLANE)]
-    lo = min(cornersY) - _FOCAL_PLANE_Y_MARGIN
-    hi = max(cornersY) + _FOCAL_PLANE_Y_MARGIN
-    focalPlaneY = np.linspace(lo, hi, int(np.ceil((hi - lo)/_FOCAL_PLANE_Y_STEP)) + 1)
+    # The detector centre and Chebyshev points over the detector, along its
+    # central column, and their focal-plane y (CCS x, the blade coordinate).
+    box = lsst.geom.Box2D(detector.getBBox())
+    center = box.getCenter()
+    yHalfRange = 0.5*box.getHeight()
+    u = np.concatenate([[0.0], np.polynomial.chebyshev.chebpts1(_CHEBYSHEV_FIT_POINTS)])
+    pixels = np.array([np.full(u.size, center.getX()), center.getY() + yHalfRange*u])
+    focalPlaneY = detector.getTransform(PIXELS, FOCAL_PLANE).getMapping().applyForward(pixels)[1]
 
-    # Times at the detector centre and on the table; none where a blade
-    # does not reach the beam.
-    tMid = _midpointTimes(motions, closeRel, config, np.concatenate([[centerY], focalPlaneY]))
+    # Crossing times of each blade edge at each point's beam quadrature
+    # nodes, s after the start of the opening motion.
+    nodes, w = _beamQuadrature(np.array(config.beamOffsets))
+    s = config.beamScale*focalPlaneY[:, None] + nodes
+    tOpen, tClose = (motion.timeAtPosition(_ENCODER_CENTER - s) for motion in motions)
+    tClose += closeRel
+
+    # Flux-weighted mid-exposure times; none where a blade does not reach
+    # the beam.
+    tMid = 0.5*(tOpen @ w + tClose @ w)
     if not np.all(np.isfinite(tMid)):
         log.warning("A shutter blade does not reach part of the detector's beam: no shutter-corrected times.")
         return None
 
+    # Mid-exposure time at the centre, and the series relative to it.
+    coefficients = np.polynomial.chebyshev.chebfit(u[1:], tMid[1:] - tMid[0], _CHEBYSHEV_DEGREE)
+
     return ShutterTiming(
-        centerMidpointMjdTai=float(openStart + tMid[0]/_SECONDS_PER_DAY),
-        focalPlaneY=focalPlaneY,
-        midpointOffsets=tMid[1:] - tMid[0],
-        pixelToFocalPlane=pixelToFocalPlane,
+        centerMidpointMjdTai=openStart + tMid[0]/_SECONDS_PER_DAY,
+        chebyshevCoefficients=coefficients,
+        chebyshevYCenter=center.getY(),
+        chebyshevYHalfRange=yHalfRange,
         reanchored=reanchored,
     )
+
+
+def writeShutterTiming(metadata: PropertyList, timing: ShutterTiming | None) -> None:
+    """Record in metadata cards the times ISR computed, or that it computed
+    none.
+
+    Parameters
+    ----------
+    metadata : `lsst.daf.base.PropertyList`
+        Metadata to update.
+    timing : `ShutterTiming` or `None`
+        The times, or `None` if there are none.
+    """
+    metadata.set(_RECORDED_CARD, timing is not None, "Shutter-corrected times computed by ISR")
+    if timing is not None:
+        timing.toMetadata(metadata)
+
+
+def getShutterTiming(
+    exposure: Exposure,
+    config: ShutterTimingConfig | None = None,
+) -> ShutterTiming | None:
+    """Return the shutter-corrected times of an image.
+
+    These are the times ISR recorded in the metadata (`writeShutterTiming`);
+    images that ISR processed without shutter timing get them computed from
+    the header (remove this once those are no longer processed).
+
+    Parameters
+    ----------
+    exposure : `lsst.afw.image.Exposure`
+        The exposure; without recorded times, its metadata carries the
+        shutter cards, ``MJD-BEG`` and ``EXPTIME REQUESTED``.
+    config : `ShutterTimingConfig`, optional
+        Configuration for computing the times; defaults to
+        ``ShutterTimingConfig()``.
+
+    Returns
+    -------
+    timing : `ShutterTiming` or `None`
+        The times, or `None` if ISR computed none, or as for
+        `computeShutterTiming`.
+
+    Notes
+    -----
+    Without recorded times, the requested exposure time is read from the
+    ``EXPTIME REQUESTED`` card, which the obs_lsst raw formatter added from
+    DM-56570 to DM-56693.  Images made before that card existed fall back to
+    a list of the exposures known to need re-anchoring; other timestamps in
+    them are used unchecked.
+    """
+    metadata = exposure.metadata
+
+    # The times recorded by ISR, if it ran.
+    if _RECORDED_CARD in metadata:
+        return ShutterTiming.fromMetadata(metadata)
+
+    # The requested exposure time: from its card, or for images made before
+    # the card existed, from the list of exposures known to need it.
+    requestedExposureTime = metadata.get(_REQUESTED_EXPOSURE_TIME_CARD)
+    if requestedExposureTime is None:
+        requestedExposureTime = _KNOWN_CLOCK_FAULT_EXPOSURES.get(exposure.visitInfo.id)
+
+    return computeShutterTiming(exposure, requestedExposureTime, config=config)
 
 
 def _inRange(value: float, bounds: tuple[float, float]) -> bool:
@@ -393,63 +492,20 @@ def _inRange(value: float, bounds: tuple[float, float]) -> bool:
     return bounds[0] <= value <= bounds[1]
 
 
-def _fitInRange(fit: np.ndarray) -> bool:
-    """Return whether a Hall fit (as for ``_displacement``) is within the
-    nominal ranges.
+def _fitInRange(motion: ShutterMotionProfile) -> bool:
+    """Return whether the Hall fit of a blade motion is within the nominal
+    ranges.
     """
-    modelStartTime, pivot1, pivot2 = fit[:3]
-    displacementAt0p9s = _displacement(fit, np.array([0.9]))[0]
+    modelStartTime, pivot1, pivot2, *jerks = motion.fitParameters("hallSensorFit")
+    displacementAt0p9s = motion.displacement(np.array([modelStartTime + 0.9]))[0]
 
     return (
-        0.0 <= pivot1 <= pivot2
-        and _inRange(pivot1, _PIVOT1_RANGE)
+        _inRange(pivot1, _PIVOT1_RANGE)
         and _inRange(pivot2, _PIVOT2_RANGE)
-        and all(_inRange(abs(j), _ABS_JERK_RANGE) for j in fit[3:])
+        and all(_inRange(abs(j), _ABS_JERK_RANGE) for j in jerks)
         and _inRange(abs(modelStartTime), _ABS_MODEL_START_TIME_RANGE)
         and _inRange(displacementAt0p9s, _DISPLACEMENT_AT_0P9S_RANGE)
     )
-
-
-def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int, np.ndarray]:
-    """Read one blade motion from its profile.
-
-    Parameters
-    ----------
-    profile : `lsst.ip.isr.ShutterMotionProfile`
-        The profile of the motion.
-    isOpen : `bool`
-        Whether the motion opens the shutter.
-
-    Returns
-    -------
-    startTime : `float`
-        When the blade started moving (MJD TAI).
-    travelSign : `int`
-        -1 for a 750 -> 0 mm move (PLUSX-open, MINUSX-close), else +1.
-    fit : `numpy.ndarray`
-        The Hall-sensor fit, as for ``_displacement``.
-
-    Raises
-    ------
-    ValueError, TypeError
-        Raised if the side is not PLUSX or MINUSX, the model is not
-        ThreeJerksModelv1, or a value is not a number.
-    """
-    side = profile.metadata["side"]
-    if side not in ("PLUSX", "MINUSX"):
-        raise ValueError(f"shutter side is {side!r}, not PLUSX or MINUSX")
-    if profile.fit_model != _THREE_JERKS_V1:
-        raise ValueError(f"shutter motion model is {profile.fit_model!r}, not {_THREE_JERKS_V1}")
-
-    # The Hall-sensor fit.
-    i = profile.fit_name.index(_HALL_SENSOR_FIT)
-    fit = np.array([profile.fit_start_time[i], profile.fit_pivot1[i], profile.fit_pivot2[i],
-                    profile.fit_jerk0[i], profile.fit_jerk1[i], profile.fit_jerk2[i]], dtype=float)
-
-    startTime = float(profile.metadata["startTime_mjd"])
-    decreasing = (side == "PLUSX") == isOpen
-
-    return startTime, -1 if decreasing else 1, fit
 
 
 def _beamQuadrature(offsets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -485,47 +541,3 @@ def _beamQuadrature(offsets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     nodes = s[k]*(1 - f) + s[k + 1]*f
 
     return nodes, np.repeat(du/2, 2)
-
-
-def _midpointTimes(
-    motions: tuple[tuple[float, int, np.ndarray], tuple[float, int, np.ndarray]],
-    closeRel: float,
-    config: ShutterTimingConfig,
-    focalPlaneY: np.ndarray,
-) -> np.ndarray:
-    """Compute flux-weighted mid-exposure times along the blade travel.
-
-    Parameters
-    ----------
-    motions : `tuple`
-        The opening and closing motions, as returned by ``_readMotion``.
-    closeRel : `float`
-        Start time of the closing motion, s after the opening one.
-    config : `ShutterTimingConfig`
-        The beam model.
-    focalPlaneY : `numpy.ndarray`
-        Focal-plane y (mm) of the points.
-
-    Returns
-    -------
-    tMid : `numpy.ndarray`
-        Mid-exposure times at the points, s after the start of the opening
-        motion; NaN where a blade does not reach the beam.
-    """
-    # Blade positions of each point's beam quadrature nodes (focal-plane y is
-    # CCS x, the blade coordinate).
-    nodes, w = _beamQuadrature(np.array(config.beamOffsets))
-    s = config.beamScale*focalPlaneY[:, None] + nodes
-
-    # Crossing times of each blade edge at the quadrature nodes, s after the
-    # start of its motion.
-    tau = []
-    for _, travelSign, fit in motions:
-        start = _NOMINAL_STROKE if travelSign < 0 else _NOMINAL_START_INCREASING
-        d = travelSign*((_ENCODER_CENTER - start) - s)
-        tau.append(_timeOfDisplacement(fit, d) + fit[0])
-    tO, tauC = tau
-    tC = tauC + closeRel
-
-    # Flux-weighted times of the two edges, and their mean.
-    return 0.5*(tO @ w + tC @ w)
