@@ -25,10 +25,19 @@ Shutter motion profile storage class
 __all__ = ["ShutterMotionProfile", "ShutterMotionProfileFull"]
 
 from astropy.table import Table
-from scipy.optimize import newton
 import numpy as np
 
 from lsst.ip.isr import IsrCalib
+
+#: Start positions (mm) of the moves of a profile without a measured one:
+#: 750 -> 0 and 0 -> 750.
+_NOMINAL_START_POSITION_DECREASING = 750.76
+_NOMINAL_START_POSITION_INCREASING = -0.05
+
+#: Time step (s) and span (s) of the model times at which a motion is
+#: evaluated for inversion; a motion lasts ~0.9 s.
+_MOTION_TIME_STEP = 1e-4
+_MAX_MOTION_TIME = 1.5
 
 
 class ShutterMotionProfile(IsrCalib):
@@ -108,59 +117,162 @@ class ShutterMotionProfile(IsrCalib):
             Raised if the requested ``modelName`` is not found in the
             calibration.
         """
-        modelIndex = -1
-        for idx, name in enumerate(self.fit_name):
-            if name == modelName:
-                modelIndex = idx
-        if modelIndex == -1:
-            raise RuntimeError(f"Unknown model {modelName} requested.")
+        t0, t1, t2, j0, j1, j2 = self._fitParameters(modelName)
 
-        # Alias to follow technote
-        t0 = self.fit_start_time[modelIndex]
-        t1 = self.fit_pivot1[modelIndex]
-        t2 = self.fit_pivot2[modelIndex]
+        # First estimate of midpoint, where the acceleration
+        # j0*t1 + j1*(t - t1) is zero (Equations 3.2, 3.4, 5.1).
+        tm_accel = t0 + t1*(1.0 - j0/j1)
 
-        # Equation (3.1)
-        j0 = self.fit_jerk0[modelIndex]
-        j1 = self.fit_jerk1[modelIndex]
-
-        # Equation (3.2)
-        a1 = j0*t1
-
-        # Equation (3.4)
-        A1 = a1 - j1*t1
-
-        # First estimate of midpoint, where acceleration is zero.
-        # a = 0 = A1 + j1*t  (Equation 5.1)
-        def acc(t):
-            return A1 + j1 * t
-
-        try:
-            tm_accel = newton(acc, 0.5*(t2 + t1))
-        except Exception as e:
-            self.log.warn(f"Midpoint calculation (from acceleration) failed to converge: {e}")
-            tm_accel = np.nan
-
+        # Second estimate of midpoint, when the blade is halfway
+        # between its start and final positions (Equation 5.2).
         if skipPosition:
             tm_position = np.nan
         else:
-            # Second estimate of midpoint, when s is halfway betweeen
-            # start and final position.  Equation (5.2).
-            V1 = t1**2 * (j0 - j1)/2. - t1*A1
-            S1 = t1**3 * (j0 - j1)/6. - t1**2 * A1/2. - t1*V1
-            Smid = 0.5*(self.metadata["startPosition"] + self.metadata["endPosition"])
+            midPosition = 0.5*(self.metadata["startPosition"] + self.metadata["endPosition"])
+            tm_position = float(self.timeAtPosition(np.array([midPosition]), modelName)[0])
 
-            def pos(t):
-                return j1*(t**3)/6. + A1*(t**2)/2. + V1*t + S1 - Smid
+        return tm_accel, tm_position
 
-            try:
-                tm_position = newton(pos, tm_accel)
-            except Exception as e:
-                self.log.warn(f"Midpoint calculation (from position) failed to converge: {e}")
-                tm_position = np.nan
+    def displacement(self, t: np.ndarray, modelName: str = "hallSensorFit") -> np.ndarray:
+        """Compute the blade displacement of the fitted motion.
 
-        # Restore t0 so these can be compared to raw timestamps.
-        return tm_accel + t0, tm_position + t0
+        The motion model is ``ThreeJerksModelv1`` (CTN-002): piecewise
+        constant jerk ``Jerk0`` before ``PivotPoint1``, ``Jerk1`` to
+        ``PivotPoint2`` and ``Jerk2`` after, from rest at model time 0,
+        which is ``ModelStartTime`` after the start of the motion.
+
+        Parameters
+        ----------
+        t : `numpy.ndarray`
+            Times (s) after the start of the motion (``startTime_mjd``).
+        modelName : `str`, optional
+            Fit to use.
+
+        Returns
+        -------
+        displacement : `numpy.ndarray`
+            Distance (mm) travelled by the blade since the start of the
+            motion.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if ``modelName`` is not found in the calibration.
+        ValueError
+            Raised if the fit model is not ``ThreeJerksModelv1``.
+        """
+        modelStartTime, pivot1, pivot2, *jerks = self._fitParameters(modelName)
+        starts = np.array([0.0, pivot1, pivot2])
+
+        # Displacement, velocity and acceleration at the start of each
+        # segment.
+        state = np.zeros((3, 3))
+        for k in (1, 2):
+            s0, v0, a0 = state[k - 1]
+            h, j = starts[k] - starts[k - 1], jerks[k - 1]
+            state[k] = (s0 + h*(v0 + h*(a0/2 + h*j/6)), v0 + h*(a0 + h*j/2), a0 + h*j)
+
+        # Constant-jerk motion within each time's segment; at rest before
+        # the model start.
+        modelTime = np.maximum(t - modelStartTime, 0.0)
+        k = np.searchsorted(starts, modelTime, side="right") - 1
+        h = modelTime - starts[k]
+        s0, v0, a0 = state[k].T
+
+        return s0 + h*(v0 + h*(a0/2 + h*np.array(jerks)[k]/6))
+
+    def timeAtPosition(self, position: np.ndarray, modelName: str = "hallSensorFit") -> np.ndarray:
+        """Compute when the blade reaches given positions.
+
+        Parameters
+        ----------
+        position : `numpy.ndarray`
+            Blade positions (mm), in the shutter's coordinate (the one of
+            ``startPosition``).
+        modelName : `str`, optional
+            Fit to use.
+
+        Returns
+        -------
+        t : `numpy.ndarray`
+            Times (s) after the start of the motion at which the blade
+            reaches ``position``, interpolated linearly between model
+            times 0.1 ms apart (to < 0.1 us); NaN for positions the
+            motion does not reach.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if ``modelName`` is not found in the calibration.
+        ValueError
+            Raised if the fit model is not ``ThreeJerksModelv1``, or the
+            side is not ``PLUSX`` or ``MINUSX``.
+
+        Notes
+        -----
+        The motion starts at the measured ``startPosition``; profiles
+        read from the exposure headers have none, and start at the
+        nominal 750.76 mm (750 -> 0 moves) or -0.05 mm (0 -> 750
+        moves).  The opening blade moves 750 -> 0 on the ``PLUSX`` side
+        and the closing blade on the ``MINUSX`` side.
+        """
+        side = self.metadata["side"]
+        if side not in ("PLUSX", "MINUSX"):
+            raise ValueError(f"Shutter side is {side!r}, not PLUSX or MINUSX.")
+
+        # Direction and start of the travel.
+        decreasing = (side == "PLUSX") == self.metadata["isOpen"]
+        if "startPosition" in self.metadata:
+            startPosition = self.metadata["startPosition"]
+        elif decreasing:
+            startPosition = _NOMINAL_START_POSITION_DECREASING
+        else:
+            startPosition = _NOMINAL_START_POSITION_INCREASING
+        if decreasing:
+            displacement = startPosition - position
+        else:
+            displacement = position - startPosition
+
+        # The displacement on a time grid, up to where the motion stops.
+        modelStartTime = self._fitParameters(modelName)[0]
+        tGrid = np.arange(0.0, _MAX_MOTION_TIME + _MOTION_TIME_STEP/2, _MOTION_TIME_STEP)
+        dGrid = self.displacement(tGrid + modelStartTime, modelName)
+        stops = np.flatnonzero(np.diff(dGrid) <= 0)
+        end = stops[0] + 1 if stops.size else dGrid.size
+
+        tModel = np.interp(displacement, dGrid[:end], tGrid[:end], left=np.nan, right=np.nan)
+
+        return tModel + modelStartTime
+
+    def _fitParameters(self, modelName: str) -> np.ndarray:
+        """Return a fit as ``ModelStartTime``, ``PivotPoint1``,
+        ``PivotPoint2`` (s), ``Jerk0``, ``Jerk1`` and ``Jerk2`` (mm/s^3).
+
+        Parameters
+        ----------
+        modelName : `str`
+            Fit to return.
+
+        Returns
+        -------
+        fit : `numpy.ndarray`
+            The fit parameters, shape (6,).
+
+        Raises
+        ------
+        RuntimeError
+            Raised if ``modelName`` is not found in the calibration.
+        ValueError
+            Raised if the fit model is not ``ThreeJerksModelv1``.
+        """
+        if self.fit_model != "ThreeJerksModelv1":
+            raise ValueError(f"Shutter motion model is {self.fit_model!r}, not ThreeJerksModelv1.")
+        if modelName not in self.fit_name:
+            raise RuntimeError(f"Unknown model {modelName} requested.")
+        i = self.fit_name.index(modelName)
+
+        return np.array([self.fit_start_time[i], self.fit_pivot1[i], self.fit_pivot2[i],
+                         self.fit_jerk0[i], self.fit_jerk1[i], self.fit_jerk2[i]], dtype=float)
 
     @classmethod
     def fromExposure(cls, exposure, direction="open"):
