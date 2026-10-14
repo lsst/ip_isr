@@ -18,17 +18,14 @@ science detectors from the centre to the corners of the focal plane (0, 4, 30,
     position of its centre; `center_pix`, the centre's pixel coordinates;
     `size` in pixels; 10 um pixels and yaw 0, as for every LSSTCam detector),
     from which the tests build it with `DetectorWrapper`, and the expected
-    results (`center_mjd_tai`, `effective_exposure_time_s`, `qc_flags`).
-  - `visit_mjd_tai`: the focal-plane-centre time; `header_mid_mjd_tai`;
-    `exposure_qc_flags`.
+    results (`center_mjd_tai`, `qc_flags`).
   - `samples`: `[detector, x, y, t_mid_mjd_tai]` at 8 positions per detector
     (centre, 4 pixel-edge corners, one interior point, 50 px off the detector,
     and 150 px off), computed exactly at each position.
-- `mutations.json`: single-card changes to the metadata of `MC_O_20260712_000100`
-  (`base`), each with the cards it sets (`set`) and the reference results for
-  the same detectors in the same format as above. The mutations: the close
-  start time shifted by +10 ms and -5 ms (clock re-anchoring); PIVOTPOINT1 and
-  JERK2 out of range; and a negative JERK0.
+- `MC_O_20260712_000100.json` also has `reanchored`: the expected results
+  (same format) when its close start time is shifted by +10 ms, so that the
+  shutter clocks disagree and the start times are re-anchored to `MJD-BEG`
+  (a -5 ms shift gives identical results).
 
 Agreement target: centre and per-source times to <= 10 us; identical flags.
 

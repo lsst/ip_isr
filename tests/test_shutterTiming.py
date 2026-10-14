@@ -103,9 +103,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.config = ShutterTimingConfig()
-        with open(os.path.join(DATADIR, "mutations.json")) as f:
-            cls.mutations = json.load(f)["mutations"]
-        doc = readFixture(BASE)
+        doc = cls.baseDoc = readFixture(BASE)
         cls.base = doc["metadata"]
         cls.detectors = {int(det): makeDetector(int(det), expected["geometry"])
                          for det, expected in doc["detectors"].items()}
@@ -113,10 +111,10 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
     def compute(self, md, det=94):
         return computeShutterTiming(makeExposure(md, self.detectors[det]), md["EXPTIME"], self.config)
 
-    def mutated(self, name):
-        """Return the base metadata with a mutation's cards set."""
+    def changed(self, card, value):
+        """Return the base metadata with one card set to ``value``."""
         md = dict(self.base)
-        md.update(self.mutations[name]["set"])
+        md[card] = value
         return md
 
     def checkAgainstReference(self, doc, metadata, label):
@@ -170,12 +168,14 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
 
     def testReanchoring(self):
         """Check that shutter clocks that disagree are re-anchored to the
-        header, so the close-card shift does not move the result.
+        header, so the shift of the close start time does not move the
+        result.
         """
+        card = "SHUTTER CLOSE STARTTIME TAI MJD"
         timings = []
-        for name in ("close_start_plus_10ms", "close_start_minus_5ms"):
-            md = self.mutated(name)
-            self.checkAgainstReference(self.mutations[name], md, name)
+        for shiftMs in (10.0, -5.0):
+            md = self.changed(card, self.base[card] + shiftMs*1e-3/SECONDS_PER_DAY)
+            self.checkAgainstReference(self.baseDoc["reanchored"], md, f"close start {shiftMs:+} ms")
             t = self.compute(md)
             self.assertTrue(t.flags & ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN)
             timings.append(t)
@@ -188,11 +188,17 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         """Check that Hall fits outside the nominal ranges, including a
         negative JERK0 with |JERK0| in range, have no corrected times.
         """
-        for name in ("open_pivot1_out_of_range", "close_jerk2_out_of_range", "open_jerk0_negative"):
+        jerk0 = "SHUTTER OPEN HALLSENSORFIT JERK0"
+        changes = (
+            ("SHUTTER OPEN HALLSENSORFIT PIVOTPOINT1", 0.30),
+            ("SHUTTER CLOSE HALLSENSORFIT JERK2", 50000.0),
+            (jerk0, -self.base[jerk0]),
+        )
+        for card, value in changes:
             for det in (0, 94, 188):
-                t = self.compute(self.mutated(name), det)
-                self.assertFalse(t.isAvailable, name)
-                self.assertEqual(t.flags, ShutterTimingFlag.PARAM_RANGE, name)
+                t = self.compute(self.changed(card, value), det)
+                self.assertFalse(t.isAvailable, card)
+                self.assertEqual(t.flags, ShutterTimingFlag.PARAM_RANGE, card)
                 self.assertTrue(np.isnan(t.midpointMjdTai(np.array(2000.0), np.array(2000.0))))
 
 
