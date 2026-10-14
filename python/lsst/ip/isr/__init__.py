@@ -52,5 +52,6 @@ from .overscanAmpConfig import *
 from .binImageDataTask import *
 from .flatGradient import *
 from .shutterMotion import *
+from .shutterTiming import *
 from .gainCorrection import *
 from .intrinsicZernikes import *
