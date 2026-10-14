@@ -42,8 +42,8 @@ Method:
    to the LSST Camera raytrace of the beam (LCA-20578).  The mid-exposure
    time is ``(<T>_open + <T>_close) / 2``.
 3. *Interpolation.*  The time therefore depends only on the position along
-   the blade travel, focal-plane y.  It is computed every
-   ``_FOCAL_PLANE_Y_STEP`` mm over the detector and interpolated linearly.
+   the blade travel, focal-plane y.  It is computed every 0.5 mm over the
+   detector and interpolated linearly.
 
 Times are TAI MJD.  The shutter motion and its Hall-sensor fit are described
 in CTN-002, *Camera Shutter Motion Analysis* (https://ctn-002.lsst.io).
@@ -143,9 +143,6 @@ class ShutterTimingConfig(pexConfig.Config):
     The defaults are for LSSTCam: a least-squares fit to the LSST Camera
     raytrace of the beam at the shutter plane (LCA-20578, rotator angle 0),
     on its 137 field positions within 280 mm of the focal-plane centre.
-    Against on-sky satellite edge times it does as well as the raytrace
-    table within 280 mm, and better beyond, where the table is coarse or
-    extrapolated.
     """
 
     beamScale = pexConfig.Field(
@@ -163,30 +160,7 @@ class ShutterTimingConfig(pexConfig.Config):
     )
 
 
-@dataclasses.dataclass(frozen=True)
-class _ThreeJerksParams:
-    """One ThreeJerksModelv1 fit."""
-
-    modelStartTime: float
-    """Delay (s) from the motion start time to model time zero."""
-
-    pivot1: float
-    """Model time (s) at which the jerk changes from ``jerk0`` to ``jerk1``."""
-
-    pivot2: float
-    """Model time (s) at which the jerk changes from ``jerk1`` to ``jerk2``."""
-
-    jerk0: float
-    """Jerk (mm/s^3) before ``pivot1``."""
-
-    jerk1: float
-    """Jerk (mm/s^3) between ``pivot1`` and ``pivot2``."""
-
-    jerk2: float
-    """Jerk (mm/s^3) after ``pivot2``."""
-
-
-def _displacement(fit: _ThreeJerksParams, t: np.ndarray) -> np.ndarray:
+def _displacement(fit: np.ndarray, t: np.ndarray) -> np.ndarray:
     """Compute the displacement of a ThreeJerksModelv1 blade motion.
 
     The camera fits each blade motion, from its Hall-sensor positions, with
@@ -196,8 +170,9 @@ def _displacement(fit: _ThreeJerksParams, t: np.ndarray) -> np.ndarray:
 
     Parameters
     ----------
-    fit : ``_ThreeJerksParams``
-        The fit.
+    fit : `numpy.ndarray`
+        The fit: modelStartTime (s), pivot1 (s), pivot2 (s), jerk0, jerk1 and
+        jerk2 (mm/s^3).
     t : `numpy.ndarray`
         Model times (s), >= 0.
 
@@ -207,8 +182,8 @@ def _displacement(fit: _ThreeJerksParams, t: np.ndarray) -> np.ndarray:
         Displacement (mm) along the travel direction.
     """
     # Start time and jerk of each segment.
-    starts = np.array([0.0, fit.pivot1, fit.pivot2])
-    jerks = np.array([fit.jerk0, fit.jerk1, fit.jerk2])
+    starts = np.array([0.0, fit[1], fit[2]])
+    jerks = fit[3:]
 
     # Displacement, velocity and acceleration at the start of each segment.
     state = np.zeros((3, 3))
@@ -225,13 +200,13 @@ def _displacement(fit: _ThreeJerksParams, t: np.ndarray) -> np.ndarray:
     return s0 + h*(v0 + h*(a0/2 + h*jerks[k]/6))
 
 
-def _timeOfDisplacement(fit: _ThreeJerksParams, d: np.ndarray) -> np.ndarray:
+def _timeOfDisplacement(fit: np.ndarray, d: np.ndarray) -> np.ndarray:
     """Invert a ThreeJerksModelv1 blade motion.
 
     Parameters
     ----------
-    fit : ``_ThreeJerksParams``
-        The fit.
+    fit : `numpy.ndarray`
+        The fit, as for ``_displacement``.
     d : `numpy.ndarray`
         Displacements (mm) along the travel direction.
 
@@ -367,11 +342,6 @@ def computeShutterTiming(
     - If close - open STARTTIME - ``exposureTime`` is outside -2 to 4 ms, the
       shutter clocks disagree: both start times are re-anchored to MJD-BEG
       and ``exposureTime`` (flag CLOCK_CLOSE_VS_OPEN).
-    - The beam's cumulative flux profile is piecewise linear through the
-      levels of ``config.beamOffsets``, with linear tails reaching 0 and 1
-      one interval beyond the first and last level.  Each edge's crossing
-      time is integrated over it by 2-point Gauss-Legendre quadrature in
-      each interval between levels.
     """
     if config is None:
         config = ShutterTimingConfig()
@@ -383,8 +353,20 @@ def computeShutterTiming(
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
         return ShutterTiming(flags=ShutterTimingFlag.NO_PROFILE)
 
+    # The two blade motions; none if a Hall fit is out of range.
     profile = ShutterMotionProfileFull.fromExposure(exposure)
-    begin = float(metadata["MJD-BEG"])
+    motions = (_readMotion(profile.profile_open, True), _readMotion(profile.profile_close, False))
+    if not all(_fitInRange(fit) for _, _, fit in motions):
+        return ShutterTiming(flags=ShutterTimingFlag.PARAM_RANGE)
+
+    # Zero point: re-anchor to the header if the two shutter clocks disagree.
+    flags = ShutterTimingFlag.NONE
+    (openStart, _, _), (closeStart, _, _) = motions
+    closeRel = (closeStart - openStart)*_SECONDS_PER_DAY
+    if not _inRange((closeRel - exposureTime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
+        flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
+        openStart = float(metadata["MJD-BEG"]) + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
+        closeRel = exposureTime + _HEADER_ANCHOR_OFFSETS[1]
 
     # Focal-plane y of the detector centre and of the table, which spans the
     # detector plus a margin.
@@ -395,12 +377,11 @@ def computeShutterTiming(
     hi = max(cornersY) + _FOCAL_PLANE_Y_MARGIN
     focalPlaneY = np.linspace(lo, hi, int(np.ceil((hi - lo)/_FOCAL_PLANE_Y_STEP)) + 1)
 
-    # Times at the detector centre and on the table.
-    try:
-        flags, openStart, tMid = _compute(profile, begin, config, exposureTime,
-                                          np.concatenate([[centerY], focalPlaneY]))
-    except _Unavailable as e:
-        return ShutterTiming(flags=e.flags)
+    # Times at the detector centre and on the table; none where a blade
+    # does not reach the beam.
+    tMid = _midpointTimes(motions, closeRel, config, np.concatenate([[centerY], focalPlaneY]))
+    if not np.all(np.isfinite(tMid)):
+        return ShutterTiming(flags=flags)
 
     return ShutterTiming(
         flags=flags,
@@ -411,40 +392,29 @@ def computeShutterTiming(
     )
 
 
-class _Unavailable(Exception):
-    """No corrected time for this detector.
-
-    Parameters
-    ----------
-    flags : `ShutterTimingFlag`
-        Why.
-    """
-
-    def __init__(self, flags: ShutterTimingFlag):
-        super().__init__(repr(flags))
-        self.flags = flags
-
-
 def _inRange(value: float, bounds: tuple[float, float]) -> bool:
     """Return whether lo <= value <= hi (False for NaN)."""
     return bounds[0] <= value <= bounds[1]
 
 
-def _fitInRange(fit: _ThreeJerksParams) -> bool:
-    """Return whether a Hall fit is within the nominal ranges."""
+def _fitInRange(fit: np.ndarray) -> bool:
+    """Return whether a Hall fit (as for ``_displacement``) is within the
+    nominal ranges.
+    """
+    modelStartTime, pivot1, pivot2 = fit[:3]
     displacementAt0p9s = _displacement(fit, np.array([0.9]))[0]
 
     return (
-        0.0 <= fit.pivot1 <= fit.pivot2
-        and _inRange(fit.pivot1, _PIVOT1_RANGE)
-        and _inRange(fit.pivot2, _PIVOT2_RANGE)
-        and all(_inRange(abs(j), _ABS_JERK_RANGE) for j in (fit.jerk0, fit.jerk1, fit.jerk2))
-        and _inRange(abs(fit.modelStartTime), _ABS_MODEL_START_TIME_RANGE)
+        0.0 <= pivot1 <= pivot2
+        and _inRange(pivot1, _PIVOT1_RANGE)
+        and _inRange(pivot2, _PIVOT2_RANGE)
+        and all(_inRange(abs(j), _ABS_JERK_RANGE) for j in fit[3:])
+        and _inRange(abs(modelStartTime), _ABS_MODEL_START_TIME_RANGE)
         and _inRange(displacementAt0p9s, _DISPLACEMENT_AT_0P9S_RANGE)
     )
 
 
-def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int, _ThreeJerksParams]:
+def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int, np.ndarray]:
     """Read one blade motion from its profile.
 
     Parameters
@@ -460,8 +430,8 @@ def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int
         When the blade started moving (MJD TAI).
     travelSign : `int`
         -1 for a 750 -> 0 mm move (PLUSX-open, MINUSX-close), else +1.
-    fit : ``_ThreeJerksParams``
-        The Hall-sensor fit.
+    fit : `numpy.ndarray`
+        The Hall-sensor fit, as for ``_displacement``.
 
     Raises
     ------
@@ -477,14 +447,8 @@ def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int
 
     # The Hall-sensor fit.
     i = profile.fit_name.index(_HALL_SENSOR_FIT)
-    fit = _ThreeJerksParams(
-        modelStartTime=float(profile.fit_start_time[i]),
-        pivot1=float(profile.fit_pivot1[i]),
-        pivot2=float(profile.fit_pivot2[i]),
-        jerk0=float(profile.fit_jerk0[i]),
-        jerk1=float(profile.fit_jerk1[i]),
-        jerk2=float(profile.fit_jerk2[i]),
-    )
+    fit = np.array([profile.fit_start_time[i], profile.fit_pivot1[i], profile.fit_pivot2[i],
+                    profile.fit_jerk0[i], profile.fit_jerk1[i], profile.fit_jerk2[i]], dtype=float)
 
     startTime = float(profile.metadata["startTime_mjd"])
     decreasing = (side == "PLUSX") == isOpen
@@ -494,6 +458,10 @@ def _readMotion(profile: ShutterMotionProfile, isOpen: bool) -> tuple[float, int
 
 def _beamQuadrature(offsets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Compute the quadrature nodes of a beam's cumulative flux profile.
+
+    The profile is piecewise linear through the levels ``_BEAM_LEVELS``, with
+    linear tails reaching 0 and 1 one interval beyond the first and last
+    level; each interval gets 2-point Gauss-Legendre nodes.
 
     Parameters
     ----------
@@ -523,75 +491,45 @@ def _beamQuadrature(offsets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return nodes, np.repeat(du/2, 2)
 
 
-def _compute(
-    profile: ShutterMotionProfileFull,
-    begin: float,
+def _midpointTimes(
+    motions: tuple[tuple[float, int, np.ndarray], tuple[float, int, np.ndarray]],
+    closeRel: float,
     config: ShutterTimingConfig,
-    exposureTime: float,
     focalPlaneY: np.ndarray,
-) -> tuple[ShutterTimingFlag, float, np.ndarray]:
-    """Compute mid-exposure times along the blade travel.
+) -> np.ndarray:
+    """Compute flux-weighted mid-exposure times along the blade travel.
 
     Parameters
     ----------
-    profile : `lsst.ip.isr.ShutterMotionProfileFull`
-        The two blade motions.
-    begin : `float`
-        The exposure start time in the header, MJD-BEG (MJD TAI).
+    motions : `tuple`
+        The opening and closing motions, as returned by ``_readMotion``.
+    closeRel : `float`
+        Start time of the closing motion, s after the opening one.
     config : `ShutterTimingConfig`
         The beam model.
-    exposureTime : `float`
-        The requested exposure time (s).
     focalPlaneY : `numpy.ndarray`
         Focal-plane y (mm) of the points.
 
     Returns
     -------
-    flags : `ShutterTimingFlag`
-        CLOCK_CLOSE_VS_OPEN if the start times were re-anchored.
-    openStart : `float`
-        Start time of the opening motion (MJD TAI).
     tMid : `numpy.ndarray`
-        Flux-weighted mid-exposure times at the points (s after
-        ``openStart``).
-
-    Raises
-    ------
-    _Unavailable
-        Raised if the detector has no corrected time.
+        Mid-exposure times at the points, s after the start of the opening
+        motion; NaN where a blade does not reach the beam.
     """
-    motions = (_readMotion(profile.profile_open, True), _readMotion(profile.profile_close, False))
-    (openStart, _, _), (closeStart, _, _) = motions
-
-    if not all(_fitInRange(fit) for _, _, fit in motions):
-        raise _Unavailable(ShutterTimingFlag.PARAM_RANGE)
-
-    # Zero point: re-anchor to the header if the two shutter clocks disagree.
-    flags = ShutterTimingFlag.NONE
-    closeRel = (closeStart - openStart)*_SECONDS_PER_DAY
-    if not _inRange((closeRel - exposureTime)*1e3, _CLOSE_MINUS_OPEN_MINUS_EXPOSURE_TIME_RANGE):
-        flags |= ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN
-        openStart = begin + _HEADER_ANCHOR_OFFSETS[0]/_SECONDS_PER_DAY
-        closeRel = exposureTime + _HEADER_ANCHOR_OFFSETS[1]
-
     # Blade positions of each point's beam quadrature nodes (focal-plane y is
     # CCS x, the blade coordinate).
     nodes, w = _beamQuadrature(np.array(config.beamOffsets))
     s = config.beamScale*focalPlaneY[:, None] + nodes
 
-    # Crossing times of each blade edge at the quadrature nodes (s after the
-    # open start time).
+    # Crossing times of each blade edge at the quadrature nodes, s after the
+    # start of its motion.
     tau = []
     for _, travelSign, fit in motions:
         start = _NOMINAL_STROKE if travelSign < 0 else _NOMINAL_START_INCREASING
         d = travelSign*((_ENCODER_CENTER - start) - s)
-        tau.append(_timeOfDisplacement(fit, d) + fit.modelStartTime)
+        tau.append(_timeOfDisplacement(fit, d) + fit[0])
     tO, tauC = tau
     tC = tauC + closeRel
 
-    # Flux-weighted times; none where a blade does not reach the beam.
-    tMid = 0.5*(tO @ w + tC @ w)
-    if not np.all(np.isfinite(tMid)):
-        raise _Unavailable(flags)
-
-    return flags, openStart, tMid
+    # Flux-weighted times of the two edges, and their mean.
+    return 0.5*(tO @ w + tC @ w)
