@@ -41,7 +41,7 @@ from lsst.ip.isr.shutterTiming import (
     ShutterTiming,
     ShutterTimingConfig,
     computeShutterTiming,
-    computeShutterTimingFromHeader,
+    getShutterTiming,
 )
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -117,7 +117,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                          for det, expected in doc["detectors"].items()}
 
     def compute(self, md, det=94):
-        return computeShutterTimingFromHeader(makeExposure(md, self.detectors[det]), self.config)
+        return getShutterTiming(makeExposure(md, self.detectors[det]), self.config)
 
     def changed(self, card, value):
         """Return the base metadata with one card set to ``value``."""
@@ -133,7 +133,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timings = {}
         for det, expected in doc["detectors"].items():
             exposure = makeExposure(metadata, makeDetector(int(det), expected["geometry"]))
-            t = timings[int(det)] = computeShutterTimingFromHeader(exposure, self.config)
+            t = timings[int(det)] = getShutterTiming(exposure, self.config)
             label2 = f"{label} {det}"
 
             self.assertEqual(t.reanchored, bool(expected["qc_flags"] & REANCHORED_FLAG), label2)
@@ -225,6 +225,10 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(recorded.centerMidpointMjdTai, expected.centerMidpointMjdTai)
         self.assertFloatsEqual(recorded.chebyshevCoefficients, expected.chebyshevCoefficients)
 
+        # Later steps get the recorded times, not ones from the header.
+        exposure.metadata.set("SHUTTER OPEN HALLSENSORFIT JERK0", 0.0)
+        self.assertEqual(getShutterTiming(exposure).centerMidpointMjdTai, expected.centerMidpointMjdTai)
+
     def testNoCards(self):
         """Check that exposures before the shutter cards have no corrected
         times.
@@ -255,12 +259,12 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         # timestamps are used as they are, except for the exposures known to
         # need re-anchoring.
         exposure = makeExposure(md, self.detectors[94], requestedExposureTime=False)
-        unchecked = computeShutterTimingFromHeader(exposure, self.config)
+        unchecked = getShutterTiming(exposure, self.config)
         self.assertFalse(unchecked.reanchored)
         self.assertNotEqual(unchecked.centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 
         exposure = makeExposure(md, self.detectors[94], requestedExposureTime=False, exposureId=2026031900172)
-        listed = computeShutterTimingFromHeader(exposure, self.config)
+        listed = getShutterTiming(exposure, self.config)
         self.assertTrue(listed.reanchored)
         self.assertEqual(listed.centerMidpointMjdTai, timings[1].centerMidpointMjdTai)
 

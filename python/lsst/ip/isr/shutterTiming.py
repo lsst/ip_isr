@@ -24,7 +24,8 @@ The two LSSTCam shutter blades cross the focal plane in ~0.9 s, so the
 mid-exposure time of a pixel depends on its position (by up to ~0.43 s across
 the focal plane).  For one detector, `computeShutterTiming` gives a compact
 model of the flux-weighted mid-exposure time at any of its pixels,
-`ShutterTiming`, which ISR records in the image metadata.
+`ShutterTiming`, which ISR records in the image metadata and
+`getShutterTiming` returns.
 
 Method:
 
@@ -55,7 +56,7 @@ __all__ = [
     "ShutterTiming",
     "ShutterTimingConfig",
     "computeShutterTiming",
-    "computeShutterTimingFromHeader",
+    "getShutterTiming",
 ]
 
 import dataclasses
@@ -372,28 +373,30 @@ def computeShutterTiming(
     )
 
 
-def computeShutterTimingFromHeader(
+def getShutterTiming(
     exposure: Exposure,
     config: ShutterTimingConfig | None = None,
 ) -> ShutterTiming | None:
-    """Compute the shutter-corrected times of an image from its header.
+    """Return the shutter-corrected times of an image.
 
-    For images that ISR processed without shutter timing; remove once those
-    are no longer processed.
+    These are the times ISR recorded in the metadata; images that ISR
+    processed without shutter timing get them computed from the header (remove
+    this once those are no longer processed).
 
     Parameters
     ----------
     exposure : `lsst.afw.image.Exposure`
-        The exposure; its metadata carries the shutter cards, ``MJD-BEG`` and
-        ``EXPTIME REQUESTED``.
+        The exposure; without recorded times, its metadata carries the
+        shutter cards, ``MJD-BEG`` and ``EXPTIME REQUESTED``.
     config : `ShutterTimingConfig`, optional
-        Defaults to ``ShutterTimingConfig()``.
+        Configuration for computing the times; defaults to
+        ``ShutterTimingConfig()``.
 
     Returns
     -------
     timing : `ShutterTiming` or `None`
-        The times, or `None` if there are no shutter cards (exposures before
-        2025-10-29) or as for `computeShutterTiming`.
+        The times, or `None` if there are none recorded and no shutter cards
+        (exposures before 2025-10-29), or as for `computeShutterTiming`.
 
     Raises
     ------
@@ -402,12 +405,18 @@ def computeShutterTimingFromHeader(
 
     Notes
     -----
-    The requested exposure time is read from the ``EXPTIME REQUESTED`` card,
-    which the obs_lsst raw formatter added from DM-56570 to DM-56693.  Images
-    made before that card existed fall back to a list of the exposures known
-    to need re-anchoring; other timestamps in them are used unchecked.
+    Without recorded times, the requested exposure time is read from the
+    ``EXPTIME REQUESTED`` card, which the obs_lsst raw formatter added from
+    DM-56570 to DM-56693.  Images made before that card existed fall back to
+    a list of the exposures known to need re-anchoring; other timestamps in
+    them are used unchecked.
     """
     metadata = exposure.metadata
+
+    # The times recorded by ISR.
+    timing = ShutterTiming.fromMetadata(metadata)
+    if timing is not None:
+        return timing
 
     # Exposures before the shutter cards were added.
     if "SHUTTER OPEN STARTTIME TAI MJD" not in metadata:
