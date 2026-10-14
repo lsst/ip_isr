@@ -800,10 +800,7 @@ def computeShutterTiming(
         raise ValueError("ShutterTimingConfig.beamFile is empty")
     beam = _loadShutterBeam(config.beamFile)
 
-    # The tests pass a ``_DetectorGeometry`` directly.
-    geometry = detector
-    if not isinstance(detector, _DetectorGeometry):
-        geometry = _DetectorGeometry.fromDetector(detector)
+    geometry = _DetectorGeometry.fromDetector(detector)
     common = dict(detectorId=geometry.detectorId, axis=geometry.bladeAxis(), geometry=geometry)
 
     # Exposures before the shutter cards were added.

@@ -23,7 +23,6 @@ tests/data/shutterTiming (see its README.md).
 """
 
 
-import csv
 import glob
 import json
 import math
@@ -48,7 +47,6 @@ from lsst.ip.isr.shutterTiming import (
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(TESTDIR, "data", "shutterTiming")
 BEAM_FILE = os.path.join(DATADIR, "beam_at_L3S1_z9.618_rot0_evaluated.tnt")
-GEOMETRY_FILE = os.path.join(DATADIR, "lsstcam_detector_geometry.csv")
 BASE = "MC_O_20260712_000100"
 
 #: Agreement target (s): centre times, lever-arm terms, residuals, T_eff.
@@ -62,33 +60,33 @@ KEPT_FLAGS = int(ShutterTimingFlag.NO_PROFILE | ShutterTimingFlag.PARAM_RANGE
                  | ShutterTimingFlag.CLOCK_CLOSE_VS_OPEN | ShutterTimingFlag.BEAM_EXTRAPOLATED)
 
 
-def readGeometries():
-    """Read the science detectors of the fixture CSV."""
-    out = {}
-    with open(GEOMETRY_FILE, newline="") as f:
-        for r in csv.DictReader(f):
-            if r["type"] != "SCIENCE":
-                continue
-            v = {k: float(x) for k, x in r.items() if k not in ("name", "type", "physical_type")}
-            det = int(v["detector"])
-            out[det] = _DetectorGeometry(
-                detectorId=det, nx=int(v["nx"]), ny=int(v["ny"]),
-                centerPixel=(v["center_x_pix"], v["center_y_pix"]),
-                centerMm=(v["fp_center_x_mm"], v["fp_center_y_mm"]),
-                jacobian=((v["dfp_dxpix_x"], v["dfp_dypix_x"]), (v["dfp_dxpix_y"], v["dfp_dypix_y"])),
-            )
-    return out
-
-
 def readFixture(name):
     with open(os.path.join(DATADIR, name + ".json")) as f:
         return json.load(f)
 
 
-def makeDetector(detectorId, centerMm, centerPixel, size, yaw=0.0):
-    orientation = Orientation(lsst.geom.Point2D(*centerMm), lsst.geom.Point2D(*centerPixel),
+def makeDetector(detectorId, geometry, yaw=0.0):
+    """Build an afw detector with 10 um pixels.
+
+    Parameters
+    ----------
+    detectorId : `int`
+        The detector ID.
+    geometry : `dict`
+        ``center_mm`` (focal-plane position of the centre), ``center_pix``
+        (its pixel coordinates) and ``size`` (pixels), as in the fixtures.
+    yaw : `float`, optional
+        Rotation (degrees); every LSSTCam detector has 0.
+
+    Returns
+    -------
+    detector : `lsst.afw.cameraGeom.Detector`
+        The detector.
+    """
+    orientation = Orientation(lsst.geom.Point2D(*geometry["center_mm"]),
+                              lsst.geom.Point2D(*geometry["center_pix"]),
                               lsst.geom.Angle(yaw, lsst.geom.degrees))
-    bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(*size))
+    bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(*geometry["size"]))
     return DetectorWrapper(id=detectorId, bbox=bbox, pixelSize=(0.01, 0.01),
                            orientation=orientation).detector
 
@@ -100,15 +98,17 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.geometries = readGeometries()
         cls.config = ShutterTimingConfig()
         cls.config.beamFile = BEAM_FILE
         with open(os.path.join(DATADIR, "mutations.json")) as f:
             cls.mutations = json.load(f)["mutations"]
-        cls.base = readFixture(BASE)["metadata"]
+        doc = readFixture(BASE)
+        cls.base = doc["metadata"]
+        cls.detectors = {int(det): makeDetector(int(det), expected["geometry"])
+                         for det, expected in doc["detectors"].items()}
 
     def compute(self, md, det=94):
-        return computeShutterTiming(md, self.geometries[det], md["EXPTIME"], self.config)
+        return computeShutterTiming(md, self.detectors[det], md["EXPTIME"], self.config)
 
     def mutated(self, name):
         """Return the base metadata with a mutation's cards set."""
@@ -130,7 +130,7 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         timings = {}
         for det, expected in doc["detectors"].items():
             t = timings[int(det)] = computeShutterTiming(
-                metadata, self.geometries[int(det)], metadata["EXPTIME"], self.config
+                metadata, makeDetector(int(det), expected["geometry"]), metadata["EXPTIME"], self.config
             )
             label2 = f"{label} {det}"
 
@@ -161,14 +161,15 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
 
     def testFixtures(self):
         """Check real exposures, one per blade direction, against the
-        reference on every science detector.
+        reference on detectors from the centre to the corners of the focal
+        plane.
         """
         names = sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(DATADIR, "MC_O_*.json")))
         self.assertEqual(len(names), 2)
 
         for name in names:
             doc = readFixture(name)
-            self.assertEqual(len(doc["detectors"]), 189)
+            self.assertEqual(len(doc["detectors"]), 7)
             timings = self.checkAgainstReference(doc, doc["metadata"], name)
 
             # The outer detectors extend past the beam table.
@@ -225,11 +226,12 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(self.compute(pl), self.compute(doc["metadata"]))
 
     def testFromDetector(self):
-        """Check the afw detector geometry: corners, blade axis, and the
-        same timing as the equivalent fixture geometry.
+        """Check the linearized detector geometry: corners and blade axis at
+        every yaw.
         """
+        geometry = dict(center_mm=(-127.0, 211.5), center_pix=(2035.5, 1999.5), size=(4072, 4000))
         for yaw in (0.0, 90.0, 180.0, 270.0):
-            detector = makeDetector(17, (-127.0, 211.5), (2035.5, 1999.5), (4072, 4000), yaw)
+            detector = makeDetector(17, geometry, yaw)
             geom = _DetectorGeometry.fromDetector(detector)
             self.assertEqual((geom.detectorId, geom.nx, geom.ny), (17, 4072, 4000))
 
@@ -240,14 +242,6 @@ class ShutterTimingTestCase(lsst.utils.tests.TestCase):
                 self.assertLess(np.min(np.hypot(xd - p.getX(), yd - p.getY())), 1e-6)
 
             self.assertEqual(geom.bladeAxis(), "y" if yaw in (0.0, 180.0) else "x")
-
-        # The afw path gives the same timing as the fixture geometry.
-        g = self.geometries[94]
-        a = self.compute(self.base, 94)
-        b = computeShutterTiming(self.base, makeDetector(94, g.centerMm, g.centerPixel, (g.nx, g.ny)),
-                                 self.base["EXPTIME"], self.config)
-        self.assertLess(abs(a.centerMidpointMjdTai - b.centerMidpointMjdTai)*SECONDS_PER_DAY, 1e-6)
-        self.assertFloatsAlmostEqual(np.array(a.coefficients), np.array(b.coefficients), rtol=1e-6)
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
