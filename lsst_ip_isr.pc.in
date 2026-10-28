@@ -1,0 +1,12 @@
+prefix=${pcfiledir}/../..
+includedir=${prefix}/include
+libdir=${prefix}/lib
+doxygen_tag=${prefix}/doc/ip_isr.tag
+lsst_build_requires=pybind11 python3
+
+Name: lsst_ip_isr
+Description: LSST Science Pipelines instrument signature removal
+Version: @VERSION@
+Requires: lsst_meas_algorithms
+Cflags: -I${includedir}
+Libs: -L${libdir} -lip_isr
