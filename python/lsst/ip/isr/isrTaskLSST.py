@@ -343,6 +343,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Correct for nonlinearity of the detector's response?",
         default=True,
     )
+    doSecondLinearizer = pexConfig.Field(
+        dtype=bool,
+        doc="Do the second (absolute) linearizer for DoubleSpline linearizers?",
+        default=True,
+    )
 
     # Gains.
     doCorrectGains = pexConfig.Field(
@@ -2426,6 +2431,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 detector=detector,
                 log=self.log,
                 gains=linearityGains,
+                doSecondLinearizer=self.config.doSecondLinearizer,
             )
             ccdExposure.metadata["LSST ISR LINEARIZER APPLIED"] = True
 

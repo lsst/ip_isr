@@ -612,7 +612,7 @@ class Linearizer(IsrCalib):
                     raise RuntimeError("Amplifier %s coeffs %s does not match saved value %s" %
                                        (ampName, amp.getLinearityCoeffs(), self.linearityCoeffs[ampName]))
 
-    def applyLinearity(self, image, detector=None, log=None, gains=None):
+    def applyLinearity(self, image, detector=None, log=None, gains=None, doSecondLinearizer=True):
         """Apply the linearity to an image.
 
         If the linearity parameters are populated, use those,
@@ -633,6 +633,8 @@ class Linearizer(IsrCalib):
             Dictionary of amp name to gain. If this is provided then
             linearity terms will be converted from adu to electrons.
             Only used for Spline linearity corrections.
+        doSecondLinearizer : `bool`, optional
+            Apply the second linearizer on the DoubleSplineLinearizer?
         """
         if log is None:
             log = self.log
@@ -677,7 +679,8 @@ class Linearizer(IsrCalib):
                 success, outOfRange = linearizer()(ampView, **{'coeffs': self.linearityCoeffs[ampName],
                                                                'table': self.tableData,
                                                                'log': self.log,
-                                                               'gain': gainValue})
+                                                               'gain': gainValue,
+                                                               'doSecond': doSecondLinearizer})
                 numOutOfRange += outOfRange
                 if success:
                     numLinearized += 1
@@ -1026,11 +1029,15 @@ class LinearizeDoubleSpline(LinearizeBase):
         """
         coeffs = kwargs['coeffs']
         gain = kwargs.get('gain', 1.0)
+        doSecond = kwargs.get('doSecond', True)
 
         # The coeffs have [nNodes1, nNodes2, nodes1, values1, nodes2, values2]
 
         nNodes1 = int(coeffs[0])
         nNodes2 = int(coeffs[1])
+
+        if not doSecond:
+            nNodes2 = 0
 
         ampArr = image.array
 
