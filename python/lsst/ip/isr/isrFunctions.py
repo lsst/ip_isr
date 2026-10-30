@@ -1029,7 +1029,15 @@ def updateVariance(maskedImage, gain, readNoise, replace=True):
     var += (readNoise/gain)**2
 
 
-def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, invert=False, trimToFit=False):
+def flatCorrection(
+    maskedImage,
+    flatMaskedImage,
+    scalingType,
+    userScale=1.0,
+    invert=False,
+    trimToFit=False,
+    imageOnly=False,
+):
     """Apply flat correction in place.
 
     Parameters
@@ -1043,11 +1051,14 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
         'MEDIAN', or 'USER'.
     userScale : scalar, optional
         Scale to use if ``scalingType='USER'``.
-    invert : `Bool`, optional
+    invert : `bool`, optional
         If True, unflatten an already flattened image.
-    trimToFit : `Bool`, optional
+    trimToFit : `bool`, optional
         If True, raw data is symmetrically trimmed to match
         calibration size.
+    imageOnly : `bool`, optional
+        Apply the flat to the image plane only, skipping mask
+        and variance.
 
     Raises
     ------
@@ -1056,6 +1067,8 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
         the same size or if ``scalingType`` is not an allowed value.
     """
     if trimToFit:
+        if imageOnly:
+            raise RuntimeError("trimToFit cannot be used with imageOnly.")
         maskedImage = trimToMatchCalibBBox(maskedImage, flatMaskedImage)
 
     if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
@@ -1075,9 +1088,15 @@ def flatCorrection(maskedImage, flatMaskedImage, scalingType, userScale=1.0, inv
         raise RuntimeError('%s : %s not implemented' % ("flatCorrection", scalingType))
 
     if not invert:
-        maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
+        if imageOnly:
+            maskedImage.image.scaledDivides(1.0/flatScale, flatMaskedImage.image)
+        else:
+            maskedImage.scaledDivides(1.0/flatScale, flatMaskedImage)
     else:
-        maskedImage.scaledMultiplies(1.0/flatScale, flatMaskedImage)
+        if imageOnly:
+            maskedImage.image.scaledMultiplies(1.0/flatScale, flatMaskedImage.image)
+        else:
+            maskedImage.scaledMultiplies(1.0/flatScale, flatMaskedImage)
 
 
 def illuminationCorrection(maskedImage, illumMaskedImage, illumScale, trimToFit=True):

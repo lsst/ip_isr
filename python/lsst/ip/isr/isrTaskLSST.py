@@ -1520,15 +1520,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         exp : `lsst.afw.image.Exposure`
             The flat and dark corrected exposure.
         """
+        imageOnly = not self.config.doVariance
         if self.config.doDark and dark is not None:
             self.darkCorrection(exp, dark)
         if self.config.doFlat and flat is not None:
-            self.flatCorrection(exp, flat)
+            self.flatCorrection(exp, flat, imageOnly=imageOnly)
         try:
             yield exp
         finally:
             if self.config.doFlat and flat is not None:
-                self.flatCorrection(exp, flat, invert=True)
+                self.flatCorrection(exp, flat, invert=True, imageOnly=imageOnly)
             if self.config.doDark and dark is not None:
                 self.darkCorrection(exp, dark, invert=True)
 
@@ -2614,6 +2615,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 flatMaskedImage=flat.maskedImage,
                 scalingType=self.config.flatScalingType,
                 userScale=self.config.flatUserScale,
+                imageOnly=not self.config.doVariance,
             )
 
             # Copy over valid polygon from flat if it is
