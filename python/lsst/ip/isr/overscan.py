@@ -399,8 +399,15 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         overscanMask = ~((overscanImage.mask.array & maskVal) == 0)
 
         badResults = False
-        overscanMedian = np.nanmedian(overscanImage.image.array)
-        imageMedian = np.nanmedian(exposure[imageBBox].image.array)
+
+        checkOverscanLevel = False
+        overscanMedian = 0.0
+        imageMedian = 0.0
+        if np.isfinite(imageThreshold):
+            checkOverscanLevel = True
+
+            overscanMedian = np.nanmedian(overscanImage.image.array)
+            imageMedian = np.nanmedian(exposure[imageBBox].image.array)
 
         if np.all(overscanMask):
             self.log.warning(
@@ -408,7 +415,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 amp.getName(),
             )
             badResults = True
-        elif overscanMedian/imageMedian > overscanFraction and imageMedian > imageThreshold:
+        elif (checkOverscanLevel and overscanMedian/imageMedian > overscanFraction
+              and imageMedian > imageThreshold):
             self.log.warning(
                 "The level in the overscan region (%.2f) compared to the image region (%.2f) is "
                 "greater than the maximum fraction (%.2f) for %s",
