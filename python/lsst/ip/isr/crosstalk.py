@@ -853,7 +853,7 @@ class CrosstalkCalib(IsrCalib):
         if sourceExposure is not None:
             targetMaskedImage.mask.clearMaskPlane(targetCrosstalkPlane)
 
-        if doSubtrahendMasking:
+        if doCrosstalkMask and doSubtrahendMasking:
             # Set crosstalkStr bit only for those pixels that have
             # been significantly modified (i.e., those masked as such
             # in 'subtrahend'), not necessarily those that are bright
