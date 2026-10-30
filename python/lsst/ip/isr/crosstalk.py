@@ -634,7 +634,7 @@ class CrosstalkCalib(IsrCalib):
         doSubtrahendMasking : `bool`, optional
             If true, the mask is calculated from the properties of the
             subtrahend image, not from the brightness of the source
-            pixel.
+            pixel. Not used if doCrosstalkMask is False.
         crosstalkStr : `str`, optional
             Mask plane name for pixels greatly modified by crosstalk
             (above minPixelToMask).
@@ -918,7 +918,8 @@ class CrosstalkConfig(Config):
     )
     doSubtrahendMasking = Field(
         dtype=bool,
-        doc="Use subtrahend image thresholding instead of input image thesholding to set crosstalk mask?",
+        doc="Use subtrahend image thresholding instead of input image thesholding to set crosstalk mask? "
+            "Not used if doCrosstalkMask is False.",
         default=False,
     )
     crosstalkBackgroundMethod = ChoiceField(
