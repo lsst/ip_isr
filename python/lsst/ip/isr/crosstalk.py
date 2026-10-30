@@ -587,7 +587,7 @@ class CrosstalkCalib(IsrCalib):
     def subtractCrosstalk(self, thisExposure, sourceExposure=None, crosstalkCoeffs=None,
                           crosstalkCoeffsSqr=None, crosstalkCoeffsValid=None,
                           badPixels=["BAD"], minPixelToMask=45000, doSubtrahendMasking=False,
-                          crosstalkStr="CROSSTALK", isTrimmed=None,
+                          doCrosstalkMask=True, crosstalkStr="CROSSTALK", isTrimmed=None,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
                           parallelOverscan=None, detectorConfig=None, badAmpDict=None,
                           ignoreVariance=False):
@@ -628,6 +628,9 @@ class CrosstalkCalib(IsrCalib):
             from the absolute magnitude of the subtrahend image.
             Otherwise, this sets the minimum source value to use to
             set that mask.
+        doCrosstalkMask : `bool`, optional
+            If true, the crosstalk mask will be computed. Otherwise,
+            no crosstalk mask will be computed which is slightly faster.
         doSubtrahendMasking : `bool`, optional
             If true, the mask is calculated from the properties of the
             subtrahend image, not from the brightness of the source
@@ -782,7 +785,7 @@ class CrosstalkCalib(IsrCalib):
         # If we are not doing subtrahend masking, the CROSSTALK mask bit
         # is set according to the counts in the source pixel (above
         # background), regardless of the crosstalk coefficient value.
-        if not doSubtrahendMasking:
+        if doCrosstalkMask and not doSubtrahendMasking:
             # When we are not using subtrahend masking, we set the mask.
             thresholdBackground = self.calculateBackground(sourceMaskedImage, badPixels)
             toMask = (sourceMaskedImage.image.array >= (minPixelToMask + thresholdBackground))
@@ -907,6 +910,11 @@ class CrosstalkConfig(Config):
         dtype=str,
         doc="Name for crosstalk mask plane.",
         default="CROSSTALK"
+    )
+    doCrosstalkMask = Field(
+        dtype=bool,
+        doc="Compute the crosstalk mask?",
+        default=True,
     )
     doSubtrahendMasking = Field(
         dtype=bool,
@@ -1173,6 +1181,7 @@ class CrosstalkTask(Task):
                 crosstalkCoeffsSqr=crosstalkCoeffsSqr,
                 crosstalkCoeffsValid=crosstalk.coeffValid,
                 minPixelToMask=self.config.minPixelToMask,
+                doCrosstalkMask=self.config.doCrosstalkMask,
                 doSubtrahendMasking=self.config.doSubtrahendMasking,
                 crosstalkStr=self.config.crosstalkMaskPlane,
                 backgroundMethod=self.config.crosstalkBackgroundMethod,
