@@ -155,9 +155,9 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
 
         # Test with specific Noll indices
         zernikes_subset = self.calib.getIntrinsicZernikes(
-            field_x_test, field_y_test, noll_indices=[4]
+            field_x_test, field_y_test, noll_indices=[4, 6]
         )
-        self.assertFloatsEqual(zernikes_subset, zernikes[:, 0])
+        self.assertFloatsEqual(zernikes_subset, zernikes[[0, 2]])
 
     def test_getIntrinsicZernikes_array(self):
         """Test interpolation with array inputs."""
@@ -167,11 +167,59 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         zernikes = self.calib.getIntrinsicZernikes(field_x_test, field_y_test)
         z0 = self.calib.getIntrinsicZernikes(field_x_test[0], field_y_test[0])
         z1 = self.calib.getIntrinsicZernikes(field_x_test[1], field_y_test[1])
-        np.testing.assert_array_almost_equal(zernikes[[0]], z0)
-        np.testing.assert_array_almost_equal(zernikes[[1]], z1)
+        np.testing.assert_array_almost_equal(zernikes[0], z0)
+        np.testing.assert_array_almost_equal(zernikes[1], z1)
 
         # Should return shape (n_points, n_zernikes)
         self.assertEqual(zernikes.shape, (2, len(self.noll_indices)))
+
+    def test_getIntrinsicZernikes_shapes(self):
+        """Test that the leading output axes match the input field shape.
+
+        The field axes must come back in the same order they went in; an
+        earlier implementation transposed them for 2-D and higher inputs.
+        """
+        nZk = len(self.noll_indices)
+        rng = np.random.default_rng(57721)
+
+        # Scalar input
+        self.assertEqual(
+            self.calib.getIntrinsicZernikes(0.1, 0.2).shape, (nZk,)
+        )
+
+        for shape in [(5,), (3, 4), (2, 3, 4)]:
+            with self.subTest(shape=shape):
+                field_x = rng.uniform(-0.5, 0.5, shape)
+                field_y = rng.uniform(-0.5, 0.5, shape)
+                zernikes = self.calib.getIntrinsicZernikes(field_x, field_y)
+                self.assertEqual(zernikes.shape, shape + (nZk,))
+
+                # Each element must match the corresponding scalar query,
+                # which pins down the axis order rather than just the shape.
+                flat = self.calib.getIntrinsicZernikes(
+                    field_x.ravel(), field_y.ravel()
+                )
+                np.testing.assert_array_equal(
+                    zernikes, flat.reshape(shape + (nZk,))
+                )
+
+        # field_x and field_y are broadcast against each other, so a column
+        # and a row vector describe a grid.
+        field_x = rng.uniform(-0.5, 0.5, (4, 1))
+        field_y = rng.uniform(-0.5, 0.5, (1, 3))
+        self.assertEqual(
+            self.calib.getIntrinsicZernikes(field_x, field_y).shape, (4, 3, nZk)
+        )
+
+        # A subset of Noll indices only affects the trailing axis.
+        self.assertEqual(
+            self.calib.getIntrinsicZernikes(
+                rng.uniform(-0.5, 0.5, (3, 4)),
+                rng.uniform(-0.5, 0.5, (3, 4)),
+                noll_indices=[4],
+            ).shape,
+            (3, 4, 1),
+        )
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

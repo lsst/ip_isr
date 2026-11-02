@@ -367,9 +367,11 @@ class IntrinsicZernikes(IsrCalib):
         Parameters
         ----------
         field_x : `array-like`
-            x-field positions in degrees (CCS).
+            x-field positions in degrees (CCS).  Broadcast against
+            ``field_y``.
         field_y : `array-like`
-            y-field positions in degrees (CCS).
+            y-field positions in degrees (CCS).  Broadcast against
+            ``field_x``.
         rotTelPos : `float`, optional
             Rotation angle in degrees applied to the query point before
             interpolating the OCS contribution.  Defaults to 0.
@@ -378,9 +380,11 @@ class IntrinsicZernikes(IsrCalib):
 
         Returns
         -------
-        zernikes : `array-like`
+        zernikes : `numpy.ndarray`
             Array of Zernike coefficient values in microns corresponding to the
-            requested Noll indices and field positions.
+            requested Noll indices and field positions.  The shape is the
+            broadcast shape of ``field_x`` and ``field_y`` followed by the
+            number of requested Noll indices.
         """
         if noll_indices is None:
             # Default to all stored terms.  The CCS and OCS systems share these
@@ -390,11 +394,14 @@ class IntrinsicZernikes(IsrCalib):
         noll_indices = np.array(noll_indices)
         noll_mask = np.isin(self.noll_indices, noll_indices)
 
-        field_x = np.asarray(field_x)
-        field_y = np.asarray(field_y)
-
-        point = np.array([field_x, field_y]).T
-        total = self.interpolator(point)
+        field_x, field_y = np.broadcast_arrays(field_x, field_y)
+        # Interpolate over a flat list of points and restore the caller's
+        # shape afterwards.
+        shape = field_x.shape
+        field_x = field_x.ravel()
+        field_y = field_y.ravel()
+        points = np.stack((field_x, field_y), axis=-1)
+        total = self.interpolator(points)
 
         if self.interpolator_ocs is not None:
             # Rotate the query point into the OCS frame before interpolating.
@@ -402,10 +409,12 @@ class IntrinsicZernikes(IsrCalib):
             cos_a, sin_a = np.cos(theta), np.sin(theta)
             x_ocs = cos_a * field_x - sin_a * field_y
             y_ocs = sin_a * field_x + cos_a * field_y
-            point_ocs = np.array([x_ocs, y_ocs]).T
+            points_ocs = np.stack((x_ocs, y_ocs), axis=-1)
             # CCS and OCS share the same Noll indices (enforced in __init__),
             # so the two interpolator outputs line up column-for-column and add
-            # element-wise, preserving the CCS output shape.
-            total = total + self.interpolator_ocs(point_ocs)
+            # element-wise.
+            total = total + self.interpolator_ocs(points_ocs)
 
-        return total[..., noll_mask]
+        total = total[:, noll_mask]
+        total = total.reshape(shape + total.shape[-1:])
+        return total
