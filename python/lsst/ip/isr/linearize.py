@@ -188,6 +188,9 @@ class Linearizer(IsrCalib):
         # is computed prior to computing gains.
         self.linearityUnits = 'adu'
 
+        # Cached linearizers.
+        self._linearizers = {}
+
         super().__init__(**kwargs)
         self.requiredAttributes.update(['hasLinearity', 'override',
                                         'ampNames', 'inputGain', 'inputTurnoff',
@@ -646,17 +649,15 @@ class Linearizer(IsrCalib):
         if detector:
             isTrimmed = isTrimmedImage(image, detector)
 
-        linearizers = {}
-
         numAmps = 0
         numLinearized = 0
         numOutOfRange = 0
         for ampName in self.linearityType.keys():
             # Cache the linearizers.
-            if ampName not in linearizers:
-                linearizers[ampName] = self.getLinearityTypeByName(self.linearityType[ampName])
+            if ampName not in self._linearizers:
+                self._linearizers[ampName] = self.getLinearityTypeByName(self.linearityType[ampName])
 
-            linearizer = linearizers[ampName]
+            linearizer = self._linearizers[ampName]
 
             numAmps += 1
 
