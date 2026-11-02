@@ -646,11 +646,18 @@ class Linearizer(IsrCalib):
         if detector:
             isTrimmed = isTrimmedImage(image, detector)
 
+        linearizers = {}
+
         numAmps = 0
         numLinearized = 0
         numOutOfRange = 0
         for ampName in self.linearityType.keys():
-            linearizer = self.getLinearityTypeByName(self.linearityType[ampName])
+            # Cache the linearizers.
+            if ampName not in linearizers:
+                linearizers[ampName] = self.getLinearityTypeByName(self.linearityType[ampName])
+
+            linearizer = linearizers[ampName]
+
             numAmps += 1
 
             if gains and self.linearityUnits == 'adu':
@@ -913,6 +920,96 @@ class LinearizeSquared(LinearizeBase):
             return False, 0
 
 
+class SplineLUT:
+    """Turn a spline or double spline into a lookup table.
+
+    Parameters
+    ----------
+    centers1 : `np.ndarray`
+        Akima spline centers for first spline (ADU).
+    values1 : `np.ndarray`
+        Akima spline values for first spline (ADU).
+    centers2 : `np.ndarray`, optional
+        Akima spline centers for second spline (ADU).
+    values2 : `np.ndarray`, optional
+        Akima spline values for second spline (ADU).
+    high_clip : `float`, optional
+        Clip to use at the high end (for backwards compatibility).
+    n_step : `int`, optional
+        Number of steps in the LUT.
+    """
+    def __init__(self, centers1, values1, centers2=None, values2=None, high_clip=0.01, n_step=2**20):
+        # Built once in ADU; gain-independent.
+
+        # Build the LUT in ADU, to be gain independent.
+
+        interp1 = Akima1DInterpolator(centers1, values1, method="akima")
+
+        if centers1[0] != 0.0:
+            raise ValueError("Spline1 should be anchored at zero.")
+
+        if centers2 is not None:
+            interp2 = Akima1DInterpolator(centers2, values2, method="akima")
+            if centers2[0] != 0.0:
+                raise ValueError("Spline2 should be anchored at zero.")
+
+            x_max = max(centers1[-1], centers2[-1])
+        else:
+            x_max = centers1[-1]
+
+        x = np.linspace(0.0, x_max, n_step)
+        u = x.copy()
+        u -= interp1(np.clip(u, centers1[0], centers1[-1] - high_clip))
+        if centers2 is not None:
+            u -= interp2(np.clip(u, centers2[0], centers2[-1] - high_clip))
+
+        # Total correction (float64)
+        self.corr_adu = x - u
+        self.x_max = x_max
+        self.dx = x[1] - x[0]
+        self._cache = {}
+
+    def _for_gain(self, gain):
+        """Scale LUT to the appropriate gain.
+
+        Parameters
+        ----------
+        gain : `float`
+
+        Returns
+        -------
+        entry : `tuple`
+            table in electrons; scale used; clip bound in electrons.
+        """
+        entry = self._cache.get(gain)
+        if entry is None:
+            # Only allow one gain entry.
+            self._cache = {}
+            entry = (
+                (gain * self.corr_adu).astype(np.float32),   # table in electrons
+                np.float32(1.0 / (gain * self.dx)),          # scale
+                np.float32(gain * self.x_max),               # clip bound in electrons
+            )
+            self._cache[gain] = entry
+        return entry
+
+    def __call__(self, array, gain=1.0):
+        """Get linearizer from LUT.
+
+        Parameters
+        ----------
+        array : `np.ndarray`
+            Array to linearize (in place).
+        gain : `float`, optional
+            Gain to scale.
+        """
+        table, scale, x_max = self._for_gain(gain)
+        t = np.clip(array, np.float32(0.0), x_max)
+        t *= scale
+        t += np.float32(0.5)
+        array -= table.take(t.astype(np.int32))
+
+
 class LinearizeSpline(LinearizeBase):
     """Correct non-linearity with a spline model.
 
@@ -927,6 +1024,8 @@ class LinearizeSpline(LinearizeBase):
 
     """
     LinearityType = "Spline"
+    _lut = None
+    _bad_amp = False
 
     def __call__(self, image, **kwargs):
         """Correct for non-linearity.
@@ -954,32 +1053,37 @@ class LinearizeSpline(LinearizeBase):
         """
         splineCoeff = kwargs['coeffs']
         gain = kwargs.get('gain', 1.0)
-        centers, values = np.split(splineCoeff, 2)
-        # Note that we must do a copy here because the input array
-        # may not be volatile memory.
-        centers = gain * centers
-        values = gain * values
-        # If the spline is not anchored at zero, remove the offset
-        # found at the lowest flux available, and add an anchor at
-        # flux=0.0 if there's no entry at that point.
-        if values[0] != 0:
-            offset = values[0]
-            values -= offset
-        if centers[0] != 0.0:
-            centers = np.concatenate(([0.0], centers))
-            values = np.concatenate(([0.0], values))
 
-        ampArr = image.array
+        if self._lut is None:
+            centers, values = np.split(splineCoeff, 2)
+            # Note that we must do a copy here because the input array
+            # may not be volatile memory.
+            centers = gain * centers
+            values = gain * values
+            # If the spline is not anchored at zero, remove the offset
+            # found at the lowest flux available, and add an anchor at
+            # flux=0.0 if there's no entry at that point.
+            if values[0] != 0:
+                offset = values[0]
+                values -= offset
+            if centers[0] != 0.0:
+                centers = np.concatenate(([0.0], centers))
+                values = np.concatenate(([0.0], values))
 
-        if np.any(~np.isfinite(centers)) or np.any(~np.isfinite(values)):
-            # This cannot be used; turns everything into nans.
-            ampArr[:] = np.nan
+            if np.any(~np.isfinite(centers)) or np.any(~np.isfinite(values)):
+                # This cannot be used; turns everything into nans.
+                self._bad_amp = True
+                # Put in a sentinel (not-None) value for the LUT.
+                self._lut = False
+            else:
+                self._lut = SplineLUT(centers, values, high_clip=0.1)
+
+        if self._bad_amp:
+            image.array[:] = np.nan
 
             return False, 0
-        else:
-            interp = Akima1DInterpolator(centers, values, method="akima")
-            # Clip to avoid extrapolation and hitting the top end.
-            ampArr -= interp(np.clip(ampArr, centers[0], centers[-1] - 0.1))
+
+        self._lut(image.array, gain=gain)
 
         return True, 0
 
@@ -999,6 +1103,8 @@ class LinearizeDoubleSpline(LinearizeBase):
 
     """
     LinearityType = "DoubleSpline"
+    _lut = None
+    _bad_amp = False
 
     def __call__(self, image, **kwargs):
         """Correct for non-linearity.
@@ -1027,48 +1133,55 @@ class LinearizeDoubleSpline(LinearizeBase):
         coeffs = kwargs['coeffs']
         gain = kwargs.get('gain', 1.0)
 
-        # The coeffs have [nNodes1, nNodes2, nodes1, values1, nodes2, values2]
+        if self._lut is None:
+            # The coeffs have [nNodes1, nNodes2,
+            #                  nodes1, values1,
+            #                  nodes2, values2]
 
-        nNodes1 = int(coeffs[0])
-        nNodes2 = int(coeffs[1])
+            nNodes1 = int(coeffs[0])
+            nNodes2 = int(coeffs[1])
 
-        ampArr = image.array
+            if nNodes1 > 0:
+                splineCoeff1 = coeffs[2: 2 + 2*nNodes1]
+                centers1, values1 = np.split(splineCoeff1, 2)
 
-        if nNodes1 > 0:
-            splineCoeff1 = coeffs[2: 2 + 2*nNodes1]
-            centers1, values1 = np.split(splineCoeff1, 2)
+                if np.any(~np.isfinite(centers1)) or np.any(~np.isfinite(values1)):
+                    # This cannot be used; turns everything into nans.
+                    self._bad_amp = True
+                    # Put in a sentinel (not-None) value for the LUT.
+                    self._lut = False
+            else:
+                centers1 = None
+                values2 = None
 
-            if np.any(~np.isfinite(centers1)) or np.any(~np.isfinite(values1)):
-                # Bad linearizer.
-                ampArr[:] = np.nan
-                return False, 0
+            if nNodes2 > 0:
+                splineCoeff2 = coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
+                centers2, values2 = np.split(splineCoeff2, 2)
 
-            if gain != 1.0:
-                centers1 = centers1 * gain
-                values1 = values1 * gain
-        if nNodes2 > 0:
-            splineCoeff2 = coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
-            centers2, values2 = np.split(splineCoeff2, 2)
+                if np.any(~np.isfinite(centers2)) or np.any(~np.isfinite(values2)):
+                    # This cannot be used; turns everything into nans.
+                    self._bad_amp = True
+                    # Put in a sentinel (not-None) value for the LUT.
+                    self._lut = False
+            else:
+                centers2 = None
+                values2 = None
 
-            if np.any(~np.isfinite(centers2)) or np.any(~np.isfinite(values2)):
-                # Bad linearizer.
-                ampArr[:] = np.nan
-                return False, 0
+            if centers1 is not None and centers2 is not None:
+                self._lut = SplineLUT(centers1, values1, centers2=centers2, values2=values2)
+            elif centers1 is not None:
+                self._lut = SplineLUT(centers1, values1)
+            elif centers2 is not None:
+                self._lut = SplineLUT(centers2, values2)
+            else:
+                self._bad_amp = True
+                self._lut = False
 
-            if gain != 1.0:
-                centers2 = centers2 * gain
-                values2 = values2 * gain
+        if self._bad_amp:
+            image.array[:] = np.nan
+            return False, 0
 
-        # Note the double-spline will always be anchored at zero.
-
-        if nNodes1 > 0:
-            interp1 = Akima1DInterpolator(centers1, values1, method="akima")
-            # Clip to avoid extrapolation and hitting the top end.
-            ampArr -= interp1(np.clip(ampArr, centers1[0], centers1[-1] - 0.01))
-        if nNodes2 > 0:
-            interp2 = Akima1DInterpolator(centers2, values2, method="akima")
-            # Clip to avoid extrapolation and hitting the top end.
-            ampArr -= interp2(np.clip(ampArr, centers2[0], centers2[-1] - 0.01))
+        self._lut(image.array, gain=gain)
 
         return True, 0
 
