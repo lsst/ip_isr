@@ -655,7 +655,7 @@ class Linearizer(IsrCalib):
         for ampName in self.linearityType.keys():
             # Cache the linearizers.
             if ampName not in self._linearizers:
-                self._linearizers[ampName] = self.getLinearityTypeByName(self.linearityType[ampName])
+                self._linearizers[ampName] = self.getLinearityTypeByName(self.linearityType[ampName])()
 
             linearizer = self._linearizers[ampName]
 
@@ -682,10 +682,10 @@ class Linearizer(IsrCalib):
                         bbox = self.linearityBBox[ampName]
 
                 ampView = image.Factory(image, bbox)
-                success, outOfRange = linearizer()(ampView, **{'coeffs': self.linearityCoeffs[ampName],
-                                                               'table': self.tableData,
-                                                               'log': self.log,
-                                                               'gain': gainValue})
+                success, outOfRange = linearizer(ampView, **{'coeffs': self.linearityCoeffs[ampName],
+                                                             'table': self.tableData,
+                                                             'log': self.log,
+                                                             'gain': gainValue})
                 numOutOfRange += outOfRange
                 if success:
                     numLinearized += 1
