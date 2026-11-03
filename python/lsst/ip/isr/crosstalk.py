@@ -29,6 +29,7 @@ __all__ = ["CrosstalkCalib", "CrosstalkConfig", "CrosstalkTask",
 import numpy as np
 import warnings
 from astropy.table import Table
+from threadpoolctl import threadpool_limits
 
 import lsst.afw.math
 import lsst.afw.detection
@@ -831,9 +832,11 @@ class CrosstalkCalib(IsrCalib):
             if np.any(coeffsSqr):
                 np.multiply(A[:N], A[:N], out=A[N:])
                 M = np.concatenate([coeffs, coeffsSqr]).T.astype(np.float32)
-                C = M @ A
+                with threadpool_limits(limits=1, user_api="blas"):
+                    C = M @ A
             else:
-                C = coeffs.T.astype(np.float32) @ A[:N]
+                with threadpool_limits(limits=1, user_api="blas"):
+                    C = coeffs.T.astype(np.float32) @ A[:N]
 
             subArr = subtrahend.image.array
             for t, amp in enumerate(targetDetector):
