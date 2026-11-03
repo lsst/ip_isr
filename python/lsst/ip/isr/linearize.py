@@ -980,7 +980,7 @@ class SplineLUT:
         Returns
         -------
         entry : `tuple`
-            table in electrons; scale used; clip bound in electrons.
+            table in electrons; scale used.
         """
         entry = self._cache.get(gain)
         if entry is None:
@@ -989,7 +989,6 @@ class SplineLUT:
             entry = (
                 (gain * self.corr_adu).astype(np.float32),   # table in electrons
                 np.float32(1.0 / (gain * self.dx)),          # scale
-                np.float32(gain * self.x_max),               # clip bound in electrons
             )
             self._cache[gain] = entry
         return entry
@@ -1004,11 +1003,17 @@ class SplineLUT:
         gain : `float`, optional
             Gain to scale.
         """
-        table, scale, x_max = self._for_gain(gain)
-        t = np.clip(array, np.float32(0.0), x_max)
-        t *= scale
+        if not np.isfinite(gain):
+            array[:] = np.nan
+            return
+
+        table, scale = self._for_gain(gain)
+        t = array * scale
         t += np.float32(0.5)
-        array -= table.take(t.astype(np.int32))
+        with np.errstate(invalid="ignore"):
+            # NaN/inf -> int cast warns
+            k = t.astype(np.int32)
+        array -= table.take(k, mode="clip")
 
 
 class LinearizeSpline(LinearizeBase):
