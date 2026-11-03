@@ -854,8 +854,8 @@ class CrosstalkCalib(IsrCalib):
 
                     targetBBox = self._getAppropriateBBox(targetAmp, isTrimmed, fullAmplifier)
 
-                    # The extractAmp() method will always make a copy of the source
-                    # amplifier data.
+                    # The extractAmp() method will always make a copy of the
+                    # source amplifier data.
                     if imageOnly:
                         sourceImage = self.extractAmp(
                             sourceMaskedImage.image,
@@ -881,9 +881,9 @@ class CrosstalkCalib(IsrCalib):
                     if backgrounds[sourceAmp.getName()] != 0.0:
                         sourceImage -= backgrounds[sourceAmp.getName()]
 
-                    # This operation will also transfer the CROSSTALK mask bit from
-                    # above to the target (subtrahend) image if we are using a
-                    # masked image.
+                    # This operation will also transfer the CROSSTALK mask bit
+                    # from above to the target (subtrahend) image if we are
+                    # using a masked image.
                     targetImage.scaledPlus(coeff, sourceImage)
                     if coeffSqr != 0.0:
                         sourceImage.scaledMultiplies(1.0, sourceImage)
