@@ -138,7 +138,8 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None,
     """
     psf = createPsf(fwhm)
     if fallbackValue is None:
-        fallbackValue = afwMath.makeStatistics(maskedImage.getImage(), afwMath.MEANCLIP).getValue()
+        # Very fast computation of a reasonable fallback value.
+        fallbackValue = numpy.median(maskedImage.image.array[::4, ::4])
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict():
         maskedImage.getMask().addMaskPlane('INTRP')
 
