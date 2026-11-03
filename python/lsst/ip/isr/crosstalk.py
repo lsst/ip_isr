@@ -822,7 +822,8 @@ class CrosstalkCalib(IsrCalib):
                 return a[::-1 if Y_FLIP[c] else 1, ::-1 if X_FLIP[c] else 1]
 
             N = len(sourceDetector)
-            bbox = self._getAppropriateBBox(amp, isTrimmed, fullAmplifier)
+            # Use the first amp to get the amp size.
+            bbox = self._getAppropriateBBox(sourceDetector[0], isTrimmed, fullAmplifier)
             ny, nx = bbox.getHeight(), bbox.getWidth()
             srcArr = sourceMaskedImage.image.array
             A = np.empty((2*N, ny*nx), dtype=np.float32)
