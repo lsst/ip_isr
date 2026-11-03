@@ -921,7 +921,7 @@ class CrosstalkCalib(IsrCalib):
                 # calculations.
                 bbox = self._getAppropriateBBox(amp, isTrimmed, False)
                 ampData = subtrahend[bbox]
-                background = np.median(ampData.image.array)
+                background = np.median(ampData.image.array[::4, ::4])
                 subtrahendBackgrounds[amp.getName()] = background
                 ampData.image.array[:, :] -= background
                 self.log.debug(f"Subtrahend background level: {amp.getName()} {background}")
