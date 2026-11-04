@@ -32,6 +32,8 @@ import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
 from lsst.ip.isr import applyLookupTable, Linearizer
+from lsst.ip.isr.linearize import SplineLUT
+from scipy.interpolate import Akima1DInterpolator
 
 
 def referenceImage(image, detector, linearityType, inputData, table=None):
@@ -388,6 +390,114 @@ class LinearizeTestCase(lsst.utils.tests.TestCase):
                 linearizer.linearityMaxSignal[ampName] = np.nan
 
         return linearizer
+
+
+class LinearizeSplineLUTTestCase(lsst.utils.tests.TestCase):
+    """Test spline LUT approximation."""
+
+    def setUp(self):
+        self.coeffs = np.array(
+            [
+                3.10000000e+01, 4.20000000e+01, 0.00000000e+00, 1.00000000e+02,
+                9.16666667e+02, 1.73333333e+03, 2.55000000e+03, 3.36666667e+03,
+                4.18333333e+03, 5.00000000e+03, 1.00824468e+04, 1.51648935e+04,
+                2.02473403e+04, 2.53297870e+04, 3.04122338e+04, 3.54946805e+04,
+                4.05771273e+04, 4.56595740e+04, 5.07420208e+04, 5.58244675e+04,
+                6.09069143e+04, 6.59893610e+04, 7.10718078e+04, 7.61542545e+04,
+                8.12367013e+04, 8.63191480e+04, 9.14015948e+04, 9.64840415e+04,
+                1.01566488e+05, 1.06648935e+05, 1.11731382e+05, 1.16813829e+05,
+                1.21896275e+05, 0.00000000e+00, 2.57127737e-01, 9.18656313e-01,
+                1.44500841e+00, 2.10392802e+00, 2.52352228e+00, 3.02482109e+00,
+                3.39951782e+00, 5.73139402e+00, 7.80053896e+00, 9.49879550e+00,
+                1.05805421e+01, 1.18831413e+01, 1.28236340e+01, 1.38840371e+01,
+                1.51085197e+01, 1.76883772e+01, 2.05294873e+01, 2.05866913e+01,
+                1.74193547e+01, 9.99885598e+00, 3.54508405e+00, -2.51815128e+00,
+                -7.95380422e+00, -1.27917663e+01, -1.77831451e+01, -2.24518191e+01,
+                -2.70152662e+01, -3.15776911e+01, -3.50369171e+01, -3.86511063e+01,
+                0.00000000e+00, 3.01314367e+03, 6.02628734e+03, 9.03943102e+03,
+                1.20525747e+04, 1.50657184e+04, 1.80788620e+04, 2.10920057e+04,
+                2.41051494e+04, 2.71182930e+04, 3.01314367e+04, 3.31445804e+04,
+                3.61577241e+04, 3.91708677e+04, 4.21840114e+04, 4.51971551e+04,
+                4.82102988e+04, 5.12234424e+04, 5.42365861e+04, 5.72497298e+04,
+                6.02628734e+04, 6.32760171e+04, 6.62891608e+04, 6.93023045e+04,
+                7.23154481e+04, 7.53285918e+04, 7.83417355e+04, 8.13548791e+04,
+                8.43680228e+04, 8.73811665e+04, 9.03943102e+04, 9.34074538e+04,
+                9.64205975e+04, 9.94337412e+04, 1.02446885e+05, 1.05460029e+05,
+                1.08473172e+05, 1.11486316e+05, 1.14499460e+05, 1.17512603e+05,
+                1.20525747e+05, 1.23538891e+05, 0.00000000e+00, 5.56955070e+00,
+                9.10051783e+00, 1.15758850e+01, 1.29073863e+01, 1.09894808e+01,
+                6.77995949e+00, 2.49618378e+00, 6.22587525e+00, 9.58451741e+00,
+                1.80369319e+01, 2.77149612e+01, 3.20840316e+01, 3.30687975e+01,
+                3.46292108e+01, 3.90328292e+01, 3.98838232e+01, 3.58625699e+01,
+                3.21882871e+01, 2.30733220e+01, 9.62716370e+00, -8.01735826e+00,
+                -3.31899466e+01, -5.64462894e+01, -7.75822153e+01, -1.00876039e+02,
+                -1.14279103e+02, -1.20797135e+02, -1.00824177e+02, -7.05961405e+01,
+                -4.08397896e+01, -2.45405003e+01, -3.13275501e+01, -2.53090688e+01,
+                -2.77171609e+01, -1.64968546e+01, 3.09687948e+02, -1.67409893e+02,
+                2.47173203e+02, -1.89592184e+01, 1.66227471e+01, 9.69744458e+01,
+                0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                0.00000000e+00, 0.00000000e+00,
+            ],
+        )
+
+    def test_splineLUT_single(self):
+        nNodes1 = int(self.coeffs[0])
+        coeff1 = self.coeffs[2: 2 + 2*nNodes1]
+        centers1, values1 = np.split(coeff1, 2)
+
+        lut = SplineLUT(centers1, values1)
+
+        arr = np.linspace(1, centers1[-1], 20000, dtype=np.float32)
+
+        # Old direct method
+        interp = Akima1DInterpolator(centers1, values1, method="akima")
+        lin_arr1 = arr.copy()
+        lin_arr1 -= interp(np.clip(lin_arr1, centers1[0], centers1[-1] - 0.1))
+
+        # New LUT method
+        lin_arr2 = arr.copy()
+        lut(lin_arr2)
+
+        delta = lin_arr2 - lin_arr1
+        frac_diff = (lin_arr2 - lin_arr1) / lin_arr1
+
+        # The largest fractional deviations are at very low flux level.
+        self.assertLess(np.max(np.abs(frac_diff)), 2e-4)
+        # The largest deviations are at high flux.
+        self.assertLess(np.max(np.abs(delta)), 1e-2)
+
+    def test_splineLUT_double(self):
+        nNodes1 = int(self.coeffs[0])
+        nNodes2 = int(self.coeffs[1])
+        coeff1 = self.coeffs[2: 2 + 2*nNodes1]
+        centers1, values1 = np.split(coeff1, 2)
+        coeff2 = self.coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
+        centers2, values2 = np.split(coeff2, 2)
+
+        lut = SplineLUT(centers1, values1, centers2=centers2, values2=values2)
+
+        arr = np.linspace(1, centers1[-1], 20000, dtype=np.float32)
+
+        # Old direct method
+        interp1 = Akima1DInterpolator(centers1, values1, method="akima")
+        interp2 = Akima1DInterpolator(centers2, values2, method="akima")
+        lin_arr1 = arr.copy()
+        lin_arr1 -= interp1(np.clip(lin_arr1, centers1[0], centers1[-1] - 0.1))
+        lin_arr1 -= interp2(np.clip(lin_arr1, centers2[0], centers2[-1] - 0.1))
+
+        # New LUT method
+        lin_arr2 = arr.copy()
+        lut(lin_arr2)
+
+        delta = lin_arr2 - lin_arr1
+        frac_diff = (lin_arr2 - lin_arr1) / lin_arr1
+
+        # The largest fractional deviations are at very low flux level.
+        self.assertLess(np.max(np.abs(frac_diff)), 4e-4)
+        # The largest deviations are at high flux.
+        self.assertLess(np.max(np.abs(delta)), 3e-2)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
