@@ -929,7 +929,7 @@ def trimToMatchCalibBBox(rawMaskedImage, calibMaskedImage):
     return replacementMaskedImage
 
 
-def biasCorrection(maskedImage, biasMaskedImage, trimToFit=False):
+def biasCorrection(maskedImage, biasMaskedImage, trimToFit=False, imageOnly=False):
     """Apply bias correction in place.
 
     Parameters
@@ -941,6 +941,9 @@ def biasCorrection(maskedImage, biasMaskedImage, trimToFit=False):
     trimToFit : `Bool`, optional
         If True, raw data is symmetrically trimmed to match
         calibration size.
+    imageOnly : `bool`, optional
+        Apply the bias to the image plane only, skipping mask
+        and variance.
 
     Raises
     ------
@@ -950,15 +953,28 @@ def biasCorrection(maskedImage, biasMaskedImage, trimToFit=False):
 
     """
     if trimToFit:
+        if imageOnly:
+            raise RuntimeError("trimToFit cannot be used with imageOnly.")
         maskedImage = trimToMatchCalibBBox(maskedImage, biasMaskedImage)
 
     if maskedImage.getBBox(afwImage.LOCAL) != biasMaskedImage.getBBox(afwImage.LOCAL):
         raise RuntimeError("maskedImage bbox %s != biasMaskedImage bbox %s" %
                            (maskedImage.getBBox(afwImage.LOCAL), biasMaskedImage.getBBox(afwImage.LOCAL)))
-    maskedImage -= biasMaskedImage
+    if imageOnly:
+        maskedImage.image -= biasMaskedImage.image
+    else:
+        maskedImage -= biasMaskedImage
 
 
-def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=False, trimToFit=False):
+def darkCorrection(
+    maskedImage,
+    darkMaskedImage,
+    expScale,
+    darkScale,
+    invert=False,
+    trimToFit=False,
+    imageOnly=False,
+):
     """Apply dark correction in place.
 
     Parameters
@@ -976,6 +992,9 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
     trimToFit : `Bool`, optional
         If True, raw data is symmetrically trimmed to match
         calibration size.
+    imageOnly : `bool`, optional
+        Apply the dark to the image plane only, skipping mask
+        and variance.
 
     Raises
     ------
@@ -989,6 +1008,8 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
         maskedImage -= dark * expScaling / darkScaling
     """
     if trimToFit:
+        if imageOnly:
+            raise RuntimeError("trimToFit cannot be used with imageOnly.")
         maskedImage = trimToMatchCalibBBox(maskedImage, darkMaskedImage)
 
     if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
@@ -997,9 +1018,15 @@ def darkCorrection(maskedImage, darkMaskedImage, expScale, darkScale, invert=Fal
 
     scale = expScale / darkScale
     if not invert:
-        maskedImage.scaledMinus(scale, darkMaskedImage)
+        if imageOnly:
+            maskedImage.image.scaledMinus(scale, darkMaskedImage.image)
+        else:
+            maskedImage.scaledMinus(scale, darkMaskedImage)
     else:
-        maskedImage.scaledPlus(scale, darkMaskedImage)
+        if imageOnly:
+            maskedImage.image.scaledPlus(scale, darkMaskedImage.image)
+        else:
+            maskedImage.scaledPlus(scale, darkMaskedImage)
 
 
 def updateVariance(maskedImage, gain, readNoise, replace=True):

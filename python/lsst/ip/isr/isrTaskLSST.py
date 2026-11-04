@@ -1808,6 +1808,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         lsst.ip.isr.isrFunctions.darkCorrection
         """
         expScale = exposure.visitInfo.darkTime
+        imageOnly = not self.config.doVariance
         if math.isnan(expScale):
             raise RuntimeError("Exposure darktime is NAN.")
         if darkExposure.visitInfo is not None \
@@ -1825,6 +1826,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             expScale=expScale,
             darkScale=darkScale,
             invert=invert,
+            imageOnly=imageOnly,
         )
 
     @staticmethod
@@ -2503,7 +2505,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Applying bias correction.")
             # Bias frame and ISR unit consistency is checked at the top of
             # the run method.
-            isrFunctions.biasCorrection(ccdExposure.maskedImage, bias.maskedImage)
+            isrFunctions.biasCorrection(
+                ccdExposure.maskedImage,
+                bias.maskedImage,
+                imageOnly=not self.config.doVariance,
+            )
             ccdExposure.metadata["LSST ISR BIAS APPLIED"] = True
 
         # Dark subtraction
