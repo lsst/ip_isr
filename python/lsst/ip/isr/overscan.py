@@ -26,6 +26,7 @@ __all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask",
 
 import numpy as np
 from scipy.signal import medfilt
+import warnings
 
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
@@ -399,8 +400,18 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         overscanMask = ~((overscanImage.mask.array & maskVal) == 0)
 
         badResults = False
-        overscanMedian = np.nanmedian(overscanImage.image.array)
-        imageMedian = np.nanmedian(exposure[imageBBox].image.array)
+
+        checkOverscanLevel = False
+        overscanMedian = 0.0
+        imageMedian = 0.0
+        if np.isfinite(imageThreshold):
+            checkOverscanLevel = True
+
+            # Protect against warnings with all-nan amps.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                overscanMedian = np.nanmedian(overscanImage.image.array)
+                imageMedian = np.nanmedian(exposure[imageBBox].image.array)
 
         if np.all(overscanMask):
             self.log.warning(
@@ -408,7 +419,8 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
                 amp.getName(),
             )
             badResults = True
-        elif overscanMedian/imageMedian > overscanFraction and imageMedian > imageThreshold:
+        elif (checkOverscanLevel and overscanMedian/imageMedian > overscanFraction
+              and imageMedian > imageThreshold):
             self.log.warning(
                 "The level in the overscan region (%.2f) compared to the image region (%.2f) is "
                 "greater than the maximum fraction (%.2f) for %s",
@@ -745,7 +757,9 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             workingCopy = np.ma.masked_array(overscanVector,
                                              mask=~np.isfinite(overscanVector))
 
-        defaultValue = np.median(workingCopy.data[~workingCopy.mask])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            defaultValue = np.median(workingCopy.data[~workingCopy.mask])
         for maskSlice in np.ma.clump_masked(workingCopy):
             neighborhood = []
             if maskSlice.start > 5:
