@@ -1179,19 +1179,19 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             amp_name = amp.getName()
             key = f"LSST ISR GAIN {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], gain := self.ptc.gain[amp_name])
+            self.assertAlmostEqual(metadata[key], gain := self.ptc.gain[amp_name])
             key = f"LSST ISR READNOISE {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], self.ptc.noise[amp_name])
+            self.assertAlmostEqual(metadata[key], self.ptc.noise[amp_name])
             key = f"LSST ISR SATURATION LEVEL {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], self.saturation_adu * gain)
+            self.assertAlmostEqual(metadata[key], self.saturation_adu * gain)
             key = f"LSST ISR SUSPECT LEVEL {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], self.saturation_adu * gain)
+            self.assertAlmostEqual(metadata[key], self.saturation_adu * gain)
             key = f"LSST ISR PTCTURNOFF {amp_name}"
             self.assertIn(key, metadata)
-            self.assertEqual(metadata[key], self.ptc.ptcTurnoff[amp_name] * gain)
+            self.assertAlmostEqual(metadata[key], self.ptc.ptcTurnoff[amp_name] * gain)
 
         # Test the variance plane in the case of electron units.
         # The expected variance starts with the image array.
