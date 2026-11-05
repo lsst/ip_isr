@@ -744,6 +744,8 @@ class IsrTaskLSST(pipeBase.PipelineTask):
     _DefaultName = "isrLSST"
 
     def __init__(self, **kwargs):
+        self._slowCrosstalkForTesting = kwargs.pop("_slowCrosstalkForTesting", False)
+
         super().__init__(**kwargs)
         self.makeSubtask("assembleCcd")
         self.makeSubtask("deferredChargeCorrection")

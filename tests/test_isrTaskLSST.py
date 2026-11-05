@@ -1109,7 +1109,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         isr_config.doFlat = True
 
-        ptc = copy.copy(self.ptc)
+        ptc = copy.deepcopy(self.ptc)
         ptc.gain[ptc.ampNames[0]] *= 0.95
 
         adjustments = np.ones(len(ptc.ampNames))
@@ -1125,7 +1125,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
                 flat=self.flat,
                 crosstalk=self.crosstalk,
                 defects=self.defects,
-                ptc=self.ptc,
+                ptc=ptc,
                 gainCorrection=gainCorrection,
                 linearizer=self.linearizer,
                 deferredChargeCalib=self.cti,
@@ -1224,6 +1224,73 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
             expected_variance.array[good_pixels],
             rtol=1e-6,
         )
+
+    def test_isrSkyImageFastCrosstalk(self):
+        """Test processing of a sky image, comparing fast/slow crosstalk."""
+        # Note: this test not only checks if the crosstalk is consistent,
+        # but it also tests that repeated application of a gain-corrected PTC
+        # is consistent.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # Set this to False until we have fringe correction.
+        mock_config.doAddFringe = False
+        mock_config.doAddSky = True
+        mock_config.doAddSource = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doCorrectGains = True
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = True
+
+        ptc = copy.deepcopy(self.ptc)
+        ptc.gain[ptc.ampNames[0]] *= 0.95
+
+        adjustments = np.ones(len(ptc.ampNames))
+        adjustments[0] /= 0.95
+        gainCorrection = GainCorrection(ampNames=ptc.ampNames, gainAdjustments=adjustments)
+
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=self.flat,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=ptc,
+                gainCorrection=gainCorrection,
+                linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
+            )
+
+        isr_config.crosstalk.doUseFastPath = False
+
+        isr_task2 = IsrTaskLSST(config=isr_config)
+        with self.assertNoLogs(level=logging.WARNING):
+            result2 = isr_task2.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                flat=self.flat,
+                crosstalk=self.crosstalk,
+                defects=self.defects,
+                ptc=ptc,
+                gainCorrection=gainCorrection,
+                linearizer=self.linearizer,
+                deferredChargeCalib=self.cti,
+            )
+
+        # The difference should be within floating point errors.
+        delta = ((result2.outputExposure.image.array - result.outputExposure.image.array)
+                 / result2.outputExposure.image.array)
+
+        np.testing.assert_array_almost_equal(delta, 0.0)
 
     def test_isrSkyImageSaturated(self):
         """Test processing of a sky image.

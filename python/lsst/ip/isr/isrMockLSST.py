@@ -916,6 +916,7 @@ class IsrMockLSST(IsrMock):
                 minPixelToMask=np.inf,
                 ignoreVariance=True,
                 fullAmplifier=True,
+                doUseFastPath=False,
             )
 
         for amp in exposure.getDetector():
