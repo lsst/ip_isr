@@ -591,7 +591,7 @@ class CrosstalkCalib(IsrCalib):
                           doCrosstalkMask=True, crosstalkStr="CROSSTALK", isTrimmed=None,
                           backgroundMethod="None", doSqrCrosstalk=False, fullAmplifier=False,
                           parallelOverscan=None, detectorConfig=None, badAmpDict=None,
-                          ignoreVariance=False):
+                          ignoreVariance=False, allowFastPath=True):
         """Subtract the crosstalk from thisExposure, optionally using a
         different source.
 
@@ -662,6 +662,9 @@ class CrosstalkCalib(IsrCalib):
             source or target for crosstalk correction.
         ignoreVariance : `bool`, optional
             Ignore the variance plane when doing crosstalk correction?
+        allowFastPath : `bool`, optional
+            Allow the fast-path crosstalk processing?  Configurable for
+            testing.
 
         Notes
         -----
@@ -806,7 +809,7 @@ class CrosstalkCalib(IsrCalib):
         # we can work on only the image plane (3x speed increase).
         imageOnly = ignoreVariance and (doSubtrahendMasking or not doCrosstalkMask)
 
-        if imageOnly and not useBackgrounds:
+        if imageOnly and not useBackgrounds and allowFastPath:
             # Special fast path
             def _flip(a, amp):
                 X_FLIP = {lsst.afw.cameraGeom.ReadoutCorner.LL: False,
@@ -865,6 +868,7 @@ class CrosstalkCalib(IsrCalib):
                             isTrimmed=isTrimmed,
                             fullAmplifier=fullAmplifier,
                         )
+
                         targetImage = subtrahend[targetBBox].image
                     else:
                         sourceImage = self.extractAmp(
@@ -939,6 +943,7 @@ class CrosstalkCalib(IsrCalib):
         # Subtract subtrahend from input.  The mask plane is fully
         # populated, so this operation also sets the ``crosstalkStr``
         # bit where applicable.
+
         targetMaskedImage -= subtrahend
 
 
@@ -1073,6 +1078,7 @@ class CrosstalkTask(Task):
         gains=None,
         badAmpDict=None,
         ignoreVariance=False,
+        allowFastPath=True,
     ):
         """Apply intra-detector crosstalk correction
 
@@ -1110,6 +1116,8 @@ class CrosstalkTask(Task):
             source or target for crosstalk correction.
         ignoreVariance : `bool`, optional
             Ignore variance plane when applying crosstalk?
+        allowFastPath : `bool`, optional
+            Allow optimized fast-path?  This is settable for testing.
 
         Raises
         ------
@@ -1233,6 +1241,7 @@ class CrosstalkTask(Task):
                 fullAmplifier=fullAmplifier,
                 badAmpDict=badAmpDict,
                 ignoreVariance=ignoreVariance,
+                allowFastPath=allowFastPath,
             )
 
         if crosstalk.interChip:
