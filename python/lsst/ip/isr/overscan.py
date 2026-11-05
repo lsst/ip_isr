@@ -26,6 +26,7 @@ __all__ = ["OverscanCorrectionTaskConfig", "OverscanCorrectionTask",
 
 import numpy as np
 from scipy.signal import medfilt
+import warnings
 
 import lsst.afw.math as afwMath
 import lsst.afw.image as afwImage
@@ -406,8 +407,11 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
         if np.isfinite(imageThreshold):
             checkOverscanLevel = True
 
-            overscanMedian = np.nanmedian(overscanImage.image.array)
-            imageMedian = np.nanmedian(exposure[imageBBox].image.array)
+            # Protect against warnings with all-nan amps.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                overscanMedian = np.nanmedian(overscanImage.image.array)
+                imageMedian = np.nanmedian(exposure[imageBBox].image.array)
 
         if np.all(overscanMask):
             self.log.warning(
@@ -753,7 +757,9 @@ class OverscanCorrectionTaskBase(pipeBase.Task):
             workingCopy = np.ma.masked_array(overscanVector,
                                              mask=~np.isfinite(overscanVector))
 
-        defaultValue = np.median(workingCopy.data[~workingCopy.mask])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            defaultValue = np.median(workingCopy.data[~workingCopy.mask])
         for maskSlice in np.ma.clump_masked(workingCopy):
             neighborhood = []
             if maskSlice.start > 5:
