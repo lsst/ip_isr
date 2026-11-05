@@ -2,6 +2,7 @@ __all__ = ["IsrTaskLSST", "IsrTaskLSSTConfig"]
 
 import numpy
 import math
+import copy
 
 from . import isrFunctions
 from . import isrQa
@@ -2249,7 +2250,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         exposureMetadata["LSST ISR BOOTSTRAP"] = self.config.doBootstrap
 
         # Choose the gains to use
-        gains = ptc.gain
+        gains = copy.copy(ptc.gain)
 
         # And check if we have configured gains to override. This is
         # also a warning, since it should not be typical usage.
