@@ -32,7 +32,7 @@ import lsst.afw.cameraGeom as cameraGeom
 from lsst.afw.geom.testUtils import BoxGrid
 from lsst.afw.image.testUtils import makeRampImage
 from lsst.ip.isr import applyLookupTable, Linearizer
-from lsst.ip.isr.linearize import SplineLUT
+from lsst.ip.isr.linearize import SplineLUT, LinearizeSpline, LinearizeDoubleSpline
 from scipy.interpolate import Akima1DInterpolator
 
 
@@ -498,6 +498,123 @@ class LinearizeSplineLUTTestCase(lsst.utils.tests.TestCase):
         self.assertLess(np.max(np.abs(frac_diff)), 4e-4)
         # The largest deviations are at high flux.
         self.assertLess(np.max(np.abs(delta)), 3e-2)
+
+    def test_linearizeSpline(self):
+        """Test application via LinearizeSpline, with gain, multiple times."""
+        linearizer = LinearizeSpline()
+
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(500, 500))
+        image = makeRampImage(bbox=bbox, start=50, stop=50000, imageClass=afwImage.ImageF)
+        coeffs = self.coeffs[2: 2 + 2*int(self.coeffs[0])]
+        centers, values = np.split(coeffs, 2)
+
+        image1 = image.clone()
+
+        # This caches the LUT and applies it.
+        gain = 1.5
+        linearizer(image1, coeffs=coeffs, gain=gain)
+
+        # Check that the values are good.
+        interp = Akima1DInterpolator(centers * gain, values * gain, method="akima")
+        arr1 = image.array.copy()
+        arr1 -= interp(np.clip(arr1, centers[0] * gain, centers[-1] * gain - 0.1))
+
+        frac_diff = (arr1.ravel() - image1.array.ravel()) / arr1.ravel()
+        self.assertLess(np.max(np.abs(frac_diff)), 4e-4)
+
+        # Re-apply with same gain.
+        image2 = image.clone()
+        linearizer(image2, coeffs=coeffs, gain=1.5)
+
+        # Check this is the same values.
+        np.testing.assert_array_almost_equal(image2.array, image1.array)
+
+        # Re-apply with new gain.
+        gain = 5.0
+        image3 = image.clone()
+        linearizer(image3, coeffs=coeffs, gain=gain)
+
+        # Check that the values are good (again)
+        interp = Akima1DInterpolator(centers * gain, values * gain, method="akima")
+        arr3 = image.array.copy()
+        arr3 -= interp(np.clip(arr3, centers[0] * gain, centers[-1] * gain - 0.1))
+
+        frac_diff = (arr3.ravel() - image3.array.ravel()) / arr3.ravel()
+        self.assertLess(np.max(np.abs(frac_diff)), 4e-4)
+
+    def test_linearizeDoubleSpline(self):
+        """Test application via LinearizeSpline, with gain, multiple times."""
+
+        bbox = lsst.geom.Box2I(lsst.geom.Point2I(0, 0), lsst.geom.Extent2I(500, 500))
+        image = makeRampImage(bbox=bbox, start=50, stop=50000, imageClass=afwImage.ImageF)
+        coeffs1 = self.coeffs[2: 2 + 2*int(self.coeffs[0])]
+        coeffs2 = self.coeffs[2 + 2*int(self.coeffs[0]): 2 + 2*int(self.coeffs[0]) + 2*int(self.coeffs[1])]
+        centers1, values1 = np.split(coeffs1, 2)
+        centers2, values2 = np.split(coeffs2, 2)
+
+        for mode in ["first", "second", "both"]:
+            linearizer = LinearizeDoubleSpline()
+
+            if mode == "first":
+                # Ignore the second spline.
+                coeffs = np.concatenate(
+                    (
+                        np.array([self.coeffs[0], 0], dtype=np.float64),
+                        coeffs1,
+                    ),
+                )
+            elif mode == "second":
+                # Ignore the first spline (and contract).
+                coeffs = np.concatenate(
+                    (
+                        np.array([0, self.coeffs[1]], dtype=np.float64),
+                        coeffs2,
+                    ),
+                )
+            else:
+                coeffs = self.coeffs.copy()
+
+            image1 = image.clone()
+
+            # This caches the LUT and applies it.
+            gain = 1.5
+            linearizer(image1, coeffs=coeffs, gain=gain)
+
+            # Check that the values are good.
+            arr1 = image.array.copy()
+            if mode in ["first", "both"]:
+                interp1 = Akima1DInterpolator(centers1 * gain, values1 * gain, method="akima")
+                arr1 -= interp1(np.clip(arr1, centers1[0] * gain, centers1[-1] * gain - 0.1))
+            if mode in ["second", "both"]:
+                interp2 = Akima1DInterpolator(centers2 * gain, values2 * gain, method="akima")
+                arr1 -= interp2(np.clip(arr1, centers1[0] * gain, centers1[-1] * gain - 0.1))
+
+            frac_diff = (arr1.ravel() - image1.array.ravel()) / arr1.ravel()
+            self.assertLess(np.max(np.abs(frac_diff)), 4e-4)
+
+            # Re-apply with same gain.
+            image2 = image.clone()
+            linearizer(image2, coeffs=coeffs, gain=1.5)
+
+            # Check this is the same values.
+            np.testing.assert_array_almost_equal(image2.array, image1.array)
+
+            # Re-apply with new gain.
+            gain = 5.0
+            image3 = image.clone()
+            linearizer(image3, coeffs=coeffs, gain=gain)
+
+            # Check that the values are good (again)
+            arr3 = image.array.copy()
+            if mode in ["first", "both"]:
+                interp1 = Akima1DInterpolator(centers1 * gain, values1 * gain, method="akima")
+                arr3 -= interp1(np.clip(arr3, centers1[0] * gain, centers1[-1] * gain - 0.1))
+            if mode in ["second", "both"]:
+                interp2 = Akima1DInterpolator(centers2 * gain, values2 * gain, method="akima")
+                arr3 -= interp2(np.clip(arr3, centers1[0] * gain, centers1[-1] * gain - 0.1))
+
+            frac_diff = (arr3.ravel() - image3.array.ravel()) / arr3.ravel()
+            self.assertLess(np.max(np.abs(frac_diff)), 4e-4)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
