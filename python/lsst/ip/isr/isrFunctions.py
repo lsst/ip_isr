@@ -139,7 +139,7 @@ def interpolateDefectList(maskedImage, defectList, fwhm, fallbackValue=None,
     psf = createPsf(fwhm)
     if fallbackValue is None:
         # Very fast computation of a reasonable fallback value.
-        fallbackValue = numpy.median(maskedImage.image.array[::4, ::4])
+        fallbackValue = numpy.nanmedian(maskedImage.image.array[::4, ::4])
     if 'INTRP' not in maskedImage.getMask().getMaskPlaneDict():
         maskedImage.getMask().addMaskPlane('INTRP')
 
@@ -953,8 +953,6 @@ def biasCorrection(maskedImage, biasMaskedImage, trimToFit=False, imageOnly=Fals
 
     """
     if trimToFit:
-        if imageOnly:
-            raise RuntimeError("trimToFit cannot be used with imageOnly.")
         maskedImage = trimToMatchCalibBBox(maskedImage, biasMaskedImage)
 
     if maskedImage.getBBox(afwImage.LOCAL) != biasMaskedImage.getBBox(afwImage.LOCAL):
@@ -1008,8 +1006,6 @@ def darkCorrection(
         maskedImage -= dark * expScaling / darkScaling
     """
     if trimToFit:
-        if imageOnly:
-            raise RuntimeError("trimToFit cannot be used with imageOnly.")
         maskedImage = trimToMatchCalibBBox(maskedImage, darkMaskedImage)
 
     if maskedImage.getBBox(afwImage.LOCAL) != darkMaskedImage.getBBox(afwImage.LOCAL):
@@ -1095,8 +1091,6 @@ def flatCorrection(
         the same size or if ``scalingType`` is not an allowed value.
     """
     if trimToFit:
-        if imageOnly:
-            raise RuntimeError("trimToFit cannot be used with imageOnly.")
         maskedImage = trimToMatchCalibBBox(maskedImage, flatMaskedImage)
 
     if maskedImage.getBBox(afwImage.LOCAL) != flatMaskedImage.getBBox(afwImage.LOCAL):
