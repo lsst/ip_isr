@@ -1064,8 +1064,8 @@ class LinearizeSpline(LinearizeBase):
             centers, values = np.split(splineCoeff, 2)
             # Note that we must do a copy here because the input array
             # may not be volatile memory.
-            centers = gain * centers
-            values = gain * values
+            centers = centers.copy()
+            values = values.copy()
             # If the spline is not anchored at zero, remove the offset
             # found at the lowest flux available, and add an anchor at
             # flux=0.0 if there's no entry at that point.
@@ -1141,8 +1141,8 @@ class LinearizeDoubleSpline(LinearizeBase):
 
         if self._lut is None:
             # The coeffs have [nNodes1, nNodes2,
-            #                  nodes1, values1,
-            #                  nodes2, values2]
+            #                  nodes1, centers1,
+            #                  nodes2, centers2]
 
             nNodes1 = int(coeffs[0])
             nNodes2 = int(coeffs[1])
@@ -1158,7 +1158,7 @@ class LinearizeDoubleSpline(LinearizeBase):
                     self._lut = False
             else:
                 centers1 = None
-                values2 = None
+                values1 = None
 
             if nNodes2 > 0:
                 splineCoeff2 = coeffs[2 + 2*nNodes1: 2 + 2*nNodes1 + 2*nNodes2]
