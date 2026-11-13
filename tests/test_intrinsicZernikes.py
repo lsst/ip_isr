@@ -159,6 +159,12 @@ class IntrinsicZernikesTestCase(lsst.utils.tests.TestCase):
         )
         self.assertFloatsEqual(zernikes_subset, zernikes[[0, 2]])
 
+        # Test that request for absent Noll index raises
+        with self.assertRaises(ValueError):
+            self.calib.getIntrinsicZernikes(
+                field_x_test, field_y_test, noll_indices=[4, 7]
+            )
+
     def test_getIntrinsicZernikes_array(self):
         """Test interpolation with array inputs."""
         field_x_test = np.array([0.0, 0.5])

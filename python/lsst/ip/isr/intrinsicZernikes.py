@@ -139,6 +139,9 @@ class IntrinsicZernikes(IsrCalib):
                 self.field_x_ocs, self.field_y_ocs, self.values_ocs
             )
 
+        # Don't assume sorted or contiguous.
+        self._noll_map = {n: i for i, n in enumerate(self.noll_indices)}
+
         self.requiredAttributes.update(
             [
                 "field_x",
@@ -392,7 +395,13 @@ class IntrinsicZernikes(IsrCalib):
             # system is present (an absent OCS simply adds nothing).
             noll_indices = self.noll_indices
         noll_indices = np.array(noll_indices)
-        noll_mask = np.isin(self.noll_indices, noll_indices)
+
+        try:
+            noll_mask = [self._noll_map[j] for j in noll_indices]
+        except KeyError as exc:
+            raise ValueError(
+                f"No intrinsic available for Noll index {exc.args[0]}"
+            ) from None
 
         field_x, field_y = np.broadcast_arrays(field_x, field_y)
         # Interpolate over a flat list of points and restore the caller's
