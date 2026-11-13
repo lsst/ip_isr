@@ -2,6 +2,7 @@ __all__ = ["IsrTaskLSST", "IsrTaskLSSTConfig"]
 
 import numpy
 import math
+import copy
 
 from . import isrFunctions
 from . import isrQa
@@ -1515,15 +1516,16 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         exp : `lsst.afw.image.Exposure`
             The flat and dark corrected exposure.
         """
+        imageOnly = not self.config.doVariance
         if self.config.doDark and dark is not None:
             self.darkCorrection(exp, dark)
         if self.config.doFlat and flat is not None:
-            self.flatCorrection(exp, flat)
+            self.flatCorrection(exp, flat, imageOnly=imageOnly)
         try:
             yield exp
         finally:
             if self.config.doFlat and flat is not None:
-                self.flatCorrection(exp, flat, invert=True)
+                self.flatCorrection(exp, flat, invert=True, imageOnly=imageOnly)
             if self.config.doDark and dark is not None:
                 self.darkCorrection(exp, dark, invert=True)
 
@@ -1807,6 +1809,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         lsst.ip.isr.isrFunctions.darkCorrection
         """
         expScale = exposure.visitInfo.darkTime
+        imageOnly = not self.config.doVariance
         if math.isnan(expScale):
             raise RuntimeError("Exposure darktime is NAN.")
         if darkExposure.visitInfo is not None \
@@ -1824,6 +1827,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             expScale=expScale,
             darkScale=darkScale,
             invert=invert,
+            imageOnly=imageOnly,
         )
 
     @staticmethod
@@ -2246,7 +2250,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
         exposureMetadata["LSST ISR BOOTSTRAP"] = self.config.doBootstrap
 
         # Choose the gains to use
-        gains = ptc.gain
+        gains = copy.copy(ptc.gain)
 
         # And check if we have configured gains to override. This is
         # also a warning, since it should not be typical usage.
@@ -2502,7 +2506,11 @@ class IsrTaskLSST(pipeBase.PipelineTask):
             self.log.info("Applying bias correction.")
             # Bias frame and ISR unit consistency is checked at the top of
             # the run method.
-            isrFunctions.biasCorrection(ccdExposure.maskedImage, bias.maskedImage)
+            isrFunctions.biasCorrection(
+                ccdExposure.maskedImage,
+                bias.maskedImage,
+                imageOnly=not self.config.doVariance,
+            )
             ccdExposure.metadata["LSST ISR BIAS APPLIED"] = True
 
         # Dark subtraction
@@ -2608,6 +2616,7 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 flatMaskedImage=flat.maskedImage,
                 scalingType=self.config.flatScalingType,
                 userScale=self.config.flatUserScale,
+                imageOnly=not self.config.doVariance,
             )
 
             # Copy over valid polygon from flat if it is
