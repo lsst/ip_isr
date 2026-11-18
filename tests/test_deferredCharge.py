@@ -23,7 +23,8 @@ import numpy as np
 import tempfile
 import lsst.utils.tests
 
-from lsst.ip.isr import (DeferredChargeCalib, DeferredChargeTask, SerialTrap)
+from lsst.ip.isr import (DeferredChargeCalib, DeferredChargeTask, FloatingOutputAmplifier,
+                         SegmentSimulator, SerialTrap)
 
 
 class SerialTrapTestCase(lsst.utils.tests.TestCase):
@@ -169,6 +170,19 @@ class DeferredChargeTestCase(lsst.utils.tests.TestCase):
                                             num_previous_pixels=6)
         # As above + ~320 deposited in prescan
         self.assertAlmostEqual(np.sum(corrected), 821734.3965605417, 5)
+
+    def testGlobalCtiInverse(self):
+        signal = np.full((self.ny, self.nx), 50000.0)
+        amplifier = FloatingOutputAmplifier(gain=1.0, scale=0.0, decay_time=1.0)
+        simulator = SegmentSimulator(signal, self.prescan, amplifier, cti=1e-6)
+        image = simulator.readout(serial_overscan_width=self.overscan)
+
+        expected = np.zeros_like(image)
+        expected[:, self.prescan:self.prescan + self.nx] = signal
+        self.assertGreater(np.max(np.abs(image - expected)), 1.0)
+
+        corrected = DeferredChargeTask.global_cti_inverse(image, 1e-6)
+        np.testing.assert_allclose(corrected, expected, atol=1e-2)
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

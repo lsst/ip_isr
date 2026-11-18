@@ -1193,6 +1193,11 @@ class DeferredChargeConfig(Config):
         doc="If true, set serial prescan and parallel overscan to zero before correction.",
         default=True,
     )
+    doGlobalCtiCorrection = Field(
+        dtype=bool,
+        doc="If true, correct for global CTI after the local offset and trap corrections.",
+        default=True,
+    )
 
 
 class DeferredChargeTask(Task):
@@ -1281,6 +1286,10 @@ class DeferredChargeTask(Task):
                                                            ctiCalib.serialTraps[ampName],
                                                            ctiCalib.globalCti[ampName],
                                                            self.config.nPixelTrapCorrection)
+
+                if self.config.doGlobalCtiCorrection:
+                    correctedAmpData = self.global_cti_inverse(correctedAmpData,
+                                                               ctiCalib.globalCti[ampName])
 
                 # Undo flips here.  The method is symmetric.
                 correctedAmpData = self.flipData(correctedAmpData, amp)
@@ -1372,12 +1381,14 @@ class DeferredChargeTask(Task):
         r"""Apply localized trapping inverse operator to pixel signals.
 
         This implements equation 13 of Snyder+21.  For an image with
-        CTI, s'(m, n), the correction factor is equal to the maximum
-        value of the set of:
+        CTI, s'(m, n), the corrected signal is:
 
         .. code-block::
 
-            {A_L s'(m, n - j) exp(-j t / \tau_L)}_j=0^jmax
+            s'(m, n) - a R(m, n) + a C(m, n)
+
+        where a = 1 - b, C is the charge captured from pixel n, and R
+        is the charge released into pixel n by the trap.
 
         Parameters
         ----------
@@ -1385,7 +1396,7 @@ class DeferredChargeTask(Task):
             Input image data to correct.
         trap : `lsst.ip.isr.SerialTrap`
             Serial trap describing the capture and release of charge.
-        global_cti: `float`
+        global_cti : `float`
             Mean charge transfer inefficiency, b from Snyder+21.
         num_previous_pixels : `int`, optional
             Number of previous pixels to use for correction.
@@ -1416,5 +1427,37 @@ class DeferredChargeTask(Task):
         T = R - C
 
         outputArr = inputArr - a*T
+
+        return outputArr
+
+    @staticmethod
+    def global_cti_inverse(inputArr, global_cti):
+        r"""Apply global CTI inverse operator to pixel signals.
+
+        This inverts equation 14 of Snyder+21 to first order in b.
+        With the readout corner at column 0, the pixel in column n
+        (serial prescan included) undergoes N_T(n) = n + 1 transfers
+        and loses a fraction b of its charge to the following pixel
+        at each one:
+
+        .. code-block::
+
+            s'(m, n) = (1 - N_T(n) b) s(m, n) + N_T(n - 1) b s(m, n - 1)
+
+        Parameters
+        ----------
+        inputArr : `numpy.ndarray`, (nx, ny)
+            Input image data to correct.
+        global_cti : `float`
+            Mean charge transfer inefficiency, b from Snyder+21.
+
+        Returns
+        -------
+        outputArr : `numpy.ndarray`, (nx, ny)
+            Corrected image data.
+        """
+        lost = global_cti*np.arange(1, inputArr.shape[1] + 1)*inputArr
+        outputArr = inputArr + lost
+        outputArr[:, 1:] -= lost[:, :-1]
 
         return outputArr
