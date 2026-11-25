@@ -198,10 +198,14 @@ class ShutterMotionProfile(IsrCalib):
             if kw not in exposure.metadata:
                 raise RuntimeError(f"Expected header keyword not found: {kw}.")
 
+        # The same fields as a profile read from the camera's JSON file; the
+        # header has no samples, Hall transitions or start position.
         calib = cls()
-        calib.time_tai.append(exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI ISOT'])
-        calib.time_mjd.append(exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI MJD'])
-        calib.metadata['SIDE'] = exposure.metadata[f'SHUTTER {direction.upper()} SIDE']
+        calib.metadata['startTime_tai'] = exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI ISOT']
+        calib.metadata['startTime_mjd'] = exposure.metadata[f'SHUTTER {direction.upper()} STARTTIME TAI MJD']
+        calib.metadata['side'] = exposure.metadata[f'SHUTTER {direction.upper()} SIDE']
+        calib.metadata['isOpen'] = direction == 'open'
+        calib.fit_model = exposure.metadata[f'SHUTTER {direction.upper()} MODEL']
 
         calib.fit_name.append("hallSensorFit")
 
