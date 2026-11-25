@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Support for image defects"""
 
-__all__ = ("Defects",)
+__all__ = ("Defects", "DefectsReason",)
 
 import logging
 import itertools
@@ -704,3 +704,214 @@ class Defects(IsrCalib):
                                               lsst.afw.detection.Threshold.BITMASK)
         fpList = lsst.afw.detection.FootprintSet(mask, thresh).getFootprints()
         return cls.fromFootprintList(fpList)
+
+
+class DefectsReason(Defects):
+    """Handles the definition of the reason(s) for pixels in defects.
+
+    Parameters
+    ----------
+        exp : `lsst.afw.image.exposure.Exposure`
+            Exposure where defects are being found.
+        reasonList: `str`
+            List of possible defects reasons.
+    """
+
+    def __init__(self, exp, reasonList=['UNLABELED', 'HOT_PIXEL', 'COLD_PIXEL',
+                                        'HOT_COLUMN', 'COLD_COLUMN', 'MANUAL_DEFECT',
+                                        'EDGE', 'VAMPIRE_PIXEL'], **kwargs):
+        # Image will be populated with defects reason bits.
+        self.defectsReasonExposure = exp
+
+        # List of possible reasons for defects.
+        self.reasonList = reasonList
+
+        self.addReasonDictMetadata()
+
+        super().__init__(**kwargs)
+        self.requiredAttributes.update(['defectsReasonExposure', 'reasonList'])
+
+    def setReasonValue(self, reasonDefect, fpSet):
+        """Set value of the defect reason image to the defect reason bit
+        at the location of the pixels in a defect.
+
+        Parameters
+        ----------
+        reasonDefect : `str`
+            Reason for the defect.
+        fpSet : `lsst.afw.detection._detection.FootprintSet`
+            Footprint set of the defects.
+        """
+
+        # Check the reason exists
+        if reasonDefect in self.reasonList:
+            # Get the bit corresponding to the reason
+            bitmask = 2**self.bitFromReason(reasonDefect)
+            # Set the defect reason image to the corresponding bit value
+
+            fpSetImageArray = fpSet.insertIntoImage().array
+
+            # the type of integers in the defect reason image array
+            # needs to be the same as in the footprint set image to apply
+            # the bitwise OR operation.
+            defectsReasonExposureArray = self.defectsReasonExposure.image.array.astype(fpSetImageArray.dtype)
+
+            defectsReasonExposureArray |= bitmask*fpSetImageArray
+        else:
+            raise RuntimeError(f"Reason {reasonDefect} not existent.")
+        return defectsReasonExposureArray
+
+    def getReasonMappingDict(self, reasonList):
+        """Get the mappings between a reason and a bit and vice versa.
+
+        Parameters
+        ----------
+        reasonList : `List`
+            A list of reason.
+
+        Returns
+        -------
+        mapping : `str` `int`
+            Mapping between a reason and a bit.
+        mapping_reverse : `int` `str`
+            Mapping between a bit and a reason.
+        """
+
+        mapping = {reason: bit for bit, reason in enumerate(reasonList)}
+        mapping_reverse = {bit: reason for bit, reason in enumerate(reasonList)}
+
+        return mapping, mapping_reverse
+
+    def reasonFromBit(self, bit):
+        """Get the reason from a bit.
+
+        Parameters
+        ----------
+        bit : `int`
+            Reason bit.
+        """
+        return self.getReasonMappingDict(self.reasonList)[1][bit]
+
+    def bitFromReason(self, reason):
+        """Get the bit from a reason.
+
+        Parameters
+        ----------
+        reason : `str`
+            Reason for defect.
+        """
+        return self.getReasonMappingDict(self.reasonList)[0][reason]
+
+    def addReasonDictMetadata(self):
+        """Add the mappings between reason and bit and vice versa in the
+        metadata of the defect reason image.
+        """
+
+        # The reason image metadata have all the mapping for all the possible
+        # reasons wether they are in the image or not.
+        exposureMetadata = self.defectsReasonExposure.metadata
+
+        # Add the reason to bit correspondance to
+        # the defect reason image metadata
+        exposureMetadata.update({f"DEFECT REASON {reason}": bit for reason, bit
+                                 in self.getReasonMappingDict(self.reasonList)[0].items()})
+        exposureMetadata.update({f"DEFECT REASON BIT {bit}": reason for reason, bit
+                                 in self.getReasonMappingDict(self.reasonList)[1].items()})
+
+    def interpret(self, value):
+        """Outputs the reasons corresponding to a value in a pixel of
+        the defect reason image.
+
+        Parameters
+        ----------
+        value : `int`
+            Value in a pixel of the defect reason image.
+
+        Returns
+        -------
+        reasonsString : `str`
+            The reasons corresponding to the value.
+        """
+        reasonsString = str()
+        # loop over possible reasons
+        for reason in self.reasonList:
+            reasonBit = np.bitwise_and(int(value), 2**self.bitFromReason(reason))
+            # if the resulting bit is different from 0 then append the reason
+            if reasonBit != 0:
+                if not reasonsString:
+                    # if the reason string is empty, we start it
+                    reasonsString = reason
+                else:
+                    # if it is not empty, we append the defects reason
+                    # after a comma
+                    reasonsString += "," + reason
+
+        return reasonsString
+
+    def getAsString(self, x, y):
+        """Outputs the reasons corresponding to a pixel location in
+        the defect reason image.
+
+        Parameters
+        ----------
+        x : `int`
+            x coordinate of a pixel in the defect reason image.
+        y : `int`
+            y coordinate of a pixel in the defect reason image.
+
+        Returns
+        -------
+        reasonsString : `str`
+            The reasons corresponding to the pixel location.
+        """
+        # Get the value at the x,y location of the exposure
+        xyValue = self.defectsReasonExposure.image.array[y, x]
+
+        # Return the interpretation of that value
+        return self.interpret(xyValue)
+
+    def writeFits(self, path):
+        """Write  to a FITS file.
+
+        Parameters
+        ----------
+        path : `str`
+            Path to the file to write data to.
+        """
+        hdr = astropy.io.fits.Header()
+        hdr.update(self.defectsReasonExposure.metadata)
+        hdu = astropy.io.fits.PrimaryHDU(
+            data=self.defectsReasonExposure.image.array, header=hdr
+        )
+        hdl = astropy.io.fits.HDUList([hdu])
+        hdl.writeto(path, overwrite=True)
+
+    @classmethod
+    def readFits(cls, path):
+        """Read a reason image from disk."
+
+        Parameters
+        ----------
+        path : `str`
+            Path of the file to read
+
+        Returns
+        -------
+        defectsReason : `~lsst.ip.isr.DefectsReason`
+        """
+
+        fitsfile = astropy.io.fits.open(path)
+        md = fitsfile[0].header
+
+        # Build the exposure
+        reasonImage = fitsfile[0].data
+        exp = lsst.afw.image.ExposureI(width=reasonImage.shape[1], height=reasonImage.shape[0])
+        exp.image.array = reasonImage
+
+        # Get the list of reasons from the fits header
+        reasonList = []
+        for i in range(len(md)):
+            if isinstance(md[i], str):
+                reasonList.append(md[i])
+
+        return cls(exp=exp, reasonList=reasonList)

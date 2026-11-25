@@ -21,6 +21,7 @@
 
 import os
 import unittest
+import numpy
 
 import lsst.geom
 import lsst.afw.image as afwImage
@@ -28,6 +29,8 @@ import lsst.meas.algorithms as algorithms
 import lsst.utils.tests
 from lsst.daf.base import PropertyList
 from lsst.ip.isr import Defects
+from lsst.ip.isr import DefectsReason
+import lsst.afw.detection as afwDetection
 
 try:
     type(display)
@@ -246,6 +249,75 @@ class DefectsTestCase(lsst.utils.tests.TestCase):
         self.assertEqual(len(expectedDefects), len(boxesMeasured2))
         for expDef, measDef in zip(expectedDefects, boxesMeasured2):
             self.assertEqual(expDef, measDef)
+
+
+class DefectsReasonTestCase(lsst.utils.tests.TestCase):
+
+    def makeExposure(self, width, height):
+        exp = afwImage.ExposureF(width, height)
+        return exp
+
+    def makeFpSet(self, exp, x0, y0, width, height):
+        region = lsst.geom.Box2I(lsst.geom.Point2I(x0, y0),
+                                 lsst.geom.Extent2I(width, height))
+        spanSet = lsst.afw.geom.SpanSet(region)
+
+        fp = afwDetection.Footprint(spanSet)
+
+        fpSet = afwDetection.FootprintSet(exp.getBBox())
+        fpSet.setFootprints([fp])
+        return fpSet
+
+    def test_defectsReasons(self):
+
+        # Build an exposure where defects will be found
+        inputExp = self.makeExposure(100, 200)
+
+        # Build footprint set for a defect
+        x0 = 0
+        y0 = 0
+        width1 = 5
+        height1 = 7
+        fpSet = self.makeFpSet(inputExp, x0, y0, width1, height1)
+
+        # Build defect reason image
+        defectsReason = DefectsReason(inputExp)
+
+        # Update defectsReason image array to edge defects
+        defectsReason.defectsReasonExposure.image.array = defectsReason.setReasonValue('EDGE', fpSet)
+
+        # Count the number of elements set to edge bit value
+        counterDefectPixelBit = numpy.sum(defectsReason.defectsReasonExposure.image.array)
+
+        # Check the defectsReason image array was filled as expected
+        self.assertEqual(counterDefectPixelBit, 2**defectsReason.bitFromReason('EDGE')*width1*height1)
+
+        # Add another defects within the previous edge defect footprint
+        x0 = 2
+        y0 = 1
+        width2 = 2
+        height2 = 3
+        fpSet = self.makeFpSet(inputExp, x0, y0, width2, height2)
+
+        # Update defectsReason image array to vampire pixel
+        defectsReason.defectsReasonExposure.image.array = defectsReason.setReasonValue('VAMPIRE_PIXEL', fpSet)
+        counterDefectPixelBit = numpy.sum(defectsReason.defectsReasonExposure.image.array)
+
+        # Check the defectsReason image array was filled as expected
+        self.assertEqual(counterDefectPixelBit,
+                         2**defectsReason.bitFromReason('EDGE')*width1*height1
+                         + 2**defectsReason.bitFromReason('VAMPIRE_PIXEL')*width2*height2)
+
+        # Check output string for different pixels or bit value
+        self.assertEqual(defectsReason.getAsString(3, 2), 'EDGE,VAMPIRE_PIXEL')
+        self.assertEqual(defectsReason.getAsString(4, 6), 'EDGE')
+        self.assertEqual(defectsReason.interpret(192), 'EDGE,VAMPIRE_PIXEL')
+
+        # Check fits writing and reading works correctly
+        defectsReason.writeFits(os.path.join(TESTDIR, "data", 'test_reason.fits'))
+        outputDefectsReason = defectsReason.readFits(os.path.join(TESTDIR, "data", 'test_reason.fits'))
+
+        self.assertEqual(outputDefectsReason, defectsReason)
 
 
 class TestMemory(lsst.utils.tests.MemoryTestCase):
