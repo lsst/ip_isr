@@ -1778,6 +1778,7 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         isr_config.doDark = True
         isr_config.doFlat = False
         isr_config.doDefect = True
+        isr_config.maxNanFrac = 1.1
 
         # Set a bad amplifier to a nan gain.
         bad_amp = self.detector[0].getName()
@@ -2362,6 +2363,38 @@ class IsrTaskLSSTTestCase(lsst.utils.tests.TestCase):
         # Make sure it didn't obliterate everything.
         mask_array = result.exposure.mask.array
         self.assertFalse(np.all((mask_array & bad_mask) > 0))
+
+    def test_tooManyNans(self):
+        """Test that we abort on images with too many NaN pixels."""
+        # We use a flat frame for this test for convenience.
+        mock_config = self.get_mock_config_no_signal()
+        mock_config.doAddDark = True
+        mock_config.doAddFlat = True
+        # The doAddSky option adds the equivalent of flat-field flux.
+        mock_config.doAddSky = True
+
+        mock = isrMockLSST.IsrMockLSST(config=mock_config)
+        input_exp = mock.run()
+
+        isr_config = self.get_isr_config_electronic_corrections()
+        isr_config.doBias = True
+        isr_config.doDark = True
+        isr_config.doFlat = False
+        isr_config.doDefect = True
+
+        input_exp.image.array[:, :] = np.nan
+        isr_task = IsrTaskLSST(config=isr_config)
+        with self.assertRaises(UnprocessableDataError):
+            _ = isr_task.run(
+                input_exp.clone(),
+                bias=self.bias,
+                dark=self.dark,
+                crosstalk=self.crosstalk,
+                ptc=self.ptc,
+                linearizer=self.linearizer,
+                defects=self.defects,
+                deferredChargeCalib=self.cti
+            )
 
     def test_hvBiasChecks(self):
         """Test the HVBIAS checks."""
