@@ -691,6 +691,11 @@ class IsrTaskLSSTConfig(pipeBase.PipelineTaskConfig,
         doc="Task to calculate additional statistics.",
     )
 
+    maxNanFrac = pexConfig.Field(
+        dtype=float,
+        doc="The fraction of pixels are allowed to be NaN before the exposure is failed.",
+        default=0.5,
+    )
     # Make binned images?
     doBinnedExposures = pexConfig.Field(
         dtype=bool,
@@ -2650,6 +2655,15 @@ class IsrTaskLSST(pipeBase.PipelineTask):
                 growSaturatedFootprints=self.config.growSaturationFootprintSize,
                 maskNameList=list(self.config.maskListToInterpolate),
                 useLegacyInterp=self.config.useLegacyInterp,
+            )
+
+        # Check to prevent majority NaN images from passing this
+        # processing stage.
+        nanCount = isrFunctions.countMaskedPixels(ccdExposure.getMaskedImage(), ["UNMASKEDNAN"])
+        ccdArea = ccdExposure.getBBox().getArea()
+        if nanCount > self.config.maxNanFrac * ccdArea:
+            raise pipeBase.UnprocessableDataError(
+                "Too many NaN pixels in image.  Preventing further processing."
             )
 
         # Calculate amp offset corrections within the CCD.
