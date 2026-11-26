@@ -824,23 +824,29 @@ class CrosstalkCalib(IsrCalib):
                 c = amp.getReadoutCorner()
                 return a[::-1 if Y_FLIP[c] else 1, ::-1 if X_FLIP[c] else 1]
 
-            N = len(sourceDetector)
             # Use the first amp to get the amp size.
             bbox = self._getAppropriateBBox(sourceDetector[0], isTrimmed, fullAmplifier)
             ny, nx = bbox.getHeight(), bbox.getWidth()
             srcArr = sourceMaskedImage.image.array
-            A = np.empty((2*N, ny*nx), dtype=np.float32)
-            for s, amp in enumerate(sourceDetector):
+
+            active = np.flatnonzero(np.any(coeffs != 0.0, axis=1))
+            nA = len(active)
+
+            A = np.empty((2*nA, ny*nx), dtype=np.float32)
+            for i, s in enumerate(active):
+                amp = sourceDetector[s]
                 bbox = self._getAppropriateBBox(amp, isTrimmed, fullAmplifier)
-                A[s].reshape(ny, nx)[:] = _flip(srcArr[bbox.slices], amp)
-            if np.any(coeffsSqr):
-                np.multiply(A[:N], A[:N], out=A[N:])
-                M = np.concatenate([coeffs, coeffsSqr]).T.astype(np.float32)
+                A[i].reshape(ny, nx)[:] = _flip(srcArr[bbox.slices], amp)
+
+            cLin = coeffs[active].T.astype(np.float32)
+            if np.any(coeffsSqr[active]):
+                np.multiply(A[:nA], A[:nA], out=A[nA:])
+                M = np.concatenate([cLin, coeffsSqr[active].T.astype(np.float32)], axis=1)
                 with threadpool_limits(limits=1, user_api="blas"):
                     C = M @ A
             else:
                 with threadpool_limits(limits=1, user_api="blas"):
-                    C = coeffs.T.astype(np.float32) @ A[:N]
+                    C = cLin @ A[:nA]
 
             subArr = subtrahend.image.array
             for t, amp in enumerate(targetDetector):
