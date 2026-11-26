@@ -1352,17 +1352,15 @@ class DeferredChargeTask(Task):
             Corrected image data.
         """
         r = np.exp(-1/decay_time)
-        Ny, Nx = inputArr.shape
 
         # j = 0 term:
-        offset = np.zeros((num_previous_pixels, Ny, Nx))
-        offset[0, :, :] = drift_scale*np.maximum(0, inputArr)
+        signal = drift_scale*np.maximum(0, inputArr)
+        Linv = signal.astype(np.float64)
 
         # j = 1..jmax terms:
         for n in range(1, num_previous_pixels):
-            offset[n, :, n:] = drift_scale*np.maximum(0, inputArr[:, :-n])*(r**n)
+            np.maximum(Linv[:, n:], signal[:, :-n]*(r**n), out=Linv[:, n:])
 
-        Linv = np.amax(offset, axis=0)
         outputArr = inputArr - Linv
 
         return outputArr
@@ -1396,18 +1394,17 @@ class DeferredChargeTask(Task):
             Corrected image data.
 
         """
-        Ny, Nx = inputArr.shape
         a = 1 - global_cti
         r = np.exp(-1/trap.emission_time)
+        captured = trap.capture(np.maximum(0, inputArr))
 
         # Estimate trap occupancies during readout
-        trap_occupancy = np.zeros((num_previous_pixels, Ny, Nx))
+        trap_occupancy = np.zeros(inputArr.shape)
         for n in range(num_previous_pixels):
-            trap_occupancy[n, :, n+1:] = trap.capture(np.maximum(0, inputArr))[:, :-(n+1)]*(r**n)
-        trap_occupancy = np.amax(trap_occupancy, axis=0)
+            np.maximum(trap_occupancy[:, n+1:], captured[:, :-(n+1)]*(r**n), out=trap_occupancy[:, n+1:])
 
         # Estimate captured charge
-        C = trap.capture(np.maximum(0, inputArr)) - trap_occupancy*r
+        C = captured - trap_occupancy*r
         C[C < 0] = 0.
 
         # Estimate released charge
